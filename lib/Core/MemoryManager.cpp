@@ -99,7 +99,8 @@ MemoryManager::~MemoryManager() {
 MemoryObject *MemoryManager::allocate(uint64_t size, bool isLocal,
                                       bool isGlobal,
                                       const llvm::Value *allocSite,
-                                      size_t alignment) {
+                                      size_t alignment,
+                                      ref<Expr> lazyInstantiatedSource) {
   if (size > 10 * 1024 * 1024)
     klee_warning_once(0, "Large alloc: %" PRIu64
                          " bytes.  KLEE may run out of memory.",
@@ -147,7 +148,7 @@ MemoryObject *MemoryManager::allocate(uint64_t size, bool isLocal,
 
   ++stats::allocations;
   MemoryObject *res = new MemoryObject(address, size, isLocal, isGlobal, false,
-                                       allocSite, this);
+                                       allocSite, this, lazyInstantiatedSource);
   objects.insert(res);
   return res;
 }

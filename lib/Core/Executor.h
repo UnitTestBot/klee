@@ -30,8 +30,10 @@
 #include "klee/System/Time.h"
 
 #include "llvm/ADT/Twine.h"
+#include "llvm/IR/Argument.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <deque>
 #include <map>
 #include <memory>
 #include <set>
@@ -55,6 +57,9 @@ namespace llvm {
   class DataLayout;
   class Twine;
   class Value;
+
+  llvm::Function* getTargetFunction(llvm::Value *calledVal,
+                                    klee::ExecutionState &state);
 }
 
 namespace klee {  
@@ -99,7 +104,18 @@ class Executor : public Interpreter {
   friend klee::Searcher *klee::constructUserSearcher(Executor &executor);
 
 public:
-  typedef std::pair<ExecutionState*,ExecutionState*> StatePair;
+  typedef std::pair<ExecutionState *, ExecutionState *> StatePair;
+  typedef std::map<llvm::BasicBlock *,
+                   std::set<ExecutionState *, ExecutionStateIDCompare>>
+      ExecutedBlock;
+  typedef std::map<llvm::BasicBlock *, std::unordered_set<llvm::BasicBlock *>>
+      VisitedBlock;
+  struct ExecutionBlockResult {
+    VisitedBlock history;
+  };
+  typedef std::map<llvm::BasicBlock *, ExecutionBlockResult> ExecutionResult;
+
+  enum MemoryOperation { Read, Write };
 
   /// The random number generator.
   RNG theRNG;
@@ -113,11 +129,13 @@ private:
   TimingSolver *solver;
   MemoryManager *memory;
   std::set<ExecutionState*, ExecutionStateIDCompare> states;
+  std::set<ExecutionState*, ExecutionStateIDCompare> pausedStates;
   StatsTracker *statsTracker;
   TreeStreamWriter *pathWriter, *symPathWriter;
   SpecialFunctionHandler *specialFunctionHandler;
   TimerGroup timers;
   std::unique_ptr<PTree> processTree;
+  std::map<ref<Expr>, std::pair<ref<Expr>, unsigned>> gepExprBases;
 
   /// Used to track states that have been added during the current
   /// instructions step. 
@@ -212,12 +230,18 @@ private:
   /// Return the typeid corresponding to a certain `type_info`
   ref<ConstantExpr> getEhTypeidFor(ref<Expr> type_info);
 
-  llvm::Function* getTargetFunction(llvm::Value *calledVal,
-                                    ExecutionState &state);
-  
-  void executeInstruction(ExecutionState &state, KInstruction *ki);
+  ExecutionResult results;
 
+  void addHistoryResult(ExecutionState &state);
+
+  void executeInstruction(ExecutionState &state, KInstruction *ki);
+  void targetedRun(ExecutionState &initialState, KBlock *target);
+  void guidedRun(ExecutionState &initialState);
+
+  void seed(ExecutionState &initialState);
   void run(ExecutionState &initialState);
+  void runWithTarget(ExecutionState &state, KFunction *kf, KBlock *target);
+  void runGuided(ExecutionState &state, KFunction *kf);
 
   // Given a concrete object in our [klee's] address space, add it to 
   // objects checked code can reference.
@@ -316,13 +340,23 @@ private:
   // do address resolution / object binding / out of bounds checking
   // and perform the operation
   void executeMemoryOperation(ExecutionState &state,
-                              bool isWrite,
+                              MemoryOperation operation,
                               ref<Expr> address,
                               ref<Expr> value /* undef if read */,
                               KInstruction *target /* undef if write */);
 
+  ObjectPair lazyInstantiate(ExecutionState &state, bool isLocal,
+                             const MemoryObject *mo);
+
+  ObjectPair lazyInstantiateAlloca(ExecutionState &state,
+                                   const MemoryObject *mo, KInstruction *target,
+                                   bool isLocal);
+
+  ObjectPair lazyInstantiateVariable(ExecutionState &state, ref<Expr> address,
+                                     KInstruction *target, uint64_t size);
+
   void executeMakeSymbolic(ExecutionState &state, const MemoryObject *mo,
-                           const std::string &name);
+                           const std::string &name, bool isLocal);
 
   /// Create a new state where each input condition has been added as
   /// a constraint and return the results. The input state is included
@@ -351,8 +385,8 @@ private:
   // Used for testing.
   ref<Expr> replaceReadWithSymbolic(ExecutionState &state, ref<Expr> e);
 
-  const Cell& eval(KInstruction *ki, unsigned index, 
-                   ExecutionState &state) const;
+  const Cell &eval(KInstruction *ki, unsigned index, ExecutionState &state,
+                   bool isSymbolic = true);
 
   Cell& getArgumentCell(ExecutionState &state,
                         KFunction *kf,
@@ -414,6 +448,12 @@ private:
   /// Remove state from queue and delete state
   void terminateState(ExecutionState &state);
 
+  // pause state
+  void pauseState(ExecutionState &state);
+
+  // unpause state
+  void unpauseState(ExecutionState &state);
+
   /// Call exit handler and terminate state normally
   /// (end of execution path)
   void terminateStateOnExit(ExecutionState &state);
@@ -429,6 +469,8 @@ private:
                              StateTerminationType terminationType,
                              const llvm::Twine &longMessage = "",
                              const char *suffix = nullptr);
+
+  void terminateStateOnTerminator(ExecutionState &state);
 
   /// Call error handler and terminate state in case of execution errors
   /// (things that should not be possible, like illegal instruction or
@@ -514,8 +556,32 @@ public:
     usingSeeds = seeds;
   }
 
+  ExecutionState *formState(llvm::Function *f, int argc, char **argv,
+                            char **envp);
+
+  void clearGlobal();
+
+  void prepareSymbolicValue(ExecutionState &state, KInstruction *targetW);
+
+  void prepareSymbolicRegister(ExecutionState &state, StackFrame &sf,
+                               unsigned index);
+
+  void prepareSymbolicArgs(ExecutionState &state, KFunction *kf);
+
+  ref<Expr> makeSymbolicValue(llvm::Value *value, ExecutionState &state,
+                              uint64_t size, Expr::Width width,
+                              const std::string &name);
+
   void runFunctionAsMain(llvm::Function *f, int argc, char **argv,
                          char **envp) override;
+
+  void runFunctionGuided(llvm::Function *fn, int argc, char **argv, char **envp) override;
+
+  void runMainAsGuided(llvm::Function *f, int argc, char **argv,
+                       char **envp) override;
+
+  void runMainWithTarget(llvm::Function *mainFn, llvm::BasicBlock *target,
+                         int argc, char **argv, char **envp) override;
 
   /*** Runtime options ***/
 
@@ -535,10 +601,14 @@ public:
                         Interpreter::LogType logFormat =
                             Interpreter::STP) override;
 
-  bool getSymbolicSolution(
-      const ExecutionState &state,
-      std::vector<std::pair<std::string, std::vector<unsigned char>>> &res)
-      override;
+  int resolveLazyInstantiation(ExecutionState &state) override;
+
+  void setInstantiationGraph(ExecutionState &state, TestCase &tc) override;
+
+  void logState(ExecutionState &state, int id,
+                std::unique_ptr<llvm::raw_fd_ostream> &f) override;
+
+  bool getSymbolicSolution(const ExecutionState &state, TestCase &res) override;
 
   void getCoveredLines(const ExecutionState &state,
                        std::map<const std::string *, std::set<unsigned>> &res)
@@ -552,6 +622,12 @@ public:
 
   MergingSearcher *getMergingSearcher() const { return mergingSearcher; };
   void setMergingSearcher(MergingSearcher *ms) { mergingSearcher = ms; };
+  const Array *makeArray(ExecutionState &state, const uint64_t size,
+                         const std::string &name);
+  void executeStep(ExecutionState &state);
+  bool tryBoundedExecuteStep(ExecutionState &state, unsigned bound);
+  KBlock *calculateTarget(ExecutionState &state);
+  bool isGEPExpr(ref<Expr> expr);
 };
   
 } // End klee namespace

@@ -31,6 +31,7 @@
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Support/Format.h"
 
 #include <errno.h>
 #include <sstream>
@@ -855,7 +856,7 @@ void SpecialFunctionHandler::handleMakeSymbolic(ExecutionState &state,
     assert(success && "FIXME: Unhandled solver failure");
     
     if (res) {
-      executor.executeMakeSymbolic(*s, mo, name);
+      executor.executeMakeSymbolic(*s, mo, name, false);
     } else {      
       executor.terminateStateOnUserError(*s, "Wrong size given to klee_make_symbolic");
     }

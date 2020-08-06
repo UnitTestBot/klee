@@ -47,6 +47,7 @@ private:
 public:
   unsigned id;
   uint64_t address;
+  ref<Expr> lazyInstantiatedSource;
 
   /// size in bytes
   unsigned size;
@@ -75,6 +76,17 @@ public:
   MemoryObject(uint64_t _address) 
     : id(counter++),
       address(_address),
+      lazyInstantiatedSource(nullptr),
+      size(0),
+      isFixed(true),
+      parent(NULL),
+      allocSite(0) {
+  }
+
+  MemoryObject(ref<Expr> _lazyInstantiatedSource)
+    : id(counter++),
+      address((uint64_t)0xffffffffffffffff),
+      lazyInstantiatedSource(_lazyInstantiatedSource),
       size(0),
       isFixed(true),
       parent(NULL),
@@ -84,9 +96,11 @@ public:
   MemoryObject(uint64_t _address, unsigned _size, 
                bool _isLocal, bool _isGlobal, bool _isFixed,
                const llvm::Value *_allocSite,
-               MemoryManager *_parent)
+               MemoryManager *_parent,
+               ref<Expr> _lazyInstantiatedSource = nullptr)
     : id(counter++),
       address(_address),
+      lazyInstantiatedSource(_lazyInstantiatedSource),
       size(_size),
       name("unnamed"),
       isLocal(_isLocal),
@@ -106,8 +120,21 @@ public:
     this->name = name;
   }
 
-  ref<ConstantExpr> getBaseExpr() const { 
+  bool isLazyInstantiated() const { return !lazyInstantiatedSource.isNull(); }
+  ref<Expr> getLazyInstantiatedSource() const {
+    return this->lazyInstantiatedSource;
+  }
+  void setLazyInstantiatedSource(ref<Expr> source) {
+    this->lazyInstantiatedSource = source;
+  }
+  ref<ConstantExpr> getBaseConstantExpr() const {
     return ConstantExpr::create(address, Context::get().getPointerWidth());
+  }
+  ref<Expr> getBaseExpr() const {
+    if (lazyInstantiatedSource.isNull())
+      return getBaseConstantExpr();
+    else
+      return lazyInstantiatedSource;
   }
   ref<ConstantExpr> getSizeExpr() const { 
     return ConstantExpr::create(size, Context::get().getPointerWidth());
@@ -156,6 +183,7 @@ public:
     if (allocSite != b.allocSite)
       return (allocSite < b.allocSite ? -1 : 1);
 
+    assert(lazyInstantiatedSource == b.lazyInstantiatedSource);
     return 0;
   }
 };

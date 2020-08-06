@@ -120,6 +120,60 @@ namespace klee {
     void printName(llvm::raw_ostream &os) override;
   };
 
+  /// TargetedSearcher picks a state /*COMMENT*/.
+  class TargetedSearcher final : public Searcher {
+  public:
+    enum WeightResult : std::uint8_t {
+      Continue,
+      Done,
+      Miss,
+    };
+
+  private:
+    std::unique_ptr<DiscretePDF<ExecutionState *, ExecutionStateIDCompare>>
+        states;
+    KBlock *target;
+    std::map<KFunction *, unsigned int> &distanceToTargetFunction;
+
+    bool distanceInCallGraph(KFunction *kf, KBlock *kb, unsigned int &distance);
+    WeightResult tryGetLocalWeight(ExecutionState *es, double &weight,
+                                   const std::vector<KBlock *> &localTargets);
+    WeightResult tryGetPreTargetWeight(ExecutionState *es, double &weight);
+    WeightResult tryGetTargetWeight(ExecutionState *es, double &weight);
+    WeightResult tryGetPostTargetWeight(ExecutionState *es, double &weight);
+    WeightResult tryGetWeight(ExecutionState *es, double &weight);
+
+  public:
+    ExecutionState *result = nullptr;
+    TargetedSearcher(KBlock *targetBB);
+    ~TargetedSearcher() override = default;
+    ExecutionState &selectState() override;
+    void update(ExecutionState *current,
+                const std::vector<ExecutionState *> &addedStates,
+                const std::vector<ExecutionState *> &removedStates) override;
+    bool empty() override;
+    void printName(llvm::raw_ostream &os) override;
+  };
+
+  class GuidedSearcher final : public Searcher {
+
+  private:
+    std::unique_ptr<Searcher> baseSearcher;
+    std::map<KBlock *, std::unique_ptr<TargetedSearcher>> targetedSearchers;
+    unsigned index{1};
+    void addTarget(KBlock *target);
+
+  public:
+    GuidedSearcher(Searcher *baseSearcher);
+    ~GuidedSearcher() override = default;
+    ExecutionState &selectState() override;
+    void update(ExecutionState *current,
+                const std::vector<ExecutionState *> &addedStates,
+                const std::vector<ExecutionState *> &removedStates) override;
+    bool empty() override;
+    void printName(llvm::raw_ostream &os) override;
+  };
+
   /// The base class for all weighted searchers. Uses DiscretePDF as underlying
   /// data structure.
   class WeightedRandomSearcher final : public Searcher {

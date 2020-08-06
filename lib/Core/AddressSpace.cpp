@@ -85,6 +85,25 @@ bool AddressSpace::resolveOne(ExecutionState &state,
   } else {
     TimerStatIncrementer timer(stats::resolveTime);
 
+    MemoryObject *symHack = nullptr;
+    for (auto &moa : state.symbolics) {
+      if (moa.first->isLazyInstantiated() &&
+          moa.first->getLazyInstantiatedSource() == address) {
+        symHack = const_cast<MemoryObject *>(moa.first.get());
+        break;
+      }
+    }
+
+    if (symHack) {
+      auto osi = objects.find(symHack);
+      if (osi != objects.end()) {
+        result.first = osi->first;
+        result.second = osi->second.get();
+        success = true;
+        return true;
+      }
+    }
+
     // try cheap search, will succeed for any inbounds pointer
 
     ref<ConstantExpr> cex;
@@ -215,6 +234,23 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
   } else {
     TimerStatIncrementer timer(stats::resolveTime);
 
+    MemoryObject *symHack = nullptr;
+    for (auto &moa : state.symbolics) {
+      if (moa.first->isLazyInstantiated() &&
+          moa.first->getLazyInstantiatedSource() == p) {
+        symHack = const_cast<MemoryObject *>(moa.first.get());
+        break;
+      }
+    }
+
+    if (symHack) {
+      auto osi = objects.find(symHack);
+      if (osi != objects.end()) {
+        auto res = std::make_pair<>(osi->first, osi->second.get());
+        rl.push_back(res);
+        return false;
+      }
+    }
     // XXX in general this isn't exactly what we want... for
     // a multiple resolution case (or for example, a \in {b,c,0})
     // we want to find the first object, find a cex assuming
@@ -341,9 +377,15 @@ bool AddressSpace::copyInConcrete(const MemoryObject *mo, const ObjectState *os,
   return true;
 }
 
+void AddressSpace::clear() { objects.clear(); }
+
 /***/
 
-bool MemoryObjectLT::operator()(const MemoryObject *a, const MemoryObject *b) const {
-  return a->address < b->address;
+bool MemoryObjectLT::operator()(const MemoryObject *a,
+                                const MemoryObject *b) const {
+  bool res = true;
+  if (!a->lazyInstantiatedSource.isNull() &&
+      !b->lazyInstantiatedSource.isNull())
+    res = a->lazyInstantiatedSource != b->lazyInstantiatedSource;
+  return res ? a->address < b->address : false;
 }
-
