@@ -3,12 +3,12 @@
 // RUN: %klee --output-dir=%t.klee-out %t.bc
 //
 // There should be a unique solution
-// RUN: test -f %t.klee-out/test000001.ktest
-// RUN: test ! -f %t.klee-out/test000002.ktest
+// RUN: test -f %t.klee-out/test000002.ktest
+// RUN: test ! -f %t.klee-out/test000001.ktest
 
 // Now try to replay with libkleeRuntest
 // RUN: %cc %s %libkleeruntest -Wl,-rpath %libkleeruntestdir -o %t_runner
-// RUN: env KTEST_FILE=%t.klee-out/test000001.ktest %t_runner 2>out | FileCheck %s
+// RUN: env KTEST_FILE=%t.klee-out/test000001.ktest %t_runner | FileCheck %s
 
 #include "klee/klee.h"
 #include <stdio.h>
