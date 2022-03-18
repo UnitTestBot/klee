@@ -19,6 +19,10 @@ install_build_dependencies_klee() {
     dependencies+=(lcov curl)
   fi
 
+  if [[ $(to_bool "${ENABLE_DOXYGEN}") -eq 1 ]]; then
+    dependencies+=(doxygen graphviz)
+  fi
+
   apt -y --no-install-recommends install "${dependencies[@]}"
 
   pip3 install lit
