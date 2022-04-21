@@ -387,9 +387,10 @@ bool ExecutionState::merge(const ExecutionState &b) {
   return true;
 }
 
-void ExecutionState::dumpStack(llvm::raw_ostream &out) const {
+void ExecutionState::dumpStack(llvm::raw_ostream &out, json *jsonOutput) const {
   unsigned idx = 0;
   const KInstruction *target = prevPC;
+  std::stack<json> jsonStack;
   for (ExecutionState::stack_ty::const_reverse_iterator
          it = stack.rbegin(), ie = stack.rend();
        it != ie; ++it) {
@@ -414,10 +415,28 @@ void ExecutionState::dumpStack(llvm::raw_ostream &out) const {
         out << "=" << value;
     }
     out << ")";
-    if (ii.file != "")
+    json curInStack;
+    if (ii.file != "") {
+      curInStack["file"] = ii.file;
+      curInStack["line"] = ii.line;
       out << " at " << ii.file << ":" << ii.line;
+    }
+    jsonStack.push(curInStack);
     out << "\n";
     target = sf.caller;
+  }
+
+  if (jsonOutput) {
+    json prev = jsonStack.top();
+    jsonStack.pop();
+    json cur;
+    while (!jsonStack.empty()) {
+      cur = jsonStack.top();
+      jsonStack.pop();
+      cur["from"] = prev;
+      prev = cur;
+    }
+    (*jsonOutput)["from"] = cur;
   }
 }
 
