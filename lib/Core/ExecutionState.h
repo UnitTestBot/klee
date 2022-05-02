@@ -313,4 +313,9 @@ struct ExecutionStateIDCompare {
 };
 }
 
+namespace sarif {
+json getLocationObj();
+void createSarifResultTemplate(json &obj);
+}
+
 #endif /* KLEE_EXECUTIONSTATE_H */

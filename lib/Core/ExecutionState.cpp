@@ -387,6 +387,46 @@ bool ExecutionState::merge(const ExecutionState &b) {
   return true;
 }
 
+namespace sarif {
+json getLocationObj() {
+  return
+      R"(
+    {
+      "physicalLocation" : {
+        "artifactLocation" : {
+          "uri" : {}
+        },
+        "region" : {
+          "startLine" : {}
+        }
+      }
+    }
+    )"_json;
+}
+
+void createSarifResultTemplate(json &obj) {
+  obj = R"(
+      {
+        "message" : {
+          "text"  : {}
+        },
+        "ruleId" : {},
+        "level" : {},
+        "locations" : [],
+        "codeFlows": [
+          {
+            "threadFlows": [
+              {
+                "locations": []
+              }
+            ]
+          }
+         ]
+      }
+      )"_json;
+}
+}
+
 void ExecutionState::dumpStack(llvm::raw_ostream &out, json *jsonOutput) const {
   unsigned idx = 0;
   const KInstruction *target = prevPC;
@@ -415,28 +455,26 @@ void ExecutionState::dumpStack(llvm::raw_ostream &out, json *jsonOutput) const {
         out << "=" << value;
     }
     out << ")";
-    json curInStack;
+    json location;
+    location["location"] = sarif::getLocationObj();
     if (ii.file != "") {
-      curInStack["file"] = ii.file;
-      curInStack["line"] = ii.line;
+      location.at("location").at("physicalLocation").at("artifactLocation").at("uri") = ii.file;
+      location.at("location").at("physicalLocation").at("region").at("startLine") = ii.line;
       out << " at " << ii.file << ":" << ii.line;
     }
-    jsonStack.push(curInStack);
+    jsonStack.push(location);
     out << "\n";
     target = sf.caller;
   }
 
   if (jsonOutput) {
-    json prev = jsonStack.top();
-    jsonStack.pop();
-    json cur;
     while (!jsonStack.empty()) {
-      cur = jsonStack.top();
+      json location = jsonStack.top();
       jsonStack.pop();
-      cur["from"] = prev;
-      prev = cur;
+      (*jsonOutput).at("codeFlows").at(0).
+          at("threadFlows").at(0).
+            at("locations").push_back(location);
     }
-    (*jsonOutput)["from"] = cur;
   }
 }
 

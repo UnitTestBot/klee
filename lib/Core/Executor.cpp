@@ -4226,21 +4226,25 @@ void Executor::terminateStateOnError(ExecutionState &state,
     } else {
       klee_message("ERROR: (location information missing) %s", message.c_str());
     }
-    if (!EmitAllErrors)
+    if (!EmitAllErrors) {
       klee_message("NOTE: now ignoring this error at this location");
+    }
 
     std::string MsgString;
     llvm::raw_string_ostream msg(MsgString);
     json json_output;
-    json_output["error"] = message;
+    sarif::createSarifResultTemplate(json_output);
+
     msg << "Error: " << message << '\n';
     if (ii.file != "") {
       msg << "File: " << ii.file << '\n'
           << "Line: " << ii.line << '\n'
           << "assembly.ll line: " << ii.assemblyLine << '\n'
           << "State: " << state.getID() << '\n';
-      json_output["file"] = ii.file;
-      json_output["line"] = ii.line;
+      json location = sarif::getLocationObj();
+      location.at("physicalLocation").at("artifactLocation").at("uri") = ii.file;
+      location.at("physicalLocation").at("region").at("startLine") = ii.line;
+      json_output.at("locations").push_back(location);
     }
     msg << "Stack: \n";
     state.dumpStack(msg, &json_output);
@@ -4256,6 +4260,9 @@ void Executor::terminateStateOnError(ExecutionState &state,
       suffix = suffix_buf.c_str();
     }
 
+    json_output.at("message").at("text") = message;
+    json_output.at("level") = "error";
+    json_output.at("ruleId") = suffix;
     std::string json_file =
             interpreterHandler->getOutputFilename(
                     "__sarif_" +interpreterHandler->
@@ -4266,7 +4273,7 @@ void Executor::terminateStateOnError(ExecutionState &state,
         assert(false);
     }
 
-    fout << std::setw(4) << json_output << std::endl;
+    fout << std::setw(2) << json_output << std::endl;
     fout.close();
 
     interpreterHandler->processTestCase(state, msg.str().c_str(), suffix);
