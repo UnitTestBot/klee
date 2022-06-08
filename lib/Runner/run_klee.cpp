@@ -160,7 +160,7 @@ namespace {
   RunInDir("run-in-dir",
            cl::desc("Change to the given directory before starting execution (default=location of tested file)."),
            cl::cat(StartCat));
-  
+
   cl::opt<std::string>
   OutputDir("output-dir",
             cl::desc("Directory in which to write results (default=klee-out-<N>)"),
@@ -182,7 +182,7 @@ namespace {
   WarnAllExternals("warn-all-external-symbols",
                    cl::desc("Issue a warning on startup for all external symbols (default=false)."),
                    cl::cat(StartCat));
-  
+
 
   /*** Linking options ***/
 
@@ -253,10 +253,10 @@ namespace {
 
 
   /*** Replaying options ***/
-  
+
   cl::OptionCategory ReplayCat("Replaying options",
                                "These options impact replaying of test cases.");
-  
+
   cl::opt<bool>
   ReplayKeepSymbolic("replay-keep-symbolic",
                      cl::desc("Replay the test cases only by asserting "
@@ -1049,28 +1049,11 @@ void externalsAndGlobalsCheck(const llvm::Module *m) {
   if (WithPOSIXRuntime)
     dontCare.insert("syscall");
 
-  for (Module::const_iterator fnIt = m->begin(), fn_ie = m->end();
-       fnIt != fn_ie; ++fnIt) {
-    if (fnIt->isDeclaration() && !fnIt->use_empty())
-      externals.insert(std::make_pair(fnIt->getName(), false));
-    for (Function::const_iterator bbIt = fnIt->begin(), bb_ie = fnIt->end();
-         bbIt != bb_ie; ++bbIt) {
-      for (BasicBlock::const_iterator it = bbIt->begin(), ie = bbIt->end();
-           it != ie; ++it) {
-        if (const CallInst *ci = dyn_cast<CallInst>(it)) {
-#if LLVM_VERSION_CODE >= LLVM_VERSION(8, 0)
-          if (isa<InlineAsm>(ci->getCalledOperand())) {
-#else
-          if (isa<InlineAsm>(ci->getCalledValue())) {
-#endif
-            klee_warning_once(&*fnIt,
-                              "function \"%s\" has inline asm",
-                              fnIt->getName().data());
-          }
-        }
-      }
+    for (Module::const_iterator fnIt = m->begin(), fn_ie = m->end();
+         fnIt != fn_ie; ++fnIt) {
+        if (fnIt->isDeclaration() && !fnIt->use_empty())
+            externals.insert(std::make_pair(fnIt->getName(), false));
     }
-  }
 
   for (Module::const_global_iterator
          it = m->global_begin(), ie = m->global_end();
