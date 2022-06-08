@@ -44,6 +44,7 @@
 #include "klee/Module/Cell.h"
 #include "klee/Module/CodeGraphDistance.h"
 #include "klee/Module/InstructionInfoTable.h"
+#include "klee/Module/KCallable.h"
 #include "klee/Module/KInstruction.h"
 #include "klee/Module/KModule.h"
 #include "klee/Module/KType.h"
@@ -72,6 +73,7 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/LLVMContext.h"
@@ -1125,7 +1127,7 @@ ref<Expr> Executor::maxStaticPctChecks(ExecutionState &current,
 Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
                                    bool isInternal, BranchType reason) {
   Solver::Validity res;
-  std::map< ExecutionState*, std::vector<SeedInfo> >::iterator it = 
+  std::map< ExecutionState*, std::vector<SeedInfo> >::iterator it =
     seedMap.find(&current);
   bool isSeeding = it != seedMap.end();
 
@@ -1353,7 +1355,7 @@ void Executor::addConstraint(ExecutionState &state, ref<Expr> condition) {
                                  ConstantExpr::alloc(1, Expr::Bool));
 }
 
-const Cell& Executor::eval(KInstruction *ki, unsigned index, 
+const Cell& Executor::eval(KInstruction *ki, unsigned index,
                            ExecutionState &state) const {
   assert(index < ki->inst->getNumOperands());
   int vnumber = ki->operands[index];
@@ -1813,10 +1815,11 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
     }
 #endif
     switch (f->getIntrinsicID()) {
-    case Intrinsic::not_intrinsic:
+    case Intrinsic::not_intrinsic: {
       // state may be destroyed by this call, cannot touch
-      callExternalFunction(state, ki, f, arguments);
+      callExternalFunction(state, ki, kmodule->functionMap[f], arguments);
       break;
+    }
     case Intrinsic::fabs: {
 #ifndef ENABLE_FP
       ref<ConstantExpr> arg =
@@ -2239,7 +2242,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     if (!isVoidReturn) {
       result = eval(ki, 0, state).value;
     }
-    
+
     if (state.stack.size() <= 1) {
       assert(!caller && "caller set on initial stack frame");
       state.pc = state.prevPC;
@@ -2579,16 +2582,22 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     unsigned numArgs = cs.arg_size();
     Function *f = getTargetFunction(fp);
 
-    if (isa<InlineAsm>(fp)) {
-      terminateStateOnExecError(state, "inline assembly is unsupported");
-      break;
-    }
     // evaluate arguments
     std::vector< ref<Expr> > arguments;
     arguments.reserve(numArgs);
 
     for (unsigned j=0; j<numArgs; ++j)
       arguments.push_back(eval(ki, j+1, state).value);
+
+    if (auto* asmValue = dyn_cast<InlineAsm>(fp)) { //TODO: move to `executeCall`
+      if (ExternalCalls != ExternalCallPolicy::None) {
+        KInlineAsm callable(asmValue);
+        callExternalFunction(state, ki, &callable, arguments);
+      } else {
+        terminateStateOnExecError(state, "external calls disallowed (in particular inline asm)");
+      }
+      break;
+    }
 
     if (f) {
       const FunctionType *fType = 
@@ -3830,8 +3839,8 @@ void Executor::run(ExecutionState &initialState) {
 
   if (usingSeeds) {
     std::vector<SeedInfo> &v = seedMap[&initialState];
-    
-    for (std::vector<KTest*>::const_iterator it = usingSeeds->begin(), 
+
+    for (std::vector<KTest*>::const_iterator it = usingSeeds->begin(),
            ie = usingSeeds->end(); it != ie; ++it)
       v.push_back(SeedInfo(*it));
 
@@ -3844,7 +3853,7 @@ void Executor::run(ExecutionState &initialState) {
         return;
       }
 
-      std::map<ExecutionState*, std::vector<SeedInfo> >::iterator it = 
+      std::map<ExecutionState*, std::vector<SeedInfo> >::iterator it =
         seedMap.upper_bound(lastState);
       if (it == seedMap.end())
         it = seedMap.begin();
@@ -3876,8 +3885,8 @@ void Executor::run(ExecutionState &initialState) {
         } else if (numSeeds<=lastNumSeeds-10 ||
                    time - lastTime >= time::seconds(10)) {
           lastTime = time;
-          lastNumSeeds = numSeeds;          
-          klee_message("%d seeds remaining over: %d states", 
+          lastNumSeeds = numSeeds;
+          klee_message("%d seeds remaining over: %d states",
                        numSeeds, numStates);
         }
       }
@@ -4216,16 +4225,18 @@ static std::set<std::string> okExternals(okExternalsList,
 
 void Executor::callExternalFunction(ExecutionState &state,
                                     KInstruction *target,
-                                    Function *function,
+                                    KCallable *callable,
                                     std::vector< ref<Expr> > &arguments) {
   // check if specialFunctionHandler wants it
-  if (specialFunctionHandler->handle(state, function, target, arguments))
-    return;
+  if (const auto *func = dyn_cast<KFunction>(callable)) {
+    if (specialFunctionHandler->handle(state, func->function, target, arguments))
+      return;
+  }
 
   if (ExternalCalls == ExternalCallPolicy::None &&
-      !okExternals.count(function->getName().str())) {
+      !okExternals.count(callable->getName().str())) {
     klee_warning("Disallowed call to external function: %s\n",
-               function->getName().str().c_str());
+               callable->getName().str().c_str());
     terminateStateOnUserError(state, "external calls disallowed");
     return;
   }
@@ -4237,6 +4248,13 @@ void Executor::callExternalFunction(ExecutionState &state,
   uint64_t *args = (uint64_t*) alloca(2*sizeof(*args) * (arguments.size() + 1));
   memset(args, 0, 2 * sizeof(*args) * (arguments.size() + 1));
   unsigned wordIndex = 2;
+
+  /* To check types we iterate over types of parameteres in function
+  signature. Notice, that number of them can differ from passed,
+  as function can have variadic arguments. */
+  llvm::FunctionType *functionType = callable->getFunctionType();
+
+  llvm::FunctionType::param_iterator ati = functionType->param_begin();
   for (std::vector<ref<Expr> >::iterator ai = arguments.begin(), 
        ae = arguments.end(); ai!=ae; ++ai) {
     if (ExternalCalls == ExternalCallPolicy::All) { // don't bother checking uniqueness
@@ -4249,6 +4267,11 @@ void Executor::callExternalFunction(ExecutionState &state,
       ce->toMemory(&args[wordIndex]);
       IDType result;
       addConstraint(state, EqExpr::create(ce, *ai));
+      // Checking to see if the argument is a pointer to something
+      llvm::Type *argumentType = nullptr;
+      if (ati != functionType->param_end()) {
+        argumentType = const_cast<llvm::Type *>(*ati);
+      }
       if (ce->getWidth() == Context::get().getPointerWidth() &&
           state.addressSpace.resolveOne(ce, typeSystemManager->getWrappedType(argumentType), result)) {
         state.addressSpace.findObject(result).second->flushToConcreteStore(
@@ -4268,9 +4291,12 @@ void Executor::callExternalFunction(ExecutionState &state,
       } else {
         terminateStateOnExecError(state,
                                   "external call with symbolic argument: " +
-                                  function->getName());
+                                  callable->getName());
         return;
       }
+    }
+    if (ati != functionType->param_end()) {
+      ++ati;
     }
   }
 
@@ -4298,7 +4324,7 @@ void Executor::callExternalFunction(ExecutionState &state,
   if (!errnoValue) {
     terminateStateOnExecError(state,
                               "external call with errno value symbolic: " +
-                                  function->getName());
+                                  callable->getName());
     return;
   }
 
@@ -4310,7 +4336,7 @@ void Executor::callExternalFunction(ExecutionState &state,
 
     std::string TmpStr;
     llvm::raw_string_ostream os(TmpStr);
-    os << "calling external: " << function->getName().str() << "(";
+    os << "calling external: " << callable->getName().str() << "(";
     for (unsigned i=0; i<arguments.size(); i++) {
       os << arguments[i];
       if (i != arguments.size()-1)
@@ -4321,7 +4347,7 @@ void Executor::callExternalFunction(ExecutionState &state,
     if (AllExternalWarnings)
       klee_warning("%s", os.str().c_str());
     else
-      klee_warning_once(function, "%s", os.str().c_str());
+      klee_warning_once(callable->getValue(), "%s", os.str().c_str());
   }
 
   int roundingMode = LLVMRoundingModeToCRoundingMode(state.roundingMode);
@@ -4332,10 +4358,10 @@ void Executor::callExternalFunction(ExecutionState &state,
       return;
   }
 
-  bool success = externalDispatcher->executeCall(function, target->inst, args, roundingMode);
+  bool success = externalDispatcher->executeCall(callable, target->inst, args, roundingMode);
 
   if (!success) {
-    terminateStateOnError(state, "failed external call: " + function->getName(),
+    terminateStateOnError(state, "failed external call: " + callable->getName(),
                           StateTerminationType::External);
     return;
   }
@@ -4354,7 +4380,7 @@ void Executor::callExternalFunction(ExecutionState &state,
 #endif
 
   Type *resultType = target->inst->getType();
-  if (resultType != Type::getVoidTy(function->getContext())) {
+  if (resultType != Type::getVoidTy(kmodule->module->getContext())) {
     ref<Expr> e = ConstantExpr::fromMemory((void*) args, 
                                            getWidthForLLVMType(resultType));
     bindLocal(target, state, e);
@@ -4390,7 +4416,7 @@ ref<Expr> Executor::replaceReadWithSymbolic(ExecutionState &state,
   return res;
 }
 
-ObjectState *Executor::bindObjectInState(ExecutionState &state, 
+ObjectState *Executor::bindObjectInState(ExecutionState &state,
                                          const MemoryObject *mo,
                                          KType *dynamicType, bool isLocal,
                                          const Array *array) {
@@ -4605,7 +4631,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
                                       KType *targetType, ref<Expr> address,
                                       ref<Expr> value /* undef if read */,
                                       KInstruction *target /* undef if write */) {
-  Expr::Width type = (isWrite ? value->getWidth() : 
+  Expr::Width type = (isWrite ? value->getWidth() :
                      getWidthForLLVMType(target->inst->getType()));
   unsigned bytes = Expr::getMinBytesForWidth(type);
 
@@ -4690,7 +4716,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
                                 StateTerminationType::ReadOnly);
         } else {
           wos->write(offset, value);
-        }          
+        }
       } else {
         wos->getDynamicType()->handleMemoryAccess(
             targetType, offset,
@@ -4699,13 +4725,13 @@ void Executor::executeMemoryOperation(ExecutionState &state,
 
         if (interpreterOpts.MakeConcreteSymbolic)
           result = replaceReadWithSymbolic(state, result);
-        
+
         bindLocal(target, state, result);
       }
 
       return;
     }
-  } 
+  }
 
   // we are on an error path (no resolution, multiple resolution, one
   // resolution with out of bounds)
