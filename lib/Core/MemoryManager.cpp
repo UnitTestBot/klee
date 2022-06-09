@@ -22,6 +22,8 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/MathExtras.h"
 
+#include "llvm/IR/Instructions.h"
+
 #include <inttypes.h>
 #include <sys/mman.h>
 
@@ -156,8 +158,17 @@ MemoryObject *MemoryManager::allocate(uint64_t size, bool isLocal,
     return 0;
 
   ++stats::allocations;
+
+  // Assume that if allocatedType is nullptr, than there is no type
+  llvm::Type *allocatedType = nullptr;
+  if (const llvm::AllocaInst *inst = dyn_cast_or_null<llvm::AllocaInst>(allocSite)) {
+    allocatedType = inst->getAllocatedType();
+    assert(allocatedType && "Attempted to allocate variable without a type");
+  }
+
   MemoryObject *res = new MemoryObject(address, size, isLocal, isGlobal, false,
-                                       allocSite, this, lazyInstantiatedSource);
+                                       allocSite, this, allocatedType, lazyInstantiatedSource);
+
   objects.insert(res);
   return res;
 }
@@ -174,8 +185,17 @@ MemoryObject *MemoryManager::allocateFixed(uint64_t address, uint64_t size,
 #endif
 
   ++stats::allocations;
+
+  // Assume that if allocatedType is nullptr, than there is no type
+  llvm::Type *allocatedType = nullptr;
+  if (const llvm::AllocaInst *inst = dyn_cast_or_null<llvm::AllocaInst>(allocSite)) {
+    allocatedType = inst->getAllocatedType();
+    assert(allocatedType && "Attempted to allocate variable without a type");
+  }
+
   MemoryObject *res =
-      new MemoryObject(address, size, false, true, true, allocSite, this);
+      new MemoryObject(address, size, false, true, true, allocSite, this, allocatedType);
+
   objects.insert(res);
   return res;
 }

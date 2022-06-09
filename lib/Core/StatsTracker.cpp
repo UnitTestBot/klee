@@ -236,8 +236,10 @@ StatsTracker::StatsTracker(Executor &_executor, std::string _objectFilename,
       
       if (kf->trackCoverage) {
         if (BranchInst *bi = dyn_cast<BranchInst>(ki->inst))
-          if (!bi->isUnconditional())
+          if (!bi->isUnconditional()) {
             numBranches++;
+            ++stats::numBranches;
+          }
       }
     }
   }
@@ -450,16 +452,32 @@ void StatsTracker::markBranchVisited(ExecutionState *visitedTrue,
       visitedTrue->coveredNew = true;
       visitedTrue->instsSinceCovNew = 1;
       ++stats::trueBranches;
-      if (hasFalse) { ++fullBranches; --partialBranches; }
-      else ++partialBranches;
+      if (hasFalse) { 
+        ++fullBranches; 
+        --partialBranches;
+        ++stats::fullBranches;
+        stats::partialBranches += -1;
+      }
+      else {
+        ++partialBranches; 
+        ++stats::partialBranches; 
+      }
       hasTrue = 1;
     }
     if (visitedFalse && !hasFalse) {
       visitedFalse->coveredNew = true;
       visitedFalse->instsSinceCovNew = 1;
       ++stats::falseBranches;
-      if (hasTrue) { ++fullBranches; --partialBranches; }
-      else ++partialBranches;
+      if (hasTrue) {
+        ++fullBranches;
+        --partialBranches; 
+        ++stats::fullBranches; 
+        stats::partialBranches += -1; 
+      }
+      else { 
+        ++partialBranches; 
+        ++stats::partialBranches; 
+      }
     }
   }
 }
@@ -637,6 +655,10 @@ void StatsTracker::writeIStats() {
   istatsMask.set(sm.getStatisticID("UncoveredInstructions"));
   istatsMask.set(sm.getStatisticID("States"));
   istatsMask.set(sm.getStatisticID("MinDistToUncovered"));
+  istatsMask.set(sm.getStatisticID("FullBranches"));
+  istatsMask.set(sm.getStatisticID("PartialBranches"));
+  istatsMask.set(sm.getStatisticID("NumBranches"));
+
 
   of << "positions: instr line\n";
 

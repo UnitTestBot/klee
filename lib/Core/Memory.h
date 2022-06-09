@@ -16,6 +16,7 @@
 
 #include "Context.h"
 #include "TimingSolver.h"
+#include "klee/Module/KType.h"
 
 #include "klee/Expr/Expr.h"
 
@@ -35,7 +36,6 @@ class BitArray;
 class ExecutionState;
 class MemoryManager;
 class Solver;
-
 class MemoryObject {
   friend class STPBuilder;
   friend class ObjectState;
@@ -66,6 +66,11 @@ public:
 
   MemoryManager *parent;
 
+
+  /// Type which can be seen through the "Aliased Type"
+  /// of that MO.
+  const KType dynamicType;
+  
   /// "Location" for which this memory object was allocated. This
   /// should be either the allocating instruction or the global object
   /// it was allocated for (or whatever else makes sense).
@@ -83,24 +88,28 @@ public:
 
 public:
   // XXX this is just a temp hack, should be removed
+  // TODO: the next 2 ctors, as described above, are used only for
+  // search in memory tree. We do not care about type of MO. 
   explicit
-  MemoryObject(uint64_t _address) 
+  MemoryObject(uint64_t _address, llvm::Type *objectType = nullptr) 
     : id(counter++),
       address(_address),
       lazyInstantiatedSource(nullptr),
       size(0),
       isFixed(true),
       parent(NULL),
+      dynamicType(objectType),
       allocSite(0) {
   }
 
-  MemoryObject(ref<Expr> _lazyInstantiatedSource)
+  MemoryObject(ref<Expr> _lazyInstantiatedSource, llvm::Type *objectType = nullptr)
     : id(counter++),
       address((uint64_t)0xffffffffffffffff),
       lazyInstantiatedSource(_lazyInstantiatedSource),
       size(0),
       isFixed(true),
       parent(NULL),
+      dynamicType(objectType),
       allocSite(0) {
   }
 
@@ -108,6 +117,7 @@ public:
                bool _isLocal, bool _isGlobal, bool _isFixed,
                const llvm::Value *_allocSite,
                MemoryManager *_parent,
+               llvm::Type *objectType = nullptr,
                ref<Expr> _lazyInstantiatedSource = nullptr)
     : id(counter++),
       address(_address),
@@ -119,6 +129,7 @@ public:
       isFixed(_isFixed),
       isUserSpecified(false),
       parent(_parent), 
+      dynamicType(objectType),
       allocSite(_allocSite) {
   }
 

@@ -27,3 +27,6 @@ Statistic stats::solverTime("SolverTime", "Stime");
 Statistic stats::states("States", "States");
 Statistic stats::trueBranches("TrueBranches", "Bt");
 Statistic stats::uncoveredInstructions("UncoveredInstructions", "Iuncov");
+Statistic stats::fullBranches("FullBranches", "Bfull");
+Statistic stats::partialBranches("PartialBranches", "Bpart");
+Statistic stats::numBranches("NumBranches", "Bn");

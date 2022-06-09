@@ -308,6 +308,7 @@ private:
                                  ExecutionState*> > ExactResolutionList;
   void resolveExact(ExecutionState &state,
                     ref<Expr> p,
+                    llvm::Type *type,
                     ExactResolutionList &results,
                     const std::string &name);
 
@@ -366,11 +367,13 @@ private:
   // and perform the operation
   void executeMemoryOperation(ExecutionState &state,
                               MemoryOperation operation,
+                              llvm::Type *targetType,
                               ref<Expr> address,
                               ref<Expr> value /* def if write*/,
                               KInstruction *target /* def if read*/);
 
   ObjectPair lazyInstantiate(ExecutionState &state,
+                             llvm::Type *type,
                              bool isLocal,
                              const MemoryObject *mo);
 

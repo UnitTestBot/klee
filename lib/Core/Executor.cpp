@@ -1301,7 +1301,6 @@ const Cell& Executor::eval(KInstruction *ki, unsigned index,
                            ExecutionState &state) {
   assert(index < ki->inst->getNumOperands());
   int vnumber = ki->operands[index];
-
   assert(vnumber != -1 &&
          "Invalid operand to eval(), not a value or constant!");
 
@@ -1884,7 +1883,7 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
       // size. This happens to work for x86-32 and x86-64, however.
       Expr::Width WordSize = Context::get().getPointerWidth();
       if (WordSize == Expr::Int32) {
-        executeMemoryOperation(state, Write, arguments[0],
+        executeMemoryOperation(state, Write, nullptr, arguments[0],
                                sf.varargs->getBaseExpr(), nullptr);
       } else {
         assert(WordSize == Expr::Int64 && "Unknown word size!");
@@ -1893,19 +1892,19 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
         // instead of implementing it, we can do a simple hack: just
         // make a function believe that all varargs are on stack.
         executeMemoryOperation(
-            state, Write,
+            state, Write, nullptr,
             arguments[0],
             ConstantExpr::create(48, 32), nullptr); // gp_offset
         executeMemoryOperation(
-            state, Write,
+            state, Write, nullptr,
             AddExpr::create(arguments[0], ConstantExpr::create(4, 64)),
             ConstantExpr::create(304, 32), nullptr); // fp_offset
         executeMemoryOperation(
-            state, Write,
+            state, Write, nullptr,
             AddExpr::create(arguments[0], ConstantExpr::create(8, 64)),
             sf.varargs->getBaseExpr(), nullptr); // overflow_arg_area
         executeMemoryOperation(
-            state, Write,
+            state, Write, nullptr,
             AddExpr::create(arguments[0], ConstantExpr::create(16, 64)),
             ConstantExpr::create(0, 64), nullptr); // reg_save_area
       }
@@ -2086,6 +2085,8 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
 
         ObjectState *os = bindObjectInState(state, mo, true);
 
+        llvm::Function::arg_iterator ati = std::next(f->arg_begin(), funcArgs);
+
         for (unsigned k = funcArgs; k < callingArgs; k++) {
           if (!cs.isByValArgument(k)) {
             os->write(offsets[k], arguments[k]);
@@ -2094,11 +2095,15 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
             assert(CE); // byval argument needs to be a concrete pointer
 
             ObjectPair op;
-            state.addressSpace.resolveOne(CE, op);
+            state.addressSpace.resolveOne(CE, ati->getType(),op);
             const ObjectState *osarg = op.second;
             assert(osarg);
             for (unsigned i = 0; i < osarg->size; i++)
               os->write(offsets[k] + i, osarg->read8(i));
+          }
+          // TODO: inspcet number of argument of a function with variadic
+          if (ati != std::prev(f->arg_end(), 1)) {
+            ++ati;
           }
         }
       }
@@ -2835,14 +2840,14 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
   case Instruction::Load: {
     ref<Expr> base = eval(ki, 0, state).value;
-    executeMemoryOperation(state, Read, base, nullptr, ki);
+    executeMemoryOperation(state, Read, ki->inst->getType(), base, nullptr, ki);
     break;
   }
 
   case Instruction::Store: {
     ref<Expr> base = eval(ki, 1, state).value;
     ref<Expr> value = eval(ki, 0, state).value;
-    executeMemoryOperation(state, Write, base, value, ki);
+    executeMemoryOperation(state, Write, ki->inst->getType(), base, value, ki);
     break;
   }
 
@@ -4293,6 +4298,8 @@ void Executor::callExternalFunction(ExecutionState &state,
   uint64_t *args = (uint64_t*) alloca(2*sizeof(*args) * (arguments.size() + 1));
   memset(args, 0, 2 * sizeof(*args) * (arguments.size() + 1));
   unsigned wordIndex = 2;
+  
+  llvm::Function::arg_iterator ati = function->arg_begin();
   for (std::vector<ref<Expr> >::iterator ai = arguments.begin(), 
        ae = arguments.end(); ai!=ae; ++ai) {
     if (ExternalCalls == ExternalCallPolicy::All) { // don't bother checking uniqueness
@@ -4306,12 +4313,18 @@ void Executor::callExternalFunction(ExecutionState &state,
       ObjectPair op;
       // Checking to see if the argument is a pointer to something
       if (ce->getWidth() == Context::get().getPointerWidth() &&
-          state.addressSpace.resolveOne(ce, op)) {
+          state.addressSpace.resolveOne(ce, ati->getType(), op)) {
+        llvm::outs() << "Expected ";
+        ati->getType()->print(llvm::outs());
+        llvm::outs() << "; Got ";
+        op.first->dynamicType.type->print(llvm::outs());
+        llvm::outs() << '\n';
         op.second->flushToConcreteStore(solver, state);
       }
       wordIndex += (ce->getWidth()+63)/64;
     } else {
       ref<Expr> arg = toUnique(state, *ai);
+      // TODO: check if cast is possible
       if (ConstantExpr *ce = dyn_cast<ConstantExpr>(arg)) {
         // XXX kick toMemory functions from here
         ce->toMemory(&args[wordIndex]);
@@ -4323,6 +4336,7 @@ void Executor::callExternalFunction(ExecutionState &state,
         return;
       }
     }
+    ++ati;
   }
 
   // Prepare external memory for invoking the function
@@ -4332,7 +4346,10 @@ void Executor::callExternalFunction(ExecutionState &state,
   int *errno_addr = getErrnoLocation(state);
   ObjectPair result;
   bool resolved = state.addressSpace.resolveOne(
-      ConstantExpr::create((uint64_t)errno_addr, Expr::Int64), result);
+      ConstantExpr::create((uint64_t)errno_addr, Expr::Int64), 
+      llvm::Type::getInt64PtrTy(function->getContext()), 
+      result
+      );
   if (!resolved) {
     terminateStateOnExecError(state,
                                 "could not resolve memory object for errno: " +
@@ -4586,7 +4603,7 @@ void Executor::executeFree(ExecutionState &state,
   }
   if (zeroPointer.second) { // address != 0
     ExactResolutionList rl;
-    resolveExact(*zeroPointer.second, address, rl, "free");
+    resolveExact(*zeroPointer.second, address, target->inst->getType(), rl,"free");
     
     for (Executor::ExactResolutionList::iterator it = rl.begin(), 
            ie = rl.end(); it != ie; ++it) {
@@ -4608,12 +4625,13 @@ void Executor::executeFree(ExecutionState &state,
 
 void Executor::resolveExact(ExecutionState &state,
                             ref<Expr> p,
+                            llvm::Type *type,
                             ExactResolutionList &results, 
                             const std::string &name) {
   p = optimizer.optimizeExpr(p, true);
   // XXX we may want to be capping this?
   ResolutionList rl;
-  state.addressSpace.resolve(state, solver, p, rl);
+  state.addressSpace.resolve(state, solver, p, type, rl);
   
   ExecutionState *unbound = &state;
   for (ResolutionList::iterator it = rl.begin(), ie = rl.end(); 
@@ -4638,6 +4656,7 @@ void Executor::resolveExact(ExecutionState &state,
 
 void Executor::executeMemoryOperation(ExecutionState &state,
                                       MemoryOperation operation,
+                                      llvm::Type *targetType,
                                       ref<Expr> address,
                                       ref<Expr> value /* def if write*/,
                                       KInstruction *target /* def if read*/) {
@@ -4671,9 +4690,9 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   bool success;
   solver->setTimeout(coreSolverTimeout);
 
-  if (!state.addressSpace.resolveOne(state, solver, address, op, success)) {
+  if (!state.addressSpace.resolveOne(state, solver, address, targetType, op, success)) {
     address = toConstant(state, address, "resolveOne failure");
-    success = state.addressSpace.resolveOne(cast<ConstantExpr>(address), op);
+    success = state.addressSpace.resolveOne(cast<ConstantExpr>(address), targetType, op);
   }
   solver->setTimeout(time::Span());
 
@@ -4737,18 +4756,18 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   if (SkipNotLazyAndSymbolicPointers) {
     if (UseGEPExpr && isGEPExpr(address))
       incomplete = state.addressSpace.fastResolve(
-          state, solver, base, rl, 0,
+          state, solver, base, targetType, rl, 0,
           coreSolverTimeout);
     else
-      incomplete = state.addressSpace.fastResolve(state, solver, address,
+      incomplete = state.addressSpace.fastResolve(state, solver, address, targetType,
                                                   rl, 0, coreSolverTimeout);
   } else {
     if (UseGEPExpr && isGEPExpr(address))
       incomplete = state.addressSpace.resolve(
-          state, solver, base, rl, 0,
+          state, solver, base, targetType, rl, 0,
           coreSolverTimeout);
     else
-      incomplete = state.addressSpace.resolve(state, solver, address,
+      incomplete = state.addressSpace.resolve(state, solver, address, targetType,
                                                   rl, 0, coreSolverTimeout);
   }
 
@@ -4860,10 +4879,10 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   }
 }
 
-ObjectPair Executor::lazyInstantiate(ExecutionState &state, bool isAlloca, const MemoryObject *mo) {
+ObjectPair Executor::lazyInstantiate(ExecutionState &state, llvm::Type *type, bool isAlloca, const MemoryObject *mo) {
   executeMakeSymbolic(state, mo, "lazy_instantiation", isAlloca);
   ObjectPair op;
-  state.addressSpace.resolveOne(mo->getBaseConstantExpr().get(), op);
+  state.addressSpace.resolveOne(mo->getBaseConstantExpr().get(), type ,op);
   return op;
 }
 
@@ -4871,7 +4890,7 @@ ObjectPair Executor::lazyInstantiateAlloca(ExecutionState &state,
                                      const MemoryObject *mo,
                                      KInstruction *target,
                                      bool isLocal) {
-  ObjectPair op = lazyInstantiate(state, isLocal, mo);
+  ObjectPair op = lazyInstantiate(state, target->inst->getType(), isLocal, mo);
   bindLocal(target, state, op.first->getBaseExpr());
   return op;
 }
@@ -4882,7 +4901,7 @@ ObjectPair Executor::lazyInstantiateVariable(ExecutionState &state, ref<Expr> ad
   MemoryObject *mo =
       memory->allocate(size, false, /*isGlobal=*/false,
                        allocSite, /*allocationAlignment=*/8, address);
-  return lazyInstantiate(state, /*isLocal=*/false, mo);
+  return lazyInstantiate(state, target->inst->getType(), /*isLocal=*/false, mo);
 }
 
 const Array * Executor::makeArray(ExecutionState &state,

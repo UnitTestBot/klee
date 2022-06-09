@@ -25,6 +25,7 @@ namespace klee {
   class MemoryObject;
   class ObjectState;
   class TimingSolver;
+  struct KType;
 
   template<class T> class ref;
 
@@ -74,7 +75,8 @@ namespace klee {
 
     /// Resolve address to an ObjectPair in result.
     /// \return true iff an object was found.
-    bool resolveOne(const ref<ConstantExpr> &address, 
+    bool resolveOne(const ref<ConstantExpr> &address,
+                    llvm::Type *objectType, 
                     ObjectPair &result) const;
 
     /// Resolve address to an ObjectPair in result.
@@ -89,6 +91,7 @@ namespace klee {
     bool resolveOne(ExecutionState &state, 
                     TimingSolver *solver,
                     ref<Expr> address,
+                    llvm::Type *objectType,
                     ObjectPair &result,
                     bool &success) const;
 
@@ -101,6 +104,7 @@ namespace klee {
     bool resolve(ExecutionState &state,
                  TimingSolver *solver,
                  ref<Expr> p,
+                 llvm::Type *objectType,
                  ResolutionList &rl, 
                  unsigned maxResolutions=0,
                  time::Span timeout=time::Span()) const;
@@ -109,6 +113,7 @@ namespace klee {
     bool fastResolve(ExecutionState &state,
                      TimingSolver *solver,
                      ref<Expr> p,
+                     llvm::Type *objectType,
                      ResolutionList &rl,
                      unsigned maxResolutions=0,
                      time::Span timeout=time::Span()) const;
