@@ -168,7 +168,6 @@ MemoryObject *MemoryManager::allocate(uint64_t size, bool isLocal,
 
   MemoryObject *res = new MemoryObject(address, size, isLocal, isGlobal, false,
                                        allocSite, this, allocatedType, lazyInstantiatedSource);
-
   objects.insert(res);
   return res;
 }

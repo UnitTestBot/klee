@@ -12,35 +12,65 @@ bool KType::isAccessableFrom(const KType &anotherType) const {
         return true;
     }
 
-    outs() << "Comparing : ";
-    type->print(outs());
-    outs() << "; ";
-    anotherType.type->print(outs());
-    outs() << "\n";
+    // outs() << "Comparing : ";
+    // type->print(outs());
+    // outs() << "; ";
+    // anotherType.type->print(outs());
+    // outs() << "\n";
+
+
+    // FIXME: we need to collect info about types in struct
+    if (type->isStructTy() || anotherType.type->isStructTy()) {
+        return true;
+    }
+
+
 
     /// If type is char/uint8_t/..., than type is always
     /// can be accessed through it.
-    if (((anotherType.type->isPointerTy() && 
-            anotherType.type->getPointerElementType()->isIntegerTy())) &&
+    if (anotherType.type->isPointerTy() && 
+            anotherType.type->getPointerElementType()->isIntegerTy() &&
             anotherType.type->getPointerElementType()->getIntegerBitWidth() == 8) {
         return true;
     }
-    
-    /// Same check as above, except it is
-    /// for non pointer types
-    if ((!anotherType.type->isPointerTy() && 
-            anotherType.type->isIntegerTy()) &&
+
+
+
+    /// Checks for vector types
+    if (!anotherType.type->isPointerTy() && 
+            anotherType.type->isVectorTy() &&
+            anotherType.type->getVectorElementType()->isIntegerTy() &&
+            anotherType.type->getVectorElementType()->getIntegerBitWidth() == 8) {
+        return true;
+    }
+
+
+    /// Checks for primitive types
+    if (!anotherType.type->isPointerTy() &&
+            !anotherType.type->isVectorTy() &&
+            anotherType.type->isIntegerTy() &&
             anotherType.type->getIntegerBitWidth() == 8) {
         return true;
     }
 
-    /// Check if types are similar
     return isTypesSimilar(*this, anotherType);
 }
 
 
 bool KType::isTypesSimilar(const KType &firstType, const KType &secondType) {
     if (firstType.type == secondType.type) {
+        return true;
+    }
+
+    if ((firstType.type->isArrayTy() && 
+            firstType.type->getArrayElementType() == secondType.type) || 
+            (secondType.type->isArrayTy() && 
+            secondType.type->getArrayElementType() == firstType.type)) {
+        return true;
+    }
+
+    if (secondType.type->isArrayTy() && 
+            secondType.type->getArrayElementType() == firstType.type) {
         return true;
     }
     
@@ -55,5 +85,6 @@ bool KType::isTypesSimilar(const KType &firstType, const KType &secondType) {
                                 secondType.type->getPointerElementType());
     }
 
+    // TODO: add check for similarity of class members
     return false;
 }

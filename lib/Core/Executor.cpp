@@ -4328,11 +4328,11 @@ void Executor::callExternalFunction(ExecutionState &state,
       // Checking to see if the argument is a pointer to something
       if (ce->getWidth() == Context::get().getPointerWidth() &&
           state.addressSpace.resolveOne(ce, ati->getType(), op)) {
-        llvm::outs() << "Expected ";
-        ati->getType()->print(llvm::outs());
-        llvm::outs() << "; Got ";
-        op.first->dynamicType.type->print(llvm::outs());
-        llvm::outs() << '\n';
+        // llvm::outs() << "Expected ";
+        // ati->getType()->print(llvm::outs());
+        // llvm::outs() << "; Got ";
+        // op.first->dynamicType.type->print(llvm::outs());
+        // llvm::outs() << '\n';
         op.second->flushToConcreteStore(solver, state);
       }
       wordIndex += (ce->getWidth()+63)/64;
@@ -4617,7 +4617,7 @@ void Executor::executeFree(ExecutionState &state,
   }
   if (zeroPointer.second) { // address != 0
     ExactResolutionList rl;
-    resolveExact(*zeroPointer.second, address, target->inst->getType(), rl,"free");
+    resolveExact(*zeroPointer.second, address, nullptr, rl,"free");
     
     for (Executor::ExactResolutionList::iterator it = rl.begin(), 
            ie = rl.end(); it != ie; ++it) {

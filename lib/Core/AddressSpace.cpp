@@ -28,7 +28,7 @@ using namespace klee;
 llvm::cl::opt<bool> StrictAliasingRule(
     "strict-aliasing",
     llvm::cl::desc("Turn's on rules based on strict aliasing rule"),
-    llvm::cl::init(false));
+    llvm::cl::init(true));
 
 ///
 
@@ -151,19 +151,19 @@ bool AddressSpace::resolveOne(ExecutionState &state,
     while (oi!=begin) {
       --oi;
       const auto &mo = oi->first;
-
+      if (StrictAliasingRule && !mo->dynamicType.isAccessableFrom(objectType)) {
+        continue;
+      }
       bool mayBeTrue;
       if (!solver->mayBeTrue(state.constraints,
                              mo->getBoundsCheckPointer(address), mayBeTrue,
                              state.queryMetaData))
         return false;
       if (mayBeTrue) {
-        if (!StrictAliasingRule || mo->dynamicType.isAccessableFrom(objectType)) {
-          result.first = oi->first;
-          result.second = oi->second.get();
-          success = true;
-          return true;
-        }
+        result.first = oi->first;
+        result.second = oi->second.get();
+        success = true;
+        return true;
       } else {
         bool mustBeTrue;
         if (!solver->mustBeTrue(state.constraints,
@@ -178,7 +178,11 @@ bool AddressSpace::resolveOne(ExecutionState &state,
     // search forwards
     for (oi=start; oi!=end; ++oi) {
       const auto &mo = oi->first;
-
+      
+      if (StrictAliasingRule && !mo->dynamicType.isAccessableFrom(objectType)) {
+        continue;
+      }
+      
       bool mustBeTrue;
       if (!solver->mustBeTrue(state.constraints,
                               UltExpr::create(address, mo->getBaseExpr()),
@@ -194,12 +198,10 @@ bool AddressSpace::resolveOne(ExecutionState &state,
                                state.queryMetaData))
           return false;
         if (mayBeTrue) {
-          if (!StrictAliasingRule || mo->dynamicType.isAccessableFrom(objectType)) {
-            result.first = oi->first;
-            result.second = oi->second.get();
-            success = true;
-            return true;
-          }
+          result.first = oi->first;
+          result.second = oi->second.get();
+          success = true;
+          return true;
         }
       }
     }
@@ -423,11 +425,11 @@ bool AddressSpace::fastResolve(ExecutionState &state, TimingSolver *solver,
     while (oi != begin) {
       --oi;
       const MemoryObject *mo = oi->first;
-      if (mo == nullptr || !mo->isLazyInstantiated() || !mo->isKleeMakeSymbolic) continue;
+      if (mo == nullptr ||
+          !mo->isLazyInstantiated() ||
+          !mo->isKleeMakeSymbolic ||
+          (StrictAliasingRule && !mo->dynamicType.isAccessableFrom(objectType))) continue;
 
-      if (StrictAliasingRule && !mo->dynamicType.isAccessableFrom(objectType)) {
-        continue;
-      }
 
       if (timeout && timeout < timer.delta())
         return true;

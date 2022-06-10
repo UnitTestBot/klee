@@ -623,7 +623,7 @@ void SpecialFunctionHandler::handlePreferCex(ExecutionState &state,
     cond = NeExpr::create(cond, ConstantExpr::alloc(0, cond->getWidth()));
 
   Executor::ExactResolutionList rl;
-  executor.resolveExact(state, arguments[0], target->inst->getType(), rl, "prefex_cex");
+  executor.resolveExact(state, arguments[0], nullptr, rl, "prefex_cex");
   
   assert(rl.size() == 1 &&
          "prefer_cex target must resolve to precisely one object");
@@ -729,7 +729,7 @@ void SpecialFunctionHandler::handleGetObjSize(ExecutionState &state,
   assert(arguments.size()==1 &&
          "invalid number of arguments to klee_get_obj_size");
   Executor::ExactResolutionList rl;
-  executor.resolveExact(state, arguments[0], target->inst->getType(), rl, "klee_get_obj_size");
+  executor.resolveExact(state, arguments[0], nullptr, rl, "klee_get_obj_size");
   for (Executor::ExactResolutionList::iterator it = rl.begin(), 
          ie = rl.end(); it != ie; ++it) {
     executor.bindLocal(
@@ -857,7 +857,7 @@ void SpecialFunctionHandler::handleCheckMemoryAccess(ExecutionState &state,
   } else {
     ObjectPair op;
 
-    if (!state.addressSpace.resolveOne(cast<ConstantExpr>(address), target->inst->getType(), op)) {
+    if (!state.addressSpace.resolveOne(cast<ConstantExpr>(address), nullptr, op)) {
       executor.terminateStateOnError(state,
                                      "check_memory_access: memory error",
 				     Executor::Ptr, NULL,
@@ -920,7 +920,7 @@ void SpecialFunctionHandler::handleMakeSymbolic(ExecutionState &state,
   }
 
   Executor::ExactResolutionList rl;
-  executor.resolveExact(state, arguments[0], target->inst->getOperand(0)->getType(), rl, "make_symbolic");
+  executor.resolveExact(state, arguments[0], nullptr, rl, "make_symbolic");
   
   for (Executor::ExactResolutionList::iterator it = rl.begin(), 
          ie = rl.end(); it != ie; ++it) {
