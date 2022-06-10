@@ -920,7 +920,7 @@ void SpecialFunctionHandler::handleMakeSymbolic(ExecutionState &state,
   }
 
   Executor::ExactResolutionList rl;
-  executor.resolveExact(state, arguments[0], target->inst->getType(), rl, "make_symbolic");
+  executor.resolveExact(state, arguments[0], target->inst->getOperand(0)->getType(), rl, "make_symbolic");
   
   for (Executor::ExactResolutionList::iterator it = rl.begin(), 
          ie = rl.end(); it != ie; ++it) {

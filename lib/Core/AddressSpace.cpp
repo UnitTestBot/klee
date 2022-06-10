@@ -28,7 +28,7 @@ using namespace klee;
 llvm::cl::opt<bool> StrictAliasingRule(
     "strict-aliasing",
     llvm::cl::desc("Turn's on rules based on strict aliasing rule"),
-    llvm::cl::init(true));
+    llvm::cl::init(false));
 
 ///
 
@@ -76,7 +76,7 @@ bool AddressSpace::resolveOne(const ref<ConstantExpr> &addr,
     // [mo->address, mo->address + mo->size) or the object is a 0-sized object.
     if ((mo->size==0 && address==mo->address) ||
         (address - mo->address < mo->size)) {
-      if (StrictAliasingRule && !mo->dynamicType.isCompatatibleWith(objectType)) {
+      if (StrictAliasingRule && !mo->dynamicType.isAccessableFrom(objectType)) {
         return false;
       }
       result.first = res->first;
@@ -103,7 +103,7 @@ bool AddressSpace::resolveOne(ExecutionState &state,
     MemoryObject *symHack = nullptr;
     for (auto &moa : state.symbolics) {
       if (moa.first->isLazyInstantiated() && moa.first->getLazyInstantiatedSource() == address) {
-        if (!StrictAliasingRule || moa.first->dynamicType.isCompatatibleWith(objectType)) {
+        if (!StrictAliasingRule || moa.first->dynamicType.isAccessableFrom(objectType)) {
           symHack = const_cast<MemoryObject *>(moa.first.get());
           break;
         }
@@ -132,7 +132,7 @@ bool AddressSpace::resolveOne(ExecutionState &state,
     if (res) {
       const MemoryObject *mo = res->first;
       if (example - mo->address < mo->size) {
-        if (!StrictAliasingRule || mo->dynamicType.isCompatatibleWith(objectType)) {
+        if (!StrictAliasingRule || mo->dynamicType.isAccessableFrom(objectType)) {
           result.first = res->first;
           result.second = res->second.get();
           success = true;
@@ -158,7 +158,7 @@ bool AddressSpace::resolveOne(ExecutionState &state,
                              state.queryMetaData))
         return false;
       if (mayBeTrue) {
-        if (!StrictAliasingRule || mo->dynamicType.isCompatatibleWith(objectType)) {
+        if (!StrictAliasingRule || mo->dynamicType.isAccessableFrom(objectType)) {
           result.first = oi->first;
           result.second = oi->second.get();
           success = true;
@@ -194,7 +194,7 @@ bool AddressSpace::resolveOne(ExecutionState &state,
                                state.queryMetaData))
           return false;
         if (mayBeTrue) {
-          if (!StrictAliasingRule || mo->dynamicType.isCompatatibleWith(objectType)) {
+          if (!StrictAliasingRule || mo->dynamicType.isAccessableFrom(objectType)) {
             result.first = oi->first;
             result.second = oi->second.get();
             success = true;
@@ -260,7 +260,7 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
     MemoryObject *symHack = nullptr;
     for (auto &moa : state.symbolics) {
       if (moa.first->isLazyInstantiated() && moa.first->getLazyInstantiatedSource() == p) {
-        if (!StrictAliasingRule || moa.first->dynamicType.isCompatatibleWith(objectType)) {
+        if (!StrictAliasingRule || moa.first->dynamicType.isAccessableFrom(objectType)) {
           symHack = const_cast<MemoryObject *>(moa.first.get());
           break;
         }
@@ -308,7 +308,7 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
     while (oi != begin) {
       --oi;
       const MemoryObject *mo = oi->first;
-      if (StrictAliasingRule && !mo->dynamicType.isCompatatibleWith(objectType)) {
+      if (StrictAliasingRule && !mo->dynamicType.isAccessableFrom(objectType)) {
         continue;
       }
 
@@ -334,7 +334,7 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
     // search forwards
     for (oi = start; oi != end; ++oi) {
       const MemoryObject *mo = oi->first;
-      if (StrictAliasingRule && !mo->dynamicType.isCompatatibleWith(objectType)) {
+      if (StrictAliasingRule && !mo->dynamicType.isAccessableFrom(objectType)) {
         continue;
       }
 
@@ -375,7 +375,7 @@ bool AddressSpace::fastResolve(ExecutionState &state, TimingSolver *solver,
     MemoryObject *symHack = nullptr;
     for (auto &moa : state.symbolics) {
       if (moa.first->isLazyInstantiated() && moa.first->getLazyInstantiatedSource() == p) {
-        if (!StrictAliasingRule || moa.first->dynamicType.isCompatatibleWith(objectType)) {
+        if (!StrictAliasingRule || moa.first->dynamicType.isAccessableFrom(objectType)) {
           symHack = const_cast<MemoryObject *>(moa.first.get());
           break;
         }
@@ -425,7 +425,7 @@ bool AddressSpace::fastResolve(ExecutionState &state, TimingSolver *solver,
       const MemoryObject *mo = oi->first;
       if (mo == nullptr || !mo->isLazyInstantiated() || !mo->isKleeMakeSymbolic) continue;
 
-      if (StrictAliasingRule && !mo->dynamicType.isCompatatibleWith(objectType)) {
+      if (StrictAliasingRule && !mo->dynamicType.isAccessableFrom(objectType)) {
         continue;
       }
 
@@ -453,7 +453,7 @@ bool AddressSpace::fastResolve(ExecutionState &state, TimingSolver *solver,
       const MemoryObject *mo = oi->first;
       if (mo == nullptr || !mo->isLazyInstantiated() || !mo->isKleeMakeSymbolic) continue;
 
-      if (StrictAliasingRule && !mo->dynamicType.isCompatatibleWith(objectType)) {
+      if (StrictAliasingRule && !mo->dynamicType.isAccessableFrom(objectType)) {
         continue;
       }
 

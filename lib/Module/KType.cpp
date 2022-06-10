@@ -5,7 +5,7 @@
 using namespace klee;
 using namespace llvm;
 
-bool KType::isCompatatibleWith(const KType &anotherType) const {
+bool KType::isAccessableFrom(const KType &anotherType) const {
     /// If any of the types were not defined, say, that
     /// them compatible
     if (type == nullptr || anotherType.type == nullptr) {
@@ -18,11 +18,20 @@ bool KType::isCompatatibleWith(const KType &anotherType) const {
     anotherType.type->print(outs());
     outs() << "\n";
 
-    /// If type is char/uint8_t/..., than it is always true
-    if (const IntegerType *it = dyn_cast<IntegerType>(anotherType.type)) {
-        if (it->getIntegerBitWidth() == 8) {
-            return true;
-        }
+    /// If type is char/uint8_t/..., than type is always
+    /// can be accessed through it.
+    if (((anotherType.type->isPointerTy() && 
+            anotherType.type->getPointerElementType()->isIntegerTy())) &&
+            anotherType.type->getPointerElementType()->getIntegerBitWidth() == 8) {
+        return true;
+    }
+    
+    /// Same check as above, except it is
+    /// for non pointer types
+    if ((!anotherType.type->isPointerTy() && 
+            anotherType.type->isIntegerTy()) &&
+            anotherType.type->getIntegerBitWidth() == 8) {
+        return true;
     }
 
     /// Check if types are similar

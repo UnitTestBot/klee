@@ -2840,14 +2840,28 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
   case Instruction::Load: {
     ref<Expr> base = eval(ki, 0, state).value;
-    executeMemoryOperation(state, Read, ki->inst->getType(), base, nullptr, ki);
+    if (const llvm::LoadInst *inst = dyn_cast_or_null<llvm::LoadInst>(ki->inst)) {
+      executeMemoryOperation(state, Read, inst->getType(), base, nullptr, ki);
+    } 
+    else {
+      // TODO:
+      // terminateStateOnExecError();
+    }
+
     break;
   }
 
   case Instruction::Store: {
     ref<Expr> base = eval(ki, 1, state).value;
     ref<Expr> value = eval(ki, 0, state).value;
-    executeMemoryOperation(state, Write, ki->inst->getType(), base, value, ki);
+    if (const llvm::StoreInst *inst = dyn_cast_or_null<llvm::StoreInst>(ki->inst)) {
+      executeMemoryOperation(state, Write, inst->getValueOperand()->getType(), base, value, ki);
+    }
+    else {
+      // TODO:
+      // terminateStateOnExecError();
+    }
+    
     break;
   }
 

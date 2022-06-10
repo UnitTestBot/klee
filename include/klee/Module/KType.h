@@ -14,7 +14,7 @@ namespace klee {
         
         KType(const llvm::Type *type) : type(type) {}
 
-        bool isCompatatibleWith(const KType &anotherType) const;
+        bool isAccessableFrom(const KType &anotherType) const;
 
     private:
         static bool isTypesSimilar(const KType &firstType, const KType &secondType);
