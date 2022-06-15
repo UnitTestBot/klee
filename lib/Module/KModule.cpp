@@ -58,6 +58,8 @@
 #endif
 
 #include <sstream>
+#include <unordered_map>
+#include <unordered_set>
 
 using namespace llvm;
 using namespace klee;
@@ -499,7 +501,55 @@ void KModule::manifest(InterpreterHandler *ih, bool forceSourceOutput) {
     }
     llvm::errs() << "]\n";
   }
+
+  initTypes();
 }
+
+
+void KModule::initTypes() {
+  /// Firstly we will instatiate KTypes for all primitive types
+  // typesGraph.emplace(llvm, std::unordered_set<llvm::Type*>());
+  
+
+  /// To collect information about all inherited types 
+  /// we will topologically sort dependencies between structures
+  /// (e.g. if class A contains class B, we will make edge A to B)
+  /// and push types through all graph
+  std::unordered_map<llvm::Type*, std::unordered_set<llvm::Type*>> typesGraph;
+
+  for (auto structType : module->getIdentifiedStructTypes()) {
+    if (typesGraph.count(structType) == 0) {
+      typesGraph.emplace(structType, std::unordered_set<llvm::Type*>());
+    }
+
+    for (auto structMemberType : structType->elements()) {
+        if (structMemberType->isStructTy()) {
+          typesGraph[structType].insert(structMemberType);
+        }
+    }
+  }
+
+  std::vector<llvm::Type*> sortedTypesGraph;
+  std::function<void(llvm::Type*)> dfs = [&typesGraph, &sortedTypesGraph, &dfs](llvm::Type *type) {
+    if (typesGraph.count(type) == 0) {
+      return;
+    }
+
+    for (auto typeTo : typesGraph[type]) {
+      dfs(typeTo);
+    }
+
+    sortedTypesGraph.push_back(type);
+    typesGraph.erase(type);
+  }; 
+
+  for (auto &[type, list] : typesGraph) {
+    dfs(type);
+  }
+
+  
+}
+
 
 void KModule::checkModule() {
   InstructionOperandTypeCheckPass *operandTypeCheckPass =

@@ -34,6 +34,7 @@ namespace llvm {
   class Instruction;
   class Module;
   class DataLayout;
+  class Type;
 
   /// Compute the true target of a function call, resolving LLVM aliases
   /// and bitcasts.
@@ -49,6 +50,7 @@ namespace klee {
   struct KInstruction;
   class KModule;
   struct KFunction;
+  struct KType;
   template<class T> class ref;
 
   enum KBlockType {
@@ -160,6 +162,10 @@ namespace klee {
     std::map<llvm::Function*, KFunction*> functionMap;
     std::map<llvm::Function*, std::set<llvm::Function*>> callMap;
 
+    // Shadow versions of types
+    std::vector<std::unique_ptr<KType>> types;
+    std::map<llvm::Type*, KType> typeMap;
+
     // Functions which escape (may be called indirectly)
     // XXX change to KFunction
     std::set<llvm::Function*> escapingFunctions;
@@ -189,6 +195,7 @@ namespace klee {
     void calculateDistance(KFunction *kf);
     void calculateBackwardDistance(KFunction *kf);
 
+    void initTypes();
   public:
     KModule() = default;
 

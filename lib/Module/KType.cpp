@@ -5,10 +5,10 @@
 using namespace klee;
 using namespace llvm;
 
-bool KType::isAccessableFrom(const KType &anotherType) const {
+bool KType::isAccessableFrom(const llvm::Type *anotherType) const {
     /// If any of the types were not defined, say, that
     /// them compatible
-    if (type == nullptr || anotherType.type == nullptr) {
+    if (type == nullptr || anotherType == nullptr) {
         return true;
     }
 
@@ -20,7 +20,7 @@ bool KType::isAccessableFrom(const KType &anotherType) const {
 
 
     // FIXME: we need to collect info about types in struct
-    if (type->isStructTy() || anotherType.type->isStructTy()) {
+    if (type->isStructTy()) {
         return true;
     }
 
@@ -28,28 +28,26 @@ bool KType::isAccessableFrom(const KType &anotherType) const {
 
     /// If type is char/uint8_t/..., than type is always
     /// can be accessed through it.
-    if (anotherType.type->isPointerTy() && 
-            anotherType.type->getPointerElementType()->isIntegerTy() &&
-            anotherType.type->getPointerElementType()->getIntegerBitWidth() == 8) {
+    if (anotherType->isPointerTy() && 
+            anotherType->getPointerElementType()->isIntegerTy() &&
+            anotherType->getPointerElementType()->getIntegerBitWidth() == 8) {
         return true;
     }
 
-
-
     /// Checks for vector types
-    if (!anotherType.type->isPointerTy() && 
-            anotherType.type->isVectorTy() &&
-            anotherType.type->getVectorElementType()->isIntegerTy() &&
-            anotherType.type->getVectorElementType()->getIntegerBitWidth() == 8) {
+    if (!anotherType->isPointerTy() && 
+            anotherType->isVectorTy() &&
+            anotherType->getVectorElementType()->isIntegerTy() &&
+            anotherType->getVectorElementType()->getIntegerBitWidth() == 8) {
         return true;
     }
 
 
     /// Checks for primitive types
-    if (!anotherType.type->isPointerTy() &&
-            !anotherType.type->isVectorTy() &&
-            anotherType.type->isIntegerTy() &&
-            anotherType.type->getIntegerBitWidth() == 8) {
+    if (!anotherType->isPointerTy() &&
+            !anotherType->isVectorTy() &&
+            anotherType->isIntegerTy() &&
+            anotherType->getIntegerBitWidth() == 8) {
         return true;
     }
 
@@ -62,17 +60,14 @@ bool KType::isTypesSimilar(const KType &firstType, const KType &secondType) {
         return true;
     }
 
-    if ((firstType.type->isArrayTy() && 
-            firstType.type->getArrayElementType() == secondType.type) || 
-            (secondType.type->isArrayTy() && 
-            secondType.type->getArrayElementType() == firstType.type)) {
-        return true;
-    }
+    if (firstType.type->isArrayTy() ) {
+        return isTypesSimilar(firstType.type->getArrayElementType(), secondType.type);
+    } 
 
-    if (secondType.type->isArrayTy() && 
-            secondType.type->getArrayElementType() == firstType.type) {
-        return true;
+    if (secondType.type->isArrayTy()) {
+        return isTypesSimilar(firstType.type, secondType.type->getArrayElementType());
     }
+            
     
     if (firstType.type->isArrayTy() && secondType.type->isArrayTy()) {
         return firstType.type->getArrayNumElements() == secondType.type->getArrayNumElements() &&
@@ -85,6 +80,5 @@ bool KType::isTypesSimilar(const KType &firstType, const KType &secondType) {
                                 secondType.type->getPointerElementType());
     }
 
-    // TODO: add check for similarity of class members
     return false;
 }
