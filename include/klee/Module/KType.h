@@ -7,36 +7,25 @@ namespace llvm {
     class Type;
 }
 
-namespace klee {
+namespace klee {    
+    class KModule;
+
     struct KType {
     public:
-        
-        /**
-         * Represents type entry in parent type: eiether
-         * struct type or primitive type. Offset field 
-         * contains offset in bytes from to reach field
-         * of current type. Note, that object itself
-         * can be exposed in this structure.
-         */
-        struct TypeEntry {
-            const llvm::Type *parentType;
-            const uint64_t offset;
-            TypeEntry(llvm::Type *parentType, uint64_t offset) 
-                    : parentType(parentType), offset(offset) {}
-        };
-
         /**
          * Wrapped type.
          */
         const llvm::Type *type;
+        KModule *parent;
 
         /**
-         * Innner types. Must contains type itself and 
+         * Innner types. Maps type to their offsets in current
+         * type. Must contains type itself and 
          * all types, that can be found in that object.
          * For example, if object of type A contains object 
          * of type B, then all types in B can be accessed via A. 
          */
-        std::unordered_map<llvm::Type*, std::vector<TypeEntry>> innerTypes;
+        std::unordered_map<llvm::Type*, std::vector<uint64_t>> innerTypes;
         
         /**
          * Implements rules checking for type punning. Description
@@ -46,7 +35,10 @@ namespace klee {
          */
         bool isAccessableFrom(const llvm::Type *anotherType) const;
     
+        // TODO: remove
         KType(const llvm::Type *type) : type(type) {}
+
+        KType(llvm::Type *, KModule*);
 
     private:
         static bool isTypesSimilar(const KType &firstType, const KType &secondType);

@@ -21,10 +21,13 @@
 #include "klee/Module/Cell.h"
 #include "klee/Module/InstructionInfoTable.h"
 #include "klee/Module/KInstruction.h"
+#include "klee/Module/KType.h"
 #include "klee/Module/KModule.h"
 #include "klee/Support/Debug.h"
 #include "klee/Support/ErrorHandling.h"
 #include "klee/Support/ModuleUtil.h"
+#include "llvm/IR/InstIterator.h"
+
 
 #if LLVM_VERSION_CODE >= LLVM_VERSION(4, 0)
 #include "llvm/Bitcode/BitcodeWriter.h"
@@ -506,10 +509,41 @@ void KModule::manifest(InterpreterHandler *ih, bool forceSourceOutput) {
 }
 
 
+KType *KModule::computeKType(llvm::Type *type) {
+  if (typesMap.count(type) == 0) {
+    types.emplace_back(new KType(type, this));
+    typesMap.emplace(type, types.back().get());
+  }
+  return typesMap[type];
+}
+
+
 void KModule::initTypes() {
-  /// Firstly we will instatiate KTypes for all primitive types
-  // typesGraph.emplace(llvm, std::unordered_set<llvm::Type*>());
-  
+  /// Firstly we will instatiate KTypes for all non-struct types
+  for (auto &global : module->getGlobalList()) {
+    if (!llvm::isa<StructType>(global.getType())) {
+      computeKType(global.getType());
+    }
+  }
+
+
+  for (auto &kfunction : functions) {
+    for (inst_iterator itb = inst_begin(kfunction->function), 
+        ite = inst_end(kfunction->function); itb != ite; ++itb) {
+      
+      if (!llvm::isa<StructType>(itb->getType())) {
+        computeKType(itb->getType());
+      }
+
+      for (auto opb = itb->op_begin(), ope = itb->op_end(); opb != ope; ++opb) {
+        if (!llvm::isa<StructType>((*opb)->getType())) {
+          computeKType((*opb)->getType());
+        }
+      }
+
+    }
+  }
+
 
   /// To collect information about all inherited types 
   /// we will topologically sort dependencies between structures
@@ -523,31 +557,39 @@ void KModule::initTypes() {
     }
 
     for (auto structMemberType : structType->elements()) {
-        if (structMemberType->isStructTy()) {
-          typesGraph[structType].insert(structMemberType);
-        }
+      /// Note, that here we may add not only struct types.
+      typesGraph[structType].insert(structMemberType);
     }
   }
 
   std::vector<llvm::Type*> sortedTypesGraph;
-  std::function<void(llvm::Type*)> dfs = [&typesGraph, &sortedTypesGraph, &dfs](llvm::Type *type) {
-    if (typesGraph.count(type) == 0) {
-      return;
-    }
 
+  /// We can not just remove elements, as it will break
+  /// iterator in unordered_set. 
+  std::unordered_set<llvm::Type *> visitedGraphTypes;
+
+  std::function<void(llvm::Type*)> dfs = [&typesGraph,
+                                          &sortedTypesGraph, 
+                                          &visitedGraphTypes,
+                                          &dfs](llvm::Type *type) {
+    visitedGraphTypes.insert(type);
+    
     for (auto typeTo : typesGraph[type]) {
-      dfs(typeTo);
+      if (visitedGraphTypes.count(typeTo) == 0) {
+        dfs(typeTo);
+      }
     }
 
     sortedTypesGraph.push_back(type);
-    typesGraph.erase(type);
   }; 
 
   for (auto &[type, list] : typesGraph) {
     dfs(type);
   }
 
-  
+  for (auto type : sortedTypesGraph) {
+    computeKType(type);
+  }
 }
 
 
