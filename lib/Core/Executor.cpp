@@ -701,7 +701,7 @@ MemoryObject * Executor::addExternalObject(ExecutionState &state,
                                            void *addr, unsigned size, 
                                            bool isReadOnly) {
   auto mo = memory->allocateFixed(reinterpret_cast<std::uint64_t>(addr),
-                                  size, nullptr);
+                                  size, nullptr, nullptr);
   ObjectState *os = bindObjectInState(state, mo, false);
   for(unsigned i = 0; i < size; i++)
     os->write8(i, ((uint8_t*)addr)[i]);
@@ -826,6 +826,7 @@ void Executor::allocateGlobalObjects(ExecutionState &state) {
 
     MemoryObject *mo = memory->allocate(size, /*isLocal=*/false,
                                         /*isGlobal=*/true, /*allocSite=*/&v,
+                                        kmodule->computeKType(v.getType()),
                                         /*alignment=*/globalObjectAlignment);
     if (!mo)
       klee_error("out of memory");
@@ -1608,7 +1609,7 @@ MemoryObject *Executor::serializeLandingpad(ExecutionState &state,
   }
 
   MemoryObject *mo =
-      memory->allocate(serialized.size(), true, false, nullptr, 1);
+      memory->allocate(serialized.size(), true, false, nullptr, nullptr, 1);
   ObjectState *os = bindObjectInState(state, mo, false);
   for (unsigned i = 0; i < serialized.size(); i++) {
     os->write8(i, serialized[i]);
@@ -2069,7 +2070,7 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
       StackFrame &sf = state.stack.back();
       MemoryObject *mo = sf.varargs =
           memory->allocate(size, true, false, state.prevPC->inst,
-                           (requires16ByteAlignment ? 16 : 8));
+                           nullptr, (requires16ByteAlignment ? 16 : 8));
       if (!mo && size) {
         terminateStateOnExecError(state, "out of memory (varargs)");
         return;
@@ -4500,8 +4501,9 @@ void Executor::executeAlloc(ExecutionState &state,
       allocationAlignment = getAllocationAlignment(allocSite);
     }
     MemoryObject *mo =
-        memory->allocate(CE->getZExtValue(), isLocal, /*isGlobal=*/false,
-                         allocSite, allocationAlignment);
+        memory->allocate(CE->getZExtValue(), isLocal, /*isGlobal=*/false, allocSite,
+                         kmodule->computeKType(allocSite ? allocSite->getType() : nullptr),
+                         allocationAlignment);
     if (!mo) {
       bindLocal(target, state, 
                 ConstantExpr::alloc(0, Context::get().getPointerWidth()));
@@ -4914,7 +4916,9 @@ ObjectPair Executor::lazyInstantiateVariable(ExecutionState &state, ref<Expr> ad
   const llvm::Value *allocSite = target ? target->inst : nullptr;
   MemoryObject *mo =
       memory->allocate(size, false, /*isGlobal=*/false,
-                       allocSite, /*allocationAlignment=*/8, address);
+                       allocSite, 
+                       kmodule->computeKType(allocSite ? allocSite->getType() : nullptr), 
+                       /*allocationAlignment=*/8, address);
   return lazyInstantiate(state, target->inst->getType(), /*isLocal=*/false, mo);
 }
 
@@ -5037,7 +5041,9 @@ ExecutionState* Executor::formState(Function *f,
       argvMO =
           memory->allocate((argc + 1 + envc + 1 + 1) * NumPtrBytes,
                            /*isLocal=*/false, /*isGlobal=*/true,
-                           /*allocSite=*/first, /*alignment=*/8);
+                           /*allocSite=*/first, 
+                           kmodule->computeKType(first ? first->getType() : nullptr),
+                           /*alignment=*/8);
 
       if (!argvMO)
         klee_error("Could not allocate memory for function arguments");
@@ -5073,7 +5079,9 @@ ExecutionState* Executor::formState(Function *f,
 
         MemoryObject *arg =
             memory->allocate(len + 1, /*isLocal=*/false, /*isGlobal=*/true,
-                             /*allocSite=*/state->pc->inst, /*alignment=*/8);
+                             /*allocSite=*/state->pc->inst,
+                             kmodule->computeKType(state->pc->inst ? state->pc->inst->getType() : nullptr),
+                             /*alignment=*/8);
         if (!arg)
           klee_error("Could not allocate memory for function arguments");
         ObjectState *os = bindObjectInState(*state, arg, false);
@@ -5133,7 +5141,9 @@ void Executor::prepareSymbolicArgs(ExecutionState &state, KFunction *kf) {
 ref<Expr> Executor::makeSymbolicValue(Value *value, ExecutionState &state, uint64_t size, Expr::Width width, const std::string &name) {
   MemoryObject *mo = 
     memory->allocate(size, true, /*isGlobal=*/false,
-                     value, /*allocationAlignment=*/8);
+                     value, 
+                     kmodule->computeKType(value ? value->getType() : nullptr),
+                     /*allocationAlignment=*/8);
   memory->deallocate(mo);
   const Array *array = makeArray(state, size, name);
   const_cast<Array*>(array)->binding = mo;

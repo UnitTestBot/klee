@@ -18,6 +18,7 @@
 
 #include "klee/Expr/Expr.h"
 #include "klee/Support/ErrorHandling.h"
+#include "klee/Module/KType.h"
 
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/MathExtras.h"
@@ -105,6 +106,7 @@ MemoryManager::~MemoryManager() {
 MemoryObject *MemoryManager::allocate(uint64_t size, bool isLocal,
                                       bool isGlobal,
                                       const llvm::Value *allocSite,
+                                      KType *allocatedType,
                                       size_t alignment,
                                       ref<Expr> lazyInstantiatedSource) {
   if (size > 10 * 1024 * 1024)
@@ -159,13 +161,6 @@ MemoryObject *MemoryManager::allocate(uint64_t size, bool isLocal,
 
   ++stats::allocations;
 
-  // Assume that if allocatedType is nullptr, than there is no type
-  llvm::Type *allocatedType = nullptr;
-  if (const llvm::AllocaInst *inst = dyn_cast_or_null<llvm::AllocaInst>(allocSite)) {
-    allocatedType = inst->getAllocatedType();
-    assert(allocatedType && "Attempted to allocate variable without a type");
-  }
-
   MemoryObject *res = new MemoryObject(address, size, isLocal, isGlobal, false,
                                        allocSite, this, allocatedType, lazyInstantiatedSource);
   objects.insert(res);
@@ -173,7 +168,8 @@ MemoryObject *MemoryManager::allocate(uint64_t size, bool isLocal,
 }
 
 MemoryObject *MemoryManager::allocateFixed(uint64_t address, uint64_t size,
-                                           const llvm::Value *allocSite) {
+                                           const llvm::Value *allocSite,
+                                           KType *allocatedType) {
 #ifndef NDEBUG
   for (objects_ty::iterator it = objects.begin(), ie = objects.end(); it != ie;
        ++it) {
@@ -184,13 +180,6 @@ MemoryObject *MemoryManager::allocateFixed(uint64_t address, uint64_t size,
 #endif
 
   ++stats::allocations;
-
-  // Assume that if allocatedType is nullptr, than there is no type
-  llvm::Type *allocatedType = nullptr;
-  if (const llvm::AllocaInst *inst = dyn_cast_or_null<llvm::AllocaInst>(allocSite)) {
-    allocatedType = inst->getAllocatedType();
-    assert(allocatedType && "Attempted to allocate variable without a type");
-  }
 
   MemoryObject *res =
       new MemoryObject(address, size, false, true, true, allocSite, this, allocatedType);

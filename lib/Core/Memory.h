@@ -69,7 +69,7 @@ public:
 
   /// Type which can be seen through the "Aliased Type"
   /// of that MO.
-  const KType dynamicType;
+  const KType *dynamicType;
   
   /// "Location" for which this memory object was allocated. This
   /// should be either the allocating instruction or the global object
@@ -88,28 +88,28 @@ public:
 
 public:
   // XXX this is just a temp hack, should be removed
-  // TODO: the next 2 ctors, as described above, are used only for
-  // search in memory tree. We do not care about type of MO. 
+
+
   explicit
-  MemoryObject(uint64_t _address, llvm::Type *objectType = nullptr) 
+  MemoryObject(uint64_t _address) 
     : id(counter++),
       address(_address),
       lazyInstantiatedSource(nullptr),
       size(0),
       isFixed(true),
       parent(NULL),
-      dynamicType(objectType),
+      dynamicType(nullptr),
       allocSite(0) {
   }
 
-  MemoryObject(ref<Expr> _lazyInstantiatedSource, llvm::Type *objectType = nullptr)
+  MemoryObject(ref<Expr> _lazyInstantiatedSource)
     : id(counter++),
       address((uint64_t)0xffffffffffffffff),
       lazyInstantiatedSource(_lazyInstantiatedSource),
       size(0),
       isFixed(true),
       parent(NULL),
-      dynamicType(objectType),
+      dynamicType(nullptr),
       allocSite(0) {
   }
 
@@ -117,7 +117,7 @@ public:
                bool _isLocal, bool _isGlobal, bool _isFixed,
                const llvm::Value *_allocSite,
                MemoryManager *_parent,
-               llvm::Type *objectType = nullptr,
+               KType *objectType,
                ref<Expr> _lazyInstantiatedSource = nullptr)
     : id(counter++),
       address(_address),

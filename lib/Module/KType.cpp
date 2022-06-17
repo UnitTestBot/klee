@@ -14,17 +14,11 @@ KType::KType(llvm::Type *type, KModule *parent) : type(type), parent(parent) {
     /// If type is complex, pull types from it inner types
     if (llvm::StructType *structType = dyn_cast_or_null<StructType>(type)) {
         const StructLayout *structLayout = parent->targetData->getStructLayout(structType);
-        llvm::outs() << "In ";
-        type->print(llvm::outs());
-        llvm::outs() << ": \n";
 
         for (unsigned idx = 0; idx < structType->getNumElements(); ++idx) {
             llvm::Type *structTypeMember = structType->getStructElementType(idx);
             uint64_t offset = structLayout->getElementOffset(idx);
             
-            structTypeMember->print(llvm::outs());
-            llvm::outs() << "\n";
-
             for (auto &[subtype, subtypeOffsets] 
                     : parent->typesMap[structTypeMember]->innerTypes) {
 
@@ -34,12 +28,7 @@ KType::KType(llvm::Type *type, KModule *parent) : type(type), parent(parent) {
             }
 
         }
-        llvm::outs() << "\n";
     }
-
-
-    type->print(llvm::outs());
-    llvm::outs() << "\n\n\n";
     
     /// Type itself can be reached at offset 0
     innerTypes.emplace(type, 0);
