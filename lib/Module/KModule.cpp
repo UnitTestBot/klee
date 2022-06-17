@@ -449,6 +449,7 @@ void KModule::manifest(InterpreterHandler *ih, bool forceSourceOutput) {
   }
 
   /* Build shadow structures */
+  initTypesFromGlobals();
 
   infos = std::unique_ptr<InstructionInfoTable>(
       new InstructionInfoTable(*module.get()));
@@ -470,6 +471,7 @@ void KModule::manifest(InterpreterHandler *ih, bool forceSourceOutput) {
         for (unsigned i=0; i<numInstructions; ++i) {
           KInstruction *ki = kb->instructions[i];
           ki->info = &infos->getInfo(*ki->inst);
+          initTypesFromInstruction(ki);
         }
     }
 
@@ -505,7 +507,7 @@ void KModule::manifest(InterpreterHandler *ih, bool forceSourceOutput) {
     llvm::errs() << "]\n";
   }
 
-  initTypes();
+  initTypesFromStructs();
 }
 
 
@@ -518,33 +520,7 @@ KType *KModule::computeKType(llvm::Type *type) {
 }
 
 
-void KModule::initTypes() {
-  /// Firstly we will instatiate KTypes for all non-struct types
-  for (auto &global : module->getGlobalList()) {
-    if (!llvm::isa<StructType>(global.getType())) {
-      computeKType(global.getType());
-    }
-  }
-
-
-  for (auto &kfunction : functions) {
-    for (inst_iterator itb = inst_begin(kfunction->function), 
-        ite = inst_end(kfunction->function); itb != ite; ++itb) {
-      
-      if (!llvm::isa<StructType>(itb->getType())) {
-        computeKType(itb->getType());
-      }
-
-      for (auto opb = itb->op_begin(), ope = itb->op_end(); opb != ope; ++opb) {
-        if (!llvm::isa<StructType>((*opb)->getType())) {
-          computeKType((*opb)->getType());
-        }
-      }
-
-    }
-  }
-
-
+void KModule::initTypesFromStructs() {
   /// To collect information about all inherited types 
   /// we will topologically sort dependencies between structures
   /// (e.g. if class A contains class B, we will make edge A to B)
@@ -589,6 +565,29 @@ void KModule::initTypes() {
 
   for (auto type : sortedTypesGraph) {
     computeKType(type);
+  }
+}
+
+
+void KModule::initTypesFromGlobals() {
+  for (auto &global : module->getGlobalList()) {
+    if (!llvm::isa<StructType>(global.getType())) {
+      computeKType(global.getType());
+    }
+  }
+}
+
+
+void KModule::initTypesFromInstruction(KInstruction *kinstruction) {
+  Instruction* inst = kinstruction->inst;
+  if (!llvm::isa<StructType>(inst->getType())) {
+    computeKType(inst->getType());
+  }
+
+  for (auto opb = inst->op_begin(), ope = inst->op_end(); opb != ope; ++opb) {
+    if (!llvm::isa<StructType>((*opb)->getType())) {
+      computeKType((*opb)->getType());
+    }
   }
 }
 

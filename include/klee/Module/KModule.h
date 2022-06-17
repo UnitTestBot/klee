@@ -165,6 +165,9 @@ namespace klee {
     // Shadow versions of types
     std::vector<std::unique_ptr<KType>> types;
     std::map<llvm::Type*, KType*> typesMap;
+    
+    /// Tries to register type. Returns true, iff type
+    /// was not register before. Otherwise returns false.
     KType* computeKType(llvm::Type *type);
 
     // Functions which escape (may be called indirectly)
@@ -196,9 +199,11 @@ namespace klee {
     void calculateDistance(KFunction *kf);
     void calculateBackwardDistance(KFunction *kf);
 
-    /// Tries to register type. Returns true, iff type
-    /// was not register before. Otherwise returns false.
-    void initTypes();
+
+    void initTypesFromStructs();
+    void initTypesFromGlobals();
+    void initTypesFromInstruction(KInstruction *kinstruction);
+
 
   public:
     KModule() = default;
