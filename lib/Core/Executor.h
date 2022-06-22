@@ -38,6 +38,9 @@
 #include <string>
 #include <vector>
 #include <deque>
+#include <klee/Misc/json.hpp>
+
+using json = nlohmann::json;
 
 struct KTest;
 

@@ -56,6 +56,7 @@
 #include "klee/ADT/TestCaseUtils.h"
 #include "klee/Expr/ArrayExprVisitor.h"
 
+
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/IR/Attributes.h"
@@ -4221,20 +4222,28 @@ void Executor::terminateStateOnError(ExecutionState &state,
     } else {
       klee_message("ERROR: (location information missing) %s", message.c_str());
     }
-    if (!EmitAllErrors)
+    if (!EmitAllErrors) {
       klee_message("NOTE: now ignoring this error at this location");
+    }
 
     std::string MsgString;
     llvm::raw_string_ostream msg(MsgString);
+    json json_output;
+    sarif::createSarifResultTemplate(json_output);
+
     msg << "Error: " << message << '\n';
     if (ii.file != "") {
       msg << "File: " << ii.file << '\n'
           << "Line: " << ii.line << '\n'
           << "assembly.ll line: " << ii.assemblyLine << '\n'
           << "State: " << state.getID() << '\n';
+      json location = sarif::getLocationObj();
+      location.at("physicalLocation").at("artifactLocation").at("uri") = ii.file;
+      location.at("physicalLocation").at("region").at("startLine") = ii.line;
+      json_output.at("locations").push_back(location);
     }
     msg << "Stack: \n";
-    state.dumpStack(msg);
+    state.dumpStack(msg, &json_output);
 
     std::string info_str = info.str();
     if (info_str != "")
@@ -4246,6 +4255,22 @@ void Executor::terminateStateOnError(ExecutionState &state,
       suffix_buf += ".err";
       suffix = suffix_buf.c_str();
     }
+
+    json_output.at("message").at("text") = message;
+    json_output.at("level") = "error";
+    json_output.at("ruleId") = suffix;
+    std::string json_file =
+            interpreterHandler->getOutputFilename(
+                    "__sarif_" +interpreterHandler->
+                    getTestFilename("json",
+                                    interpreterHandler->getNumTestCases() + 1));
+    std::ofstream fout(json_file);
+    if (!fout.is_open()) {
+        assert(false);
+    }
+
+    fout << std::setw(2) << json_output << std::endl;
+    fout.close();
 
     interpreterHandler->processTestCase(state, msg.str().c_str(), suffix);
   }

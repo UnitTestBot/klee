@@ -383,9 +383,50 @@ bool ExecutionState::merge(const ExecutionState &b) {
   return true;
 }
 
-void ExecutionState::dumpStack(llvm::raw_ostream &out) const {
+namespace sarif {
+json getLocationObj() {
+  return
+      R"(
+    {
+      "physicalLocation" : {
+        "artifactLocation" : {
+          "uri" : {}
+        },
+        "region" : {
+          "startLine" : {}
+        }
+      }
+    }
+    )"_json;
+}
+
+void createSarifResultTemplate(json &obj) {
+  obj = R"(
+      {
+        "message" : {
+          "text"  : {}
+        },
+        "ruleId" : {},
+        "level" : {},
+        "locations" : [],
+        "codeFlows": [
+          {
+            "threadFlows": [
+              {
+                "locations": []
+              }
+            ]
+          }
+         ]
+      }
+      )"_json;
+}
+}
+
+void ExecutionState::dumpStack(llvm::raw_ostream &out, json *jsonOutput) const {
   unsigned idx = 0;
   const KInstruction *target = prevPC;
+  std::stack<json> jsonStack;
   for (ExecutionState::stack_ty::const_reverse_iterator
          it = stack.rbegin(), ie = stack.rend();
        it != ie; ++it) {
@@ -410,10 +451,26 @@ void ExecutionState::dumpStack(llvm::raw_ostream &out) const {
         out << "=" << value;
     }
     out << ")";
-    if (ii.file != "")
+    json location;
+    location["location"] = sarif::getLocationObj();
+    if (ii.file != "") {
+      location.at("location").at("physicalLocation").at("artifactLocation").at("uri") = ii.file;
+      location.at("location").at("physicalLocation").at("region").at("startLine") = ii.line;
       out << " at " << ii.file << ":" << ii.line;
+    }
+    jsonStack.push(location);
     out << "\n";
     target = sf.caller;
+  }
+
+  if (jsonOutput) {
+    while (!jsonStack.empty()) {
+      json location = jsonStack.top();
+      jsonStack.pop();
+      (*jsonOutput).at("codeFlows").at(0).
+          at("threadFlows").at(0).
+            at("locations").push_back(location);
+    }
   }
 }
 
