@@ -512,7 +512,7 @@ void KModule::manifest(InterpreterHandler *ih, bool forceSourceOutput) {
 
 
 KType *KModule::computeKType(llvm::Type *type) {
-  if (typesMap.count(type) == 0) {
+  while (typesMap.count(type) == 0) {
     types.emplace_back(new KType(type, this));
     typesMap.emplace(type, types.back().get());
   }

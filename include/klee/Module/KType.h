@@ -15,7 +15,7 @@ namespace klee {
         /**
          * Wrapped type.
          */
-        const llvm::Type *type;
+        llvm::Type *type;
         KModule *parent;
 
         /**
@@ -33,15 +33,12 @@ namespace klee {
          * Return true, if type is accessible from another, and 
          * false otherwise.
          */
-        bool isAccessableFrom(const llvm::Type *anotherType) const;
-    
-        // TODO: remove
-        KType(const llvm::Type *type) : type(type) {}
+        bool isAccessableFrom(llvm::Type *anotherType) const;
 
         KType(llvm::Type *, KModule*);
 
     private:
-        static bool isTypesSimilar(const KType &firstType, const KType &secondType);
+        bool isTypesSimilar(llvm::Type*, llvm::Type*) const;
     };
 }
 

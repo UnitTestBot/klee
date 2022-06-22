@@ -18,12 +18,10 @@ KType::KType(llvm::Type *type, KModule *parent) : type(type), parent(parent) {
         for (unsigned idx = 0; idx < structType->getNumElements(); ++idx) {
             llvm::Type *structTypeMember = structType->getStructElementType(idx);
             uint64_t offset = structLayout->getElementOffset(idx);
-            
             for (auto &[subtype, subtypeOffsets] 
                     : parent->typesMap[structTypeMember]->innerTypes) {
-
                 for (auto subtypeOffset : subtypeOffsets) {
-                    innerTypes.emplace(subtype, offset + subtypeOffset);
+                    innerTypes[subtype].push_back(offset + subtypeOffset);
                 }
             }
 
@@ -31,10 +29,10 @@ KType::KType(llvm::Type *type, KModule *parent) : type(type), parent(parent) {
     }
     
     /// Type itself can be reached at offset 0
-    innerTypes.emplace(type, 0);
+    innerTypes[type].push_back(0);
 }
 
-bool KType::isAccessableFrom(const llvm::Type *anotherType) const {
+bool KType::isAccessableFrom(llvm::Type *anotherType) const {
     /// If any of the types were not defined, say, that
     /// them compatible
     if (type == nullptr || anotherType == nullptr) {
@@ -44,69 +42,73 @@ bool KType::isAccessableFrom(const llvm::Type *anotherType) const {
     // outs() << "Comparing : ";
     // type->print(outs());
     // outs() << "; ";
-    // anotherType.type->print(outs());
+    // anotherType->print(outs());
     // outs() << "\n";
 
 
-    // FIXME: we need to collect info about types in struct
-    if (type->isStructTy()) {
-        return true;
-    }
-
-
-
-    /// If type is char/uint8_t/..., than type is always
-    /// can be accessed through it.
-    if (anotherType->isPointerTy() && 
-            anotherType->getPointerElementType()->isIntegerTy() &&
-            anotherType->getPointerElementType()->getIntegerBitWidth() == 8) {
+    /// If type is `char`/`uint8_t`/..., than type is always
+    /// can be accessed through it. Note, that is not 
+    /// safe behavior, as memory access via `char` 
+    /// and `int8_t` differs.
+    if (anotherType->isIntegerTy() &&
+        anotherType->getIntegerBitWidth() == 8) {
         return true;
     }
 
     /// Checks for vector types
-    if (!anotherType->isPointerTy() && 
-            anotherType->isVectorTy() &&
+    /// FIXME: seems suspicious...
+    if (anotherType->isVectorTy() &&
             anotherType->getVectorElementType()->isIntegerTy() &&
             anotherType->getVectorElementType()->getIntegerBitWidth() == 8) {
         return true;
     }
 
 
-    /// Checks for primitive types
-    if (!anotherType->isPointerTy() &&
-            !anotherType->isVectorTy() &&
-            anotherType->isIntegerTy() &&
-            anotherType->getIntegerBitWidth() == 8) {
-        return true;
-    }
-
-    return isTypesSimilar(*this, anotherType);
+    return isTypesSimilar(type, anotherType);
 }
 
 
-bool KType::isTypesSimilar(const KType &firstType, const KType &secondType) {
-    if (firstType.type == secondType.type) {
-        return true;
+bool KType::isTypesSimilar(llvm::Type *firstType, llvm::Type *secondType) const {
+    /// Note, that we can not try to access this type again from the secondType
+    
+    // llvm::outs() << "Trying to access ";
+    // firstType->print(llvm::outs());
+    // llvm::outs() << " FROM ";
+    // secondType->print(llvm::outs());
+    // llvm::outs() << ":\n";
+
+
+    /// FIXME: here we make initialization for types, that had not 
+    /// been initialized before, e.g. `int*` could be initialized, 
+    /// but `int` not.
+    for (auto &[innerType, offsets] : parent->computeKType(firstType)->innerTypes) {
+        if (innerType == secondType) {
+            return true;
+        }
+        if (!innerType->isStructTy() && 
+            innerType != firstType &&
+            parent->computeKType(innerType)->isAccessableFrom(secondType)) {
+            return true;
+        }
     }
 
-    if (firstType.type->isArrayTy() ) {
-        return isTypesSimilar(firstType.type->getArrayElementType(), secondType.type);
+    if (firstType->isArrayTy() ) {
+        return isTypesSimilar(firstType->getArrayElementType(), secondType);
     } 
 
-    if (secondType.type->isArrayTy()) {
-        return isTypesSimilar(firstType.type, secondType.type->getArrayElementType());
+    if (secondType->isArrayTy()) {
+        return isTypesSimilar(firstType, secondType->getArrayElementType());
     }
             
-    
-    if (firstType.type->isArrayTy() && secondType.type->isArrayTy()) {
-        return firstType.type->getArrayNumElements() == secondType.type->getArrayNumElements() &&
-                isTypesSimilar(firstType.type->getArrayElementType(), 
-                                secondType.type->getArrayElementType());
+    if (firstType->isArrayTy() && secondType->isArrayTy()) {
+        return firstType->getArrayNumElements() == secondType->getArrayNumElements() &&
+                isTypesSimilar(firstType->getArrayElementType(), 
+                                secondType->getArrayElementType());
     }
 
-    if (firstType.type->isPointerTy() && secondType.type->isPointerTy()) {
-        return isTypesSimilar(firstType.type->getPointerElementType(), 
-                                secondType.type->getPointerElementType());
+    if (firstType->isPointerTy() && secondType->isPointerTy()) {
+        return isTypesSimilar(firstType->getPointerElementType(), 
+                                secondType->getPointerElementType());
     }
 
     return false;

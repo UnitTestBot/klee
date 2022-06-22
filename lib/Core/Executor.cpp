@@ -1609,7 +1609,8 @@ MemoryObject *Executor::serializeLandingpad(ExecutionState &state,
   }
 
   MemoryObject *mo =
-      memory->allocate(serialized.size(), true, false, nullptr, nullptr, 1);
+      memory->allocate(serialized.size(), true, false, nullptr, 
+      kmodule->computeKType(nullptr), 1);
   ObjectState *os = bindObjectInState(state, mo, false);
   for (unsigned i = 0; i < serialized.size(); i++) {
     os->write8(i, serialized[i]);
@@ -2070,7 +2071,8 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
       StackFrame &sf = state.stack.back();
       MemoryObject *mo = sf.varargs =
           memory->allocate(size, true, false, state.prevPC->inst,
-                           nullptr, (requires16ByteAlignment ? 16 : 8));
+                           kmodule->computeKType(nullptr),
+                           (requires16ByteAlignment ? 16 : 8));
       if (!mo && size) {
         terminateStateOnExecError(state, "out of memory (varargs)");
         return;
@@ -2842,7 +2844,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
   case Instruction::Load: {
     ref<Expr> base = eval(ki, 0, state).value;
     if (const llvm::LoadInst *inst = dyn_cast_or_null<llvm::LoadInst>(ki->inst)) {
-      executeMemoryOperation(state, Read, inst->getType(), base, nullptr, ki);
+      executeMemoryOperation(state, Read, inst->getPointerOperandType(), base, nullptr, ki);
     } 
     else {
       // TODO:
@@ -2856,7 +2858,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     ref<Expr> base = eval(ki, 1, state).value;
     ref<Expr> value = eval(ki, 0, state).value;
     if (const llvm::StoreInst *inst = dyn_cast_or_null<llvm::StoreInst>(ki->inst)) {
-      executeMemoryOperation(state, Write, inst->getValueOperand()->getType(), base, value, ki);
+      executeMemoryOperation(state, Write, inst->getPointerOperandType(), base, value, ki);
     }
     else {
       // TODO:
