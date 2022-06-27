@@ -160,7 +160,7 @@ MemoryObject *MemoryManager::allocate(uint64_t size, bool isLocal,
     return 0;
 
   ++stats::allocations;
-
+  assert(allocatedType && "Given null instead of KType object");
   MemoryObject *res = new MemoryObject(address, size, isLocal, isGlobal, false,
                                        allocSite, this, allocatedType, lazyInstantiatedSource);
   objects.insert(res);
@@ -181,6 +181,7 @@ MemoryObject *MemoryManager::allocateFixed(uint64_t address, uint64_t size,
 
   ++stats::allocations;
 
+    assert(allocatedType && "Given null instead of KType object");
   MemoryObject *res =
       new MemoryObject(address, size, false, true, true, allocSite, this, allocatedType);
 

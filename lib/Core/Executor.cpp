@@ -701,7 +701,7 @@ MemoryObject * Executor::addExternalObject(ExecutionState &state,
                                            void *addr, unsigned size, 
                                            bool isReadOnly) {
   auto mo = memory->allocateFixed(reinterpret_cast<std::uint64_t>(addr),
-                                  size, nullptr, nullptr);
+                                  size, nullptr, kmodule->computeKType(nullptr));
   ObjectState *os = bindObjectInState(state, mo, false);
   for(unsigned i = 0; i < size; i++)
     os->write8(i, ((uint8_t*)addr)[i]);

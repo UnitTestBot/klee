@@ -29,7 +29,9 @@ KType::KType(llvm::Type *type, KModule *parent) : type(type), parent(parent) {
     }
     
     /// Type itself can be reached at offset 0
-    innerTypes[type].push_back(0);
+    if (type != nullptr) {
+        innerTypes[type].push_back(0);
+    }
 }
 
 bool KType::isAccessableFrom(llvm::Type *anotherType) const {
@@ -38,13 +40,6 @@ bool KType::isAccessableFrom(llvm::Type *anotherType) const {
     if (type == nullptr || anotherType == nullptr) {
         return true;
     }
-
-    // outs() << "Comparing : ";
-    // type->print(outs());
-    // outs() << "; ";
-    // anotherType->print(outs());
-    // outs() << "\n";
-
 
     /// If type is `char`/`uint8_t`/..., than type is always
     /// can be accessed through it. Note, that is not 
@@ -63,21 +58,13 @@ bool KType::isAccessableFrom(llvm::Type *anotherType) const {
         return true;
     }
 
-
     return isTypesSimilar(type, anotherType);
 }
 
 
 bool KType::isTypesSimilar(llvm::Type *firstType, llvm::Type *secondType) const {
-    /// Note, that we can not try to access this type again from the secondType
+    /// Note, that we can not try to access this type again from the secondType    
     
-    // llvm::outs() << "Trying to access ";
-    // firstType->print(llvm::outs());
-    // llvm::outs() << " FROM ";
-    // secondType->print(llvm::outs());
-    // llvm::outs() << ":\n";
-
-
     /// FIXME: here we make initialization for types, that had not 
     /// been initialized before, e.g. `int*` could be initialized, 
     /// but `int` not.
@@ -91,7 +78,7 @@ bool KType::isTypesSimilar(llvm::Type *firstType, llvm::Type *secondType) const 
             return true;
         }
     }
-
+    
     if (firstType->isArrayTy() ) {
         return isTypesSimilar(firstType->getArrayElementType(), secondType);
     } 

@@ -75,7 +75,7 @@ bool AddressSpace::resolveOne(const ref<ConstantExpr> &addr,
     // Check if the provided address is between start and end of the object
     // [mo->address, mo->address + mo->size) or the object is a 0-sized object.
     if ((mo->size==0 && address==mo->address) ||
-        (address - mo->address < mo->size)) {
+        (address - mo->address < mo->size)) { 
       if (StrictAliasingRule && !mo->dynamicType->isAccessableFrom(objectType)) {
         return false;
       }
