@@ -56,6 +56,7 @@ namespace klee {
   enum KBlockType {
     Base,
     Call,
+    Alloc
   };
 
   struct KBlock {
@@ -91,7 +92,39 @@ namespace klee {
     explicit KCallBlock(KFunction*, llvm::BasicBlock*, KModule*,
                     std::map<llvm::Instruction*, unsigned>&, std::map<unsigned, KInstruction*>&,
                     llvm::Function*, KInstruction **);
+
+    /// Factory method for KCallBlocks
+    static KCallBlock *computeKCallBlock(KFunction*, llvm::BasicBlock*, KModule*,
+                    std::map<llvm::Instruction*, unsigned>&, std::map<unsigned, KInstruction*>&,
+                    llvm::Function*, KInstruction **, std::map<llvm::Value *, llvm::Type *>&);
+
     KBlockType getKBlockType() const override { return KBlockType::Call; };
+    static bool classof(const KBlock *kblock) {
+      return kblock->getKBlockType() == KBlockType::Call;
+    }
+  };
+
+  struct KCallAllocBlock : KCallBlock {
+    llvm::Type *allocationType;
+
+    inline static const llvm::StringRef allocNewU = "_Znwj";
+    inline static const llvm::StringRef allocNewUArray = "_Znaj";
+    inline static const llvm::StringRef allocNewL = "_Znwm";
+    inline static const llvm::StringRef allocNewLArray = "_Znam";
+    inline static const llvm::StringRef allocMalloc = "malloc";
+    inline static const llvm::StringRef allocCalloc = "calloc";
+    inline static const llvm::StringRef allocMemalign = "memalign";
+    inline static const llvm::StringRef allocRealloc = "realloc";
+
+
+  public:
+    explicit KCallAllocBlock(KFunction*, llvm::BasicBlock*, KModule*,
+                    std::map<llvm::Instruction*, unsigned>&, std::map<unsigned, KInstruction*>&,
+                    llvm::Function*, KInstruction **, llvm::Type *);
+    KBlockType getKBlockType() const override { return KBlockType::Alloc; };
+    static bool classof(const KBlock *kblock) {
+      return kblock->getKBlockType() == KBlockType::Alloc;
+    }
   };
 
   struct KFunction {

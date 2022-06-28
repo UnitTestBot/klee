@@ -113,7 +113,6 @@ MemoryObject *MemoryManager::allocate(uint64_t size, bool isLocal,
     klee_warning_once(0, "Large alloc: %" PRIu64
                          " bytes.  KLEE may run out of memory.",
                       size);
-
   // Return NULL if size is zero, this is equal to error during allocation
   if (NullOnZeroMalloc && size == 0)
     return 0;

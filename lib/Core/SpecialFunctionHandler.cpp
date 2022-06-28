@@ -463,8 +463,9 @@ void SpecialFunctionHandler::handleNew(ExecutionState &state,
                          std::vector<ref<Expr> > &arguments) {
   // XXX should type check args
   assert(arguments.size()==1 && "invalid number of arguments to new");
-
-  executor.executeAlloc(state, arguments[0], false, target);
+  
+  KCallAllocBlock *allocBlock = dyn_cast<KCallAllocBlock>(target->parent);
+  executor.executeAlloc(state, arguments[0], false, target, allocBlock->allocationType);
 }
 
 void SpecialFunctionHandler::handleDelete(ExecutionState &state,
@@ -483,7 +484,9 @@ void SpecialFunctionHandler::handleNewArray(ExecutionState &state,
                               std::vector<ref<Expr> > &arguments) {
   // XXX should type check args
   assert(arguments.size()==1 && "invalid number of arguments to new[]");
-  executor.executeAlloc(state, arguments[0], false, target);
+
+  KCallAllocBlock *allocBlock = dyn_cast<KCallAllocBlock>(target->parent);
+  executor.executeAlloc(state, arguments[0], false, target, allocBlock->allocationType);
 }
 
 void SpecialFunctionHandler::handleDeleteArray(ExecutionState &state,
@@ -499,7 +502,7 @@ void SpecialFunctionHandler::handleMalloc(ExecutionState &state,
                                   std::vector<ref<Expr> > &arguments) {
   // XXX should type check args
   assert(arguments.size()==1 && "invalid number of arguments to malloc");
-  executor.executeAlloc(state, arguments[0], false, target);
+  executor.executeAlloc(state, arguments[0], false, target, nullptr);
 }
 
 void SpecialFunctionHandler::handleMemalign(ExecutionState &state,
@@ -533,7 +536,7 @@ void SpecialFunctionHandler::handleMemalign(ExecutionState &state,
         0, "Symbolic alignment for memalign. Choosing smallest alignment");
   }
 
-  executor.executeAlloc(state, arguments[1], false, target, false, 0,
+  executor.executeAlloc(state, arguments[1], false, target, nullptr, false, 0,
                         alignment);
 }
 
@@ -792,7 +795,7 @@ void SpecialFunctionHandler::handleCalloc(ExecutionState &state,
 
   ref<Expr> size = MulExpr::create(arguments[0],
                                    arguments[1]);
-  executor.executeAlloc(state, size, false, target, true);
+  executor.executeAlloc(state, size, false, target, nullptr, true);
 }
 
 void SpecialFunctionHandler::handleRealloc(ExecutionState &state,
@@ -817,7 +820,7 @@ void SpecialFunctionHandler::handleRealloc(ExecutionState &state,
                                                     true);
     
     if (zeroPointer.first) { // address == 0
-      executor.executeAlloc(*zeroPointer.first, size, false, target);
+      executor.executeAlloc(*zeroPointer.first, size, false, target, nullptr);
     } 
     if (zeroPointer.second) { // address != 0
       Executor::ExactResolutionList rl;
@@ -825,7 +828,7 @@ void SpecialFunctionHandler::handleRealloc(ExecutionState &state,
       
       for (Executor::ExactResolutionList::iterator it = rl.begin(), 
              ie = rl.end(); it != ie; ++it) {
-        executor.executeAlloc(*it->second, size, false, target, false, 
+        executor.executeAlloc(*it->second, size, false, target, nullptr, false, 
                               it->first.second);
       }
     }

@@ -2837,7 +2837,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       count = Expr::createZExtToPointerWidth(count);
       size = MulExpr::create(size, count);
     }
-    executeAlloc(state, size, true, ki);
+    executeAlloc(state, size, true, ki, ai->getType());
     break;
   }
 
@@ -4493,6 +4493,7 @@ void Executor::executeAlloc(ExecutionState &state,
                             ref<Expr> size,
                             bool isLocal,
                             KInstruction *target,
+                            llvm::Type *type,
                             bool zeroMemory,
                             const ObjectState *reallocFrom,
                             size_t allocationAlignment) {
@@ -4504,7 +4505,7 @@ void Executor::executeAlloc(ExecutionState &state,
     }
     MemoryObject *mo =
         memory->allocate(CE->getZExtValue(), isLocal, /*isGlobal=*/false, allocSite,
-                         kmodule->computeKType(allocSite ? allocSite->getType() : nullptr),
+                         kmodule->computeKType(type),
                          allocationAlignment);
     if (!mo) {
       bindLocal(target, state, 
@@ -4577,7 +4578,7 @@ void Executor::executeAlloc(ExecutionState &state,
       (void) success;
       if (res) {
         executeAlloc(*fixedSize.second, tmp, isLocal,
-                     target, zeroMemory, reallocFrom);
+                     target, type, zeroMemory, reallocFrom);
       } else {
         // See if a *really* big value is possible. If so assume
         // malloc will fail for it, so lets fork and return 0.
@@ -4606,7 +4607,7 @@ void Executor::executeAlloc(ExecutionState &state,
 
     if (fixedSize.first) // can be zero when fork fails
       executeAlloc(*fixedSize.first, example, isLocal, 
-                   target, zeroMemory, reallocFrom);
+                   target, type, zeroMemory, reallocFrom);
   }
 }
 
@@ -4860,7 +4861,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
         return;
       }
 
-      ObjectPair p = lazyInstantiateVariable(*unbound, base, target, size);
+      ObjectPair p = lazyInstantiateVariable(*unbound, base, target, targetType, size);
       assert(p.first && p.second);
 
       const MemoryObject *mo = p.first;
@@ -4913,15 +4914,15 @@ ObjectPair Executor::lazyInstantiateAlloca(ExecutionState &state,
   return op;
 }
 
-ObjectPair Executor::lazyInstantiateVariable(ExecutionState &state, ref<Expr> address, KInstruction *target, uint64_t size) {
+ObjectPair Executor::lazyInstantiateVariable(ExecutionState &state, ref<Expr> address, KInstruction *target, llvm::Type *targetType, uint64_t size) {
   assert(!isa<ConstantExpr>(address));
   const llvm::Value *allocSite = target ? target->inst : nullptr;
   MemoryObject *mo =
       memory->allocate(size, false, /*isGlobal=*/false,
                        allocSite, 
-                       kmodule->computeKType(allocSite ? allocSite->getType() : nullptr), 
+                       kmodule->computeKType(targetType), 
                        /*allocationAlignment=*/8, address);
-  return lazyInstantiate(state, target->inst->getType(), /*isLocal=*/false, mo);
+  return lazyInstantiate(state, targetType, /*isLocal=*/false, mo);
 }
 
 const Array * Executor::makeArray(ExecutionState &state,
@@ -5044,7 +5045,7 @@ ExecutionState* Executor::formState(Function *f,
           memory->allocate((argc + 1 + envc + 1 + 1) * NumPtrBytes,
                            /*isLocal=*/false, /*isGlobal=*/true,
                            /*allocSite=*/first, 
-                           kmodule->computeKType(first ? first->getType() : nullptr),
+                           kmodule->computeKType(nullptr),
                            /*alignment=*/8);
 
       if (!argvMO)
@@ -5082,7 +5083,7 @@ ExecutionState* Executor::formState(Function *f,
         MemoryObject *arg =
             memory->allocate(len + 1, /*isLocal=*/false, /*isGlobal=*/true,
                              /*allocSite=*/state->pc->inst,
-                             kmodule->computeKType(state->pc->inst ? state->pc->inst->getType() : nullptr),
+                             kmodule->computeKType(nullptr),
                              /*alignment=*/8);
         if (!arg)
           klee_error("Could not allocate memory for function arguments");
@@ -5121,7 +5122,7 @@ void Executor:: prepareSymbolicValue(ExecutionState &state, KInstruction *target
         count = Expr::createZExtToPointerWidth(count);
         size = MulExpr::create(size, count);
       }
-      lazyInstantiateVariable(state, result, target, elementSize);
+      lazyInstantiateVariable(state, result, target, ai->getType(), elementSize);
   }
 }
 

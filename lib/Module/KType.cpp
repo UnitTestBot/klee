@@ -37,9 +37,17 @@ KType::KType(llvm::Type *type, KModule *parent) : type(type), parent(parent) {
 bool KType::isAccessableFrom(llvm::Type *anotherType) const {
     /// If any of the types were not defined, say, that
     /// them compatible
+    
     if (type == nullptr || anotherType == nullptr) {
         return true;
     }
+
+    llvm::outs() << "Comparing ";
+    type->print(llvm::outs());
+    llvm::outs() << " <- ";
+    anotherType->print(llvm::outs());
+    llvm::outs() << "\n";
+
 
     /// If type is `char`/`uint8_t`/..., than type is always
     /// can be accessed through it. Note, that is not 
@@ -64,7 +72,7 @@ bool KType::isAccessableFrom(llvm::Type *anotherType) const {
 
 bool KType::isTypesSimilar(llvm::Type *firstType, llvm::Type *secondType) const {
     /// Note, that we can not try to access this type again from the secondType    
-    
+
     /// FIXME: here we make initialization for types, that had not 
     /// been initialized before, e.g. `int*` could be initialized, 
     /// but `int` not.
@@ -72,11 +80,14 @@ bool KType::isTypesSimilar(llvm::Type *firstType, llvm::Type *secondType) const 
         if (innerType == secondType) {
             return true;
         }
+        llvm::outs() << " -->\n";
         if (!innerType->isStructTy() && 
             innerType != firstType &&
             parent->computeKType(innerType)->isAccessableFrom(secondType)) {
+            llvm::outs() << " <--\n";
             return true;
         }
+        llvm::outs() << " <--\n";
     }
     
     if (firstType->isArrayTy() ) {

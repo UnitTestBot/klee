@@ -335,6 +335,7 @@ private:
                     ref<Expr> size,
                     bool isLocal,
                     KInstruction *target,
+                    llvm::Type *type,
                     bool zeroMemory=false,
                     const ObjectState *reallocFrom=0,
                     size_t allocationAlignment=0);
@@ -385,6 +386,7 @@ private:
   ObjectPair lazyInstantiateVariable(ExecutionState &state,
                                      ref<Expr> address,
                                      KInstruction *target,
+                                     llvm::Type *targetType,
                                      uint64_t size);
 
   void executeMakeSymbolic(ExecutionState &state, const MemoryObject *mo,
