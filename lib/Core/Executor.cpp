@@ -729,7 +729,7 @@ void Executor::initializeGlobals(ExecutionState &state) {
 
 void Executor::allocateGlobalObjects(ExecutionState &state) {
   const Module *m = kmodule->module.get();
-
+  unsigned int adress_space_num = kmodule->targetData->getProgramAddressSpace();
   if (m->getModuleInlineAsm() != "")
     klee_warning("executable has module level assembly (ignoring)");
   // represent function globals using the address of the actual llvm function
@@ -755,10 +755,14 @@ void Executor::allocateGlobalObjects(ExecutionState &state) {
 
 #ifndef WINDOWS
   int *errno_addr = getErrnoLocation(state);
+  llvm::Type *pointer_errno_addr = llvm::PointerType::get(
+    llvm::IntegerType::get(m->getContext(), sizeof(*errno_addr) * 8), 
+    adress_space_num
+  );
   MemoryObject *errnoObj =
       addExternalObject(state, 
                         (void *)errno_addr,
-                        llvm::IntegerType::get(m->getContext(), sizeof(*errno_addr) * 8),
+                        pointer_errno_addr,
                         sizeof *errno_addr,
                         false);
   // Copy values from and to program space explicitly
@@ -775,7 +779,8 @@ void Executor::allocateGlobalObjects(ExecutionState &state) {
        [-128,-1).  ISO C requires that the ctype functions work for `unsigned */
   const uint16_t **addr = __ctype_b_loc();
   llvm::Type *pointer_addr = llvm::PointerType::get(
-                              llvm::IntegerType::get(m->getContext(), sizeof(*addr)), 0
+                              llvm::IntegerType::get(m->getContext(), sizeof(*addr) * 8), 
+                              adress_space_num
                              );
 
   addExternalObject(state, const_cast<uint16_t*>(*addr-128),
@@ -787,7 +792,8 @@ void Executor::allocateGlobalObjects(ExecutionState &state) {
   
   const int32_t **lower_addr = __ctype_tolower_loc();
   llvm::Type *pointer_lower_addr = llvm::PointerType::get(
-                                    llvm::IntegerType::get(m->getContext(), sizeof(*lower_addr)), 0
+                                    llvm::IntegerType::get(m->getContext(), sizeof(*lower_addr) * 8),
+                                    adress_space_num
                                    );
   addExternalObject(state, const_cast<int32_t*>(*lower_addr-128),
                     pointer_lower_addr,
@@ -798,7 +804,8 @@ void Executor::allocateGlobalObjects(ExecutionState &state) {
   
   const int32_t **upper_addr = __ctype_toupper_loc();
   llvm::Type *pointer_upper_addr = llvm::PointerType::get(
-                                    llvm::IntegerType::get(m->getContext(), sizeof(*upper_addr)), 0
+                                    llvm::IntegerType::get(m->getContext(), sizeof(*upper_addr) * 8),
+                                    0
                                    );
   addExternalObject(state, const_cast<int32_t*>(*upper_addr-128),
                     pointer_upper_addr,
@@ -4381,9 +4388,13 @@ void Executor::callExternalFunction(ExecutionState &state,
   // Update external errno state with local state value
   int *errno_addr = getErrnoLocation(state);
   ObjectPair result;
+  llvm::Type *pointer_errno_addr = llvm::PointerType::get(
+    llvm::IntegerType::get(kmodule->module->getContext(), sizeof(*errno_addr) * 8),
+    kmodule->targetData->getProgramAddressSpace() 
+  );
   bool resolved = state.addressSpace.resolveOne(
       ConstantExpr::create((uint64_t)errno_addr, Expr::Int64), 
-      llvm::Type::getInt64PtrTy(function->getContext()), 
+      pointer_errno_addr, 
       result
       );
   if (!resolved) {
