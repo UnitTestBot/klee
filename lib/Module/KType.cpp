@@ -14,12 +14,11 @@ KType::KType(llvm::Type *type, KModule *parent) : type(type), parent(parent) {
     /// If type is complex, pull types from it inner types
     if (llvm::StructType *structType = dyn_cast_or_null<StructType>(type)) {
         const StructLayout *structLayout = parent->targetData->getStructLayout(structType);
-
         for (unsigned idx = 0; idx < structType->getNumElements(); ++idx) {
             llvm::Type *structTypeMember = structType->getStructElementType(idx);
             uint64_t offset = structLayout->getElementOffset(idx);
             for (auto &[subtype, subtypeOffsets] 
-                    : parent->typesMap[structTypeMember]->innerTypes) {
+                    : parent->computeKType(structTypeMember)->innerTypes) {
                 for (auto subtypeOffset : subtypeOffsets) {
                     innerTypes[subtype].push_back(offset + subtypeOffset);
                 }
@@ -68,7 +67,8 @@ bool KType::isTypesSimilar(llvm::Type *firstType, llvm::Type *secondType) const 
 
     /// FIXME: here we make initialization for types, that had not 
     /// been initialized before, e.g. `int*` could be initialized, 
-    /// but `int` not.
+    /// but `int` not. It is not a big problem at all, but violates
+    /// klee's logic: initialize all meta information before main cycle.
     for (auto &[innerType, offsets] : parent->computeKType(firstType)->innerTypes) {
         if (innerType == secondType) {
             return true;

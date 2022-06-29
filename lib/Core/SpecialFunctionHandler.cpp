@@ -757,9 +757,14 @@ void SpecialFunctionHandler::handleGetErrno(ExecutionState &state,
 
   // Retrieve the memory object of the errno variable
   ObjectPair result;
+  llvm::Type *pointer_errno_addr = llvm::PointerType::get(
+    llvm::IntegerType::get(executor.kmodule->module->getContext(), sizeof(*errno_addr) * 8),
+    executor.kmodule->targetData->getProgramAddressSpace()
+  );
+
   bool resolved = state.addressSpace.resolveOne(
       ConstantExpr::create((uint64_t)errno_addr, Expr::Int64),
-      llvm::Type::getInt64Ty(target->inst->getContext()),
+      pointer_errno_addr,
       result);
   if (!resolved)
     executor.terminateStateOnError(state, "Could not resolve address for errno",

@@ -4357,11 +4357,6 @@ void Executor::callExternalFunction(ExecutionState &state,
       // Checking to see if the argument is a pointer to something
       if (ce->getWidth() == Context::get().getPointerWidth() &&
           state.addressSpace.resolveOne(ce, ati->getType(), op)) {
-        // llvm::outs() << "Expected ";
-        // ati->getType()->print(llvm::outs());
-        // llvm::outs() << "; Got ";
-        // op.first->dynamicType.type->print(llvm::outs());
-        // llvm::outs() << '\n';
         op.second->flushToConcreteStore(solver, state);
       }
       wordIndex += (ce->getWidth()+63)/64;
@@ -4682,29 +4677,7 @@ void Executor::resolveExact(ExecutionState &state,
   ResolutionList rl;
   state.addressSpace.resolve(state, solver, p, type, rl);
   
-  // llvm::outs() << "ResolveExact ";
-  // if (type) {
-  //   type->print(llvm::outs());
-  // }
-  // else {
-  //   llvm::outs() << "nullptr";
-  // }
-  // llvm::outs() << "\n";
-
-  // for (auto &var : rl) {  
-  //   llvm::outs() << var.first->address << " ";
-  //   llvm::Type *resolvedType = var.first->dynamicType->type;
-  //   llvm::outs() << "lazy: " << var.first->isLazyInstantiated() << " ";
-  //   if (resolvedType) {
-  //     resolvedType->print(llvm::outs());
-  //     llvm::outs() << "\n";
-  //   }
-  //   else {
-  //     llvm::outs() << "nullptr\n";
-  //   }
-  // }
-  // llvm::outs() << "\n";
-
+  
   ExecutionState *unbound = &state;
   for (ResolutionList::iterator it = rl.begin(), ie = rl.end(); 
        it != ie; ++it) {
@@ -4848,33 +4821,6 @@ void Executor::executeMemoryOperation(ExecutionState &state,
                                                   rl, 0, coreSolverTimeout);
   }
 
-  // llvm::outs() << "Resolve ";
-  // if (targetType) {
-  //   targetType->print(llvm::outs());
-  // }
-  // else {
-  //   llvm::outs() << "nullptr";
-  // }
-  // llvm::outs() << "\n";
-
-  // llvm::outs() << "State " << state.getID() << "\n";
-  // llvm::outs() << "Line " << state.prevPC->info->line << "\n";
-  // llvm::outs() << "Assebly line " << state.prevPC->info->assemblyLine << "\n";
-
-  // for (auto &var : rl) {  
-
-  //   llvm::outs() << var.first->address << " ";
-  //   llvm::outs() << "lazy: " << var.first->isLazyInstantiated() << " ";
-  //   llvm::Type *resolvedType = var.first->dynamicType->type;
-  //   if (resolvedType) {
-  //     resolvedType->print(llvm::outs());
-  //     llvm::outs() << "\n";
-  //   }
-  //   else {
-  //     llvm::outs() << "nullptr\n";
-  //   }
-  // }
-  // llvm::outs() << "\n";
 
   solver->setTimeout(time::Span());
 

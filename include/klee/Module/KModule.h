@@ -107,14 +107,14 @@ namespace klee {
   struct KCallAllocBlock : KCallBlock {
     llvm::Type *allocationType;
 
-    inline static const llvm::StringRef allocNewU = "_Znwj";
-    inline static const llvm::StringRef allocNewUArray = "_Znaj";
-    inline static const llvm::StringRef allocNewL = "_Znwm";
-    inline static const llvm::StringRef allocNewLArray = "_Znam";
-    inline static const llvm::StringRef allocMalloc = "malloc";
-    inline static const llvm::StringRef allocCalloc = "calloc";
-    inline static const llvm::StringRef allocMemalign = "memalign";
-    inline static const llvm::StringRef allocRealloc = "realloc";
+    static const llvm::StringRef allocNewU;
+    static const llvm::StringRef allocNewUArray;
+    static const llvm::StringRef allocNewL;
+    static const llvm::StringRef allocNewLArray;
+    static const llvm::StringRef allocMalloc;
+    static const llvm::StringRef allocCalloc;
+    static const llvm::StringRef allocMemalign;
+    static const llvm::StringRef allocRealloc;
 
 
   public:
