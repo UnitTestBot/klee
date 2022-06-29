@@ -698,10 +698,10 @@ void Executor::initializeGlobalObject(ExecutionState &state, ObjectState *os,
 }
 
 MemoryObject * Executor::addExternalObject(ExecutionState &state, 
-                                           void *addr, unsigned size, 
-                                           bool isReadOnly) {
+                                           void *addr, llvm::Type *type,
+                                           unsigned size, bool isReadOnly) {
   auto mo = memory->allocateFixed(reinterpret_cast<std::uint64_t>(addr),
-                                  size, nullptr, kmodule->computeKType(nullptr));
+                                  size, nullptr, kmodule->computeKType(type));
   ObjectState *os = bindObjectInState(state, mo, false);
   for(unsigned i = 0; i < size; i++)
     os->write8(i, ((uint8_t*)addr)[i]);
@@ -756,7 +756,11 @@ void Executor::allocateGlobalObjects(ExecutionState &state) {
 #ifndef WINDOWS
   int *errno_addr = getErrnoLocation(state);
   MemoryObject *errnoObj =
-      addExternalObject(state, (void *)errno_addr, sizeof *errno_addr, false);
+      addExternalObject(state, 
+                        (void *)errno_addr,
+                        llvm::IntegerType::get(m->getContext(), sizeof(*errno_addr) * 8),
+                        sizeof *errno_addr,
+                        false);
   // Copy values from and to program space explicitly
   errnoObj->isUserSpecified = true;
 #endif
@@ -770,19 +774,38 @@ void Executor::allocateGlobalObjects(ExecutionState &state) {
        char' value [0,255]; by EOF (-1); or by any `signed char' value
        [-128,-1).  ISO C requires that the ctype functions work for `unsigned */
   const uint16_t **addr = __ctype_b_loc();
+  llvm::Type *pointer_addr = llvm::PointerType::get(
+                              llvm::IntegerType::get(m->getContext(), sizeof(*addr)), 0
+                             );
+
   addExternalObject(state, const_cast<uint16_t*>(*addr-128),
+                    pointer_addr,
                     384 * sizeof **addr, true);
-  addExternalObject(state, addr, sizeof(*addr), true);
-    
+  addExternalObject(state, addr,
+                    pointer_addr,
+                    sizeof(*addr), true);
+  
   const int32_t **lower_addr = __ctype_tolower_loc();
+  llvm::Type *pointer_lower_addr = llvm::PointerType::get(
+                                    llvm::IntegerType::get(m->getContext(), sizeof(*lower_addr)), 0
+                                   );
   addExternalObject(state, const_cast<int32_t*>(*lower_addr-128),
+                    pointer_lower_addr,
                     384 * sizeof **lower_addr, true);
-  addExternalObject(state, lower_addr, sizeof(*lower_addr), true);
+  addExternalObject(state, lower_addr, 
+                    pointer_lower_addr,
+                    sizeof(*lower_addr), true);
   
   const int32_t **upper_addr = __ctype_toupper_loc();
+  llvm::Type *pointer_upper_addr = llvm::PointerType::get(
+                                    llvm::IntegerType::get(m->getContext(), sizeof(*upper_addr)), 0
+                                   );
   addExternalObject(state, const_cast<int32_t*>(*upper_addr-128),
+                    pointer_upper_addr,
                     384 * sizeof **upper_addr, true);
-  addExternalObject(state, upper_addr, sizeof(*upper_addr), true);
+  addExternalObject(state, upper_addr, 
+                    pointer_upper_addr,
+                    sizeof(*upper_addr), true);
 #endif
 #endif
 #endif
@@ -2871,8 +2894,6 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
   case Instruction::GetElementPtr: {
     KGEPInstruction *kgepi = static_cast<KGEPInstruction*>(ki);
     GetElementPtrInst *gepInst = static_cast<GetElementPtrInst*>(kgepi->inst);
-    unsigned sourceSize =
-        kmodule->targetData->getTypeStoreSize(gepInst->getSourceElementType());
     ref<Expr> base = eval(ki, 0, state).value;
     ref<Expr> offset = ConstantExpr::create(0, base->getWidth());
     for (std::vector< std::pair<unsigned, uint64_t> >::iterator
@@ -2892,7 +2913,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       if (isGEPExpr(base))
         gepExprBases[address] = gepExprBases[base];
       else
-        gepExprBases[address] = {base, sourceSize};
+        gepExprBases[address] = {base, gepInst->getSourceElementType()};
     }
     bindLocal(ki, state, address);
     break;
@@ -2942,10 +2963,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     BitCastInst *bc = cast<BitCastInst>(ki->inst);
 
     if(UseGEPExpr && isGEPExpr(result)) {
-      unsigned size = bc->getType()->isPointerTy() ?
-            kmodule->targetData->getTypeStoreSize(ki->inst->getType()->getPointerElementType()) :
-            kmodule->targetData->getTypeStoreSize(ki->inst->getType());
-      gepExprBases[result] = {gepExprBases[result].first, size};
+      assert(bc->getType()->isPointerTy());
+      gepExprBases[result] = {gepExprBases[result].first, bc->getType()->getPointerElementType()};
     }
 
     bindLocal(ki, state, result);
@@ -4652,6 +4671,29 @@ void Executor::resolveExact(ExecutionState &state,
   ResolutionList rl;
   state.addressSpace.resolve(state, solver, p, type, rl);
   
+  // llvm::outs() << "ResolveExact ";
+  // if (type) {
+  //   type->print(llvm::outs());
+  // }
+  // else {
+  //   llvm::outs() << "nullptr";
+  // }
+  // llvm::outs() << "\n";
+
+  // for (auto &var : rl) {  
+  //   llvm::outs() << var.first->address << " ";
+  //   llvm::Type *resolvedType = var.first->dynamicType->type;
+  //   llvm::outs() << "lazy: " << var.first->isLazyInstantiated() << " ";
+  //   if (resolvedType) {
+  //     resolvedType->print(llvm::outs());
+  //     llvm::outs() << "\n";
+  //   }
+  //   else {
+  //     llvm::outs() << "nullptr\n";
+  //   }
+  // }
+  // llvm::outs() << "\n";
+
   ExecutionState *unbound = &state;
   for (ResolutionList::iterator it = rl.begin(), ie = rl.end(); 
        it != ie; ++it) {
@@ -4693,7 +4735,12 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   unsigned bytes = Expr::getMinBytesForWidth(type);
 
   ref<Expr> base = UseGEPExpr && isGEPExpr(address) ? gepExprBases[address].first : address;
-  unsigned size = UseGEPExpr && isGEPExpr(address) ? gepExprBases[address].second : bytes;
+  unsigned size = bytes; 
+  if (UseGEPExpr && isGEPExpr(address)) {
+    targetType = gepExprBases[address].second;
+    size = kmodule->targetData->getTypeStoreSize(targetType);
+    targetType = llvm::PointerType::get(targetType, 0);
+  }
 
   if (SimplifySymIndices) {
     if (!isa<ConstantExpr>(address))
@@ -4790,6 +4837,34 @@ void Executor::executeMemoryOperation(ExecutionState &state,
                                                   rl, 0, coreSolverTimeout);
   }
 
+  // llvm::outs() << "Resolve ";
+  // if (targetType) {
+  //   targetType->print(llvm::outs());
+  // }
+  // else {
+  //   llvm::outs() << "nullptr";
+  // }
+  // llvm::outs() << "\n";
+
+  // llvm::outs() << "State " << state.getID() << "\n";
+  // llvm::outs() << "Line " << state.prevPC->info->line << "\n";
+  // llvm::outs() << "Assebly line " << state.prevPC->info->assemblyLine << "\n";
+
+  // for (auto &var : rl) {  
+
+  //   llvm::outs() << var.first->address << " ";
+  //   llvm::outs() << "lazy: " << var.first->isLazyInstantiated() << " ";
+  //   llvm::Type *resolvedType = var.first->dynamicType->type;
+  //   if (resolvedType) {
+  //     resolvedType->print(llvm::outs());
+  //     llvm::outs() << "\n";
+  //   }
+  //   else {
+  //     llvm::outs() << "nullptr\n";
+  //   }
+  // }
+  // llvm::outs() << "\n";
+
   solver->setTimeout(time::Span());
 
   // XXX there is some query wasteage here. who cares?
@@ -4855,7 +4930,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
     if (incomplete) {
       terminateStateEarly(*unbound, "Query timed out (resolve).");
     } else if (LazyInstantiation && (isa<ReadExpr>(address) || isa<ConcatExpr>(address) || (UseGEPExpr && isGEPExpr(address)))) {
-
+      
       if (!isReadFromSymbolicArray(base)) {
         terminateStateEarly(*unbound, "Instantiation source contains read from concrete array");
         return;
@@ -4898,10 +4973,10 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   }
 }
 
-ObjectPair Executor::lazyInstantiate(ExecutionState &state, llvm::Type *type, bool isAlloca, const MemoryObject *mo) {
+ObjectPair Executor::lazyInstantiate(ExecutionState &state, llvm::Type *targetType, bool isAlloca, const MemoryObject *mo) {
   executeMakeSymbolic(state, mo, "lazy_instantiation", isAlloca);
   ObjectPair op;
-  state.addressSpace.resolveOne(mo->getBaseConstantExpr().get(), type ,op);
+  state.addressSpace.resolveOne(mo->getBaseConstantExpr().get(), targetType ,op);
   return op;
 }
 

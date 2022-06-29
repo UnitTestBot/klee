@@ -159,7 +159,7 @@ private:
   SpecialFunctionHandler *specialFunctionHandler;
   TimerGroup timers;
   std::unique_ptr<PTree> processTree;
-  std::map<ref<Expr>, std::pair<ref<Expr>, unsigned>> gepExprBases;
+  std::map<ref<Expr>, std::pair<ref<Expr>, llvm::Type *>> gepExprBases;
 
   /// Used to track states that have been added during the current
   /// instructions step. 
@@ -269,7 +269,7 @@ private:
 
   // Given a concrete object in our [klee's] address space, add it to 
   // objects checked code can reference.
-  MemoryObject *addExternalObject(ExecutionState &state, void *addr, 
+  MemoryObject *addExternalObject(ExecutionState &state, void *addr, llvm::Type *, 
                                   unsigned size, bool isReadOnly);
 
   void initializeGlobalAlias(const llvm::Constant *c, ExecutionState &state);

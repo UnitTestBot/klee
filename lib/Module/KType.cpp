@@ -42,13 +42,6 @@ bool KType::isAccessableFrom(llvm::Type *anotherType) const {
         return true;
     }
 
-    llvm::outs() << "Comparing ";
-    type->print(llvm::outs());
-    llvm::outs() << " <- ";
-    anotherType->print(llvm::outs());
-    llvm::outs() << "\n";
-
-
     /// If type is `char`/`uint8_t`/..., than type is always
     /// can be accessed through it. Note, that is not 
     /// safe behavior, as memory access via `char` 
@@ -80,19 +73,16 @@ bool KType::isTypesSimilar(llvm::Type *firstType, llvm::Type *secondType) const 
         if (innerType == secondType) {
             return true;
         }
-        llvm::outs() << " -->\n";
         if (!innerType->isStructTy() && 
             innerType != firstType &&
             parent->computeKType(innerType)->isAccessableFrom(secondType)) {
-            llvm::outs() << " <--\n";
             return true;
         }
-        llvm::outs() << " <--\n";
     }
     
     if (firstType->isArrayTy() ) {
         return isTypesSimilar(firstType->getArrayElementType(), secondType);
-    } 
+    }
 
     if (secondType->isArrayTy()) {
         return isTypesSimilar(firstType, secondType->getArrayElementType());

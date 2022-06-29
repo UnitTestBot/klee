@@ -824,7 +824,7 @@ void SpecialFunctionHandler::handleRealloc(ExecutionState &state,
     } 
     if (zeroPointer.second) { // address != 0
       Executor::ExactResolutionList rl;
-      executor.resolveExact(*zeroPointer.second, address, target->inst->getType(), rl, "realloc");
+      executor.resolveExact(*zeroPointer.second, address, nullptr, rl, "realloc");
       
       for (Executor::ExactResolutionList::iterator it = rl.begin(), 
              ie = rl.end(); it != ie; ++it) {
@@ -971,7 +971,7 @@ void SpecialFunctionHandler::handleMarkGlobal(ExecutionState &state,
          "invalid number of arguments to klee_mark_global");  
 
   Executor::ExactResolutionList rl;
-  executor.resolveExact(state, arguments[0], target->inst->getType(), rl, "mark_global");
+  executor.resolveExact(state, arguments[0], nullptr, rl, "mark_global");
   
   for (Executor::ExactResolutionList::iterator it = rl.begin(), 
          ie = rl.end(); it != ie; ++it) {
