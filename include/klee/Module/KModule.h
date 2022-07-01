@@ -236,7 +236,8 @@ namespace klee {
     void initTypesFromStructs();
     void initTypesFromGlobals();
     void initTypesFromInstruction(KInstruction *kinstruction);
-
+    /// Final types initialization. Should be called once after type collection
+    void completeInitType(llvm::Type *type);
 
   public:
     KModule() = default;

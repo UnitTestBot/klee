@@ -17,13 +17,13 @@ KType::KType(llvm::Type *type, KModule *parent) : type(type), parent(parent) {
         for (unsigned idx = 0; idx < structType->getNumElements(); ++idx) {
             llvm::Type *structTypeMember = structType->getStructElementType(idx);
             uint64_t offset = structLayout->getElementOffset(idx);
+            assert(parent->typesMap.count(structTypeMember) && "Given type was not initialized");
             for (auto &[subtype, subtypeOffsets] 
                     : parent->computeKType(structTypeMember)->innerTypes) {
                 for (auto subtypeOffset : subtypeOffsets) {
                     innerTypes[subtype].push_back(offset + subtypeOffset);
                 }
             }
-
         }
     }
     
@@ -65,14 +65,14 @@ bool KType::isAccessableFrom(llvm::Type *anotherType) const {
 bool KType::isTypesSimilar(llvm::Type *firstType, llvm::Type *secondType) const {
     /// Note, that we can not try to access this type again from the secondType    
 
-    /// FIXME: here we make initialization for types, that had not 
-    /// been initialized before, e.g. `int*` could be initialized, 
-    /// but `int` not. It is not a big problem at all, but violates
-    /// klee's logic: initialize all meta information before main cycle.
+    /// Ensure that all types were initialized before
+    assert(parent->typesMap.count(firstType) && "Given type was not initialized!");
+
     for (auto &[innerType, offsets] : parent->computeKType(firstType)->innerTypes) {
         if (innerType == secondType) {
             return true;
         }
+        assert(parent->typesMap.count(innerType) && "Given type was not initialized!");
         if (!innerType->isStructTy() && 
             innerType != firstType &&
             parent->computeKType(innerType)->isAccessableFrom(secondType)) {

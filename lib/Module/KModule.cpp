@@ -508,6 +508,30 @@ void KModule::manifest(InterpreterHandler *ih, bool forceSourceOutput) {
   }
 
   initTypesFromStructs();
+
+  for (unsigned idx = 0, size = types.size(); idx < size; ++idx) {
+    completeInitType(types[idx]->type);
+  }
+}
+
+void KModule::completeInitType(llvm::Type *type) {
+  if (!type) {
+    return;
+  }
+  computeKType(type);
+
+  if (type->isPointerTy() && 
+      !typesMap.count(type->getPointerElementType())) {
+    completeInitType(type->getPointerElementType());
+  }
+  if (type->isArrayTy() && 
+      !typesMap.count(type->getArrayElementType())) {
+    completeInitType(type->getArrayElementType());
+  }
+  if (type->isVectorTy() && 
+      !typesMap.count(type->getVectorElementType())) {
+    completeInitType(type->getVectorElementType());
+  }
 }
 
 
