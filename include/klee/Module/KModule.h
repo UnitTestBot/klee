@@ -12,6 +12,7 @@
 
 #include "klee/Config/Version.h"
 #include "klee/Core/Interpreter.h"
+#include "klee/Module/KCallable.h"
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/IR/CFG.h"
@@ -75,6 +76,8 @@ namespace klee {
     void handleKInstruction(std::map<llvm::Instruction*, unsigned> &registerMap,
                             llvm::Instruction *inst, KModule *km, KInstruction *ki);
     virtual KBlockType getKBlockType() const { return KBlockType::Base; };
+
+    virtual ~KBlock() = default;
   };
 
   struct KCallBlock : KBlock {
@@ -88,7 +91,7 @@ namespace klee {
     KBlockType getKBlockType() const override { return KBlockType::Call; };
   };
 
-  struct KFunction {
+  struct KFunction : public KCallable {
     KModule *parent;
     llvm::Function *function;
 
@@ -127,6 +130,20 @@ namespace klee {
     unsigned getArgRegister(unsigned index) const { return index; }
     std::map<KBlock*, unsigned int>& getDistance(KBlock *kb);
     std::map<KBlock*, unsigned int>& getBackwardDistance(KBlock *kb);
+
+    llvm::StringRef getName() const override { return function->getName(); }
+
+    llvm::LLVMContext &getContext() const override {
+      return function->getContext();
+    }
+
+    llvm::PointerType *getType() const override { return function->getType(); }
+
+    llvm::Value *getValue() override { return function; }
+
+    static bool classof(const KCallable *callable) {
+      return callable->getKind() == CK_Function;
+    }
   };
 
 

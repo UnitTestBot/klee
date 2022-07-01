@@ -639,7 +639,8 @@ void KBlock::handleKInstruction(
 
 KFunction::KFunction(llvm::Function *_function,
                      KModule *_km)
-  : parent(_km),
+  : KCallable(CK_Function),
+    parent(_km),
     function(_function),
     numArgs(function->arg_size()),
     numInstructions(0),
