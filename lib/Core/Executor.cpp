@@ -4248,7 +4248,7 @@ void Executor::callExternalFunction(ExecutionState &state,
       (void) success;
       ce->toMemory(&args[wordIndex]);
       IDType result;
-      // Checking to see if the argument is a pointer to something
+      addConstraint(state, EqExpr::create(ce, *ai));
       if (ce->getWidth() == Context::get().getPointerWidth() &&
           state.addressSpace.resolveOne(ce, typeSystemManager->getWrappedType(argumentType), result)) {
         state.addressSpace.findObject(result).second->flushToConcreteStore(
