@@ -31,3 +31,5 @@ $UTBOT_CMAKE_BINARY -G Ninja \
    ..
 $UTBOT_CMAKE_BINARY --build .
 $UTBOT_CMAKE_BINARY --install .
+
+# something to create commit
