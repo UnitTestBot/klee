@@ -147,6 +147,10 @@ cl::opt<bool> LazyInstantiation(
      cl::desc("Enable lazy instantiation (default=true)"),
      cl::cat(ExecCat));
 
+cl::opt<bool> StrictAliasingRule(
+    "strict-aliasing",
+    llvm::cl::desc("Turn's on rules based on strict aliasing rule"),
+    llvm::cl::init(false));
 } // namespace klee
 
 namespace {
@@ -4720,6 +4724,11 @@ void Executor::executeMemoryOperation(ExecutionState &state,
 
   ref<Expr> base = UseGEPExpr && isGEPExpr(address) ? gepExprBases[address].first : address;
   unsigned size = bytes; 
+
+  /// Save type in order to find offsets in structs with this type.
+  /// TargetType below can be replaced with gepExpr origin type.
+  llvm::Type *operationType = targetType;
+
   if (UseGEPExpr && isGEPExpr(address)) {
     size = kmodule->targetData->getTypeStoreSize(gepExprBases[address].second);
     targetType = llvm::PointerType::get(
@@ -4834,54 +4843,110 @@ void Executor::executeMemoryOperation(ExecutionState &state,
     const ObjectState *os = i->second;
 
     ref<Expr> inBounds;
+    StatePair branches;
+    
+    /// If strict-aliasing enabled and we are are trying to
+    /// perform operation in struct, we will iterate over all appropriate subtypes
+    /// of given type.
 
-    if (UseGEPExpr && isGEPExpr(address))
-      inBounds = mo->getBoundsCheckPointer(base, 1);
-    else
-      inBounds = mo->getBoundsCheckPointer(address, 1);
+    assert(mo->dynamicType->type->isPointerTy() && "Memory Object holds non-pointer type");
+    assert(operationType->isPointerTy() && "Operation performed with a non-pointer type");
 
-    StatePair branches = fork(*unbound, inBounds, true);
-    ExecutionState *bound = branches.first;
+    if (StrictAliasingRule && mo->dynamicType->type->getPointerElementType()->isStructTy()) { 
+      const KType *kt = kmodule->computeKType(mo->dynamicType->type->getPointerElementType());
 
+      for (auto accessibleType : 
+          kt->getAccessibleInnerTypes(operationType->getPointerElementType())) {
+        if (mo->dynamicType->innerTypes.count(accessibleType)) {
+          for (auto &offset : mo->dynamicType->innerTypes.at(accessibleType)) {
+            inBounds = EqExpr::create(
+              AddExpr::create(
+                mo->getBaseExpr(),
+                ConstantExpr::create(offset, Context::get().getPointerWidth())
+              ),
+              address
+            );
+            branches = fork(*unbound, inBounds, true);
+            ExecutionState *bound = branches.first;
 
-    // bound can be 0 on failure or overlapped
-    if (bound) {
-      ref<Expr> inBounds = mo->getBoundsCheckPointer(address, bytes);
-      if (UseGEPExpr && isGEPExpr(address)) {
-        inBounds = AndExpr::create(
-            inBounds, mo->getBoundsCheckPointer(base, size));
-      }
-      StatePair branches_inner = fork(*bound, inBounds, true);
-      ExecutionState *bound_inner = branches_inner.first;
-      ExecutionState *unbound_inner = branches_inner.second;
-      if(bound_inner) {
-        switch (operation) {
-          case Write: {
-            if (os->readOnly) {
-              terminateStateOnError(*bound_inner, "memory error: object read only",
-                                    ReadOnly);
-            } else {
-              ObjectState *wos = bound_inner->addressSpace.getWriteable(mo, os);
-              wos->write(mo->getOffsetExpr(address), value);
+            if (bound) {
+              
+              switch (operation) {
+                case Write: {
+                  if (os->readOnly) {
+                    terminateStateOnError(*bound, "memory error: object read only",
+                                          ReadOnly);
+                  } else {
+                    ObjectState *wos = bound->addressSpace.getWriteable(mo, os);
+                    wos->write(mo->getOffsetExpr(address), value);
+                  }
+                  break;
+                }
+                case Read: {
+                  ref<Expr> result = os->read(mo->getOffsetExpr(address), type);
+                  bindLocal(target, *bound, result);
+                  break;
+                }
+              }
             }
-            break;
-          }
-          case Read: {
-            ref<Expr> result = os->read(mo->getOffsetExpr(address), type);
-            bindLocal(target, *bound_inner, result);
-            break;
+            unbound = branches.second;
+            if (!unbound) {
+              break;
+            }
+            
+          } // offsets
+        } // if type can be found in inner
+      } // accessible types
+    }
+    else {
+      if (UseGEPExpr && isGEPExpr(address))
+        inBounds = mo->getBoundsCheckPointer(base, 1);
+      else
+        inBounds = mo->getBoundsCheckPointer(address, 1);
+
+      branches = fork(*unbound, inBounds, true);
+      ExecutionState *bound = branches.first;
+
+
+      // bound can be 0 on failure or overlapped
+      if (bound) {
+        ref<Expr> inBounds = mo->getBoundsCheckPointer(address, bytes);
+        if (UseGEPExpr && isGEPExpr(address)) {
+          inBounds = AndExpr::create(
+              inBounds, mo->getBoundsCheckPointer(base, size));
+        }
+        StatePair branches_inner = fork(*bound, inBounds, true);
+        ExecutionState *bound_inner = branches_inner.first;
+        ExecutionState *unbound_inner = branches_inner.second;
+        if(bound_inner) {
+          switch (operation) {
+            case Write: {
+              if (os->readOnly) {
+                terminateStateOnError(*bound_inner, "memory error: object read only",
+                                      ReadOnly);
+              } else {
+                ObjectState *wos = bound_inner->addressSpace.getWriteable(mo, os);
+                wos->write(mo->getOffsetExpr(address), value);
+              }
+              break;
+            }
+            case Read: {
+              ref<Expr> result = os->read(mo->getOffsetExpr(address), type);
+              bindLocal(target, *bound_inner, result);
+              break;
+            }
           }
         }
+        if(unbound_inner) {
+          terminateStateOnError(*unbound_inner, "memory error: out of bound pointer", Ptr,
+                                  NULL);
+        }
       }
-      if(unbound_inner) {
-        terminateStateOnError(*unbound_inner, "memory error: out of bound pointer", Ptr,
-                                NULL);
-      }
+      unbound = branches.second;
+      if (!unbound)
+        break;
     }
 
-    unbound = branches.second;
-    if (!unbound)
-      break;
   }
   
   // XXX should we distinguish out of bounds and overlapped cases?

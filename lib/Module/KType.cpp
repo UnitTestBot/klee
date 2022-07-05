@@ -65,8 +65,6 @@ bool KType::isAccessableFrom(llvm::Type *anotherType) const {
 
 
 bool KType::isTypesSimilar(llvm::Type *firstType, llvm::Type *secondType) const {
-    /// Note, that we can not try to access this type again from the secondType    
-
     /// Ensure that all types were initialized before
     assert(parent->typesMap.count(firstType) && "Given type was not initialized!");
 
@@ -103,4 +101,52 @@ bool KType::isTypesSimilar(llvm::Type *firstType, llvm::Type *secondType) const 
     }
 
     return false;
+}
+
+
+std::vector<llvm::Type *> KType::getAccessibleInnerTypes(llvm::Type *typeAccessedFrom) const {
+    std::vector<llvm::Type *> result;
+    for (auto typeLocations: innerTypes) {
+        llvm::Type *type = typeLocations.first;
+        
+        if (typeAccessedFrom == nullptr || type == nullptr) {
+            result.emplace_back(type);
+            continue;
+        }
+
+        assert(parent->typesMap.count(type) && "Inner type were not reistered!");
+        if (type->isStructTy()) {
+            if (type == typeAccessedFrom) {
+                result.emplace_back(typeAccessedFrom);
+            }
+        }
+        else {
+            const KType *kt = parent->computeKType(type);
+            if (kt->isAccessableFrom(typeAccessedFrom)) {
+                result.emplace_back(type);
+            }
+        }
+    }
+
+    llvm::outs() << "Compatible with ";
+    if (typeAccessedFrom) {
+        typeAccessedFrom->print(llvm::outs());
+        llvm::outs() << "\n";
+    }
+    else {
+        llvm::outs() << "null\n";
+    }
+    
+    for (auto type : result) {
+        if (type) {
+            type->print(llvm::outs());
+            llvm::outs() << "\n";
+        }
+        else {
+            llvm::outs() << "null\n";
+        }
+    }
+    llvm::outs() << "\n";
+    
+    return result;
 }

@@ -32,6 +32,9 @@ namespace klee {
   typedef std::pair<const MemoryObject*, const ObjectState*> ObjectPair;
   typedef std::vector<ObjectPair> ResolutionList;  
 
+  // TODO: relocate this
+  extern llvm::cl::opt<bool> StrictAliasingRule;
+
   /// Function object ordering MemoryObject's by address.
   struct MemoryObjectLT {
     bool operator()(const MemoryObject *a, const MemoryObject *b) const;

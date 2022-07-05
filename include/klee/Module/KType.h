@@ -35,8 +35,13 @@ namespace klee {
          */
         bool isAccessableFrom(llvm::Type *anotherType) const;
 
-        KType(llvm::Type *, KModule*);
-
+        /**
+         * Collect all inner types that can be accessed through
+         * given type.
+         */
+        std::vector<llvm::Type *> getAccessibleInnerTypes(llvm::Type *) const;
+        
+        KType(llvm::Type *, KModule*);    
     private:
         bool isTypesSimilar(llvm::Type*, llvm::Type*) const;
     };

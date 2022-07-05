@@ -25,10 +25,6 @@
 
 using namespace klee;
 
-llvm::cl::opt<bool> StrictAliasingRule(
-    "strict-aliasing",
-    llvm::cl::desc("Turn's on rules based on strict aliasing rule"),
-    llvm::cl::init(false));
 
 ///
 
