@@ -18,8 +18,10 @@ KType::KType(llvm::Type *type, KModule *parent) : type(type), parent(parent) {
             llvm::Type *structTypeMember = structType->getStructElementType(idx);
             uint64_t offset = structLayout->getElementOffset(idx);
             assert(parent->typesMap.count(structTypeMember) && "Given type was not initialized");
-            for (auto &[subtype, subtypeOffsets] 
+            for (auto &subtypeLocations 
                     : parent->computeKType(structTypeMember)->innerTypes) {
+                llvm::Type *subtype = subtypeLocations.first;
+                const std::vector<uint64_t> &subtypeOffsets = subtypeLocations.second;
                 for (auto subtypeOffset : subtypeOffsets) {
                     innerTypes[subtype].push_back(offset + subtypeOffset);
                 }
@@ -68,7 +70,8 @@ bool KType::isTypesSimilar(llvm::Type *firstType, llvm::Type *secondType) const 
     /// Ensure that all types were initialized before
     assert(parent->typesMap.count(firstType) && "Given type was not initialized!");
 
-    for (auto &[innerType, offsets] : parent->computeKType(firstType)->innerTypes) {
+    for (auto &typeLocations : parent->computeKType(firstType)->innerTypes) {
+        llvm::Type *innerType = typeLocations.first;
         if (innerType == secondType) {
             return true;
         }

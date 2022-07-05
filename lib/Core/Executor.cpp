@@ -4721,9 +4721,11 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   ref<Expr> base = UseGEPExpr && isGEPExpr(address) ? gepExprBases[address].first : address;
   unsigned size = bytes; 
   if (UseGEPExpr && isGEPExpr(address)) {
-    targetType = gepExprBases[address].second;
-    size = kmodule->targetData->getTypeStoreSize(targetType);
-    targetType = llvm::PointerType::get(targetType, 0);
+    size = kmodule->targetData->getTypeStoreSize(gepExprBases[address].second);
+    targetType = llvm::PointerType::get(
+      gepExprBases[address].second,
+      kmodule->targetData->getProgramAddressSpace()
+    );
   }
 
   if (SimplifySymIndices) {

@@ -269,7 +269,7 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
       }
     }
 
-    // Here symHack should already have appropriate type
+    // Here symHack should already have an appropriate type
     if (symHack) {
       auto osi = objects.find(symHack);
       if(osi != objects.end()) {
