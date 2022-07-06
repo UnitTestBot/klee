@@ -128,25 +128,5 @@ std::vector<llvm::Type *> KType::getAccessibleInnerTypes(llvm::Type *typeAccesse
         }
     }
 
-    llvm::outs() << "Compatible with ";
-    if (typeAccessedFrom) {
-        typeAccessedFrom->print(llvm::outs());
-        llvm::outs() << "\n";
-    }
-    else {
-        llvm::outs() << "null\n";
-    }
-    
-    for (auto type : result) {
-        if (type) {
-            type->print(llvm::outs());
-            llvm::outs() << "\n";
-        }
-        else {
-            llvm::outs() << "null\n";
-        }
-    }
-    llvm::outs() << "\n";
-    
     return result;
 }

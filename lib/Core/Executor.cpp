@@ -4837,7 +4837,6 @@ void Executor::executeMemoryOperation(ExecutionState &state,
 
   // XXX there is some query wasteage here. who cares?
   ExecutionState *unbound = &state;
-
   for (ResolutionList::iterator i = rl.begin(), ie = rl.end(); i != ie; ++i) {
     const MemoryObject *mo = i->first;
     const ObjectState *os = i->second;
@@ -4852,57 +4851,65 @@ void Executor::executeMemoryOperation(ExecutionState &state,
     assert(mo->dynamicType->type->isPointerTy() && "Memory Object holds non-pointer type");
     assert(operationType->isPointerTy() && "Operation performed with a non-pointer type");
 
-    if (StrictAliasingRule && mo->dynamicType->type->getPointerElementType()->isStructTy()) { 
+    if (StrictAliasingRule && !mo->dynamicType->type->getPointerElementType()->isArrayTy() && 
+                              !mo->dynamicType->type->getPointerElementType()->isVectorTy()) { 
       const KType *kt = kmodule->computeKType(mo->dynamicType->type->getPointerElementType());
 
       for (auto accessibleType : 
-          kt->getAccessibleInnerTypes(operationType->getPointerElementType())) {
-        if (mo->dynamicType->innerTypes.count(accessibleType)) {
-          for (auto &offset : mo->dynamicType->innerTypes.at(accessibleType)) {
-            inBounds = EqExpr::create(
-              AddExpr::create(
-                mo->getBaseExpr(),
-                ConstantExpr::create(offset, Context::get().getPointerWidth())
-              ),
-              address
-            );
-            branches = fork(*unbound, inBounds, true);
-            ExecutionState *bound = branches.first;
+        kt->getAccessibleInnerTypes(operationType->getPointerElementType())) {
+        for (auto &offset : kt->innerTypes.at(accessibleType)) {
+          inBounds = EqExpr::create(
+            mo->getOffsetExpr(address),
+            ConstantExpr::create(offset, Context::get().getPointerWidth())
+          );
+          branches = fork(*unbound, inBounds, true);
+          ExecutionState *bound = branches.first;
 
-            if (bound) {
-              
-              switch (operation) {
-                case Write: {
-                  if (os->readOnly) {
-                    terminateStateOnError(*bound, "memory error: object read only",
-                                          ReadOnly);
-                  } else {
-                    ObjectState *wos = bound->addressSpace.getWriteable(mo, os);
-                    wos->write(mo->getOffsetExpr(address), value);
-                  }
-                  break;
+          if (bound) {
+            switch (operation) {
+              case Write: {
+                if (os->readOnly) {
+                  terminateStateOnError(*bound, "memory error: object read only",
+                                        ReadOnly);
+                } else {
+                  ObjectState *wos = bound->addressSpace.getWriteable(mo, os);
+                  wos->write(mo->getOffsetExpr(address), value);
                 }
-                case Read: {
-                  ref<Expr> result = os->read(mo->getOffsetExpr(address), type);
-                  bindLocal(target, *bound, result);
-                  break;
-                }
+                break;
+              }
+              case Read: {
+                ref<Expr> result = os->read(mo->getOffsetExpr(address), type);
+                bindLocal(target, *bound, result);
+                break;
               }
             }
-            unbound = branches.second;
-            if (!unbound) {
-              break;
-            }
-            
-          } // offsets
-        } // if type can be found in inner
+          }
+          unbound = branches.second;
+          if (!unbound) {
+            break;
+          }
+        } // offsets
+        
+        /// TODO: code below strongly affects on perfomance, but give us additional
+        /// test cases to check strict-aliasing rule violations. Do we really need it?..
+
+        // if (unbound) {
+        //   branches = fork(*unbound, mo->getBoundsCheckPointer(address, 1), true);
+        //   if (branches.first) {
+        //     terminateStateOnError(*branches.first, "memory error: strict aliasing rule violation", Ptr,
+        //                           NULL, getAddressInfo(*branches.first, address));
+        //   }
+        //   unbound = branches.second;
+        // }
+
+        if (!unbound) {
+          break;
+        }
       } // accessible types
+
     }
     else {
-      if (UseGEPExpr && isGEPExpr(address))
-        inBounds = mo->getBoundsCheckPointer(base, 1);
-      else
-        inBounds = mo->getBoundsCheckPointer(address, 1);
+      inBounds = mo->getBoundsCheckPointer(base, 1);
 
       branches = fork(*unbound, inBounds, true);
       ExecutionState *bound = branches.first;
