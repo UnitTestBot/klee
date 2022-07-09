@@ -908,9 +908,8 @@ void SpecialFunctionHandler::handleDefineFixedObject(ExecutionState &state,
   MemoryObject *mo = executor.memory->allocateFixed(address, 
                                                     size,
                                                     state.prevPC->inst,
-                                                    executor.kmodule->computeKType(
-                                                      state.prevPC->inst ? state.prevPC->inst->getType() : nullptr
-                                                    ));
+                                                    executor.kmodule->computeKType(nullptr)
+                                                    );
   executor.bindObjectInState(state, mo, false);
   mo->isUserSpecified = true; // XXX hack;
 }

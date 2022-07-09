@@ -4727,7 +4727,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
 
   /// Save type in order to find offsets in structs with this type.
   /// TargetType below can be replaced with gepExpr origin type.
-  llvm::Type *operationType = targetType;
+  llvm::Type *addressType = targetType;
 
   if (UseGEPExpr && isGEPExpr(address)) {
     size = kmodule->targetData->getTypeStoreSize(gepExprBases[address].second);
@@ -4837,26 +4837,25 @@ void Executor::executeMemoryOperation(ExecutionState &state,
 
   // XXX there is some query wasteage here. who cares?
   ExecutionState *unbound = &state;
+
+  ref<Expr> aliasingFailure = ConstantExpr::alloc(0, 1); 
+
   for (ResolutionList::iterator i = rl.begin(), ie = rl.end(); i != ie; ++i) {
     const MemoryObject *mo = i->first;
     const ObjectState *os = i->second;
 
     ref<Expr> inBounds;
     StatePair branches;
-    
-    /// If strict-aliasing enabled and we are are trying to
-    /// perform operation in struct, we will iterate over all appropriate subtypes
-    /// of given type.
 
-    assert(mo->dynamicType->type->isPointerTy() && "Memory Object holds non-pointer type");
-    assert(operationType->isPointerTy() && "Operation performed with a non-pointer type");
+    assert((mo->dynamicType->type == nullptr || mo->dynamicType->type->isPointerTy()) && "Memory Object holds non-pointer type");
+    assert((addressType == nullptr || addressType->isPointerTy()) && "Operation performed with a non-pointer type");
+    llvm::Type *memoryObjectType = mo->dynamicType->type ? mo->dynamicType->type->getPointerElementType() : nullptr;
 
-    if (StrictAliasingRule && !mo->dynamicType->type->getPointerElementType()->isArrayTy() && 
-                              !mo->dynamicType->type->getPointerElementType()->isVectorTy()) { 
-      const KType *kt = kmodule->computeKType(mo->dynamicType->type->getPointerElementType());
-
+    if (StrictAliasingRule) { 
+      const KType *kt = kmodule->computeKType(memoryObjectType);
+      
       for (auto accessibleType : 
-        kt->getAccessibleInnerTypes(operationType->getPointerElementType())) {
+        kt->getAccessibleInnerTypes(addressType ? addressType->getPointerElementType() : nullptr)) {
         for (auto &offset : kt->innerTypes.at(accessibleType)) {
           inBounds = EqExpr::create(
             mo->getOffsetExpr(address),
@@ -4889,24 +4888,16 @@ void Executor::executeMemoryOperation(ExecutionState &state,
             break;
           }
         } // offsets
-        
-        /// TODO: code below strongly affects on perfomance, but give us additional
-        /// test cases to check strict-aliasing rule violations. Do we really need it?..
-
-        // if (unbound) {
-        //   branches = fork(*unbound, mo->getBoundsCheckPointer(address, 1), true);
-        //   if (branches.first) {
-        //     terminateStateOnError(*branches.first, "memory error: strict aliasing rule violation", Ptr,
-        //                           NULL, getAddressInfo(*branches.first, address));
-        //   }
-        //   unbound = branches.second;
-        // }
 
         if (!unbound) {
           break;
-        }
+        }  
       } // accessible types
-
+      
+      aliasingFailure = OrExpr::create(
+        aliasingFailure,
+        mo->getBoundsCheckPointer(address, 1)
+      );
     }
     else {
       inBounds = mo->getBoundsCheckPointer(base, 1);
@@ -4956,6 +4947,15 @@ void Executor::executeMemoryOperation(ExecutionState &state,
 
   }
   
+  if (unbound && StrictAliasingRule) {
+    StatePair p = fork(*unbound, aliasingFailure, true);
+    if (p.first) {
+      terminateStateOnError(*p.first, "memory error: strict aliasing rule violation", Ptr,
+                            NULL, getAddressInfo(*p.first, address));
+    }
+    unbound = p.second;
+  }
+
   // XXX should we distinguish out of bounds and overlapped cases?
   if (unbound) {
     if (incomplete) {
