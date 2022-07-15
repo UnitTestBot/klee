@@ -209,4 +209,8 @@ long double klee_rintl(long double d);
 }
 #endif
 
+//UTBot uses these functions to wrap user functions which work with stdin/stdout
+void klee_init_env(int *argcPtr, char ***argvPtr);
+void check_stdin_read();
+
 #endif /* KLEE_H */
