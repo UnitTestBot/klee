@@ -4721,12 +4721,11 @@ void Executor::executeMemoryOperation(ExecutionState &state,
     klee_error("unexpected type of memory operation");
   }
   unsigned bytes = Expr::getMinBytesForWidth(type);
-
   ref<Expr> base = UseGEPExpr && isGEPExpr(address) ? gepExprBases[address].first : address;
   unsigned size = bytes; 
 
   /// Save type in order to find offsets in structs with this type.
-  /// TargetType below can be replaced with gepExpr origin type.
+  /// TargetType below will be replaced with gepExpr origin type.
   llvm::Type *addressType = targetType;
 
   if (UseGEPExpr && isGEPExpr(address)) {
@@ -4851,11 +4850,13 @@ void Executor::executeMemoryOperation(ExecutionState &state,
     assert((addressType == nullptr || addressType->isPointerTy()) && "Operation performed with a non-pointer type");
     llvm::Type *memoryObjectType = mo->dynamicType->type ? mo->dynamicType->type->getPointerElementType() : nullptr;
 
-    if (StrictAliasingRule) { 
+    if (StrictAliasingRule && 
+        mo->dynamicType->type != nullptr &&
+        addressType != nullptr) { 
       const KType *kt = kmodule->computeKType(memoryObjectType);
       
       for (auto accessibleType : 
-        kt->getAccessibleInnerTypes(addressType ? addressType->getPointerElementType() : nullptr)) {
+        kt->getAccessibleInnerTypes(addressType->getPointerElementType())) {
         for (auto &offset : kt->innerTypes.at(accessibleType)) {
           inBounds = EqExpr::create(
             mo->getOffsetExpr(address),

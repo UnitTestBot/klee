@@ -46,6 +46,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/ValueSymbolTable.h"
 #include "llvm/IR/Verifier.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/Linker/Linker.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Path.h"
@@ -597,6 +598,29 @@ void KModule::initTypesFromGlobals() {
   for (auto &global : module->getGlobalList()) {
     if (!llvm::isa<StructType>(global.getType())) {
       computeKType(global.getType());
+    }
+    
+    /// Unions is not always structs!
+
+    /// TODO: should be turn on only in C++ mode
+    llvm::SmallVector<llvm::DIGlobalVariableExpression*, 16> MDContainer;
+    global.getDebugInfo(MDContainer);
+    
+    /// TODO: Iterations? 
+    for (auto globalVariableNode : MDContainer) {
+      unsigned int tag = globalVariableNode->getVariable()->getType()->getTag();
+      if (tag == dwarf::Tag::DW_TAG_union_type) {
+        if (llvm::DICompositeType *compositeTypeNode = dyn_cast_or_null<llvm::DICompositeType>(globalVariableNode->getVariable()->getType())) {
+          
+          for (auto innerElementNode : compositeTypeNode->getElements()) {
+            dyn_cast_or_null<llvm::DIDerivedType>(innerElementNode)->getBaseType();
+            /// We can determine it by using DWARF
+          }
+
+        }
+        typesMap[global.getType()] = computeKType(nullptr);
+      }
+      break;
     }
   }
 }

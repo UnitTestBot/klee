@@ -39,6 +39,7 @@ bool KType::isAccessableFrom(llvm::Type *anotherType) const {
         return true;
     }
 
+    // TODO: debug. Remove it.
     // type->print(llvm::outs() << "Comparing ");
     // anotherType->print(llvm::outs() << " with ");
     // llvm::outs() << '\n';
