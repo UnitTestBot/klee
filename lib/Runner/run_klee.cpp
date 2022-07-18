@@ -1583,7 +1583,7 @@ void kill_child(pid_t child_pid) {
   if (kill(child_pid, 0) != 0) {
     return;
   }
-  int statusSIGTERM = kill(child_pid, SIGTERM);
+  [[gnu::unused]] int statusSIGTERM = kill(child_pid, SIGTERM);
   std::this_thread::sleep_for(std::chrono::milliseconds(10));
   if (kill(child_pid, 0) == 0) {
     int statusSIGKILL = kill(child_pid, SIGKILL);
@@ -1934,7 +1934,7 @@ int run_klee(int argc, char **argv, char **envp) {
     klee_message("Start %d processes.", ProcessNumber.getValue());
 
     SmallString<128> outputDirectory = handler->getOutputDirectory();
-    const int PROCESS = ProcessNumber;
+    const size_t PROCESS = ProcessNumber;
     using time_point = std::chrono::time_point<std::chrono::steady_clock>;
     std::vector<std::pair<pid_t, time_point>> child_processes;
     signal(SIGCHLD, SIG_IGN);

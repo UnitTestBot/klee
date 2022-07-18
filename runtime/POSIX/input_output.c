@@ -1,5 +1,8 @@
 #include <stdio.h>
 
+ssize_t read(int fd, void *buf, size_t count);
+ssize_t write(int fd, const void *buf, size_t count);
+
 int fgetc(FILE *stream) {
   int fd = fileno(stream);
   unsigned char buf;
@@ -100,9 +103,8 @@ int putc(int c, FILE *stream) {
 
 size_t fwrite(const void *buffer, size_t size, size_t count, FILE *stream) {
   int fd = fileno(stream);
-  void *cop_buf = buffer;
-  int write_byte = write(fd, cop_buf, size * count);
-  if (write == -1) {
+  int write_byte = write(fd, buffer, size * count);
+  if (write_byte == -1) {
     return 0;
   }
   return write_byte / size;
