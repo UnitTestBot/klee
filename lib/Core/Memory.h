@@ -56,6 +56,7 @@ public:
   bool isLocal;
   mutable bool isGlobal;
   bool isFixed;
+  bool isKleeMakeSymbolic = false;
 
   bool isUserSpecified;
 
