@@ -144,89 +144,105 @@ Solver::getInitialValues(const Query& query,
   return success;
 }
 
+
 bool Solver::check(const Query &query, ref<SolverResponse> &queryResult) {
   return impl->check(query, queryResult);
 }
 
-std::pair< ref<Expr>, ref<Expr> > Solver::getRange(const Query& query) {
+static std::pair<ref<ConstantExpr>, ref<ConstantExpr>> getDefaultRange() {
+  return std::make_pair(ConstantExpr::create(0, 64),
+                        ConstantExpr::create(0, 64));
+}
+
+static bool tooLate(const time::Span &timeout, const time::Point &start_time) {
+  return timeout && time::getWallTime() - start_time > timeout;
+}
+
+std::pair< ref<Expr>, ref<Expr> > Solver::getRange(const Query& query,
+                                                   time::Span timeout) {
   ref<Expr> e = query.expr;
   Expr::Width width = e->getWidth();
   uint64_t min, max;
 
-  if (width==1) {
+  auto start_time = time::getWallTime();
+
+  if (width == 1) {
     Solver::Validity result;
     if (!evaluate(query, result))
       assert(0 && "computeValidity failed");
     switch (result) {
-    case Solver::True: 
-      min = max = 1; break;
-    case Solver::False: 
-      min = max = 0; break;
+    case Solver::True:
+      min = max = 1;
+      break;
+    case Solver::False:
+      min = max = 0;
+      break;
     default:
-      min = 0, max = 1; break;
+      min = 0, max = 1;
+      break;
     }
   } else if (ConstantExpr *CE = dyn_cast<ConstantExpr>(e)) {
     min = max = CE->getZExtValue();
   } else {
     // binary search for # of useful bits
-    uint64_t lo=0, hi=width, mid, bits=0;
-    while (lo<hi) {
-      mid = lo + (hi - lo)/2;
+    uint64_t lo = 0, hi = width, mid, bits = 0;
+    while (lo < hi) {
+      if (tooLate(timeout, start_time)) {
+        return getDefaultRange();
+      }
+      mid = lo + (hi - lo) / 2;
       bool res;
-      bool success = 
-        mustBeTrue(query.withExpr(
-                     EqExpr::create(LShrExpr::create(e,
-                                                     ConstantExpr::create(mid, 
-                                                                          width)),
-                                    ConstantExpr::create(0, width))),
-                   res);
+      bool success =
+          mustBeTrue(query.withExpr(EqExpr::create(
+                         LShrExpr::create(e, ConstantExpr::create(mid, width)),
+                         ConstantExpr::create(0, width))),
+                     res);
 
       assert(success && "FIXME: Unhandled solver failure");
-      (void) success;
+      (void)success;
 
       if (res) {
         hi = mid;
       } else {
-        lo = mid+1;
+        lo = mid + 1;
       }
 
       bits = lo;
     }
-    
+
     // could binary search for training zeros and offset
     // min max but unlikely to be very useful
 
     // check common case
     bool res = false;
-    bool success = 
-      mayBeTrue(query.withExpr(EqExpr::create(e, ConstantExpr::create(0, 
-                                                                      width))), 
-                res);
+    bool success = mayBeTrue(
+        query.withExpr(EqExpr::create(e, ConstantExpr::create(0, width))), res);
 
-    assert(success && "FIXME: Unhandled solver failure");      
-    (void) success;
+    assert(success && "FIXME: Unhandled solver failure");
+    (void)success;
 
     if (res) {
       min = 0;
     } else {
       // binary search for min
-      lo=0, hi=bits64::maxValueOfNBits(bits);
-      while (lo<hi) {
-        mid = lo + (hi - lo)/2;
+      lo = 0, hi = bits64::maxValueOfNBits(bits);
+      while (lo < hi) {
+        if (tooLate(timeout, start_time)) {
+          return getDefaultRange();
+        }
+        mid = lo + (hi - lo) / 2;
         bool res = false;
-        bool success = 
-          mayBeTrue(query.withExpr(UleExpr::create(e, 
-                                                   ConstantExpr::create(mid, 
-                                                                        width))),
-                    res);
+        bool success = mayBeTrue(query.withExpr(UleExpr::create(
+                                     e, ConstantExpr::create(mid, width))),
+                                 res);
 
-        assert(success && "FIXME: Unhandled solver failure");      
-        (void) success;
+        assert(success && "FIXME: Unhandled solver failure");
+        (void)success;
 
         if (res) {
           hi = mid;
         } else {
-          lo = mid+1;
+          lo = mid + 1;
         }
       }
 
@@ -246,9 +262,12 @@ std::pair< ref<Expr>, ref<Expr> > Solver::getRange(const Query& query) {
       max = bits64::maxValueOfNBits(bits);
     } else {
       // binary search for max
-      lo=min, hi=bits64::maxValueOfNBits(bits);
-      while (lo<hi) {
-        mid = lo + (hi - lo)/2;
+      lo = min, hi = bits64::maxValueOfNBits(bits);
+      while (lo < hi) {
+        if (tooLate(timeout, start_time)) {
+          return getDefaultRange();
+        }
+        mid = lo + (hi - lo) / 2;
         bool res;
         bool success = mustBeTrue(query.withExpr(UleExpr::create(
                                       e, ConstantExpr::create(mid, width))),
@@ -260,7 +279,7 @@ std::pair< ref<Expr>, ref<Expr> > Solver::getRange(const Query& query) {
         if (res) {
           hi = mid;
         } else {
-          lo = mid+1;
+          lo = mid + 1;
         }
       }
 

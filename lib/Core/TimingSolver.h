@@ -83,7 +83,8 @@ public:
 
   std::pair<ref<Expr>, ref<Expr>> getRange(const ConstraintSet &,
                                            ref<Expr> query,
-                                           SolverQueryMetaData &metaData);
+                                           SolverQueryMetaData &metaData,
+                                           time::Span timeout = time::Span());
 };
 }
 
