@@ -28,6 +28,7 @@
 #include "klee/ADT/KTest.h"
 #include "klee/ADT/RNG.h"
 #include "klee/ADT/TestCaseUtils.h"
+#include "klee/Config/config.h"
 #include "klee/Config/Version.h"
 #include "klee/Core/Interpreter.h"
 #include "klee/Expr/ArrayExprOptimizer.h"
@@ -43,7 +44,6 @@
 #include "klee/Module/KModule.h"
 #include "klee/Solver/Common.h"
 #include "klee/Solver/SolverCmdLine.h"
-#include "klee/Solver/SolverStats.h"
 #include "klee/Statistics/TimerStatIncrementer.h"
 #include "klee/Support/Casting.h"
 #include "klee/Support/ErrorHandling.h"
@@ -3666,7 +3666,7 @@ void Executor::bindInstructionConstants(KInstruction *KI) {
   }
 }
 
-void Executor::bindModuleConstants(ExecutionState &state) {
+void Executor::bindModuleConstants(const llvm::APFloat::roundingMode &rm) {
   for (auto &kfp : kmodule->functions) {
     KFunction *kf = kfp.get();
     for (unsigned i=0; i<kf->numInstructions; ++i)
@@ -3677,7 +3677,7 @@ void Executor::bindModuleConstants(ExecutionState &state) {
       std::unique_ptr<Cell[]>(new Cell[kmodule->constants.size()]);
   for (unsigned i=0; i<kmodule->constants.size(); ++i) {
     Cell &c = kmodule->constantTable[i];
-    c.value = evalConstant(kmodule->constants[i], state.roundingMode);
+    c.value = evalConstant(kmodule->constants[i], rm);
   }
 }
 
@@ -5163,7 +5163,7 @@ void Executor::runFunctionAsMain(Function *f,
     statsTracker->framePushed(*state, 0);
 
   processTree = std::make_unique<PTree>(state);
-  bindModuleConstants(*state);
+  bindModuleConstants(llvm::APFloat::rmNearestTiesToEven);
   run(*state);
   processTree = nullptr;
 
@@ -5181,7 +5181,7 @@ void Executor::runFunctionGuided(Function *fn, int argc, char **argv,
                                  char **envp) {
   ExecutionState *state = formState(fn, argc, argv, envp);
   state->popFrame();
-  bindModuleConstants(*state);
+  bindModuleConstants(llvm::APFloat::rmNearestTiesToEven);
   KFunction *kf = kmodule->functionMap[fn];
   ExecutionState *initialState = state->withKFunction(kf);
   prepareSymbolicArgs(*initialState, kf);
@@ -5191,7 +5191,7 @@ void Executor::runFunctionGuided(Function *fn, int argc, char **argv,
 void Executor::runMainAsGuided(Function *mainFn, int argc, char **argv,
                                char **envp) {
   ExecutionState *state = formState(mainFn, argc, argv, envp);
-  bindModuleConstants(*state);
+  bindModuleConstants(llvm::APFloat::rmNearestTiesToEven);
   KFunction *kf = kmodule->functionMap[mainFn];
   runGuided(*state, kf);
 }
@@ -5199,7 +5199,7 @@ void Executor::runMainAsGuided(Function *mainFn, int argc, char **argv,
 void Executor::runMainWithTarget(Function *mainFn, BasicBlock *target, int argc,
                                  char **argv, char **envp) {
   ExecutionState *state = formState(mainFn, argc, argv, envp);
-  bindModuleConstants(*state);
+  bindModuleConstants(llvm::APFloat::rmNearestTiesToEven);
   KFunction *kf = kmodule->functionMap[mainFn];
   KBlock *kb = kmodule->functionMap[target->getParent()]->blockMap[target];
   runWithTarget(*state, kf, kb);

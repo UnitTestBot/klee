@@ -1,4 +1,4 @@
-//===-- Z3CoreBuilder.cpp ------------------------------------------*- C++
+//===-- Z3CoreBuilder.cpp --------------------------------------*- C++ -*-====//
 //-*-====//
 //
 //                     The KLEE Symbolic Virtual Machine
@@ -7,6 +7,7 @@
 // License. See LICENSE.TXT for details.
 //
 //===----------------------------------------------------------------------===//
+
 #include "klee/Config/config.h"
 
 #ifdef ENABLE_Z3

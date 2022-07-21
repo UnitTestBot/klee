@@ -501,7 +501,7 @@ private:
                                  const llvm::Twine &message);
 
   /// bindModuleConstants - Initialize the module constant table.
-  void bindModuleConstants(ExecutionState &state);
+  void bindModuleConstants(const llvm::APFloat::roundingMode &rm);
 
   template <typename SqType, typename TypeIt>
   void computeOffsetsSeqTy(KGEPInstruction *kgepi,
