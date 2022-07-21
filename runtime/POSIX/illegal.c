@@ -20,7 +20,8 @@ void klee_warning(const char*);
 void klee_warning_once(const char*);
 
 int kill(pid_t pid, int sig) {
-  klee_warning("ignoring (EPERM)");
+  klee_report_error(__FILE__, __LINE__, "Ignoring external call: "
+                                        "symex safety", ".xxx");
   errno = EPERM;
   return -1;
 }
@@ -32,7 +33,8 @@ int _setjmp (struct __jmp_buf_tag __env[1]) {
 int _setjmp (jmp_buf env) __returns_twice;
 int _setjmp (jmp_buf env) {
 #endif
-  klee_warning_once("ignoring");
+  klee_report_error(__FILE__, __LINE__, "Ignoring external call: "
+                                        "symex safety", ".xxx");
   return 0;
 }
 
@@ -41,9 +43,10 @@ void longjmp(jmp_buf env, int val) {
 }
 
 /* Macro so function name from klee_warning comes out correct. */
-#define __bad_exec() \
-  (klee_warning("ignoring (EACCES)"),\
-   errno = EACCES,\
+#define __bad_exec()                                                           \
+  (klee_report_error(__FILE__, __LINE__, "Ignoring external call: "            \
+                                         "symex safety", ".xxx"),              \
+   errno = EACCES,                                                             \
    -1)
 
 /* This need to be weak because uclibc wants to define them as well,
@@ -65,7 +68,8 @@ int execvp(const char *file, char *const argv[]) { return __bad_exec(); }
 int execve(const char *file, char *const argv[], char *const envp[]) { return __bad_exec(); }
 
 pid_t fork(void) {
-  klee_warning("ignoring (ENOMEM)");
+  klee_report_error(__FILE__, __LINE__, "Ignoring external call: "
+                                        "symex safety", ".xxx");
   errno = ENOMEM;
   return -1;
 }
