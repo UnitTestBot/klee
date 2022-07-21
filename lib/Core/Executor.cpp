@@ -305,6 +305,8 @@ cl::list<StateTerminationType> ExitOnErrorType(
         clEnumValN(StateTerminationType::Overflow, "Overflow",
                    "An overflow occurred"),
         clEnumValN(StateTerminationType::Ptr, "Ptr", "Pointer error"),
+        clEnumValN(StateTerminationType::UndefinedBehaviour, "UndefinedBehavior",
+                   "Undefined behavior detected"),
         clEnumValN(StateTerminationType::ReadOnly, "ReadOnly",
                    "Write to read-only memory"),
         clEnumValN(StateTerminationType::ReportError, "ReportError",

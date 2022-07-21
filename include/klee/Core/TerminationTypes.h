@@ -41,8 +41,9 @@
   TTYPE(Replay, 27U, "")                                                       \
   TTYPE(Merge, 28U, "")                                                        \
   TTYPE(SilentExit, 29U, "")                                                   \
-  TTYPE(Paused, 30U, "")                                                   \
-  MARK(END, 30U)
+  TTYPE(Paused, 30U, "")                                                       \
+  MARK(END, 30U)                                                               \
+  TTYPE(UndefinedBehaviour, 31U, "")
 
 ///@brief Reason an ExecutionState got terminated.
 enum class StateTerminationType : std::uint8_t {
