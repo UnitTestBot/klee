@@ -10,15 +10,19 @@ namespace llvm {
 namespace klee {    
 class TypeManager;
 
-struct KType {
+class KType {
   friend TypeManager;
 
-private:
+protected:
   /**
    * Wrapped type.
    */
   llvm::Type *type;
   
+  /**
+   * Owning type manager system. Note, that only it can
+   * create instances of KTypes.
+   */
   TypeManager *parent;      
   
   /**
@@ -30,16 +34,30 @@ private:
    */
   std::unordered_map<llvm::Type*, std::vector<uint64_t>> innerTypes;
   
+  KType(llvm::Type *, TypeManager *);
+
+  /**
+   * Object cannot been created within class, defferent
+   * from TypeManager, as it is important to have only
+   * one instance for every llvm::Type. 
+   */
+  KType(const KType &) = delete;
+  KType &operator=(const KType &) = delete;
+  KType(KType &&) = delete;
+  KType &operator=(KType &&) = delete;
+
 public:
   /**
    * Method to check if 2 types are compatible.
    */
   virtual bool isAccessableFrom(KType *accessingType) const;
 
-  virtual ~KType() = default;     
+  /**
+   * Returns the stored raw llvm type.  
+   */
+  llvm::Type *getRawType() const;
 
-private:
-  KType(llvm::Type *, TypeManager *);
+  virtual ~KType() = default;
 };
 }
 

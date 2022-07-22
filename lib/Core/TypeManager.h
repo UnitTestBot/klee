@@ -11,7 +11,7 @@ namespace llvm {
 
 namespace klee {
 
-struct KType;
+class KType;
 class KModule;
 struct KFunction;
 struct KInstruction;

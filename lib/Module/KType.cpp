@@ -34,3 +34,7 @@ KType::KType(llvm::Type *type, TypeManager *parent) : type(type), parent(parent)
 bool KType::isAccessableFrom(KType *accessingType) const {
   return true;
 }
+
+llvm::Type *KType::getRawType() const {
+  return type;
+}

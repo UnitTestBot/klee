@@ -50,7 +50,7 @@ namespace klee {
   struct KInstruction;
   class KModule;
   struct KFunction;
-  struct KType;
+  class KType;
   template<class T> class ref;
 
   enum KBlockType {

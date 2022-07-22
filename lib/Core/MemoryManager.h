@@ -27,7 +27,7 @@ class Value;
 namespace klee {
 class MemoryObject;
 class ArrayCache;
-struct KType;
+class KType;
 
 class MemoryManager {
 private:

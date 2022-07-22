@@ -25,7 +25,7 @@ namespace klee {
   class MemoryObject;
   class ObjectState;
   class TimingSolver;
-  struct KType;
+  class KType;
 
   template<class T> class ref;
 

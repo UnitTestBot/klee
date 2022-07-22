@@ -27,6 +27,7 @@ klee_add_component(kleeCore
   TimingSolver.cpp
   UserSearcher.cpp
   TypeManager.cpp
+  CXXTypeSystem/CXXTypeManager.cpp
 )
 
 # TODO: Work out what the correct LLVM components are for
