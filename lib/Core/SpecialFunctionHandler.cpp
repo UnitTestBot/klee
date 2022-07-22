@@ -466,6 +466,7 @@ void SpecialFunctionHandler::handleNew(ExecutionState &state,
   assert(arguments.size()==1 && "invalid number of arguments to new");
   
   KCallAllocBlock *allocBlock = dyn_cast<KCallAllocBlock>(target->parent);
+  assert(allocBlock && "new called in non KCallAllocBlock!");
   executor.executeAlloc(state, arguments[0], false, target, executor.typeSystem->getWrappedType(allocBlock->allocationType));
 }
 

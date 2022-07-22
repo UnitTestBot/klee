@@ -34,6 +34,7 @@ TypeManager::TypeManager(KModule *parent) : parent(parent) {
  */
 KType *TypeManager::getWrappedType(llvm::Type *type) {
   if (typesMap.count(type) == 0) {
+    /// TODO: provide full initialization for inner types
     types.emplace_back(new KType(type, this));
     typesMap.emplace(type, types.back().get());
   }
@@ -89,8 +90,8 @@ void TypeManager::initTypesFromStructs() {
     sortedTypesGraph.push_back(type);
   }; 
 
-  for (auto &[type, list] : typesGraph) {
-    dfs(type);
+  for (auto &typeToOffset : typesGraph) {
+    dfs(typeToOffset.first);
   }
 
   for (auto type : sortedTypesGraph) {

@@ -2894,28 +2894,16 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
   case Instruction::Load: {
     ref<Expr> base = eval(ki, 0, state).value;
-    if (const llvm::LoadInst *inst = dyn_cast_or_null<llvm::LoadInst>(ki->inst)) {
-      executeMemoryOperation(state, Read, typeSystem->getWrappedType(inst->getPointerOperandType()), base, nullptr, ki);
-    } 
-    else {
-      // TODO:
-      // terminateStateOnExecError();
-    }
-
+    executeMemoryOperation(state, Read, typeSystem->getWrappedType(cast<llvm::LoadInst>(ki->inst)->getPointerOperandType()), 
+                           base, nullptr, ki);
     break;
   }
 
   case Instruction::Store: {
     ref<Expr> base = eval(ki, 1, state).value;
     ref<Expr> value = eval(ki, 0, state).value;
-    if (const llvm::StoreInst *inst = dyn_cast_or_null<llvm::StoreInst>(ki->inst)) {
-      executeMemoryOperation(state, Write, typeSystem->getWrappedType(inst->getPointerOperandType()), base, value, ki);
-    }
-    else {
-      // TODO:
-      // terminateStateOnExecError();
-    }
-    
+    executeMemoryOperation(state, Write, typeSystem->getWrappedType(cast<llvm::StoreInst>(ki->inst)->getPointerOperandType()),
+                           base, value, ki);
     break;
   }
 
@@ -4746,7 +4734,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
 
   /// Save type in order to find offsets in structs with this type.
   /// TargetType below will be replaced with gepExpr origin type.
-  llvm::Type *addressType = targetType->type;
+  // llvm::Type *addressType = targetType->type;
 
   if (UseGEPExpr && isGEPExpr(address)) {
     size = kmodule->targetData->getTypeStoreSize(gepExprBases[address].second);
@@ -4868,12 +4856,12 @@ void Executor::executeMemoryOperation(ExecutionState &state,
     ref<Expr> inBounds;
     StatePair branches;
 
-    llvm::Type *memoryObjectType = mo->dynamicType->type ? mo->dynamicType->type->getPointerElementType() : nullptr;
+    // llvm::Type *memoryObjectType = mo->dynamicType->type ? mo->dynamicType->type->getPointerElementType() : nullptr;
 
     /// TODO:
-    if (false && StrictAliasingRule && 
-        mo->dynamicType->type != nullptr &&
-        addressType != nullptr) { 
+    if (false && StrictAliasingRule//&& 
+        // mo->dynamicType->type != nullptr &&
+        /* addressType != nullptr */) { 
       // const KType *kt = kmodule->computeKType(memoryObjectType);
       
       // for (auto accessibleType : 

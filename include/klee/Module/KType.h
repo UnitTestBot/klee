@@ -13,7 +13,7 @@ class TypeManager;
 struct KType {
   friend TypeManager;
 
-public:
+private:
   /**
    * Wrapped type.
    */

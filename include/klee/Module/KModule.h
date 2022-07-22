@@ -82,6 +82,7 @@ namespace klee {
     void handleKInstruction(std::map<llvm::Instruction*, unsigned> &registerMap,
                             llvm::Instruction *inst, KModule *km, KInstruction *ki);
     virtual KBlockType getKBlockType() const { return KBlockType::Base; };
+    virtual ~KBlock() = default;
   };
 
   struct KCallBlock : KBlock {
