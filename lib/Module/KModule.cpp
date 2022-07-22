@@ -450,8 +450,6 @@ void KModule::manifest(InterpreterHandler *ih, bool forceSourceOutput) {
   }
 
   /* Build shadow structures */
-  initTypesFromGlobals();
-
   infos = std::unique_ptr<InstructionInfoTable>(
       new InstructionInfoTable(*module.get()));
 
@@ -472,7 +470,6 @@ void KModule::manifest(InterpreterHandler *ih, bool forceSourceOutput) {
         for (unsigned i=0; i<numInstructions; ++i) {
           KInstruction *ki = kb->instructions[i];
           ki->info = &infos->getInfo(*ki->inst);
-          initTypesFromInstruction(ki);
         }
     }
 
@@ -507,137 +504,8 @@ void KModule::manifest(InterpreterHandler *ih, bool forceSourceOutput) {
     }
     llvm::errs() << "]\n";
   }
-
-  initTypesFromStructs();
-
-  for (unsigned idx = 0, size = types.size(); idx < size; ++idx) {
-    completeInitType(types[idx]->type);
-  }
 }
 
-void KModule::completeInitType(llvm::Type *type) {
-  if (!type) {
-    return;
-  }
-  computeKType(type);
-
-  if (type->isPointerTy() && 
-      !typesMap.count(type->getPointerElementType())) {
-    completeInitType(type->getPointerElementType());
-  }
-  if (type->isArrayTy() && 
-      !typesMap.count(type->getArrayElementType())) {
-    completeInitType(type->getArrayElementType());
-  }
-  if (type->isVectorTy() && 
-      !typesMap.count(type->getVectorElementType())) {
-    completeInitType(type->getVectorElementType());
-  }
-}
-
-
-KType *KModule::computeKType(llvm::Type *type) {
-  while (typesMap.count(type) == 0) {
-    types.emplace_back(new KType(type, this));
-    typesMap.emplace(type, types.back().get());
-  }
-  return typesMap[type];
-}
-
-
-void KModule::initTypesFromStructs() {
-  /// To collect information about all inherited types 
-  /// we will topologically sort dependencies between structures
-  /// (e.g. if class A contains class B, we will make edge A to B)
-  /// and push types through all graph
-  std::unordered_map<llvm::Type*, std::unordered_set<llvm::Type*>> typesGraph;
-
-  for (auto structType : module->getIdentifiedStructTypes()) {
-    if (typesGraph.count(structType) == 0) {
-      typesGraph.emplace(structType, std::unordered_set<llvm::Type*>());
-    }
-
-    for (auto structMemberType : structType->elements()) {
-      /// Note, that here we may add not only struct types.
-      typesGraph[structType].insert(structMemberType);
-    }
-  }
-
-  std::vector<llvm::Type*> sortedTypesGraph;
-
-  /// We can not just remove elements, as it will break
-  /// iterator in unordered_set. 
-  std::unordered_set<llvm::Type *> visitedGraphTypes;
-
-  std::function<void(llvm::Type*)> dfs = [&typesGraph,
-                                          &sortedTypesGraph, 
-                                          &visitedGraphTypes,
-                                          &dfs](llvm::Type *type) {
-    visitedGraphTypes.insert(type);
-    
-    for (auto typeTo : typesGraph[type]) {
-      if (visitedGraphTypes.count(typeTo) == 0) {
-        dfs(typeTo);
-      }
-    }
-
-    sortedTypesGraph.push_back(type);
-  }; 
-
-  for (auto &[type, list] : typesGraph) {
-    dfs(type);
-  }
-
-  for (auto type : sortedTypesGraph) {
-    computeKType(type);
-  }
-}
-
-
-void KModule::initTypesFromGlobals() {
-  for (auto &global : module->getGlobalList()) {
-    if (!llvm::isa<StructType>(global.getType())) {
-      computeKType(global.getType());
-    }
-    
-    /// Unions is not always structs!
-
-    /// TODO: should be turn on only in C++ mode
-    llvm::SmallVector<llvm::DIGlobalVariableExpression*, 16> MDContainer;
-    global.getDebugInfo(MDContainer);
-    
-    /// TODO: Iterations? 
-    for (auto globalVariableNode : MDContainer) {
-      unsigned int tag = globalVariableNode->getVariable()->getType()->getTag();
-      if (tag == dwarf::Tag::DW_TAG_union_type) {
-        if (llvm::DICompositeType *compositeTypeNode = dyn_cast_or_null<llvm::DICompositeType>(globalVariableNode->getVariable()->getType())) {
-          
-          for (auto innerElementNode : compositeTypeNode->getElements()) {
-            dyn_cast_or_null<llvm::DIDerivedType>(innerElementNode)->getBaseType();
-            /// We can determine it by using DWARF
-          }
-
-        }
-        typesMap[global.getType()] = computeKType(nullptr);
-      }
-      break;
-    }
-  }
-}
-
-
-void KModule::initTypesFromInstruction(KInstruction *kinstruction) {
-  Instruction* inst = kinstruction->inst;
-  if (!llvm::isa<StructType>(inst->getType())) {
-    computeKType(inst->getType());
-  }
-
-  for (auto opb = inst->op_begin(), ope = inst->op_end(); opb != ope; ++opb) {
-    if (!llvm::isa<StructType>((*opb)->getType())) {
-      computeKType((*opb)->getType());
-    }
-  }
-}
 
 
 void KModule::checkModule() {

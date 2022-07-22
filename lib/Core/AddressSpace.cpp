@@ -61,7 +61,7 @@ ObjectState *AddressSpace::getWriteable(const MemoryObject *mo,
 /// 
 
 bool AddressSpace::resolveOne(const ref<ConstantExpr> &addr,
-                              llvm::Type *objectType, 
+                              KType *objectType, 
                               ObjectPair &result) const {
   uint64_t address = addr->getZExtValue();
   MemoryObject hack(address);
@@ -87,7 +87,7 @@ bool AddressSpace::resolveOne(const ref<ConstantExpr> &addr,
 bool AddressSpace::resolveOne(ExecutionState &state,
                               TimingSolver *solver,
                               ref<Expr> address,
-                              llvm::Type *objectType,
+                              KType *objectType,
                               ObjectPair &result,
                               bool &success) const {
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(address)) {
@@ -244,7 +244,7 @@ int AddressSpace::checkPointerInObject(ExecutionState &state,
 }
 
 bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
-                           ref<Expr> p, llvm::Type *objectType,
+                           ref<Expr> p, KType *objectType,
                            ResolutionList &rl,
                            unsigned maxResolutions, time::Span timeout) const {
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(p)) {
@@ -359,7 +359,7 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
 }
 
 bool AddressSpace::fastResolve(ExecutionState &state, TimingSolver *solver,
-                               ref<Expr> p, llvm::Type *objectType,
+                               ref<Expr> p, KType *objectType,
                                ResolutionList &rl,
                                unsigned maxResolutions, time::Span timeout) const {
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(p)) {

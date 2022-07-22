@@ -76,6 +76,7 @@ namespace klee {
   class KInstIterator;
   class KModule;
   class MemoryManager;
+  class TypeManager;
   class MemoryObject;
   class ObjectState;
   class PTree;
@@ -152,6 +153,8 @@ private:
   ExternalDispatcher *externalDispatcher;
   TimingSolver *solver;
   MemoryManager *memory;
+  TypeManager *typeSystem;
+
   std::set<ExecutionState*, ExecutionStateIDCompare> states;
   std::set<ExecutionState*, ExecutionStateIDCompare> pausedStates;
   StatsTracker *statsTracker;
@@ -269,7 +272,7 @@ private:
 
   // Given a concrete object in our [klee's] address space, add it to 
   // objects checked code can reference.
-  MemoryObject *addExternalObject(ExecutionState &state, void *addr, llvm::Type *, 
+  MemoryObject *addExternalObject(ExecutionState &state, void *addr, KType *, 
                                   unsigned size, bool isReadOnly);
 
   void initializeGlobalAlias(const llvm::Constant *c, ExecutionState &state);
@@ -308,7 +311,7 @@ private:
                                  ExecutionState*> > ExactResolutionList;
   void resolveExact(ExecutionState &state,
                     ref<Expr> p,
-                    llvm::Type *type,
+                    KType *type,
                     ExactResolutionList &results,
                     const std::string &name);
 
@@ -335,7 +338,7 @@ private:
                     ref<Expr> size,
                     bool isLocal,
                     KInstruction *target,
-                    llvm::Type *type,
+                    KType *type,
                     bool zeroMemory=false,
                     const ObjectState *reallocFrom=0,
                     size_t allocationAlignment=0);
@@ -368,13 +371,13 @@ private:
   // and perform the operation
   void executeMemoryOperation(ExecutionState &state,
                               MemoryOperation operation,
-                              llvm::Type *targetType,
+                              KType *targetType,
                               ref<Expr> address,
                               ref<Expr> value /* def if write*/,
                               KInstruction *target /* def if read*/);
 
   ObjectPair lazyInstantiate(ExecutionState &state,
-                             llvm::Type *type,
+                             KType *type,
                              bool isLocal,
                              const MemoryObject *mo);
 
@@ -386,7 +389,7 @@ private:
   ObjectPair lazyInstantiateVariable(ExecutionState &state,
                                      ref<Expr> address,
                                      KInstruction *target,
-                                     llvm::Type *targetType,
+                                     KType *targetType,
                                      uint64_t size);
 
   void executeMakeSymbolic(ExecutionState &state, const MemoryObject *mo,

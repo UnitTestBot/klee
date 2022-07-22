@@ -195,14 +195,6 @@ namespace klee {
     std::map<llvm::Function*, KFunction*> functionMap;
     std::map<llvm::Function*, std::set<llvm::Function*>> callMap;
 
-    // Shadow versions of types
-    std::vector<std::unique_ptr<KType>> types;
-    std::map<llvm::Type*, KType*> typesMap;
-    
-    /// Tries to register type. Returns true, iff type
-    /// was not register before. Otherwise returns false.
-    KType* computeKType(llvm::Type *type);
-
     // Functions which escape (may be called indirectly)
     // XXX change to KFunction
     std::set<llvm::Function*> escapingFunctions;
@@ -236,8 +228,6 @@ namespace klee {
     void initTypesFromStructs();
     void initTypesFromGlobals();
     void initTypesFromInstruction(KInstruction *kinstruction);
-    /// Final types initialization. Should be called once after type collection
-    void completeInitType(llvm::Type *type);
 
   public:
     KModule() = default;
