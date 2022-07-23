@@ -15,6 +15,10 @@ config.libcxx_include_dir = "@KLEE_LIBCXX_INCLUDE_DIR@"
 config.llvm_version_major = "@LLVM_VERSION_MAJOR@"
 config.llvm_version_minor = "@LLVM_VERSION_MINOR@"
 
+config.undefined_sanitizer = ""
+if @IS_UBSAN_BUILD@:
+    config.undefined_sanitizer = "-lubsan -fsanitize-link-c++-runtime -lstdc++"
+
 # Compilers
 config.clang = "@LLVMCC@"
 config.clangxx = "@LLVMCXX@"
