@@ -11,6 +11,8 @@ using namespace klee;
 using namespace llvm;
 
 KType::KType(llvm::Type *type, TypeManager *parent) : type(type), parent(parent) {
+  typeSystemKind = TypeSystemKind::LLVM;
+  
   /// If type is complex, pull types from it inner types
   // if (llvm::StructType *structType = dyn_cast_or_null<StructType>(type)) {
   //   const StructLayout *structLayout = parent->targetData->getStructLayout(structType);
@@ -37,4 +39,8 @@ bool KType::isAccessableFrom(KType *accessingType) const {
 
 llvm::Type *KType::getRawType() const {
   return type;
+}
+
+KType::TypeSystemKind KType::getTypeSystemKind() const {
+  return typeSystemKind; 
 }

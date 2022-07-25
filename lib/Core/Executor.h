@@ -153,7 +153,7 @@ private:
   ExternalDispatcher *externalDispatcher;
   TimingSolver *solver;
   MemoryManager *memory;
-  TypeManager *typeSystem;
+  TypeManager *typeSystemManager;
 
   std::set<ExecutionState*, ExecutionStateIDCompare> states;
   std::set<ExecutionState*, ExecutionStateIDCompare> pausedStates;

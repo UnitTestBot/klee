@@ -3,6 +3,7 @@
 
 #include "../TypeManager.h"
 #include "klee/Module/KType.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include <string>
 #include <map>
@@ -15,6 +16,18 @@ namespace llvm {
 namespace klee {
 
 namespace cxxtypes {
+
+enum CXXTypeKind {
+  DEFAULT,
+  COMPOSITE,
+  STRUCT,
+  INTEGER,
+  FP, 
+  ARRAY,
+  POINTER,
+  FUNCTION
+};
+
 class KModule;
 class KCompositeType;
 class CXXKStructType;
@@ -22,6 +35,8 @@ class CXXKIntegerType;
 class CXXKFloatingPointType;
 class CXXKArrayType;
 class CXXKPointerType;
+class CXXKType;
+class CXXKFunctionType;
 }
 
 class CXXTypeManager final : public TypeManager {
@@ -45,14 +60,32 @@ namespace cxxtypes {
 
 
 class CXXKType : public KType {
-protected:
-  CXXKType(llvm::Type *, TypeManager *);
+  friend CXXTypeManager;
+
+private:
   static bool isAccessingFromChar(KType *accessingType);
 
+protected:
+/**
+ * Field for llvm RTTI system.
+ */
+  CXXTypeKind typeKind;
+
+  CXXKType(llvm::Type *, TypeManager *);
+
 public:
+ /**
+  * Checks the first access to this type from specified.
+  * Using isAccessingFromChar and then cast parameter
+  * to CXXKType. Method is declared as final because it
+  * is an 'edge' between LLVM and CXX type systems.
+  */
   virtual bool isAccessableFrom(KType *) const final override;
   virtual bool isAccessableFrom(CXXKType *) const;
-  virtual bool innerIsAccessableFrom(CXXKType *) const;
+
+  CXXTypeKind getTypeKind() const;
+
+  static bool classof(const KType *);
 };
 
 /**
@@ -72,6 +105,8 @@ protected:
 public:
   void insert(KType *, size_t);
   virtual bool isAccessableFrom(CXXKType *) const override;
+
+  static bool classof(const CXXKType *);
 };
 
 
@@ -88,8 +123,9 @@ protected:
 
 public:
   std::vector<llvm::Type *> getAccessibleInnerTypes(CXXKType *) const;
-  virtual bool isAccessableFrom(CXXKType *) const override;
-  virtual bool innerIsAccessableFrom(CXXKType *) const override;
+  virtual bool isAccessableFrom(CXXKType *) const override;  
+
+  static bool classof(const CXXKType *);
 };
 
 
@@ -97,20 +133,23 @@ public:
  * Function type can be accessed obly from another
  * function type.
  */
-class KFunctionType : public CXXKType {
+class CXXKFunctionType : public CXXKType {
   friend CXXTypeManager;
 
 private:
   CXXKType *returnType;
   std::vector<KType *> arguments;
 
+  bool innerIsAccessableFrom(CXXKType *) const;
+  bool innerIsAccessableFrom(CXXKFunctionType *) const;
+
 protected:
-  KFunctionType(llvm::Type *, TypeManager *);
+  CXXKFunctionType(llvm::Type *, TypeManager *);
 
 public:
   virtual bool isAccessableFrom(CXXKType *) const override;
-  virtual bool innerIsAccessableFrom(CXXKType *) const override;
-  bool innerIsAccessableFrom(KFunctionType *) const;
+
+  static bool classof(const CXXKType *);
 };
 
 
@@ -122,16 +161,16 @@ class CXXKIntegerType : public CXXKType {
   friend CXXTypeManager;
 
 private:
-  const size_t bitness;
+  bool innerIsAccessableFrom(CXXKType *) const;
+  bool innerIsAccessableFrom(CXXKIntegerType *) const;
 
 protected:
   CXXKIntegerType(llvm::Type *, TypeManager *);
 
-
 public:  
   virtual bool isAccessableFrom(CXXKType *) const override;
-  virtual bool innerIsAccessableFrom(CXXKType *) const override;
-  bool innerIsAccessableFrom(CXXKIntegerType *) const;
+
+  static bool classof(const CXXKType *);
 };
 
 
@@ -141,14 +180,18 @@ public:
  */
 class CXXKFloatingPointType : public CXXKType {
   friend CXXTypeManager;
+
+private:
+  bool innerIsAccessableFrom(CXXKType *) const;
+  bool innerIsAccessableFrom(CXXKFloatingPointType *) const;
+
 protected:
   CXXKFloatingPointType(llvm::Type *, TypeManager *);
 
 public:
-
   virtual bool isAccessableFrom(CXXKType *) const override;
-  virtual bool innerIsAccessableFrom(CXXKType *) const override;
-  bool innerIsAccessableFrom(CXXKFloatingPointType *) const;
+
+  static bool classof(const CXXKType *);
 };
 
 
@@ -162,16 +205,19 @@ class CXXKArrayType : public CXXKType {
 
 private:
   CXXKType *elementType;
-  const size_t arraySize;
+  size_t arraySize;
+  
+  bool innerIsAccessableFrom(CXXKType *) const;
+  bool innerIsAccessableFrom(CXXKPointerType *) const;
+  bool innerIsAccessableFrom(CXXKArrayType *) const;
 
 protected:
   CXXKArrayType(llvm::Type *, TypeManager *);
 
 public:  
   virtual bool isAccessableFrom(CXXKType *) const override;
-  virtual bool innerIsAccessableFrom(CXXKType *) const override;
-  bool innerIsAccessableFrom(CXXKPointerType *) const;
-  bool innerIsAccessableFrom(CXXKArrayType *) const;
+
+  static bool classof(const CXXKType *);
 };
 
 
@@ -185,14 +231,16 @@ class CXXKPointerType : public CXXKType {
 
 private:
   CXXKType *elementType;
+  bool innerIsAccessableFrom(CXXKType *) const;
+  bool innerIsAccessableFrom(CXXKPointerType *) const;
 
 protected:
   CXXKPointerType(llvm::Type *, TypeManager *);
 
 public:
   virtual bool isAccessableFrom(CXXKType *) const override;
-  virtual bool innerIsAccessableFrom(CXXKType *) const override;
-  bool innerIsAccessibleFrom(CXXKPointerType *) const;
+
+  static bool classof(const CXXKType *);
 };
 
 } /*namespace cxxtypes*/

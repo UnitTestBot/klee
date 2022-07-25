@@ -4,7 +4,7 @@
 #include <unordered_map>
 #include <vector>
 namespace llvm {
-    class Type;
+  class Type;
 }
 
 namespace klee {    
@@ -12,8 +12,16 @@ class TypeManager;
 
 class KType {
   friend TypeManager;
-
 protected:
+  /**
+   * Represents type of used TypeManager. Required
+   * for llvm RTTI. 
+   */
+  enum TypeSystemKind {
+    LLVM, 
+    CXX
+  } typeSystemKind;
+
   /**
    * Wrapped type.
    */
@@ -23,7 +31,7 @@ protected:
    * Owning type manager system. Note, that only it can
    * create instances of KTypes.
    */
-  TypeManager *parent;      
+  TypeManager *parent;
   
   /**
    * Innner types. Maps type to their offsets in current
@@ -39,7 +47,7 @@ protected:
   /**
    * Object cannot been created within class, defferent
    * from TypeManager, as it is important to have only
-   * one instance for every llvm::Type. 
+   * one instance for every llvm::Type.
    */
   KType(const KType &) = delete;
   KType &operator=(const KType &) = delete;
@@ -56,6 +64,8 @@ public:
    * Returns the stored raw llvm type.  
    */
   llvm::Type *getRawType() const;
+
+  TypeSystemKind getTypeSystemKind() const;
 
   virtual ~KType() = default;
 };

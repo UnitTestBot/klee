@@ -3,12 +3,14 @@
 #include "klee/Module/KModule.h"
 
 #include "llvm/IR/Type.h"
+#include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Demangle/Demangle.h"
 
 #include <cassert>
 
+#include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
 using namespace klee;
@@ -20,7 +22,6 @@ enum {
 
 
 CXXTypeManager::CXXTypeManager(KModule *parent) : TypeManager(parent) {
-  
 } 
 
 /**
@@ -33,9 +34,12 @@ KType *CXXTypeManager::getWrappedType(llvm::Type *type) {
     
     /* Special case when type is unknown */
     if (type == nullptr) {
-      kt = TypeManager::getWrappedType(type);
+      kt = new cxxtypes::CXXKType(type, this);
     }
     else {
+      type->print(llvm::outs() << "Registered ");
+      llvm::outs() << "\n";
+
       /* Vector types are considered as their elements type */ 
       llvm::Type *unwrappedRawType = type;
       if (unwrappedRawType->isVectorTy()) {
@@ -55,7 +59,7 @@ KType *CXXTypeManager::getWrappedType(llvm::Type *type) {
         kt = new cxxtypes::CXXKArrayType(unwrappedRawType, this);
       }
       else if (unwrappedRawType->isFunctionTy()) {
-        kt = new cxxtypes::KFunctionType(unwrappedRawType, this);
+        kt = new cxxtypes::CXXKFunctionType(unwrappedRawType, this);
       }
       else if (unwrappedRawType->isPointerTy()) {
         kt = new cxxtypes::CXXKPointerType(unwrappedRawType, this);
@@ -66,12 +70,10 @@ KType *CXXTypeManager::getWrappedType(llvm::Type *type) {
     }
     
     types.emplace_back(kt);
-    typesMap.emplace(type, types.back().get());
+    typesMap.emplace(type, kt);
   }
   return typesMap[type];
 }
-
-
 
 /**
  * Handles function calls for constructors, as they can modify
@@ -98,11 +100,12 @@ void CXXTypeManager::handleFunctionCall(KFunction *kf, std::vector<MemoryObject 
 }
 
 
-cxxtypes::CXXKType::CXXKType(llvm::Type *type, TypeManager *parent) : KType(type, parent) {}
 
 
-bool cxxtypes::CXXKType::innerIsAccessableFrom(CXXKType *accessingType) const {
-  return true;
+/* C++ KType base class */
+cxxtypes::CXXKType::CXXKType(llvm::Type *type, TypeManager *parent) : KType(type, parent) {
+  typeSystemKind = TypeSystemKind::CXX;
+  typeKind = DEFAULT;
 }
 
 bool cxxtypes::CXXKType::isAccessableFrom(CXXKType *accessingType) const {
@@ -110,8 +113,20 @@ bool cxxtypes::CXXKType::isAccessableFrom(CXXKType *accessingType) const {
 }
 
 bool cxxtypes::CXXKType::isAccessableFrom(KType *accessingType) const {
+  assert(accessingType && "Accessable from nullptr?!");
+  if (isa<CXXKType>(accessingType)) {
+    if (isAccessingFromChar(accessingType)) {
+      return true;
+    }
+
+    /* TODO: debug output. Maybe put it in aditional log */
+    type->print(llvm::outs() << "Accessing ");
+    accessingType->getRawType()->print(llvm::outs() << " from ");
+    llvm::outs() << "\n";
+    
+    return isAccessableFrom(cast<CXXKType>(accessingType));
+  }
   assert(false && "Attempted to compare raw llvm type with C++ type!");
-  return false;
 }
 
 bool cxxtypes::CXXKType::isAccessingFromChar(KType *accessingType) {
@@ -133,9 +148,21 @@ bool cxxtypes::CXXKType::isAccessingFromChar(KType *accessingType) {
   return false;
 }
 
+cxxtypes::CXXTypeKind cxxtypes::CXXKType::getTypeKind() const {
+  return typeKind;
+}
+
+bool cxxtypes::CXXKType::classof(const KType *requestedType) {
+  return requestedType->getTypeSystemKind() == TypeSystemKind::CXX;
+}
+
+
+
 
 /* Composite type */
-cxxtypes::KCompositeType::KCompositeType(llvm::Type *type, TypeManager *parent) : CXXKType(type, parent) {}
+cxxtypes::KCompositeType::KCompositeType(llvm::Type *type, TypeManager *parent) : CXXKType(type, parent) {
+  typeKind = CXXTypeKind::COMPOSITE;
+} 
 
 void cxxtypes::KCompositeType::insert(KType *type, size_t offset) {
   /*
@@ -149,10 +176,6 @@ void cxxtypes::KCompositeType::insert(KType *type, size_t offset) {
 }
 
 bool cxxtypes::KCompositeType::isAccessableFrom(CXXKType *accessingType) const {
-  if (CXXKType::isAccessingFromChar(accessingType)) {
-    return true;
-  }
-
   for (auto &it : typesLocations) {
     if (accessingType->isAccessableFrom(it.second)) {
       return true;
@@ -161,15 +184,23 @@ bool cxxtypes::KCompositeType::isAccessableFrom(CXXKType *accessingType) const {
   return false;
 }
 
+bool cxxtypes::KCompositeType::classof(const CXXKType *requestedType) {
+  return (requestedType->getTypeKind() == cxxtypes::CXXTypeKind::COMPOSITE); 
+}
+
+
+
 
 /* Integer type */
-cxxtypes::CXXKIntegerType::CXXKIntegerType(llvm::Type *type, TypeManager *parent) : CXXKType(type, parent), bitness(0) {}
+cxxtypes::CXXKIntegerType::CXXKIntegerType(llvm::Type *type, TypeManager *parent) : CXXKType(type, parent) {
+  typeKind = CXXTypeKind::INTEGER;
+}
 
 bool cxxtypes::CXXKIntegerType::isAccessableFrom(CXXKType *accessingType) const {
-  if (isAccessingFromChar(accessingType)) {
-    return true;
-  }
-  return innerIsAccessableFrom(accessingType); 
+  if (llvm::isa<CXXKIntegerType>(accessingType)) {
+    return innerIsAccessableFrom(cast<CXXKIntegerType>(accessingType)); 
+  } 
+  return innerIsAccessableFrom(accessingType);
 }
 
 bool cxxtypes::CXXKIntegerType::innerIsAccessableFrom(CXXKType *accessingType) const {
@@ -180,16 +211,24 @@ bool cxxtypes::CXXKIntegerType::innerIsAccessableFrom(CXXKIntegerType *accessing
   return (accessingType->type == type);
 }
 
+bool cxxtypes::CXXKIntegerType::classof(const CXXKType *requestedType) {
+  return (requestedType->getTypeKind() == cxxtypes::CXXTypeKind::INTEGER); 
+}
+
+
 
 
 /* Floating point type */
-cxxtypes::CXXKFloatingPointType::CXXKFloatingPointType(llvm::Type *type, TypeManager *parent) : CXXKType(type, parent) {}
+cxxtypes::CXXKFloatingPointType::CXXKFloatingPointType(llvm::Type *type, TypeManager *parent) 
+    : CXXKType(type, parent) {
+  typeKind = CXXTypeKind::FP;
+}
 
 bool cxxtypes::CXXKFloatingPointType::isAccessableFrom(CXXKType *accessingType) const {
-  if (isAccessingFromChar(accessingType)) {
-    return true;
+  if (llvm::isa<CXXKFloatingPointType>(accessingType)) {
+    return innerIsAccessableFrom(cast<CXXKFloatingPointType>(accessingType));
   }
-  return innerIsAccessableFrom(cast<CXXKType>(accessingType));
+  return innerIsAccessableFrom(accessingType);
 }
 
 bool cxxtypes::CXXKFloatingPointType::innerIsAccessableFrom(CXXKType *accessingType) const {
@@ -200,43 +239,52 @@ bool cxxtypes::CXXKFloatingPointType::innerIsAccessableFrom(CXXKFloatingPointTyp
   return (accessingType->getRawType() == type);
 }
 
+bool cxxtypes::CXXKFloatingPointType::classof(const CXXKType *requestedType) {
+  return (requestedType->getTypeKind() == cxxtypes::CXXTypeKind::FP); 
+}
+
+
 
 
 /* Struct type */
-cxxtypes::CXXKStructType::CXXKStructType(llvm::Type *type, TypeManager *parent) : CXXKType(type, parent) {}
+cxxtypes::CXXKStructType::CXXKStructType(llvm::Type *type, TypeManager *parent) : CXXKType(type, parent) {
+  typeKind = CXXTypeKind::STRUCT;
+}
 
 bool cxxtypes::CXXKStructType::isAccessableFrom(CXXKType *accessingType) const {
-  assert(isa<CXXKType>(accessingType) && "Given raw llvm type!");
-  if (isAccessingFromChar(accessingType)) {
-    return true;
-  }
-
-  return innerIsAccessableFrom(cast<CXXKType>(accessingType));
+  return true; // TODO: innerIsAccessableFrom(cast<CXXKType>(accessingType));
 }
 
-bool cxxtypes::CXXKStructType::innerIsAccessableFrom(CXXKType *accessingType) const {
-  if (isAccessingFromChar(accessingType)) {
-    return true;
-  }
-
-  return true;
-}
 
 std::vector<llvm::Type *> cxxtypes::CXXKStructType::getAccessibleInnerTypes(CXXKType *accessingType) const {
   std::vector<llvm::Type *> result;
   return result;
 }
 
+bool cxxtypes::CXXKStructType::classof(const CXXKType *requestedType) {
+  return (requestedType->getTypeKind() == cxxtypes::CXXTypeKind::STRUCT); 
+}
+
+
 
 
 /* Array type */
-cxxtypes::CXXKArrayType::CXXKArrayType(llvm::Type *type, TypeManager *parent) : CXXKType(type, parent), arraySize(0) {
-  // TODO: get instance for child
+cxxtypes::CXXKArrayType::CXXKArrayType(llvm::Type *type, TypeManager *parent) : CXXKType(type, parent) {
+  typeKind = CXXTypeKind::ARRAY;
+
+  llvm::Type *rawArrayType = llvm::cast<llvm::ArrayType>(type);
+  KType *elementKType = parent->getWrappedType(rawArrayType->getArrayElementType());
+  assert(llvm::isa<CXXKType>(elementKType) && "Type manager returned non CXX type for array element");
+  elementType = cast<CXXKType>(elementKType);
+  arraySize = rawArrayType->getArrayNumElements(); 
 }
 
 bool cxxtypes::CXXKArrayType::isAccessableFrom(CXXKType *accessingType) const {
-  if (isAccessingFromChar(accessingType)) {
-    return true;
+  if (llvm::isa<CXXKArrayType>(accessingType)) {
+    return innerIsAccessableFrom(llvm::cast<CXXKArrayType>(accessingType));
+  }
+  if (llvm::isa<CXXKPointerType>(accessingType)) {
+    return innerIsAccessableFrom(llvm::cast<CXXKPointerType>(accessingType));
   }
   return innerIsAccessableFrom(accessingType);
 }
@@ -246,32 +294,82 @@ bool cxxtypes::CXXKArrayType::innerIsAccessableFrom(CXXKType *accessingType) con
 }
 
 bool cxxtypes::CXXKArrayType::innerIsAccessableFrom(CXXKArrayType *accessingType) const {
-  return true;
+  /// TODO: support arrays of unknown size
+  return (arraySize == accessingType->arraySize) && elementType->isAccessableFrom(accessingType);
 }
 
 bool cxxtypes::CXXKArrayType::innerIsAccessableFrom(CXXKPointerType *accessingType) const {
-  return elementType->innerIsAccessableFrom(accessingType); 
+  return elementType->isAccessableFrom(accessingType->elementType); 
 }
+
+bool cxxtypes::CXXKArrayType::classof(const CXXKType *requestedType) {
+  return (requestedType->getTypeKind() == cxxtypes::CXXTypeKind::ARRAY); 
+}
+
 
 
 
 /* Function type */
-cxxtypes::KFunctionType::KFunctionType(llvm::Type *type, TypeManager *parent) : CXXKType(type, parent) {
-  // TODO: get info about all arguments
+cxxtypes::CXXKFunctionType::CXXKFunctionType(llvm::Type *type, TypeManager *parent) : CXXKType(type, parent) {
+  typeKind = CXXTypeKind::FUNCTION;
+
+  assert(type->isFunctionTy() && "Given non-function type to construct KFunctionType!");
+  llvm::FunctionType *function = llvm::cast<llvm::FunctionType>(type);
+  returnType = llvm::dyn_cast<cxxtypes::CXXKType>(parent->getWrappedType(function->getReturnType()));
+  assert(returnType != nullptr && "Type manager returned non CXXKType");
+  
+  for (auto argType : function->params()) {
+    KType *argKType = parent->getWrappedType(argType);
+    assert(llvm::isa<cxxtypes::CXXKType>(argKType) && "Type manager return non CXXType for function argument");
+    arguments.push_back(cast<cxxtypes::CXXKType>(argKType));
+  }
 }
 
-bool cxxtypes::KFunctionType::isAccessableFrom(CXXKType *accessingType) const {
-  if (isAccessingFromChar(accessingType)) {
-    return true;
+bool cxxtypes::CXXKFunctionType::isAccessableFrom(CXXKType *accessingType) const {
+  if (llvm::isa<CXXKFunctionType>(accessingType)) {
+    return innerIsAccessableFrom(llvm::cast<CXXKFunctionType>(accessingType));
   }
   return innerIsAccessableFrom(accessingType);
 }
 
-bool cxxtypes::KFunctionType::innerIsAccessableFrom(CXXKType *accessingType) const {
+bool cxxtypes::CXXKFunctionType::innerIsAccessableFrom(CXXKType *accessingType) const {
   return (accessingType->getRawType() == nullptr);
 }
 
-bool cxxtypes::KFunctionType::innerIsAccessableFrom(KFunctionType *accessingType) const {
+bool cxxtypes::CXXKFunctionType::innerIsAccessableFrom(CXXKFunctionType *accessingType) const {
   /// TODO: support variadic arguments 
   return (accessingType->type == type);
+}
+
+bool cxxtypes::CXXKFunctionType::classof(const CXXKType *requestedType) {
+  return (requestedType->getTypeKind() == cxxtypes::CXXTypeKind::FUNCTION); 
+}
+
+
+
+
+/* Pointer type */
+cxxtypes::CXXKPointerType::CXXKPointerType(llvm::Type *type, TypeManager *parent) : CXXKType(type, parent) {
+  typeKind = CXXTypeKind::POINTER;
+
+  elementType = cast<CXXKType>(parent->getWrappedType(type->getPointerElementType()));
+}
+
+bool cxxtypes::CXXKPointerType::isAccessableFrom(CXXKType *accessingType) const {
+  if (llvm::isa<CXXKPointerType>(accessingType)) {
+    return innerIsAccessableFrom(llvm::cast<CXXKPointerType>(accessingType));
+  }
+  return innerIsAccessableFrom(accessingType);
+}
+
+bool cxxtypes::CXXKPointerType::innerIsAccessableFrom(CXXKType *accessingType) const {
+  return (accessingType->getRawType() == nullptr);
+}
+
+bool cxxtypes::CXXKPointerType::innerIsAccessableFrom(CXXKPointerType *accessingType) const {
+  return elementType->isAccessableFrom(accessingType->elementType);
+}
+
+bool cxxtypes::CXXKPointerType::classof(const CXXKType *requestedType) {
+  return (requestedType->getTypeKind() == cxxtypes::CXXTypeKind::POINTER); 
 }

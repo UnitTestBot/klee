@@ -29,6 +29,8 @@
 #include "TimingSolver.h"
 #include "UserSearcher.h"
 #include "TypeManager.h"
+#include "CXXTypeSystem/CXXTypeManager.h"
+
 
 #include "klee/ADT/KTest.h"
 #include "klee/ADT/RNG.h"
@@ -629,7 +631,12 @@ Executor::setModule(std::vector<std::unique_ptr<llvm::Module>> &modules,
 
   specialFunctionHandler->bind();
 
-  typeSystem = new TypeManager(kmodule.get());
+  if (StrictAliasingRule) {
+    typeSystemManager = new CXXTypeManager(kmodule.get());
+  }
+  else {
+    typeSystemManager = new TypeManager(kmodule.get());
+  }
 
   if (StatsTracker::useStatistics() || userSearcherRequiresMD2U()) {
     statsTracker = 
@@ -648,7 +655,7 @@ Executor::setModule(std::vector<std::unique_ptr<llvm::Module>> &modules,
 
 Executor::~Executor() {
   delete memory;
-  delete typeSystem;
+  delete typeSystemManager;
   delete externalDispatcher;
   delete specialFunctionHandler;
   delete statsTracker;
@@ -772,7 +779,7 @@ void Executor::allocateGlobalObjects(ExecutionState &state) {
   MemoryObject *errnoObj =
       addExternalObject(state, 
                         (void *)errno_addr,
-                        typeSystem->getWrappedType(pointer_errno_addr),
+                        typeSystemManager->getWrappedType(pointer_errno_addr),
                         sizeof *errno_addr,
                         false);
   // Copy values from and to program space explicitly
@@ -794,10 +801,10 @@ void Executor::allocateGlobalObjects(ExecutionState &state) {
                              );
 
   addExternalObject(state, const_cast<uint16_t*>(*addr-128),
-                    typeSystem->getWrappedType(pointer_addr),
+                    typeSystemManager->getWrappedType(pointer_addr),
                     384 * sizeof **addr, true);
   addExternalObject(state, addr,
-                    typeSystem->getWrappedType(pointer_addr),
+                    typeSystemManager->getWrappedType(pointer_addr),
                     sizeof(*addr), true);
   
   const int32_t **lower_addr = __ctype_tolower_loc();
@@ -806,10 +813,10 @@ void Executor::allocateGlobalObjects(ExecutionState &state) {
                                     adress_space_num
                                    );
   addExternalObject(state, const_cast<int32_t*>(*lower_addr-128),
-                    typeSystem->getWrappedType(pointer_lower_addr),
+                    typeSystemManager->getWrappedType(pointer_lower_addr),
                     384 * sizeof **lower_addr, true);
   addExternalObject(state, lower_addr, 
-                    typeSystem->getWrappedType(pointer_lower_addr),
+                    typeSystemManager->getWrappedType(pointer_lower_addr),
                     sizeof(*lower_addr), true);
   
   const int32_t **upper_addr = __ctype_toupper_loc();
@@ -818,10 +825,10 @@ void Executor::allocateGlobalObjects(ExecutionState &state) {
                                     0
                                    );
   addExternalObject(state, const_cast<int32_t*>(*upper_addr-128),
-                    typeSystem->getWrappedType(pointer_upper_addr),
+                    typeSystemManager->getWrappedType(pointer_upper_addr),
                     384 * sizeof **upper_addr, true);
   addExternalObject(state, upper_addr, 
-                    typeSystem->getWrappedType(pointer_upper_addr),
+                    typeSystemManager->getWrappedType(pointer_upper_addr),
                     sizeof(*upper_addr), true);
 #endif
 #endif
@@ -866,7 +873,7 @@ void Executor::allocateGlobalObjects(ExecutionState &state) {
 
     MemoryObject *mo = memory->allocate(size, /*isLocal=*/false,
                                         /*isGlobal=*/true, /*allocSite=*/&v,
-                                        /*type=*/typeSystem->getWrappedType(v.getType()),
+                                        /*type=*/typeSystemManager->getWrappedType(v.getType()),
                                         /*alignment=*/globalObjectAlignment);
     if (!mo)
       klee_error("out of memory");
@@ -1650,7 +1657,7 @@ MemoryObject *Executor::serializeLandingpad(ExecutionState &state,
 
   MemoryObject *mo =
       memory->allocate(serialized.size(), true, false, nullptr, 
-      typeSystem->getWrappedType(nullptr), 1);
+      typeSystemManager->getWrappedType(nullptr), 1);
   ObjectState *os = bindObjectInState(state, mo, false);
   for (unsigned i = 0; i < serialized.size(); i++) {
     os->write8(i, serialized[i]);
@@ -2111,7 +2118,7 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
       StackFrame &sf = state.stack.back();
       MemoryObject *mo = sf.varargs =
           memory->allocate(size, true, false, state.prevPC->inst,
-                           typeSystem->getWrappedType(nullptr),
+                           typeSystemManager->getWrappedType(nullptr),
                            (requires16ByteAlignment ? 16 : 8));
       if (!mo && size) {
         terminateStateOnExecError(state, "out of memory (varargs)");
@@ -2138,7 +2145,7 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
             assert(CE); // byval argument needs to be a concrete pointer
 
             ObjectPair op;
-            state.addressSpace.resolveOne(CE, typeSystem->getWrappedType(ati->getType()) ,op);
+            state.addressSpace.resolveOne(CE, typeSystemManager->getWrappedType(ati->getType()) ,op);
             const ObjectState *osarg = op.second;
             assert(osarg);
             for (unsigned i = 0; i < osarg->size; i++)
@@ -2888,13 +2895,13 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       count = Expr::createZExtToPointerWidth(count);
       size = MulExpr::create(size, count);
     }
-    executeAlloc(state, size, true, ki, typeSystem->getWrappedType(ai->getType()));
+    executeAlloc(state, size, true, ki, typeSystemManager->getWrappedType(ai->getType()));
     break;
   }
 
   case Instruction::Load: {
     ref<Expr> base = eval(ki, 0, state).value;
-    executeMemoryOperation(state, Read, typeSystem->getWrappedType(cast<llvm::LoadInst>(ki->inst)->getPointerOperandType()), 
+    executeMemoryOperation(state, Read, typeSystemManager->getWrappedType(cast<llvm::LoadInst>(ki->inst)->getPointerOperandType()), 
                            base, nullptr, ki);
     break;
   }
@@ -2902,7 +2909,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
   case Instruction::Store: {
     ref<Expr> base = eval(ki, 1, state).value;
     ref<Expr> value = eval(ki, 0, state).value;
-    executeMemoryOperation(state, Write, typeSystem->getWrappedType(cast<llvm::StoreInst>(ki->inst)->getPointerOperandType()),
+    executeMemoryOperation(state, Write, typeSystemManager->getWrappedType(cast<llvm::StoreInst>(ki->inst)->getPointerOperandType()),
                            base, value, ki);
     break;
   }
@@ -4365,7 +4372,7 @@ void Executor::callExternalFunction(ExecutionState &state,
       ObjectPair op;
       // Checking to see if the argument is a pointer to something
       if (ce->getWidth() == Context::get().getPointerWidth() &&
-          state.addressSpace.resolveOne(ce, typeSystem->getWrappedType(ati->getType()), op)) {
+          state.addressSpace.resolveOne(ce, typeSystemManager->getWrappedType(ati->getType()), op)) {
         op.second->flushToConcreteStore(solver, state);
       }
       wordIndex += (ce->getWidth()+63)/64;
@@ -4401,7 +4408,7 @@ void Executor::callExternalFunction(ExecutionState &state,
   /// TODO: code smell.
   bool resolved = state.addressSpace.resolveOne(
     ConstantExpr::create((uint64_t)errno_addr, Expr::Int64), 
-    typeSystem->getWrappedType(pointer_errno_addr), 
+    typeSystemManager->getWrappedType(pointer_errno_addr), 
     result
   );
 
@@ -4659,7 +4666,7 @@ void Executor::executeFree(ExecutionState &state,
   }
   if (zeroPointer.second) { // address != 0
     ExactResolutionList rl;
-    resolveExact(*zeroPointer.second, address, nullptr, rl,"free");
+    resolveExact(*zeroPointer.second, address, typeSystemManager->getWrappedType(nullptr), rl,"free");
     
     for (Executor::ExactResolutionList::iterator it = rl.begin(), 
            ie = rl.end(); it != ie; ++it) {
@@ -4738,7 +4745,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
 
   if (UseGEPExpr && isGEPExpr(address)) {
     size = kmodule->targetData->getTypeStoreSize(gepExprBases[address].second);
-    targetType = typeSystem->getWrappedType(
+    targetType = typeSystemManager->getWrappedType(
       llvm::PointerType::get(
         gepExprBases[address].second,
         kmodule->targetData->getProgramAddressSpace()
@@ -5025,7 +5032,7 @@ ObjectPair Executor::lazyInstantiateAlloca(ExecutionState &state,
                                      const MemoryObject *mo,
                                      KInstruction *target,
                                      bool isLocal) {
-  ObjectPair op = lazyInstantiate(state, typeSystem->getWrappedType(target->inst->getType()), isLocal, mo);
+  ObjectPair op = lazyInstantiate(state, typeSystemManager->getWrappedType(target->inst->getType()), isLocal, mo);
   bindLocal(target, state, op.first->getBaseExpr());
   return op;
 }
@@ -5161,7 +5168,7 @@ ExecutionState* Executor::formState(Function *f,
           memory->allocate((argc + 1 + envc + 1 + 1) * NumPtrBytes,
                            /*isLocal=*/false, /*isGlobal=*/true,
                            /*allocSite=*/first, 
-                           typeSystem->getWrappedType(nullptr),
+                           typeSystemManager->getWrappedType(nullptr),
                            /*alignment=*/8);
 
       if (!argvMO)
@@ -5199,7 +5206,7 @@ ExecutionState* Executor::formState(Function *f,
         MemoryObject *arg =
             memory->allocate(len + 1, /*isLocal=*/false, /*isGlobal=*/true,
                              /*allocSite=*/state->pc->inst,
-                             typeSystem->getWrappedType(nullptr),
+                             typeSystemManager->getWrappedType(nullptr),
                              /*alignment=*/8);
         if (!arg)
           klee_error("Could not allocate memory for function arguments");
@@ -5238,7 +5245,7 @@ void Executor:: prepareSymbolicValue(ExecutionState &state, KInstruction *target
         count = Expr::createZExtToPointerWidth(count);
         size = MulExpr::create(size, count);
       }
-      lazyInstantiateVariable(state, result, target, typeSystem->getWrappedType(ai->getType()), elementSize);
+      lazyInstantiateVariable(state, result, target, typeSystemManager->getWrappedType(ai->getType()), elementSize);
   }
 }
 
@@ -5261,7 +5268,7 @@ ref<Expr> Executor::makeSymbolicValue(Value *value, ExecutionState &state, uint6
   MemoryObject *mo = 
     memory->allocate(size, true, /*isGlobal=*/false,
                      value, 
-                     typeSystem->getWrappedType(value ? value->getType() : nullptr),
+                     typeSystemManager->getWrappedType(value ? value->getType() : nullptr),
                      /*allocationAlignment=*/8);
   memory->deallocate(mo);
   const Array *array = makeArray(state, size, name);

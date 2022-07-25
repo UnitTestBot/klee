@@ -21,9 +21,10 @@ using namespace klee;
  * Initializes type system with raw llvm types.
  */
 TypeManager::TypeManager(KModule *parent) : parent(parent) {
-  initTypesFromStructs();
-  initTypesFromGlobals();
-  initTypesFromInstructions();
+  /// TODO: do we need it?
+  // initTypesFromStructs();
+  // initTypesFromGlobals();
+  // initTypesFromInstructions();
 }
 
 

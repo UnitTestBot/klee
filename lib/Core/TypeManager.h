@@ -29,12 +29,12 @@ protected:
   std::unordered_map<llvm::Type*, KType*> typesMap;
 
 public:
-  TypeManager(KModule *);
-
   virtual KType *getWrappedType(llvm::Type *);
   virtual void handleFunctionCall(KFunction *, std::vector<MemoryObject *> &) const;
 
+  TypeManager(KModule *);
   virtual ~TypeManager() = default;
+
 private:
   void initTypesFromGlobals();
   void initTypesFromStructs();
