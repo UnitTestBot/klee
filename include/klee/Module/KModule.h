@@ -225,11 +225,6 @@ namespace klee {
     void calculateDistance(KFunction *kf);
     void calculateBackwardDistance(KFunction *kf);
 
-
-    void initTypesFromStructs();
-    void initTypesFromGlobals();
-    void initTypesFromInstruction(KInstruction *kinstruction);
-
   public:
     KModule() = default;
 

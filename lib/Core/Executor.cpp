@@ -632,10 +632,10 @@ Executor::setModule(std::vector<std::unique_ptr<llvm::Module>> &modules,
   specialFunctionHandler->bind();
 
   if (StrictAliasingRule) {
-    typeSystemManager = new CXXTypeManager(kmodule.get());
+    typeSystemManager = CXXTypeManager::getTypeManager(kmodule.get());
   }
   else {
-    typeSystemManager = new TypeManager(kmodule.get());
+    typeSystemManager = TypeManager::getTypeManager(kmodule.get());
   }
 
   if (StatsTracker::useStatistics() || userSearcherRequiresMD2U()) {

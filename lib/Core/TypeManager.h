@@ -1,5 +1,5 @@
-#ifndef KLEE_TYPAMANGER_H
-#define KLEE_TYPAMANGER_H
+#ifndef KLEE_TYPEMANAGER_H
+#define KLEE_TYPEMANAGER_H
 
 #include <memory>
 #include <vector>
@@ -23,24 +23,34 @@ class MemoryObject;
  * class you can add more rules to type system.
  */
 class TypeManager {
+private:
+  void initTypesFromGlobals();
+  void initTypesFromStructs();
+  void initTypesFromInstructions();
+
 protected:
   KModule *parent;
   std::vector<std::unique_ptr<KType>> types;
   std::unordered_map<llvm::Type*, KType*> typesMap;
 
+  TypeManager(KModule *);
+  TypeManager(const TypeManager &) = delete;
+  TypeManager &operator=(const TypeManager &) = delete;
+  TypeManager(TypeManager &&) = delete;
+  TypeManager &operator=(TypeManager &&) = delete;
+  
+  virtual void init();
+
 public:
   virtual KType *getWrappedType(llvm::Type *);
   virtual void handleFunctionCall(KFunction *, std::vector<MemoryObject *> &) const;
-
-  TypeManager(KModule *);
+ 
   virtual ~TypeManager() = default;
 
-private:
-  void initTypesFromGlobals();
-  void initTypesFromStructs();
-  void initTypesFromInstructions();
+  /// FIXME: we need a factory though.
+  static TypeManager *getTypeManager(KModule *);
 };
 
 } /*namespace klee*/
 
-#endif /* KLEE_TYPAMANGER_H */
+#endif /* KLEE_TYPEMANAGER_H */

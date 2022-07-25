@@ -20,12 +20,7 @@ using namespace klee;
 /**
  * Initializes type system with raw llvm types.
  */
-TypeManager::TypeManager(KModule *parent) : parent(parent) {
-  /// TODO: do we need it?
-  // initTypesFromStructs();
-  // initTypesFromGlobals();
-  // initTypesFromInstructions();
-}
+TypeManager::TypeManager(KModule *parent) : parent(parent) {}
 
 
 /**
@@ -144,4 +139,24 @@ void TypeManager::initTypesFromInstructions() {
       }
     }
   }
+}
+
+
+/**
+ * Method to initialize all types in given module.
+ * Note, that it cannot be called in costructor 
+ * as implementation of getWrappedType can be different
+ * for high-level languages. 
+ */
+void TypeManager::init() {
+  initTypesFromStructs();
+  initTypesFromGlobals();
+  initTypesFromInstructions();
+}
+
+
+TypeManager *TypeManager::getTypeManager(KModule *module) {
+  TypeManager *manager = new TypeManager(module);
+  manager->init();
+  return manager;
 }

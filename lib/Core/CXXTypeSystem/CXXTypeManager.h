@@ -43,10 +43,14 @@ class CXXTypeManager final : public TypeManager {
 private:
   std::unordered_map<std::string, cxxtypes::CXXKStructType*> memberToStruct;
 
-public:
+protected:
   CXXTypeManager(KModule *);
+
+public:
   virtual KType *getWrappedType(llvm::Type *) override;
   virtual void handleFunctionCall(KFunction *, std::vector<MemoryObject *> &) const override;
+
+  static TypeManager *getTypeManager(KModule *);
 };
 
 

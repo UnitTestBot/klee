@@ -65,7 +65,9 @@ KType *CXXTypeManager::getWrappedType(llvm::Type *type) {
         kt = new cxxtypes::CXXKPointerType(unwrappedRawType, this);
       }
       else {
-        assert(false && "Unknown kind of type!");
+        /// FIXME: Also we need to support void * type.
+        // assert(false && "Unknown kind of type!");
+        kt = new cxxtypes::CXXKType(unwrappedRawType, this);
       }
     }
     
@@ -101,6 +103,13 @@ void CXXTypeManager::handleFunctionCall(KFunction *kf, std::vector<MemoryObject 
 
 
 
+TypeManager *CXXTypeManager::getTypeManager(KModule *module) {
+  CXXTypeManager *manager = new CXXTypeManager(module);
+  manager->init();
+  return manager;
+}
+
+
 
 /* C++ KType base class */
 cxxtypes::CXXKType::CXXKType(llvm::Type *type, TypeManager *parent) : KType(type, parent) {
@@ -113,7 +122,7 @@ bool cxxtypes::CXXKType::isAccessableFrom(CXXKType *accessingType) const {
 }
 
 bool cxxtypes::CXXKType::isAccessableFrom(KType *accessingType) const {
-  assert(accessingType && "Accessable from nullptr?!");
+  assert(accessingType && "Accessing type is nullptr!");
   if (isa<CXXKType>(accessingType)) {
     if (isAccessingFromChar(accessingType)) {
       return true;
@@ -123,7 +132,7 @@ bool cxxtypes::CXXKType::isAccessableFrom(KType *accessingType) const {
     type->print(llvm::outs() << "Accessing ");
     accessingType->getRawType()->print(llvm::outs() << " from ");
     llvm::outs() << "\n";
-    
+
     return isAccessableFrom(cast<CXXKType>(accessingType));
   }
   assert(false && "Attempted to compare raw llvm type with C++ type!");
@@ -169,10 +178,6 @@ void cxxtypes::KCompositeType::insert(KType *type, size_t offset) {
    * We want to check adjacent types to ensure, that we did not overlapped nothing,
    * and if we overlapped, move bounds for types or even remove them. 
    */
-  
-  /// TODO: types can not overlap 
-  size_t typeSize = 0;
-  auto typePosition = typesLocations.lower_bound(offset);
 }
 
 bool cxxtypes::KCompositeType::isAccessableFrom(CXXKType *accessingType) const {
