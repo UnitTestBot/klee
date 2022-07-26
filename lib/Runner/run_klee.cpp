@@ -14,7 +14,6 @@
 #include "klee/ADT/TreeStream.h"
 #include "klee/Config/Version.h"
 #include "klee/Core/Interpreter.h"
-#include "klee/Expr/Expr.h"
 #include "klee/ADT/KTest.h"
 #include "klee/Support/OptionCategories.h"
 #include "klee/Statistics/Statistics.h"
@@ -39,26 +38,24 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Host.h"
 #include "llvm/Support/ManagedStatic.h"
-#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "llvm/Support/TargetSelect.h"
+#include "../Core/Context.h"
 #include "llvm/Support/Signals.h"
-
+#include "llvm/Support/TargetSelect.h"
 
 #include <dirent.h>
-#include <signal.h>
-#include <unistd.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <unistd.h>
+#include <signal.h>
 
 #include <cerrno>
 #include <ctime>
 #include <fstream>
 #include <iomanip>
 #include <iterator>
-#include <sstream>
 
 
 using namespace llvm;
@@ -923,8 +920,6 @@ static const char *dontCareExternals[] = {
   // fp stuff we just don't worry about yet
   "frexp",
   "ldexp",
-  "__isnan",
-  "__signbit",
 };
 
 // Extra symbols we aren't going to warn about with klee-libc
@@ -946,7 +941,7 @@ static const char *dontCareUclibc[] = {
   // Don't warn about these since we explicitly commented them out of
   // uclibc.
   "printf",
-  "vprintf"
+  "vprintf",
 };
 
 // Symbols we consider unsafe
@@ -1224,6 +1219,15 @@ linkWithUclibc(StringRef libDir, std::string opt_suffix,
 #endif
 
 int run_klee(int argc, char **argv, char **envp) {
+  if (theInterpreter) {
+    theInterpreter = nullptr;
+  }
+  interrupted = false;
+
+  klee::klee_warning_file = nullptr;
+  klee::klee_message_file = nullptr;
+  klee::ContextInitialized = false;
+
   atexit(llvm_shutdown);  // Call llvm_shutdown() on exit.
 
 #if LLVM_VERSION_CODE >= LLVM_VERSION(13, 0)
@@ -1235,7 +1239,12 @@ int run_klee(int argc, char **argv, char **envp) {
   llvm::InitializeNativeTarget();
 
   parseArguments(argc, argv);
-  sys::PrintStackTraceOnErrorSignal(argv[0]);
+
+  static bool registeredOnErrorHandler = false;
+  if (!registeredOnErrorHandler) {
+    sys::PrintStackTraceOnErrorSignal(argv[0]);
+    registeredOnErrorHandler = true;
+  }
 
   if (Watchdog) {
     if (MaxTime.empty()) {
