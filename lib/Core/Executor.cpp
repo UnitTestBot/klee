@@ -2136,6 +2136,7 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
         ObjectState *os = bindObjectInState(state, mo, true);
 
         llvm::Function::arg_iterator ati = std::next(f->arg_begin(), funcArgs);
+        llvm::Type *argType = (ati == f->arg_end()) ? nullptr : ati->getType();
 
         for (unsigned k = funcArgs; k < callingArgs; k++) {
           if (!cs.isByValArgument(k)) {
@@ -2145,14 +2146,13 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
             assert(CE); // byval argument needs to be a concrete pointer
 
             ObjectPair op;
-            state.addressSpace.resolveOne(CE, typeSystemManager->getWrappedType(ati->getType()) ,op);
+            state.addressSpace.resolveOne(CE, typeSystemManager->getWrappedType(argType), op);
             const ObjectState *osarg = op.second;
             assert(osarg);
             for (unsigned i = 0; i < osarg->size; i++)
               os->write(offsets[k] + i, osarg->read8(i));
           }
-          // TODO: inspcet number of argument of a function with variadic
-          if (ati != std::prev(f->arg_end(), 1)) {
+          if (ati != f->arg_end()) {
             ++ati;
           }
         }
@@ -2548,16 +2548,6 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     unsigned numArgs = cs.arg_size();
     Function *f = getTargetFunction(fp);
     
-    // if (f && f->hasName()) {
-    //   llvm::ItaniumPartialDemangler demangler;
-    //   if (!demangler.partialDemangle(f->getName().begin()) && demangler.isCtorOrDtor()) {
-    //     char buffer[4096] = {};
-    //     size_t bufferSize = 4096;
-    //     if (demangler.getFunctionBaseName(buffer, &bufferSize)[0] != '~') {
-    //       llvm::outs() << buffer << " is a ctor!\n";
-    //     }
-    //   }
-    // }
 
     if (isa<InlineAsm>(fp)) {
       terminateStateOnExecError(state, "inline assembly is unsupported");

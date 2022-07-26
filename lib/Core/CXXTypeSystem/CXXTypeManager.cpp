@@ -98,6 +98,7 @@ void CXXTypeManager::handleFunctionCall(KFunction *kf, std::vector<MemoryObject 
 
     /* Determine if it is a ctor */
     if (demangler.getFunctionName(buf, &size)[0] != '~') {
+      
       /// TODO: make composite type in arg[0]
     }
   }
@@ -253,9 +254,18 @@ cxxtypes::CXXKStructType::CXXKStructType(llvm::Type *type, TypeManager *parent) 
 }
 
 bool cxxtypes::CXXKStructType::isAccessableFrom(CXXKType *accessingType) const {  
+  /* FIXME: this is a temporary hack for vtables in C++. Ideally, we
+  * should demangle global variables to get additional info, at least 
+  * that global object is "special" (here it is about vtable).
+  */
+  if (llvm::isa<CXXKPointerType>(accessingType) &&
+      llvm::cast<CXXKPointerType>(accessingType)->isPointerToFunction()) {
+    return true;
+  }
+
   for (auto &innerTypesToOffsets : innerTypes) {
     CXXKType *innerType = cast<CXXKType>(innerTypesToOffsets.first);
-    
+
     /* To prevent infinite recursion */
     if (isa<CXXKStructType>(innerType)) {
       if (innerType == accessingType) {
@@ -341,8 +351,26 @@ bool cxxtypes::CXXKFunctionType::innerIsAccessableFrom(CXXKType *accessingType) 
 }
 
 bool cxxtypes::CXXKFunctionType::innerIsAccessableFrom(CXXKFunctionType *accessingType) const {
-  /// TODO: support variadic arguments
-  return (accessingType->type == type);
+  unsigned currentArgCount = type->getFunctionNumParams();
+  unsigned accessingArgCount = accessingType->type->getFunctionNumParams();
+
+  if (!type->isFunctionVarArg() && 
+      currentArgCount != accessingArgCount) {
+    return false;
+  }
+
+  for (unsigned idx = 0; idx < std::min(currentArgCount, accessingArgCount); ++idx) {
+    if (type->getFunctionParamType(idx) != accessingType->type->getFunctionParamType(idx)) {
+      return false;
+    }
+  }
+  
+  /*
+   * FIXME: We need to check return value, but it can differ though.
+   * E.g., first member in structs is i32 (...), that can be accessed later
+   * by void (...). Need a research how to maintain it properly.  
+  */
+  return true;
 }
 
 bool cxxtypes::CXXKFunctionType::classof(const CXXKType *requestedType) {
@@ -378,6 +406,13 @@ bool cxxtypes::CXXKPointerType::isPointerToChar() const {
   if (llvm::isa<CXXKIntegerType>(elementType)) {
     /// FIXME: we do not want to access raw type
     return (elementType->getRawType()->getIntegerBitWidth() == 8);
+  }
+  return false;
+}
+
+bool cxxtypes::CXXKPointerType::isPointerToFunction() const {
+  if (llvm::isa<CXXKFunctionType>(elementType)) {
+    return true;
   }
   return false;
 }

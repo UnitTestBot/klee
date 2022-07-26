@@ -30,7 +30,6 @@ TypeManager::TypeManager(KModule *parent) : parent(parent) {}
  */
 KType *TypeManager::getWrappedType(llvm::Type *type) {
   if (typesMap.count(type) == 0) {
-    /// TODO: provide full initialization for inner types
     types.emplace_back(new KType(type, this));
     typesMap.emplace(type, types.back().get());
   }
@@ -59,8 +58,15 @@ void TypeManager::initTypesFromStructs() {
    * and pull types to top.
    */
   std::unordered_map<llvm::StructType*, std::vector<llvm::StructType*>> structTypesGraph;
+  
+  std::vector<llvm::StructType *> collectedStructTypes = parent->module->getIdentifiedStructTypes();
+  for (auto &typesToOffsets : typesMap) {
+    if (llvm::isa<llvm::StructType>(typesToOffsets.first)) {
+      collectedStructTypes.emplace_back(llvm::cast<llvm::StructType>(typesToOffsets.first));
+    }
+  }
 
-  for (auto structType : parent->module->getIdentifiedStructTypes()) {    
+  for (auto structType :collectedStructTypes) {    
     getWrappedType(structType);
 
     if (structTypesGraph.count(structType) == 0) {
@@ -119,8 +125,6 @@ void TypeManager::initTypesFromStructs() {
       }
     }
   }
-
-  
 }
 
 
@@ -168,12 +172,14 @@ void TypeManager::initTypesFromInstructions() {
  * Method to initialize all types in given module.
  * Note, that it cannot be called in costructor 
  * as implementation of getWrappedType can be different
- * for high-level languages. 
+ * for high-level languages. Note, that struct types is 
+ * called last, as it is required to know about all 
+ * structure types in code.
  */
 void TypeManager::initModule() {
-  initTypesFromStructs();
   initTypesFromGlobals();
   initTypesFromInstructions();
+  initTypesFromStructs();
 }
 
 

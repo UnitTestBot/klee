@@ -65,6 +65,7 @@ namespace cxxtypes {
 
 class CXXKType : public KType {
   friend CXXTypeManager;
+  friend CXXKStructType;
 
 private:
   static bool isAccessingFromChar(CXXKType *accessingType);
@@ -229,7 +230,6 @@ public:
  */
 class CXXKPointerType : public CXXKType {
   friend CXXTypeManager;
-  friend CXXKArrayType;
 
 private:
   CXXKType *elementType;
@@ -242,6 +242,7 @@ protected:
 public:
   virtual bool isAccessableFrom(CXXKType *) const override;
   bool isPointerToChar() const; 
+  bool isPointerToFunction() const;
 
   static bool classof(const CXXKType *);
 };
