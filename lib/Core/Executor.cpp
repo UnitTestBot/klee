@@ -155,7 +155,7 @@ cl::opt<bool> LazyInstantiation(
 cl::opt<bool> StrictAliasingRule(
     "strict-aliasing",
     llvm::cl::desc("Turn's on rules based on strict aliasing rule"),
-    llvm::cl::init(false));
+    llvm::cl::init(true));
 } // namespace klee
 
 namespace {
@@ -1932,7 +1932,7 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
       // size. This happens to work for x86-32 and x86-64, however.
       Expr::Width WordSize = Context::get().getPointerWidth();
       if (WordSize == Expr::Int32) {
-        executeMemoryOperation(state, Write, nullptr, arguments[0],
+        executeMemoryOperation(state, Write, typeSystemManager->getWrappedType(nullptr), arguments[0],
                                sf.varargs->getBaseExpr(), nullptr);
       } else {
         assert(WordSize == Expr::Int64 && "Unknown word size!");
@@ -1941,19 +1941,19 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
         // instead of implementing it, we can do a simple hack: just
         // make a function believe that all varargs are on stack.
         executeMemoryOperation(
-            state, Write, nullptr,
+            state, Write, typeSystemManager->getWrappedType(nullptr),
             arguments[0],
             ConstantExpr::create(48, 32), nullptr); // gp_offset
         executeMemoryOperation(
-            state, Write, nullptr,
+            state, Write, typeSystemManager->getWrappedType(nullptr),
             AddExpr::create(arguments[0], ConstantExpr::create(4, 64)),
             ConstantExpr::create(304, 32), nullptr); // fp_offset
         executeMemoryOperation(
-            state, Write, nullptr,
+            state, Write, typeSystemManager->getWrappedType(nullptr),
             AddExpr::create(arguments[0], ConstantExpr::create(8, 64)),
             sf.varargs->getBaseExpr(), nullptr); // overflow_arg_area
         executeMemoryOperation(
-            state, Write, nullptr,
+            state, Write, typeSystemManager->getWrappedType(nullptr),
             AddExpr::create(arguments[0], ConstantExpr::create(16, 64)),
             ConstantExpr::create(0, 64), nullptr); // reg_save_area
       }
@@ -2548,16 +2548,16 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     unsigned numArgs = cs.arg_size();
     Function *f = getTargetFunction(fp);
     
-    if (f && f->hasName()) {
-      llvm::ItaniumPartialDemangler demangler;
-      if (!demangler.partialDemangle(f->getName().begin()) && demangler.isCtorOrDtor()) {
-        char buffer[4096] = {};
-        size_t bufferSize = 4096;
-        if (demangler.getFunctionBaseName(buffer, &bufferSize)[0] != '~') {
-          llvm::outs() << buffer << " is a ctor!\n";
-        }
-      }
-    }
+    // if (f && f->hasName()) {
+    //   llvm::ItaniumPartialDemangler demangler;
+    //   if (!demangler.partialDemangle(f->getName().begin()) && demangler.isCtorOrDtor()) {
+    //     char buffer[4096] = {};
+    //     size_t bufferSize = 4096;
+    //     if (demangler.getFunctionBaseName(buffer, &bufferSize)[0] != '~') {
+    //       llvm::outs() << buffer << " is a ctor!\n";
+    //     }
+    //   }
+    // }
 
     if (isa<InlineAsm>(fp)) {
       terminateStateOnExecError(state, "inline assembly is unsupported");

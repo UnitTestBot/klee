@@ -12,25 +12,9 @@ using namespace llvm;
 
 KType::KType(llvm::Type *type, TypeManager *parent) : type(type), parent(parent) {
   typeSystemKind = TypeSystemKind::LLVM;
-  
-  /// If type is complex, pull types from it inner types
-  // if (llvm::StructType *structType = dyn_cast_or_null<StructType>(type)) {
-  //   const StructLayout *structLayout = parent->targetData->getStructLayout(structType);
-  //   for (unsigned idx = 0; idx < structType->getNumElements(); ++idx) {
-  //     llvm::Type *structTypeMember = structType->getStructElementType(idx);
-  //     uint64_t offset = structLayout->getElementOffset(idx);
-  //     for (auto &subtypeLocations 
-  //         : parent->computeKType(structTypeMember)->innerTypes) {
-  //       llvm::Type *subtype = subtypeLocations.first;
-  //       const std::vector<uint64_t> &subtypeOffsets = subtypeLocations.second;
-  //       for (auto subtypeOffset : subtypeOffsets) {
-  //         innerTypes[subtype].push_back(offset + subtypeOffset);
-  //       }
-  //     }
-  //   }
-  // }
-  /// Type itself can be reached at offset 0
-  innerTypes[type].push_back(0);
+
+  /* Type itself can be reached at offset 0 */
+  innerTypes[this].emplace_back(0);
 }
 
 bool KType::isAccessableFrom(KType *accessingType) const {
@@ -43,4 +27,15 @@ llvm::Type *KType::getRawType() const {
 
 KType::TypeSystemKind KType::getTypeSystemKind() const {
   return typeSystemKind; 
+}
+
+std::vector<KType *> KType::getAccessableInnerTypes(KType *accessingType) const {
+  std::vector<KType *> result;
+  for (auto &innerTypesToOffsets : innerTypes) {
+    KType *innerType = innerTypesToOffsets.first;
+    if (innerType->isAccessableFrom(accessingType)) {
+      result.emplace_back(innerType);
+    }
+  }
+  return result;
 }

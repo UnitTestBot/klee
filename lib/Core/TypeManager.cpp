@@ -47,6 +47,9 @@ void TypeManager::handleFunctionCall(KFunction *function, std::vector<MemoryObje
 
 /**
  * Performs initialization for struct types, including inner types.
+ * Note, that initialization for structs differs from initialization
+ * for other types, as types from structs can create cyclic dependencies,
+ * and that is why it cannot be done in constructor. 
  */
 void TypeManager::initTypesFromStructs() {
   /*
@@ -55,44 +58,69 @@ void TypeManager::initTypesFromStructs() {
    * (e.g. if struct A contains class B, we will make edge from A to B)
    * and pull types to top.
    */
-  std::unordered_map<llvm::Type*, std::vector<llvm::Type*>> typesGraph;
+  std::unordered_map<llvm::StructType*, std::vector<llvm::StructType*>> structTypesGraph;
 
-  for (auto structType : parent->module->getIdentifiedStructTypes()) {
-    if (typesGraph.count(structType) == 0) {
-      typesGraph.emplace(structType, std::vector<llvm::Type*>());
+  for (auto structType : parent->module->getIdentifiedStructTypes()) {    
+    getWrappedType(structType);
+
+    if (structTypesGraph.count(structType) == 0) {
+      structTypesGraph.emplace(structType, std::vector<llvm::StructType*>());
     }
 
-    for (auto structMemberType : structType->elements()) {
-      /* Note, that here we add not only struct types */
-      typesGraph[structType].emplace_back(structMemberType);
+    for (auto structTypeMember : structType->elements()) {
+      if (structTypeMember->isStructTy()) {      
+        structTypesGraph[structType].emplace_back(llvm::cast<llvm::StructType>(structTypeMember));
+      }
+      /* Note that we initialize all members anyway */
+      getWrappedType(structTypeMember);
     }
   }
 
-  std::vector<llvm::Type*> sortedTypesGraph;
-  std::unordered_set<llvm::Type *> visitedGraphTypes;
+  std::vector<llvm::StructType*> sortedStructTypesGraph;
+  std::unordered_set<llvm::Type *> visitedStructTypesGraph;
 
-  std::function<void(llvm::Type*)> dfs = [&typesGraph,
-                                          &sortedTypesGraph, 
-                                          &visitedGraphTypes,
-                                          &dfs](llvm::Type *type) {
-    visitedGraphTypes.insert(type);
+  std::function<void(llvm::StructType*)> dfs = [&structTypesGraph,
+                                          &sortedStructTypesGraph, 
+                                          &visitedStructTypesGraph,
+                                          &dfs](llvm::StructType *type) {
+    visitedStructTypesGraph.insert(type);
     
-    for (auto typeTo : typesGraph[type]) {
-      if (visitedGraphTypes.count(typeTo) == 0) {
+    for (auto typeTo : structTypesGraph[type]) {
+      if (visitedStructTypesGraph.count(typeTo) == 0) {
         dfs(typeTo);
       }
     }
 
-    sortedTypesGraph.push_back(type);
+    sortedStructTypesGraph.push_back(type);
   }; 
 
-  for (auto &typeToOffset : typesGraph) {
+  for (auto &typeToOffset : structTypesGraph) {
     dfs(typeToOffset.first);
   }
 
-  for (auto type : sortedTypesGraph) {
-    getWrappedType(type);
+  for (auto structType : sortedStructTypesGraph) {    
+    /* Here we make initializaion for inner types of given structure type */
+    const llvm::StructLayout *structLayout = parent->targetData->getStructLayout(structType);
+    for (unsigned idx = 0; idx < structType->getNumElements(); ++idx) {
+      uint64_t offset = structLayout->getElementOffset(idx);
+      llvm::Type *rawElementType = structType->getElementType(idx);
+      typesMap[structType]->innerTypes[typesMap[rawElementType]].push_back(offset);
+
+      /* Provide initialization from types in inner class */
+      for (auto &innerStructMemberTypesToOffsets : typesMap[rawElementType]->innerTypes) {
+        KType *innerStructMemberType = innerStructMemberTypesToOffsets.first;
+        const std::vector<uint64_t> &innerTypeOffsets = innerStructMemberTypesToOffsets.second;
+        
+        /* Add offsets from inner class */
+        for (uint64_t innerTypeOffset : innerTypeOffsets) {
+          typesMap[structType]->innerTypes[innerStructMemberType].emplace_back(offset + innerTypeOffset);
+        }
+
+      }
+    }
   }
+
+  
 }
 
 
@@ -101,9 +129,7 @@ void TypeManager::initTypesFromStructs() {
  */
 void TypeManager::initTypesFromGlobals() {
   for (auto &global : parent->module->getGlobalList()) {
-    if (!llvm::isa<llvm::StructType>(global.getType())) {
-      getWrappedType(global.getType());
-    }
+    getWrappedType(global.getType());
   }
 }
 
@@ -125,15 +151,11 @@ void TypeManager::initTypesFromInstructions() {
         llvm::Instruction* inst = kb->instructions[i]->inst;
         
         /* Register return type */
-        if (!llvm::isa<llvm::StructType>(inst->getType())) {
-          getWrappedType(inst->getType());
-        }
+        getWrappedType(inst->getType());
 
         /* Register types for arguments */
         for (auto opb = inst->op_begin(), ope = inst->op_end(); opb != ope; ++opb) {
-          if (!llvm::isa<llvm::StructType>((*opb)->getType())) {
-            getWrappedType((*opb)->getType());
-          }
+          getWrappedType((*opb)->getType());
         }
 
       }
@@ -148,7 +170,7 @@ void TypeManager::initTypesFromInstructions() {
  * as implementation of getWrappedType can be different
  * for high-level languages. 
  */
-void TypeManager::init() {
+void TypeManager::initModule() {
   initTypesFromStructs();
   initTypesFromGlobals();
   initTypesFromInstructions();
@@ -157,6 +179,6 @@ void TypeManager::init() {
 
 TypeManager *TypeManager::getTypeManager(KModule *module) {
   TypeManager *manager = new TypeManager(module);
-  manager->init();
+  manager->initModule();
   return manager;
 }

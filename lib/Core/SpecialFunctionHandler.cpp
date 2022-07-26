@@ -867,7 +867,8 @@ void SpecialFunctionHandler::handleCheckMemoryAccess(ExecutionState &state,
   } else {
     ObjectPair op;
 
-    if (!state.addressSpace.resolveOne(cast<ConstantExpr>(address), nullptr, op)) {
+    if (!state.addressSpace.resolveOne(cast<ConstantExpr>(address), 
+                                       executor.typeSystemManager->getWrappedType(nullptr), op)) {
       executor.terminateStateOnError(state,
                                      "check_memory_access: memory error",
 				     Executor::Ptr, NULL,

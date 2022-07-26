@@ -67,7 +67,7 @@ class CXXKType : public KType {
   friend CXXTypeManager;
 
 private:
-  static bool isAccessingFromChar(KType *accessingType);
+  static bool isAccessingFromChar(CXXKType *accessingType);
 
 protected:
 /**
@@ -126,7 +126,6 @@ protected:
   CXXKStructType(llvm::Type *, TypeManager *);
 
 public:
-  std::vector<llvm::Type *> getAccessibleInnerTypes(CXXKType *) const;
   virtual bool isAccessableFrom(CXXKType *) const override;  
 
   static bool classof(const CXXKType *);
@@ -201,8 +200,8 @@ public:
 
 /**
  * Array type can be accessed from another array type of the 
- * same size or pointer type. Types of array elements must be 
- * the same.
+ * same size or from type of its elements. Types of array elements
+ * must be the same.
  */
 class CXXKArrayType : public CXXKType {
   friend CXXTypeManager;
@@ -212,7 +211,6 @@ private:
   size_t arraySize;
   
   bool innerIsAccessableFrom(CXXKType *) const;
-  bool innerIsAccessableFrom(CXXKPointerType *) const;
   bool innerIsAccessableFrom(CXXKArrayType *) const;
 
 protected:
@@ -243,6 +241,7 @@ protected:
 
 public:
   virtual bool isAccessableFrom(CXXKType *) const override;
+  bool isPointerToChar() const; 
 
   static bool classof(const CXXKType *);
 };

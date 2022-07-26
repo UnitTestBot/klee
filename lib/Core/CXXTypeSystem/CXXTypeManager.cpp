@@ -37,14 +37,16 @@ KType *CXXTypeManager::getWrappedType(llvm::Type *type) {
       kt = new cxxtypes::CXXKType(type, this);
     }
     else {
-      type->print(llvm::outs() << "Registered ");
-      llvm::outs() << "\n";
-
       /* Vector types are considered as their elements type */ 
       llvm::Type *unwrappedRawType = type;
       if (unwrappedRawType->isVectorTy()) {
         unwrappedRawType = unwrappedRawType->getVectorElementType();
       }
+
+      /// TODO: debug
+      // type->print(llvm::outs() << "Registered ");
+      // unwrappedRawType->print(llvm::outs() << " as ");
+      // llvm::outs() << "\n";
       
       if (unwrappedRawType->isStructTy()) {
         kt = new cxxtypes::CXXKStructType(unwrappedRawType, this);
@@ -65,8 +67,8 @@ KType *CXXTypeManager::getWrappedType(llvm::Type *type) {
         kt = new cxxtypes::CXXKPointerType(unwrappedRawType, this);
       }
       else {
-        /// FIXME: Also we need to support void * type.
-        // assert(false && "Unknown kind of type!");
+        /// FIXME: We need to support void * type? 
+        /// But we cannot access through this type.
         kt = new cxxtypes::CXXKType(unwrappedRawType, this);
       }
     }
@@ -105,7 +107,7 @@ void CXXTypeManager::handleFunctionCall(KFunction *kf, std::vector<MemoryObject 
 
 TypeManager *CXXTypeManager::getTypeManager(KModule *module) {
   CXXTypeManager *manager = new CXXTypeManager(module);
-  manager->init();
+  manager->initModule();
   return manager;
 }
 
@@ -124,37 +126,31 @@ bool cxxtypes::CXXKType::isAccessableFrom(CXXKType *accessingType) const {
 bool cxxtypes::CXXKType::isAccessableFrom(KType *accessingType) const {
   assert(accessingType && "Accessing type is nullptr!");
   if (isa<CXXKType>(accessingType)) {
-    if (isAccessingFromChar(accessingType)) {
+    CXXKType *accessingCXXType = cast<CXXKType>(accessingType);
+    if (isAccessingFromChar(accessingCXXType)) {
       return true;
     }
 
     /* TODO: debug output. Maybe put it in aditional log */
-    type->print(llvm::outs() << "Accessing ");
-    accessingType->getRawType()->print(llvm::outs() << " from ");
-    llvm::outs() << "\n";
+    // type->print(llvm::outs() << "Accessing ");
+    // accessingType->getRawType()->print(llvm::outs() << " from ");
+    bool ok = isAccessableFrom(accessingCXXType);
+    // llvm::outs() << " : " << (ok ? "succeed" : "rejected") << "\n";
 
-    return isAccessableFrom(cast<CXXKType>(accessingType));
+    return ok;
   }
   assert(false && "Attempted to compare raw llvm type with C++ type!");
 }
 
-bool cxxtypes::CXXKType::isAccessingFromChar(KType *accessingType) {
-  llvm::Type *rawType = accessingType->getRawType();
-
+bool cxxtypes::CXXKType::isAccessingFromChar(CXXKType *accessingType) {
   /* Special case for unknown type */
-  if (rawType == nullptr) {
+  if (accessingType->getRawType() == nullptr) {
     return true;
   }
 
-  assert(rawType->isPointerTy() && "Attempt to access to a memory via a non-pointer type");
+  assert(llvm::isa<CXXKPointerType>(accessingType) && "Attempt to access to a memory via non-pointer type");
 
-  /* Case for char *, int8_t *, ... */
-  if (rawType->getPointerElementType()->isIntegerTy() &&
-      rawType->getPointerElementType()->getIntegerBitWidth() == 8) {
-    return true;
-  }
-
-  return false;
+  return llvm::cast<CXXKPointerType>(accessingType)->isPointerToChar();
 }
 
 cxxtypes::CXXTypeKind cxxtypes::CXXKType::getTypeKind() const {
@@ -256,15 +252,24 @@ cxxtypes::CXXKStructType::CXXKStructType(llvm::Type *type, TypeManager *parent) 
   typeKind = CXXTypeKind::STRUCT;
 }
 
-bool cxxtypes::CXXKStructType::isAccessableFrom(CXXKType *accessingType) const {
-  return true; // TODO: innerIsAccessableFrom(cast<CXXKType>(accessingType));
+bool cxxtypes::CXXKStructType::isAccessableFrom(CXXKType *accessingType) const {  
+  for (auto &innerTypesToOffsets : innerTypes) {
+    CXXKType *innerType = cast<CXXKType>(innerTypesToOffsets.first);
+    
+    /* To prevent infinite recursion */
+    if (isa<CXXKStructType>(innerType)) {
+      if (innerType == accessingType) {
+        return true;
+      }
+    }
+    else if (innerType->isAccessableFrom(accessingType)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 
-std::vector<llvm::Type *> cxxtypes::CXXKStructType::getAccessibleInnerTypes(CXXKType *accessingType) const {
-  std::vector<llvm::Type *> result;
-  return result;
-}
 
 bool cxxtypes::CXXKStructType::classof(const CXXKType *requestedType) {
   return (requestedType->getTypeKind() == cxxtypes::CXXTypeKind::STRUCT); 
@@ -288,14 +293,12 @@ bool cxxtypes::CXXKArrayType::isAccessableFrom(CXXKType *accessingType) const {
   if (llvm::isa<CXXKArrayType>(accessingType)) {
     return innerIsAccessableFrom(llvm::cast<CXXKArrayType>(accessingType));
   }
-  if (llvm::isa<CXXKPointerType>(accessingType)) {
-    return innerIsAccessableFrom(llvm::cast<CXXKPointerType>(accessingType));
-  }
   return innerIsAccessableFrom(accessingType);
 }
 
 bool cxxtypes::CXXKArrayType::innerIsAccessableFrom(CXXKType *accessingType) const {
-  return (accessingType->getRawType() == nullptr);
+  return (accessingType->getRawType() == nullptr) || 
+    elementType->isAccessableFrom(accessingType);
 }
 
 bool cxxtypes::CXXKArrayType::innerIsAccessableFrom(CXXKArrayType *accessingType) const {
@@ -303,16 +306,12 @@ bool cxxtypes::CXXKArrayType::innerIsAccessableFrom(CXXKArrayType *accessingType
   return (arraySize == accessingType->arraySize) && elementType->isAccessableFrom(accessingType);
 }
 
-bool cxxtypes::CXXKArrayType::innerIsAccessableFrom(CXXKPointerType *accessingType) const {
-  return elementType->isAccessableFrom(accessingType->elementType); 
-}
-
 bool cxxtypes::CXXKArrayType::classof(const CXXKType *requestedType) {
   return (requestedType->getTypeKind() == cxxtypes::CXXTypeKind::ARRAY); 
 }
 
 
-
+ 
 
 /* Function type */
 cxxtypes::CXXKFunctionType::CXXKFunctionType(llvm::Type *type, TypeManager *parent) : CXXKType(type, parent) {
@@ -342,7 +341,7 @@ bool cxxtypes::CXXKFunctionType::innerIsAccessableFrom(CXXKType *accessingType) 
 }
 
 bool cxxtypes::CXXKFunctionType::innerIsAccessableFrom(CXXKFunctionType *accessingType) const {
-  /// TODO: support variadic arguments 
+  /// TODO: support variadic arguments
   return (accessingType->type == type);
 }
 
@@ -373,6 +372,14 @@ bool cxxtypes::CXXKPointerType::innerIsAccessableFrom(CXXKType *accessingType) c
 
 bool cxxtypes::CXXKPointerType::innerIsAccessableFrom(CXXKPointerType *accessingType) const {
   return elementType->isAccessableFrom(accessingType->elementType);
+}
+
+bool cxxtypes::CXXKPointerType::isPointerToChar() const {
+  if (llvm::isa<CXXKIntegerType>(elementType)) {
+    /// FIXME: we do not want to access raw type
+    return (elementType->getRawType()->getIntegerBitWidth() == 8);
+  }
+  return false;
 }
 
 bool cxxtypes::CXXKPointerType::classof(const CXXKType *requestedType) {

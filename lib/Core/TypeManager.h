@@ -39,7 +39,7 @@ protected:
   TypeManager(TypeManager &&) = delete;
   TypeManager &operator=(TypeManager &&) = delete;
   
-  virtual void init();
+  void initModule();
 
 public:
   virtual KType *getWrappedType(llvm::Type *);
@@ -47,7 +47,7 @@ public:
  
   virtual ~TypeManager() = default;
 
-  /// FIXME: we need a factory though.
+  /// TODO: we need a factory though.
   static TypeManager *getTypeManager(KModule *);
 };
 

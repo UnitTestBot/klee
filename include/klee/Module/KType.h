@@ -40,7 +40,7 @@ protected:
    * For example, if object of type A contains object 
    * of type B, then all types in B can be accessed via A. 
    */
-  std::unordered_map<llvm::Type*, std::vector<uint64_t>> innerTypes;
+  std::unordered_map<KType*, std::vector<uint64_t>> innerTypes;
   
   KType(llvm::Type *, TypeManager *);
 
@@ -64,6 +64,11 @@ public:
    * Returns the stored raw llvm type.  
    */
   llvm::Type *getRawType() const;
+
+  /**
+   * Returns list of all accessible inner types for this KType. 
+   */
+  std::vector<KType *> getAccessableInnerTypes(KType *) const;
 
   TypeSystemKind getTypeSystemKind() const;
 
