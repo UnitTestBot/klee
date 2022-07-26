@@ -27,6 +27,7 @@
 
 #include "klee/ADT/KTest.h"
 #include "klee/ADT/RNG.h"
+#include "klee/Config/config.h"
 #include "klee/Config/Version.h"
 #include "klee/Core/Interpreter.h"
 #include "klee/Expr/ArrayExprOptimizer.h"
@@ -42,7 +43,6 @@
 #include "klee/Module/KModule.h"
 #include "klee/Solver/Common.h"
 #include "klee/Solver/SolverCmdLine.h"
-#include "klee/Solver/SolverStats.h"
 #include "klee/Statistics/TimerStatIncrementer.h"
 #include "klee/Support/Casting.h"
 #include "klee/Support/ErrorHandling.h"
@@ -3662,7 +3662,7 @@ void Executor::bindInstructionConstants(KInstruction *KI) {
   }
 }
 
-void Executor::bindModuleConstants(ExecutionState &state) {
+void Executor::bindModuleConstants(const llvm::APFloat::roundingMode &rm) {
   for (auto &kfp : kmodule->functions) {
     KFunction *kf = kfp.get();
     for (unsigned i=0; i<kf->numInstructions; ++i)
@@ -3673,7 +3673,7 @@ void Executor::bindModuleConstants(ExecutionState &state) {
       std::unique_ptr<Cell[]>(new Cell[kmodule->constants.size()]);
   for (unsigned i=0; i<kmodule->constants.size(); ++i) {
     Cell &c = kmodule->constantTable[i];
-    c.value = evalConstant(kmodule->constants[i], state.roundingMode);
+    c.value = evalConstant(kmodule->constants[i], rm);
   }
 }
 
@@ -4891,7 +4891,7 @@ void Executor::runFunctionAsMain(Function *f,
     statsTracker->framePushed(*state, 0);
 
   processTree = std::make_unique<PTree>(state);
-  bindModuleConstants(*state);
+  bindModuleConstants(llvm::APFloat::rmNearestTiesToEven);
   run(*state);
   processTree = nullptr;
 
