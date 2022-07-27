@@ -8,6 +8,8 @@
 #include "llvm/IR/Type.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/Metadata.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Demangle/Demangle.h"
 
@@ -20,7 +22,8 @@ using namespace klee;
 
 
 enum {
-  DEMANGLER_BUFFER_SIZE = 4096
+  DEMANGLER_BUFFER_SIZE = 4096,
+  METADATA_SIZE = 16
 };
 
 
@@ -125,7 +128,29 @@ void CXXTypeManager::handleFunctionCall(KFunction *kf, std::vector<MemoryObject 
 
 
 void CXXTypeManager::postInitModule() {
-  /// TODO: collect all metadata from module
+  for (auto &global : parent->module->globals()) {
+    llvm::SmallVector<llvm::DIGlobalVariableExpression *, METADATA_SIZE> globalVariableInfo; 
+    global.getDebugInfo(globalVariableInfo); 
+    for (auto metaNode : globalVariableInfo) {
+      llvm::DIGlobalVariable *variable = metaNode->getVariable();
+      if (!variable) {
+        continue;
+      }
+
+      llvm::DIType *type = variable->getType();
+      if (!type) {
+        continue;
+      }
+
+      if (type->getTag() == dwarf::Tag::DW_TAG_union_type) {
+        KType *kt = getWrappedType(global.getValueType());
+        (llvm::cast<cxxtypes::CXXKStructType>(kt))->isUnion = true;
+      }
+
+      break;    
+    }
+  }
+
 }
 
 
@@ -299,6 +324,9 @@ bool cxxtypes::CXXKFloatingPointType::classof(const KType *requestedType) {
 /* Struct type */
 cxxtypes::CXXKStructType::CXXKStructType(llvm::Type *type, TypeManager *parent) : CXXKType(type, parent) {
   typeKind = CXXTypeKind::STRUCT;
+  /* Hard coded union identification, as we can not always 
+  get this info from metadata. */
+  isUnion = type->getStructName().startswith("union.");
 }
 
 bool cxxtypes::CXXKStructType::isAccessableFrom(CXXKType *accessingType) const {  
@@ -308,6 +336,10 @@ bool cxxtypes::CXXKStructType::isAccessableFrom(CXXKType *accessingType) const {
   */
   if (llvm::isa<CXXKPointerType>(accessingType) &&
       llvm::cast<CXXKPointerType>(accessingType)->isPointerToFunction()) {
+    return true;
+  }
+
+  if (isUnion) {
     return true;
   }
 
@@ -365,7 +397,7 @@ bool cxxtypes::CXXKArrayType::innerIsAccessableFrom(CXXKType *accessingType) con
 
 bool cxxtypes::CXXKArrayType::innerIsAccessableFrom(CXXKArrayType *accessingType) const {
   /// TODO: support arrays of unknown size
-  return (arraySize == accessingType->arraySize) && elementType->isAccessableFrom(accessingType);
+  return (arraySize == accessingType->arraySize) && elementType->isAccessableFrom(accessingType->elementType);
 }
 
 bool cxxtypes::CXXKArrayType::classof(const KType *requestedType) {

@@ -42,7 +42,6 @@ class CXXKFunctionType;
 
 class CXXTypeManager final : public TypeManager {
 private:
-  std::unordered_map<std::string, cxxtypes::CXXKStructType*> memberToStruct;
   cxxtypes::CXXKCompositeType *createCompositeType(cxxtypes::CXXKType *);
 
 protected:
@@ -128,6 +127,8 @@ public:
  */
 class CXXKStructType : public CXXKType {
   friend CXXTypeManager;
+private:
+  bool isUnion = false;
 
 protected:
   CXXKStructType(llvm::Type *, TypeManager *);

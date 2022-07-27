@@ -34,10 +34,6 @@ protected:
   std::unordered_map<llvm::Type*, KType*> typesMap;
 
   TypeManager(KModule *);
-  TypeManager(const TypeManager &) = delete;
-  TypeManager &operator=(const TypeManager &) = delete;
-  TypeManager(TypeManager &&) = delete;
-  TypeManager &operator=(TypeManager &&) = delete;
   
   /**
    * Initializes type system for current module.
