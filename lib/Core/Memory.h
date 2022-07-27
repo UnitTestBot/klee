@@ -69,7 +69,7 @@ public:
 
   /// Type which can be seen through the "Aliased Type"
   /// of that MO.
-  const KType *dynamicType;
+  KType *dynamicType;
   
   /// "Location" for which this memory object was allocated. This
   /// should be either the allocating instruction or the global object

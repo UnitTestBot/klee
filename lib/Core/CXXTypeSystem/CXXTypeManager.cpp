@@ -1,4 +1,7 @@
 #include "CXXTypeManager.h"
+#include "../TypeManager.h"
+#include "../Memory.h"
+
 #include "klee/Module/KType.h"
 #include "klee/Module/KModule.h"
 
@@ -67,8 +70,7 @@ KType *CXXTypeManager::getWrappedType(llvm::Type *type) {
         kt = new cxxtypes::CXXKPointerType(unwrappedRawType, this);
       }
       else {
-        /// FIXME: We need to support void * type? 
-        /// But we cannot access through this type.
+        /// TODO: make a warning at least?
         kt = new cxxtypes::CXXKType(unwrappedRawType, this);
       }
     }
@@ -79,13 +81,22 @@ KType *CXXTypeManager::getWrappedType(llvm::Type *type) {
   return typesMap[type];
 }
 
+cxxtypes::CXXKCompositeType *CXXTypeManager::createCompositeType(cxxtypes::CXXKType *sourceType) {
+  assert(!llvm::isa<cxxtypes::CXXKCompositeType>(sourceType) && 
+      "Attempted to create composite type from composite type");
+  cxxtypes::CXXKCompositeType *compositeType = new cxxtypes::CXXKCompositeType(sourceType, this);
+  types.emplace_back(compositeType);
+  return compositeType;
+}
+
+
 /**
  * Handles function calls for constructors, as they can modify
  * type, written in memory. Also notice, that whit function
  * takes arguments by non-constant reference to modify types
  * in memory object. 
  */
-void CXXTypeManager::handleFunctionCall(KFunction *kf, std::vector<MemoryObject *> &args) const {
+void CXXTypeManager::handleFunctionCall(KFunction *kf, std::vector<MemoryObject *> &args) {
   if (!kf->function || !kf->function->hasName() || args.size() == 0) {
     return;
   }
@@ -97,13 +108,25 @@ void CXXTypeManager::handleFunctionCall(KFunction *kf, std::vector<MemoryObject 
     char buf[DEMANGLER_BUFFER_SIZE];
 
     /* Determine if it is a ctor */
-    if (demangler.getFunctionName(buf, &size)[0] != '~') {
-      
-      /// TODO: make composite type in arg[0]
+    if (demangler.getFunctionBaseName(buf, &size)[0] != '~') {
+      // TODO: debug
+      // llvm::outs() << buf << "\n";
+      KType *&objectType = args.front()->dynamicType;
+      if (!llvm::isa<cxxtypes::CXXKCompositeType>(objectType)) {
+        objectType = createCompositeType(llvm::cast<cxxtypes::CXXKType>(objectType)); 
+      }
+      llvm::cast<cxxtypes::CXXKCompositeType>(objectType)->insert(
+        getWrappedType(kf->function->getArg(0)->getType()),
+        0
+      );
     }
   }
 }
 
+
+void CXXTypeManager::postInitModule() {
+  /// TODO: collect all metadata from module
+}
 
 
 TypeManager *CXXTypeManager::getTypeManager(KModule *module) {
@@ -166,28 +189,45 @@ bool cxxtypes::CXXKType::classof(const KType *requestedType) {
 
 
 /* Composite type */
-cxxtypes::KCompositeType::KCompositeType(llvm::Type *type, TypeManager *parent) : CXXKType(type, parent) {
+cxxtypes::CXXKCompositeType::CXXKCompositeType(KType *type, TypeManager *parent) 
+    : CXXKType(type->getRawType(), parent) {
   typeKind = CXXTypeKind::COMPOSITE;
+  insertedTypes.insert(type);
+  /// FIXME:
+  // typesLocations[0] = type;
 } 
 
-void cxxtypes::KCompositeType::insert(KType *type, size_t offset) {
+void cxxtypes::CXXKCompositeType::insert(KType *type, size_t offset) {
   /*
    * We want to check adjacent types to ensure, that we did not overlapped nothing,
    * and if we overlapped, move bounds for types or even remove them. 
    */
+  insertedTypes.insert(type);
+  /// FIXME:
+  // typesLocations[offset] = type;
 }
 
-bool cxxtypes::KCompositeType::isAccessableFrom(CXXKType *accessingType) const {
-  for (auto &it : typesLocations) {
-    if (accessingType->isAccessableFrom(it.second)) {
+bool cxxtypes::CXXKCompositeType::isAccessableFrom(CXXKType *accessingType) const {
+  //// FIXME:
+  // for (auto &it : typesLocations) {
+  //   if (it.second->isAccessableFrom(accessingType)) {
+  //     return true;
+  //   }
+  // }
+  for (auto &it : insertedTypes) {
+    if (it->isAccessableFrom(accessingType)) {
       return true;
     }
   }
   return false;
 }
 
-bool cxxtypes::KCompositeType::classof(const CXXKType *requestedType) {
-  return (requestedType->getTypeKind() == cxxtypes::CXXTypeKind::COMPOSITE); 
+bool cxxtypes::CXXKCompositeType::classof(const KType *requestedType) {
+  if (!llvm::isa<CXXKType>(requestedType)) {
+    return false;
+  }
+
+  return (llvm::cast<CXXKType>(requestedType)->getTypeKind() == cxxtypes::CXXTypeKind::COMPOSITE); 
 }
 
 
@@ -213,8 +253,12 @@ bool cxxtypes::CXXKIntegerType::innerIsAccessableFrom(CXXKIntegerType *accessing
   return (accessingType->type == type);
 }
 
-bool cxxtypes::CXXKIntegerType::classof(const CXXKType *requestedType) {
-  return (requestedType->getTypeKind() == cxxtypes::CXXTypeKind::INTEGER); 
+bool cxxtypes::CXXKIntegerType::classof(const KType *requestedType) {
+  if (!llvm::isa<CXXKType>(requestedType)) {
+    return false;
+  }
+
+  return (llvm::cast<CXXKType>(requestedType)->getTypeKind() == cxxtypes::CXXTypeKind::INTEGER); 
 }
 
 
@@ -241,8 +285,12 @@ bool cxxtypes::CXXKFloatingPointType::innerIsAccessableFrom(CXXKFloatingPointTyp
   return (accessingType->getRawType() == type);
 }
 
-bool cxxtypes::CXXKFloatingPointType::classof(const CXXKType *requestedType) {
-  return (requestedType->getTypeKind() == cxxtypes::CXXTypeKind::FP); 
+bool cxxtypes::CXXKFloatingPointType::classof(const KType *requestedType) {
+  if (!llvm::isa<CXXKType>(requestedType)) {
+    return false;
+  }
+
+  return (llvm::cast<CXXKType>(requestedType)->getTypeKind() == cxxtypes::CXXTypeKind::FP); 
 }
 
 
@@ -281,8 +329,12 @@ bool cxxtypes::CXXKStructType::isAccessableFrom(CXXKType *accessingType) const {
 
 
 
-bool cxxtypes::CXXKStructType::classof(const CXXKType *requestedType) {
-  return (requestedType->getTypeKind() == cxxtypes::CXXTypeKind::STRUCT); 
+bool cxxtypes::CXXKStructType::classof(const KType *requestedType) {
+  if (!llvm::isa<CXXKType>(requestedType)) {
+    return false;
+  }
+
+  return (llvm::cast<CXXKType>(requestedType)->getTypeKind() == cxxtypes::CXXTypeKind::STRUCT); 
 }
 
 
@@ -316,8 +368,12 @@ bool cxxtypes::CXXKArrayType::innerIsAccessableFrom(CXXKArrayType *accessingType
   return (arraySize == accessingType->arraySize) && elementType->isAccessableFrom(accessingType);
 }
 
-bool cxxtypes::CXXKArrayType::classof(const CXXKType *requestedType) {
-  return (requestedType->getTypeKind() == cxxtypes::CXXTypeKind::ARRAY); 
+bool cxxtypes::CXXKArrayType::classof(const KType *requestedType) {
+  if (!llvm::isa<CXXKType>(requestedType)) {
+    return false;
+  }
+
+  return (llvm::cast<CXXKType>(requestedType)->getTypeKind() == cxxtypes::CXXTypeKind::ARRAY); 
 }
 
 
@@ -373,8 +429,12 @@ bool cxxtypes::CXXKFunctionType::innerIsAccessableFrom(CXXKFunctionType *accessi
   return true;
 }
 
-bool cxxtypes::CXXKFunctionType::classof(const CXXKType *requestedType) {
-  return (requestedType->getTypeKind() == cxxtypes::CXXTypeKind::FUNCTION); 
+bool cxxtypes::CXXKFunctionType::classof(const KType *requestedType) {
+  if (!llvm::isa<CXXKType>(requestedType)) {
+    return false;
+  }
+
+  return (llvm::cast<CXXKType>(requestedType)->getTypeKind() == cxxtypes::CXXTypeKind::FUNCTION); 
 }
 
 
@@ -417,6 +477,10 @@ bool cxxtypes::CXXKPointerType::isPointerToFunction() const {
   return false;
 }
 
-bool cxxtypes::CXXKPointerType::classof(const CXXKType *requestedType) {
-  return (requestedType->getTypeKind() == cxxtypes::CXXTypeKind::POINTER); 
+bool cxxtypes::CXXKPointerType::classof(const KType *requestedType) {
+  if (!llvm::isa<CXXKType>(requestedType)) {
+    return false;
+  }
+
+  return (llvm::cast<CXXKType>(requestedType)->getTypeKind() == cxxtypes::CXXTypeKind::POINTER); 
 }

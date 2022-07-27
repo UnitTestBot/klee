@@ -8,6 +8,7 @@
 #include <string>
 #include <map>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace llvm {
   class Type;
@@ -29,7 +30,7 @@ enum CXXTypeKind {
 };
 
 class KModule;
-class KCompositeType;
+class CXXKCompositeType;
 class CXXKStructType;
 class CXXKIntegerType;
 class CXXKFloatingPointType;
@@ -42,13 +43,16 @@ class CXXKFunctionType;
 class CXXTypeManager final : public TypeManager {
 private:
   std::unordered_map<std::string, cxxtypes::CXXKStructType*> memberToStruct;
+  cxxtypes::CXXKCompositeType *createCompositeType(cxxtypes::CXXKType *);
 
 protected:
   CXXTypeManager(KModule *);
 
+  virtual void postInitModule() override;
+
 public:
   virtual KType *getWrappedType(llvm::Type *) override;
-  virtual void handleFunctionCall(KFunction *, std::vector<MemoryObject *> &) const override;
+  virtual void handleFunctionCall(KFunction *, std::vector<MemoryObject *> &) override;
 
   static TypeManager *getTypeManager(KModule *);
 };
@@ -98,20 +102,22 @@ public:
  * location. E.g., this type can apper if we use placement new 
  * on array.
  */
-class KCompositeType : public CXXKType {
+class CXXKCompositeType : public CXXKType {
   friend CXXTypeManager;
 
 private:
-  std::map<size_t, KType *> typesLocations;
+  // FIXME: we want to use offsets
+  // std::map<size_t, KType *> typesLocations;
+  std::unordered_set<KType *> insertedTypes;
 
 protected:
-  KCompositeType(llvm::Type *, TypeManager *);
+  CXXKCompositeType(KType *, TypeManager *);
 
 public:
   void insert(KType *, size_t);
   virtual bool isAccessableFrom(CXXKType *) const override;
 
-  static bool classof(const CXXKType *);
+  static bool classof(const KType *);
 };
 
 
@@ -129,7 +135,7 @@ protected:
 public:
   virtual bool isAccessableFrom(CXXKType *) const override;  
 
-  static bool classof(const CXXKType *);
+  static bool classof(const KType *);
 };
 
 
@@ -153,7 +159,7 @@ protected:
 public:
   virtual bool isAccessableFrom(CXXKType *) const override;
 
-  static bool classof(const CXXKType *);
+  static bool classof(const KType *);
 };
 
 
@@ -174,7 +180,7 @@ protected:
 public:  
   virtual bool isAccessableFrom(CXXKType *) const override;
 
-  static bool classof(const CXXKType *);
+  static bool classof(const KType *);
 };
 
 
@@ -195,7 +201,7 @@ protected:
 public:
   virtual bool isAccessableFrom(CXXKType *) const override;
 
-  static bool classof(const CXXKType *);
+  static bool classof(const KType *);
 };
 
 
@@ -220,7 +226,7 @@ protected:
 public:  
   virtual bool isAccessableFrom(CXXKType *) const override;
 
-  static bool classof(const CXXKType *);
+  static bool classof(const KType *);
 };
 
 
@@ -244,7 +250,7 @@ public:
   bool isPointerToChar() const; 
   bool isPointerToFunction() const;
 
-  static bool classof(const CXXKType *);
+  static bool classof(const KType *);
 };
 
 } /*namespace cxxtypes*/

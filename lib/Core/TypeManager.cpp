@@ -41,7 +41,7 @@ KType *TypeManager::getWrappedType(llvm::Type *type) {
  * "Language-specific function", as calls in high level languages
  * can affect type system. By default, it does nothing.
  */
-void TypeManager::handleFunctionCall(KFunction *function, std::vector<MemoryObject *> &args) const {}
+void TypeManager::handleFunctionCall(KFunction *function, std::vector<MemoryObject *> &args) {}
 
 
 /**
@@ -168,6 +168,9 @@ void TypeManager::initTypesFromInstructions() {
 }
 
 
+void TypeManager::postInitModule() {}
+
+
 /**
  * Method to initialize all types in given module.
  * Note, that it cannot be called in costructor 
@@ -180,6 +183,7 @@ void TypeManager::initModule() {
   initTypesFromGlobals();
   initTypesFromInstructions();
   initTypesFromStructs();
+  postInitModule();
 }
 
 

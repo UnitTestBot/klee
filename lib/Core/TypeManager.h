@@ -39,15 +39,24 @@ protected:
   TypeManager(TypeManager &&) = delete;
   TypeManager &operator=(TypeManager &&) = delete;
   
+  /**
+   * Initializes type system for current module.
+   */
   void initModule();
+
+  /**
+   * Make specified post initialization in initModule(). Note, that 
+   * it is intentionally separated from initModule, as initModule
+   * order of function calls in it important. By default do nothing.
+   */
+  virtual void postInitModule();
 
 public:
   virtual KType *getWrappedType(llvm::Type *);
-  virtual void handleFunctionCall(KFunction *, std::vector<MemoryObject *> &) const;
+  virtual void handleFunctionCall(KFunction *, std::vector<MemoryObject *> &);
  
   virtual ~TypeManager() = default;
 
-  /// TODO: we need a factory though.
   static TypeManager *getTypeManager(KModule *);
 };
 

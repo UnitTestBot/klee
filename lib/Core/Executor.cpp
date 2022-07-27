@@ -2159,6 +2159,31 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
       }
     }
 
+    /* FIXME: this is a part of code only to support constructors in C++
+    and no more. We want to do something like that, but to not resolve
+    all parameters, or make it lazy. Strongly required to be fixed. */ 
+    {
+
+      /* Notice, that it is also not what we want. To fix this
+      we should move KType from Memory Objects to Object States
+      (as KType's can be modified in "handleFunctionCall") */
+      std::vector<MemoryObject *> argsMemoryObjects;
+      std::vector<KType *> argsTypes;
+
+      /* TODO: temporary hack for C++ */
+      ConstantExpr *CE = nullptr;
+      if (arguments.size() > 0) {
+        CE = dyn_cast<ConstantExpr>(arguments.front());
+      }
+      if (CE) {
+        ObjectPair op;
+        state.addressSpace.resolveOne(CE, typeSystemManager->getWrappedType(nullptr), op);
+
+        argsMemoryObjects.push_back(const_cast<MemoryObject *>(op.first));
+        typeSystemManager->handleFunctionCall(kf, argsMemoryObjects);
+      }
+    }
+
     unsigned numFormals = f->arg_size();
     for (unsigned k = 0; k < numFormals; k++)
       bindArgument(kf, k, state, arguments[k]);
