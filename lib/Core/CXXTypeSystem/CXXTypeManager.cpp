@@ -247,6 +247,16 @@ bool cxxtypes::CXXKCompositeType::isAccessableFrom(CXXKType *accessingType) cons
   return false;
 }
 
+std::vector<KType *> cxxtypes::CXXKCompositeType::getAccessableInnerTypes(KType *requestedType) const {
+  std::vector<KType *> result = KType::getAccessableInnerTypes(requestedType);
+  for (auto nestedType : insertedTypes) {
+    if (nestedType->isAccessableFrom(requestedType)) {
+      result.push_back(nestedType);
+    }
+  }
+  return result;
+}
+
 bool cxxtypes::CXXKCompositeType::classof(const KType *requestedType) {
   if (!llvm::isa<CXXKType>(requestedType)) {
     return false;

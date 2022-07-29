@@ -155,7 +155,7 @@ cl::opt<bool> LazyInstantiation(
 cl::opt<bool> StrictAliasingRule(
     "strict-aliasing",
     llvm::cl::desc("Turn's on rules based on strict aliasing rule"),
-    llvm::cl::init(false));
+    llvm::cl::init(true));
 } // namespace klee
 
 namespace {
@@ -4878,114 +4878,49 @@ void Executor::executeMemoryOperation(ExecutionState &state,
     ref<Expr> inBounds;
     StatePair branches;
 
-    // llvm::Type *memoryObjectType = mo->dynamicType->type ? mo->dynamicType->type->getPointerElementType() : nullptr;
+    inBounds = mo->getBoundsCheckPointer(base, 1);
 
-    /// TODO:
-    if (false && StrictAliasingRule//&& 
-        // mo->dynamicType->type != nullptr &&
-        /* addressType != nullptr */) { 
-      // const KType *kt = kmodule->computeKType(memoryObjectType);
-      
-      // for (auto accessibleType : 
-      //   kt->getAccessibleInnerTypes(addressType->getPointerElementType())) {
-      //   for (auto &offset : kt->innerTypes.at(accessibleType)) {
-      //     inBounds = EqExpr::create(
-      //       mo->getOffsetExpr(address),
-      //       ConstantExpr::create(offset, Context::get().getPointerWidth())
-      //     );
-      //     branches = fork(*unbound, inBounds, true);
-      //     ExecutionState *bound = branches.first;
-
-      //     if (bound) {
-      //       switch (operation) {
-      //         case Write: {
-      //           if (os->readOnly) {
-      //             terminateStateOnError(*bound, "memory error: object read only",
-      //                                   ReadOnly);
-      //           } else {
-      //             ObjectState *wos = bound->addressSpace.getWriteable(mo, os);
-      //             wos->write(mo->getOffsetExpr(address), value);
-      //           }
-      //           break;
-      //         }
-      //         case Read: {
-      //           ref<Expr> result = os->read(mo->getOffsetExpr(address), type);
-      //           bindLocal(target, *bound, result);
-      //           break;
-      //         }
-      //       }
-      //     }
-      //     unbound = branches.second;
-      //     if (!unbound) {
-      //       break;
-      //     }
-      //   } // offsets
-
-      //   if (!unbound) {
-      //     break;
-      //   }  
-      // } // accessible types
-      
-      // aliasingFailure = OrExpr::create(
-      //   aliasingFailure,
-      //   mo->getBoundsCheckPointer(address, 1)
-      // );
-    }
-    else {
-      inBounds = mo->getBoundsCheckPointer(base, 1);
-
-      branches = fork(*unbound, inBounds, true);
-      ExecutionState *bound = branches.first;
+    branches = fork(*unbound, inBounds, true);
+    ExecutionState *bound = branches.first;
 
 
-      // bound can be 0 on failure or overlapped
-      if (bound) {
-        ref<Expr> inBounds = mo->getBoundsCheckPointer(address, bytes);
-        if (UseGEPExpr && isGEPExpr(address)) {
-          inBounds = AndExpr::create(
-              inBounds, mo->getBoundsCheckPointer(base, size));
-        }
-        StatePair branches_inner = fork(*bound, inBounds, true);
-        ExecutionState *bound_inner = branches_inner.first;
-        ExecutionState *unbound_inner = branches_inner.second;
-        if(bound_inner) {
-          switch (operation) {
-            case Write: {
-              if (os->readOnly) {
-                terminateStateOnError(*bound_inner, "memory error: object read only",
-                                      ReadOnly);
-              } else {
-                ObjectState *wos = bound_inner->addressSpace.getWriteable(mo, os);
-                wos->write(mo->getOffsetExpr(address), value);
-              }
-              break;
+    // bound can be 0 on failure or overlapped
+    if (bound) {
+      ref<Expr> inBounds = mo->getBoundsCheckPointer(address, bytes);
+      if (UseGEPExpr && isGEPExpr(address)) {
+        inBounds = AndExpr::create(
+            inBounds, mo->getBoundsCheckPointer(base, size));
+      }
+      StatePair branches_inner = fork(*bound, inBounds, true);
+      ExecutionState *bound_inner = branches_inner.first;
+      ExecutionState *unbound_inner = branches_inner.second;
+      if(bound_inner) {
+        switch (operation) {
+          case Write: {
+            if (os->readOnly) {
+              terminateStateOnError(*bound_inner, "memory error: object read only",
+                                    ReadOnly);
+            } else {
+              ObjectState *wos = bound_inner->addressSpace.getWriteable(mo, os);
+              wos->write(mo->getOffsetExpr(address), value);
             }
-            case Read: {
-              ref<Expr> result = os->read(mo->getOffsetExpr(address), type);
-              bindLocal(target, *bound_inner, result);
-              break;
-            }
+            break;
+          }
+          case Read: {
+            ref<Expr> result = os->read(mo->getOffsetExpr(address), type);
+            bindLocal(target, *bound_inner, result);
+            break;
           }
         }
-        if(unbound_inner) {
-          terminateStateOnError(*unbound_inner, "memory error: out of bound pointer", Ptr,
-                                  NULL);
-        }
       }
-      unbound = branches.second;
-      if (!unbound)
-        break;
+      if(unbound_inner) {
+        terminateStateOnError(*unbound_inner, "memory error: out of bound pointer", Ptr,
+                                NULL);
+      }
     }
-
-  }
-  
-  if (unbound && StrictAliasingRule) {
-    StatePair p = fork(*unbound, aliasingFailure, true);
-    if (p.first) {
-      terminateStateOnError(*p.first, "memory error: strict aliasing rule violation", Ptr,
-                            NULL, getAddressInfo(*p.first, address));
-    }
-    unbound = p.second;
+    unbound = branches.second;
+    if (!unbound)
+      break;
   }
 
   // XXX should we distinguish out of bounds and overlapped cases?

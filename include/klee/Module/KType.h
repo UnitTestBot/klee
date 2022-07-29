@@ -68,7 +68,7 @@ public:
   /**
    * Returns list of all accessible inner types for this KType. 
    */
-  std::vector<KType *> getAccessableInnerTypes(KType *) const;
+  virtual std::vector<KType *> getAccessableInnerTypes(KType *) const;
 
   TypeSystemKind getTypeSystemKind() const;
 

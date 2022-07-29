@@ -115,6 +115,7 @@ protected:
 public:
   void insert(KType *, size_t);
   virtual bool isAccessableFrom(CXXKType *) const override;
+  virtual std::vector<KType *> getAccessableInnerTypes(KType *) const override;
 
   static bool classof(const KType *);
 };
