@@ -49,11 +49,10 @@ public:
    */
   MemoryObject *allocate(uint64_t size, bool isLocal, bool isGlobal,
                          const llvm::Value *allocSite,
-                         KType *allocatedType, size_t alignment,
+                         size_t alignment,
                          ref<Expr> lazyInstantiatedSource = ref<Expr>());
   MemoryObject *allocateFixed(uint64_t address, uint64_t size,
-                              const llvm::Value *allocSite,
-                              KType *allocatedType);
+                              const llvm::Value *allocSite);
   void deallocate(MemoryObject *mo);
   void markFreed(MemoryObject *mo);
   ArrayCache *getArrayCache() const { return arrayCache; }

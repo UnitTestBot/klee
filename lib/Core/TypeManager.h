@@ -2,14 +2,19 @@
 #define KLEE_TYPEMANAGER_H
 
 #include <memory>
-#include <vector>
 #include <unordered_map>
+#include <vector>
 
 namespace llvm {
-  class Type;
+class Type;
 }
 
 namespace klee {
+
+class MemoryObject;
+class ObjectState;
+/// FIXME: temporary hack to pass into "handleFunctionCall"
+typedef std::pair<const MemoryObject *, const ObjectState *> ObjectPair;
 
 class KType;
 class KModule;
@@ -31,17 +36,17 @@ private:
 protected:
   KModule *parent;
   std::vector<std::unique_ptr<KType>> types;
-  std::unordered_map<llvm::Type*, KType*> typesMap;
+  std::unordered_map<llvm::Type *, KType *> typesMap;
 
   TypeManager(KModule *);
-  
+
   /**
    * Initializes type system for current module.
    */
   void initModule();
 
   /**
-   * Make specified post initialization in initModule(). Note, that 
+   * Make specified post initialization in initModule(). Note, that
    * it is intentionally separated from initModule, as initModule
    * order of function calls in it important. By default do nothing.
    */
@@ -49,8 +54,8 @@ protected:
 
 public:
   virtual KType *getWrappedType(llvm::Type *);
-  virtual void handleFunctionCall(KFunction *, std::vector<MemoryObject *> &);
- 
+  virtual void handleFunctionCall(KFunction *, std::vector<ObjectPair> &);
+
   virtual ~TypeManager() = default;
 
   static TypeManager *getTypeManager(KModule *);

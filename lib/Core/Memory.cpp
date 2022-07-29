@@ -73,7 +73,7 @@ void MemoryObject::getAllocInfo(std::string &result) const {
 
 /***/
 
-ObjectState::ObjectState(const MemoryObject *mo)
+ObjectState::ObjectState(const MemoryObject *mo, KType *dt)
   : copyOnWriteOwner(0),
     object(mo),
     concreteStore(new uint8_t[mo->size]),
@@ -81,6 +81,7 @@ ObjectState::ObjectState(const MemoryObject *mo)
     flushMask(0),
     knownSymbolics(0),
     updates(0, 0),
+    dynamicType(dt),
     size(mo->size),
     readOnly(false) {
   if (!UseConstantArrays) {
@@ -93,7 +94,7 @@ ObjectState::ObjectState(const MemoryObject *mo)
 }
 
 
-ObjectState::ObjectState(const MemoryObject *mo, const Array *array)
+ObjectState::ObjectState(const MemoryObject *mo, const Array *array, KType *dt)
   : copyOnWriteOwner(0),
     object(mo),
     concreteStore(new uint8_t[mo->size]),
@@ -101,6 +102,7 @@ ObjectState::ObjectState(const MemoryObject *mo, const Array *array)
     flushMask(0),
     knownSymbolics(0),
     updates(array, 0),
+    dynamicType(dt),
     size(mo->size),
     readOnly(false) {
   makeSymbolic();
@@ -115,6 +117,7 @@ ObjectState::ObjectState(const ObjectState &os)
     flushMask(os.flushMask ? new BitArray(*os.flushMask, os.size) : 0),
     knownSymbolics(0),
     updates(os.updates),
+    dynamicType(os.dynamicType),
     size(os.size),
     readOnly(false) {
   assert(!os.readOnly && "no need to copy read only object?");
@@ -126,6 +129,13 @@ ObjectState::ObjectState(const ObjectState &os)
 
   memcpy(concreteStore, os.concreteStore, size*sizeof(*concreteStore));
 }
+
+
+ObjectState::ObjectState(const ObjectState &os, KType *dt) 
+  : ObjectState(os) {
+  dynamicType = dt;
+}
+
 
 ObjectState::~ObjectState() {
   delete concreteMask;
@@ -577,4 +587,8 @@ void ObjectState::print() const {
   for (const auto *un = updates.head.get(); un; un = un->next.get()) {
     llvm::errs() << "\t\t[" << un->index << "] = " << un->value << "\n";
   }
+}
+
+bool ObjectState::isAccessableFrom(KType *accessingType) const {
+  return dynamicType->isAccessableFrom(accessingType);
 }

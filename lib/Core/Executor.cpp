@@ -718,8 +718,8 @@ MemoryObject * Executor::addExternalObject(ExecutionState &state,
                                            void *addr, KType *type,
                                            unsigned size, bool isReadOnly) {
   auto mo = memory->allocateFixed(reinterpret_cast<std::uint64_t>(addr),
-                                  size, nullptr, type);
-  ObjectState *os = bindObjectInState(state, mo, false);
+                                  size, nullptr);
+  ObjectState *os = bindObjectInState(state, mo, type, false);
   for(unsigned i = 0; i < size; i++)
     os->write8(i, ((uint8_t*)addr)[i]);
   if(isReadOnly)
@@ -873,7 +873,6 @@ void Executor::allocateGlobalObjects(ExecutionState &state) {
 
     MemoryObject *mo = memory->allocate(size, /*isLocal=*/false,
                                         /*isGlobal=*/true, /*allocSite=*/&v,
-                                        /*type=*/typeSystemManager->getWrappedType(v.getType()),
                                         /*alignment=*/globalObjectAlignment);
     if (!mo)
       klee_error("out of memory");
@@ -933,7 +932,7 @@ void Executor::initializeGlobalObjects(ExecutionState &state) {
   std::vector<ObjectState *> constantObjects;
   for (const GlobalVariable &v : m->globals()) {
     MemoryObject *mo = globalObjects.find(&v)->second;
-    ObjectState *os = bindObjectInState(state, mo, false);
+    ObjectState *os = bindObjectInState(state, mo, typeSystemManager->getWrappedType(v.getType()), false);
 
     if (v.isDeclaration() && mo->size) {
       // Program already running -> object already initialized.
@@ -1656,9 +1655,8 @@ MemoryObject *Executor::serializeLandingpad(ExecutionState &state,
   }
 
   MemoryObject *mo =
-      memory->allocate(serialized.size(), true, false, nullptr, 
-      typeSystemManager->getWrappedType(nullptr), 1);
-  ObjectState *os = bindObjectInState(state, mo, false);
+      memory->allocate(serialized.size(), true, false, nullptr, 1);
+  ObjectState *os = bindObjectInState(state, mo, typeSystemManager->getWrappedType(nullptr), false);
   for (unsigned i = 0; i < serialized.size(); i++) {
     os->write8(i, serialized[i]);
   }
@@ -2118,7 +2116,6 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
       StackFrame &sf = state.stack.back();
       MemoryObject *mo = sf.varargs =
           memory->allocate(size, true, false, state.prevPC->inst,
-                           typeSystemManager->getWrappedType(nullptr),
                            (requires16ByteAlignment ? 16 : 8));
       if (!mo && size) {
         terminateStateOnExecError(state, "out of memory (varargs)");
@@ -2133,7 +2130,7 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
               0, "While allocating varargs: malloc did not align to 16 bytes.");
         }
 
-        ObjectState *os = bindObjectInState(state, mo, true);
+        ObjectState *os = bindObjectInState(state, mo, typeSystemManager->getWrappedType(nullptr), true);
 
         llvm::Function::arg_iterator ati = std::next(f->arg_begin(), funcArgs);
         llvm::Type *argType = (ati == f->arg_end()) ? nullptr : ati->getType();
@@ -2167,8 +2164,7 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
       /* Notice, that it is also not what we want. To fix this
       we should move KType from Memory Objects to Object States
       (as KType's can be modified in "handleFunctionCall") */
-      std::vector<MemoryObject *> argsMemoryObjects;
-      std::vector<KType *> argsTypes;
+      std::vector<ObjectPair> argsMemoryObjects;
 
       /* TODO: temporary hack for C++ */
       ConstantExpr *CE = nullptr;
@@ -2179,7 +2175,7 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
         ObjectPair op;
         state.addressSpace.resolveOne(CE, typeSystemManager->getWrappedType(nullptr), op);
 
-        argsMemoryObjects.push_back(const_cast<MemoryObject *>(op.first));
+        argsMemoryObjects.push_back(op);
         typeSystemManager->handleFunctionCall(kf, argsMemoryObjects);
       }
     }
@@ -4534,9 +4530,10 @@ ref<Expr> Executor::replaceReadWithSymbolic(ExecutionState &state,
 
 ObjectState *Executor::bindObjectInState(ExecutionState &state, 
                                          const MemoryObject *mo,
+                                         KType *dynamicType,
                                          bool isAlloca,
                                          const Array *array) {
-  ObjectState *os = array ? new ObjectState(mo, array) : new ObjectState(mo);
+  ObjectState *os = array ? new ObjectState(mo, array, dynamicType) : new ObjectState(mo, dynamicType);
   state.addressSpace.bindObject(mo, os);
 
   // Its possible that multiple bindings of the same mo in the state
@@ -4564,13 +4561,12 @@ void Executor::executeAlloc(ExecutionState &state,
       allocationAlignment = getAllocationAlignment(allocSite);
     }
     MemoryObject *mo =
-        memory->allocate(CE->getZExtValue(), isLocal, /*isGlobal=*/false, allocSite,
-                         type, allocationAlignment);
+        memory->allocate(CE->getZExtValue(), isLocal, /*isGlobal=*/false, allocSite, allocationAlignment);
     if (!mo) {
       bindLocal(target, state, 
                 ConstantExpr::alloc(0, Context::get().getPointerWidth()));
     } else {
-      ObjectState *os = bindObjectInState(state, mo, isLocal);
+      ObjectState *os = bindObjectInState(state, mo, type, isLocal);
       if (zeroMemory) {
         os->initializeToZero();
       } else {
@@ -4753,10 +4749,6 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   unsigned bytes = Expr::getMinBytesForWidth(type);
   ref<Expr> base = UseGEPExpr && isGEPExpr(address) ? gepExprBases[address].first : address;
   unsigned size = bytes; 
-
-  /// Save type in order to find offsets in structs with this type.
-  /// TargetType below will be replaced with gepExpr origin type.
-  // llvm::Type *addressType = targetType->type;
 
   if (UseGEPExpr && isGEPExpr(address)) {
     size = kmodule->targetData->getTypeStoreSize(gepExprBases[address].second);
@@ -4972,7 +4964,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
 }
 
 ObjectPair Executor::lazyInstantiate(ExecutionState &state, KType *targetType, bool isAlloca, const MemoryObject *mo) {
-  executeMakeSymbolic(state, mo, "lazy_instantiation", isAlloca);
+  executeMakeSymbolic(state, mo, targetType, "lazy_instantiation", isAlloca);
   ObjectPair op;
   state.addressSpace.resolveOne(mo->getBaseConstantExpr().get(), targetType ,op);
   return op;
@@ -4993,7 +4985,6 @@ ObjectPair Executor::lazyInstantiateVariable(ExecutionState &state, ref<Expr> ad
   MemoryObject *mo =
       memory->allocate(size, false, /*isGlobal=*/false,
                        allocSite, 
-                       targetType, 
                        /*allocationAlignment=*/8, address);
   return lazyInstantiate(state, targetType, /*isLocal=*/false, mo);
 }
@@ -5014,6 +5005,7 @@ const Array * Executor::makeArray(ExecutionState &state,
 
 void Executor::executeMakeSymbolic(ExecutionState &state,
                                    const MemoryObject *mo,
+                                   KType *type,
                                    const std::string &name,
                                    bool isAlloca) {
   // Create a new object state for the memory object (instead of a copy).
@@ -5023,7 +5015,7 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
     const Array *array = makeArray(state, mo->size, name);
     const_cast<Array*>(array)->binding = mo;
     const_cast<MemoryObject *>(mo)->isKleeMakeSymbolic = true;
-    bindObjectInState(state, mo, isAlloca, array);
+    bindObjectInState(state, mo, type, isAlloca, array);
     state.addSymbolic(mo, array);
 
     std::map< ExecutionState*, std::vector<SeedInfo> >::iterator it =
@@ -5070,7 +5062,7 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
       }
     }
   } else {
-    ObjectState *os = bindObjectInState(state, mo, false);
+    ObjectState *os = bindObjectInState(state, mo, type, false);
     if (replayPosition >= replayKTest->numObjects) {
       terminateStateOnError(state, "replay count mismatch", User);
     } else {
@@ -5118,7 +5110,6 @@ ExecutionState* Executor::formState(Function *f,
           memory->allocate((argc + 1 + envc + 1 + 1) * NumPtrBytes,
                            /*isLocal=*/false, /*isGlobal=*/true,
                            /*allocSite=*/first, 
-                           typeSystemManager->getWrappedType(nullptr),
                            /*alignment=*/8);
 
       if (!argvMO)
@@ -5143,7 +5134,7 @@ ExecutionState* Executor::formState(Function *f,
     bindArgument(kf, i, *state, arguments[i]);
 
   if (argvMO) {
-    ObjectState *argvOS = bindObjectInState(*state, argvMO, false);
+    ObjectState *argvOS = bindObjectInState(*state, argvMO, typeSystemManager->getWrappedType(nullptr), false);
 
     for (int i=0; i<argc+1+envc+1+1; i++) {
       if (i==argc || i>=argc+1+envc) {
@@ -5156,11 +5147,10 @@ ExecutionState* Executor::formState(Function *f,
         MemoryObject *arg =
             memory->allocate(len + 1, /*isLocal=*/false, /*isGlobal=*/true,
                              /*allocSite=*/state->pc->inst,
-                             typeSystemManager->getWrappedType(nullptr),
                              /*alignment=*/8);
         if (!arg)
           klee_error("Could not allocate memory for function arguments");
-        ObjectState *os = bindObjectInState(*state, arg, false);
+        ObjectState *os = bindObjectInState(*state, arg, typeSystemManager->getWrappedType(nullptr), false);
         for (j=0; j<len+1; j++)
           os->write8(j, s[j]);
 
@@ -5218,13 +5208,13 @@ ref<Expr> Executor::makeSymbolicValue(Value *value, ExecutionState &state, uint6
   MemoryObject *mo = 
     memory->allocate(size, true, /*isGlobal=*/false,
                      value, 
-                     typeSystemManager->getWrappedType(value ? value->getType() : nullptr),
                      /*allocationAlignment=*/8);
   memory->deallocate(mo);
   const Array *array = makeArray(state, size, name);
   const_cast<Array*>(array)->binding = mo;
   state.addSymbolic(mo, array);
-  ObjectState *os = new ObjectState(mo, array);
+  assert(value && "Value is nullptr?!");
+  ObjectState *os = new ObjectState(mo, array, typeSystemManager->getWrappedType(value->getType()));
   ref<Expr> result = os->read(0, width);
   return result;
 }

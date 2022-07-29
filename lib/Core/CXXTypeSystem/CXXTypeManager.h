@@ -5,13 +5,13 @@
 #include "klee/Module/KType.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include <string>
 #include <map>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 
 namespace llvm {
-  class Type;
+class Type;
 }
 
 namespace klee {
@@ -23,7 +23,7 @@ enum CXXTypeKind {
   COMPOSITE,
   STRUCT,
   INTEGER,
-  FP, 
+  FP,
   ARRAY,
   POINTER,
   FUNCTION
@@ -38,7 +38,7 @@ class CXXKArrayType;
 class CXXKPointerType;
 class CXXKType;
 class CXXKFunctionType;
-}
+} // namespace cxxtypes
 
 class CXXTypeManager final : public TypeManager {
 private:
@@ -51,12 +51,11 @@ protected:
 
 public:
   virtual KType *getWrappedType(llvm::Type *) override;
-  virtual void handleFunctionCall(KFunction *, std::vector<MemoryObject *> &) override;
+  virtual void handleFunctionCall(KFunction *,
+                                  std::vector<ObjectPair> &) override;
 
   static TypeManager *getTypeManager(KModule *);
 };
-
-
 
 /**
  * Classes for cpp type system. Rules described below
@@ -64,7 +63,6 @@ public:
  * https://en.cppreference.com/w/cpp/language/reinterpret_cast
  */
 namespace cxxtypes {
-
 
 class CXXKType : public KType {
   friend CXXTypeManager;
@@ -74,20 +72,20 @@ private:
   static bool isAccessingFromChar(CXXKType *accessingType);
 
 protected:
-/**
- * Field for llvm RTTI system.
- */
+  /**
+   * Field for llvm RTTI system.
+   */
   CXXTypeKind typeKind;
 
   CXXKType(llvm::Type *, TypeManager *);
 
 public:
- /**
-  * Checks the first access to this type from specified.
-  * Using isAccessingFromChar and then cast parameter
-  * to CXXKType. Method is declared as final because it
-  * is an 'edge' between LLVM and CXX type systems.
-  */
+  /**
+   * Checks the first access to this type from specified.
+   * Using isAccessingFromChar and then cast parameter
+   * to CXXKType. Method is declared as final because it
+   * is an 'edge' between LLVM and CXX type systems.
+   */
   virtual bool isAccessableFrom(KType *) const final override;
   virtual bool isAccessableFrom(CXXKType *) const;
 
@@ -98,7 +96,7 @@ public:
 
 /**
  * Composite type represents multuple kinds of types in one memory
- * location. E.g., this type can apper if we use placement new 
+ * location. E.g., this type can apper if we use placement new
  * on array.
  */
 class CXXKCompositeType : public CXXKType {
@@ -120,14 +118,14 @@ public:
   static bool classof(const KType *);
 };
 
-
 /**
- * Struct type can be accessed from all other types, that 
+ * Struct type can be accessed from all other types, that
  * it might contain inside. Holds additional information
  * about types inside.
  */
 class CXXKStructType : public CXXKType {
   friend CXXTypeManager;
+
 private:
   bool isUnion = false;
 
@@ -135,11 +133,10 @@ protected:
   CXXKStructType(llvm::Type *, TypeManager *);
 
 public:
-  virtual bool isAccessableFrom(CXXKType *) const override;  
+  virtual bool isAccessableFrom(CXXKType *) const override;
 
   static bool classof(const KType *);
 };
-
 
 /**
  * Function type can be accessed obly from another
@@ -164,7 +161,6 @@ public:
   static bool classof(const KType *);
 };
 
-
 /**
  * Integer type can be accessed from another integer type
  * of the same type.
@@ -179,12 +175,11 @@ private:
 protected:
   CXXKIntegerType(llvm::Type *, TypeManager *);
 
-public:  
+public:
   virtual bool isAccessableFrom(CXXKType *) const override;
 
   static bool classof(const KType *);
 };
-
 
 /**
  * Floating point type can be access from another floating
@@ -206,9 +201,8 @@ public:
   static bool classof(const KType *);
 };
 
-
 /**
- * Array type can be accessed from another array type of the 
+ * Array type can be accessed from another array type of the
  * same size or from type of its elements. Types of array elements
  * must be the same.
  */
@@ -218,19 +212,18 @@ class CXXKArrayType : public CXXKType {
 private:
   CXXKType *elementType;
   size_t arraySize;
-  
+
   bool innerIsAccessableFrom(CXXKType *) const;
   bool innerIsAccessableFrom(CXXKArrayType *) const;
 
 protected:
   CXXKArrayType(llvm::Type *, TypeManager *);
 
-public:  
+public:
   virtual bool isAccessableFrom(CXXKType *) const override;
 
   static bool classof(const KType *);
 };
-
 
 /**
  * Pointer Type can be accessed from another pointer type.
@@ -249,14 +242,13 @@ protected:
 
 public:
   virtual bool isAccessableFrom(CXXKType *) const override;
-  bool isPointerToChar() const; 
+  bool isPointerToChar() const;
   bool isPointerToFunction() const;
 
   static bool classof(const KType *);
 };
 
 } /*namespace cxxtypes*/
-
 
 } /*namespace klee*/
 

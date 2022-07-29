@@ -66,10 +66,6 @@ public:
 
   MemoryManager *parent;
 
-
-  /// Type which can be seen through the "Aliased Type"
-  /// of that MO.
-  KType *dynamicType;
   
   /// "Location" for which this memory object was allocated. This
   /// should be either the allocating instruction or the global object
@@ -98,7 +94,6 @@ public:
       size(0),
       isFixed(true),
       parent(NULL),
-      dynamicType(nullptr),
       allocSite(0) {
   }
 
@@ -109,7 +104,6 @@ public:
       size(0),
       isFixed(true),
       parent(NULL),
-      dynamicType(nullptr),
       allocSite(0) {
   }
 
@@ -117,7 +111,6 @@ public:
                bool _isLocal, bool _isGlobal, bool _isFixed,
                const llvm::Value *_allocSite,
                MemoryManager *_parent,
-               KType *objectType,
                ref<Expr> _lazyInstantiatedSource = nullptr)
     : id(counter++),
       address(_address),
@@ -129,7 +122,6 @@ public:
       isFixed(_isFixed),
       isUserSpecified(false),
       parent(_parent), 
-      dynamicType(objectType),
       allocSite(_allocSite) {
   }
 
@@ -238,6 +230,8 @@ private:
   mutable UpdateList updates;
 
 public:
+  KType *dynamicType;
+
   unsigned size;
 
   bool readOnly;
@@ -246,11 +240,13 @@ public:
   /// Create a new object state for the given memory object with concrete
   /// contents. The initial contents are undefined, it is the callers
   /// responsibility to initialize the object contents appropriately.
-  ObjectState(const MemoryObject *mo);
+  ObjectState(const MemoryObject *mo, KType *dt);
 
   /// Create a new object state for the given memory object with symbolic
   /// contents.
-  ObjectState(const MemoryObject *mo, const Array *array);
+  ObjectState(const MemoryObject *mo, const Array *array, KType *dt);
+
+  ObjectState(const ObjectState &os, KType *dt);
 
   ObjectState(const ObjectState &os);
   ~ObjectState();
@@ -285,6 +281,7 @@ public:
   void flushToConcreteStore(TimingSolver *solver,
                             const ExecutionState &state) const;
 
+  bool isAccessableFrom(KType *) const;
 private:
   const UpdateList &getUpdates() const;
 

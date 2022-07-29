@@ -910,10 +910,8 @@ void SpecialFunctionHandler::handleDefineFixedObject(ExecutionState &state,
   uint64_t size = cast<ConstantExpr>(arguments[1])->getZExtValue();
   MemoryObject *mo = executor.memory->allocateFixed(address, 
                                                     size,
-                                                    state.prevPC->inst,
-                                                    executor.typeSystemManager->getWrappedType(nullptr)
-                                                    );
-  executor.bindObjectInState(state, mo, false);
+                                                    state.prevPC->inst);
+  executor.bindObjectInState(state, mo, executor.typeSystemManager->getWrappedType(nullptr), false);
   mo->isUserSpecified = true; // XXX hack;
 }
 
@@ -962,7 +960,7 @@ void SpecialFunctionHandler::handleMakeSymbolic(ExecutionState &state,
     assert(success && "FIXME: Unhandled solver failure");
     
     if (res) {
-      executor.executeMakeSymbolic(*s, mo, name, false);
+      executor.executeMakeSymbolic(*s, mo, it->first.second->dynamicType, name, false);
     } else {      
       executor.terminateStateOnError(*s, 
                                      "wrong size given to klee_make_symbolic[_name]", 

@@ -106,7 +106,6 @@ MemoryManager::~MemoryManager() {
 MemoryObject *MemoryManager::allocate(uint64_t size, bool isLocal,
                                       bool isGlobal,
                                       const llvm::Value *allocSite,
-                                      KType *allocatedType,
                                       size_t alignment,
                                       ref<Expr> lazyInstantiatedSource) {
   if (size > 10 * 1024 * 1024)
@@ -159,16 +158,14 @@ MemoryObject *MemoryManager::allocate(uint64_t size, bool isLocal,
     return 0;
 
   ++stats::allocations;
-  assert(allocatedType && "Given null instead of KType object");
   MemoryObject *res = new MemoryObject(address, size, isLocal, isGlobal, false,
-                                       allocSite, this, allocatedType, lazyInstantiatedSource);
+                                       allocSite, this, lazyInstantiatedSource);
   objects.insert(res);
   return res;
 }
 
 MemoryObject *MemoryManager::allocateFixed(uint64_t address, uint64_t size,
-                                           const llvm::Value *allocSite,
-                                           KType *allocatedType) {
+                                           const llvm::Value *allocSite) {
 #ifndef NDEBUG
   for (objects_ty::iterator it = objects.begin(), ie = objects.end(); it != ie;
        ++it) {
@@ -180,9 +177,8 @@ MemoryObject *MemoryManager::allocateFixed(uint64_t address, uint64_t size,
 
   ++stats::allocations;
 
-    assert(allocatedType && "Given null instead of KType object");
   MemoryObject *res =
-      new MemoryObject(address, size, false, true, true, allocSite, this, allocatedType);
+      new MemoryObject(address, size, false, true, true, allocSite, this);
 
   objects.insert(res);
   return res;

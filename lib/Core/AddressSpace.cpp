@@ -72,7 +72,7 @@ bool AddressSpace::resolveOne(const ref<ConstantExpr> &addr,
     // [mo->address, mo->address + mo->size) or the object is a 0-sized object.
     if ((mo->size==0 && address==mo->address) ||
         (address - mo->address < mo->size)) {
-      if (StrictAliasingRule && !mo->dynamicType->isAccessableFrom(objectType)) {
+      if (!res->second->isAccessableFrom(objectType)) {
         return false;
       }
       result.first = res->first;
@@ -98,8 +98,9 @@ bool AddressSpace::resolveOne(ExecutionState &state,
 
     MemoryObject *symHack = nullptr;
     for (auto &moa : state.symbolics) {
+      const ObjectState *os = findObject(moa.first.get());
       if (moa.first->isLazyInstantiated() && moa.first->getLazyInstantiatedSource() == address) {
-        if (!StrictAliasingRule || moa.first->dynamicType->isAccessableFrom(objectType)) {
+        if (!StrictAliasingRule || os->isAccessableFrom(objectType)) {
           symHack = const_cast<MemoryObject *>(moa.first.get());
           break;
         }
@@ -127,8 +128,9 @@ bool AddressSpace::resolveOne(ExecutionState &state,
 
     if (res) {
       const MemoryObject *mo = res->first;
+    
       if (example - mo->address < mo->size) {
-        if (!StrictAliasingRule || mo->dynamicType->isAccessableFrom(objectType)) {
+        if (!StrictAliasingRule || res->second->isAccessableFrom(objectType)) {
           result.first = res->first;
           result.second = res->second.get();
           success = true;
@@ -147,7 +149,7 @@ bool AddressSpace::resolveOne(ExecutionState &state,
     while (oi!=begin) {
       --oi;
       const auto &mo = oi->first;
-      if (StrictAliasingRule && !mo->dynamicType->isAccessableFrom(objectType)) {
+      if (!oi->second->isAccessableFrom(objectType)) {
         continue;
       }
       bool mayBeTrue;
@@ -175,7 +177,7 @@ bool AddressSpace::resolveOne(ExecutionState &state,
     for (oi=start; oi!=end; ++oi) {
       const auto &mo = oi->first;
       
-      if (StrictAliasingRule && !mo->dynamicType->isAccessableFrom(objectType)) {
+      if (StrictAliasingRule && !oi->second->isAccessableFrom(objectType)) {
         continue;
       }
       
@@ -257,8 +259,9 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
 
     MemoryObject *symHack = nullptr;
     for (auto &moa : state.symbolics) {
+      const ObjectState *os = findObject(moa.first.get());
       if (moa.first->isLazyInstantiated() && moa.first->getLazyInstantiatedSource() == p) {
-        if (!StrictAliasingRule || moa.first->dynamicType->isAccessableFrom(objectType)) {
+        if (os->isAccessableFrom(objectType)) {
           symHack = const_cast<MemoryObject *>(moa.first.get());
           break;
         }
@@ -306,7 +309,7 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
     while (oi != begin) {
       --oi;
       const MemoryObject *mo = oi->first;
-      if (StrictAliasingRule && !mo->dynamicType->isAccessableFrom(objectType)) {
+      if (!oi->second->isAccessableFrom(objectType)) {
         continue;
       }
 
@@ -332,7 +335,7 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
     // search forwards
     for (oi = start; oi != end; ++oi) {
       const MemoryObject *mo = oi->first;
-      if (StrictAliasingRule && !mo->dynamicType->isAccessableFrom(objectType)) {
+      if (!oi->second->isAccessableFrom(objectType)) {
         continue;
       }
 
@@ -372,8 +375,9 @@ bool AddressSpace::fastResolve(ExecutionState &state, TimingSolver *solver,
 
     MemoryObject *symHack = nullptr;
     for (auto &moa : state.symbolics) {
+      const ObjectState *os = findObject(moa.first.get());
       if (moa.first->isLazyInstantiated() && moa.first->getLazyInstantiatedSource() == p) {
-        if (!StrictAliasingRule || moa.first->dynamicType->isAccessableFrom(objectType)) {
+        if (os->isAccessableFrom(objectType)) {
           symHack = const_cast<MemoryObject *>(moa.first.get());
           break;
         }
@@ -424,7 +428,7 @@ bool AddressSpace::fastResolve(ExecutionState &state, TimingSolver *solver,
       if (mo == nullptr ||
           !mo->isLazyInstantiated() ||
           !mo->isKleeMakeSymbolic ||
-          (StrictAliasingRule && !mo->dynamicType->isAccessableFrom(objectType))) continue;
+          !oi->second->isAccessableFrom(objectType)) continue;
 
 
       if (timeout && timeout < timer.delta())
@@ -451,7 +455,7 @@ bool AddressSpace::fastResolve(ExecutionState &state, TimingSolver *solver,
       const MemoryObject *mo = oi->first;
       if (mo == nullptr || !mo->isLazyInstantiated() || !mo->isKleeMakeSymbolic) continue;
 
-      if (StrictAliasingRule && !mo->dynamicType->isAccessableFrom(objectType)) {
+      if (!oi->second->isAccessableFrom(objectType)) {
         continue;
       }
 
