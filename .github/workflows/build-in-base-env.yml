@@ -2,9 +2,9 @@ name: Build in UTBot base_env
 
 on:
   pull_request:
-    branches: [utbot-main]
+    branches: [rebase_asm2]
   push:
-    branches: [utbot-main]
+    branches: [rebase_asm2]
 
 jobs:
   build:
