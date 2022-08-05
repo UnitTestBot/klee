@@ -94,37 +94,9 @@ namespace klee {
                     std::map<llvm::Instruction*, unsigned>&, std::map<unsigned, KInstruction*>&,
                     llvm::Function*, KInstruction **);
 
-    /// Factory method for KCallBlocks
-    static KCallBlock *computeKCallBlock(KFunction*, llvm::BasicBlock*, KModule*,
-                    std::map<llvm::Instruction*, unsigned>&, std::map<unsigned, KInstruction*>&,
-                    llvm::Function*, KInstruction **, std::map<llvm::Value *, llvm::Type *>&);
-
     KBlockType getKBlockType() const override { return KBlockType::Call; };
     static bool classof(const KBlock *kblock) {
       return kblock->getKBlockType() == KBlockType::Call;
-    }
-  };
-
-  struct KCallAllocBlock : KCallBlock {
-    llvm::Type *allocationType;
-
-    static const llvm::StringRef allocNewU;
-    static const llvm::StringRef allocNewUArray;
-    static const llvm::StringRef allocNewL;
-    static const llvm::StringRef allocNewLArray;
-    static const llvm::StringRef allocMalloc;
-    static const llvm::StringRef allocCalloc;
-    static const llvm::StringRef allocMemalign;
-    static const llvm::StringRef allocRealloc;
-
-
-  public:
-    explicit KCallAllocBlock(KFunction*, llvm::BasicBlock*, KModule*,
-                    std::map<llvm::Instruction*, unsigned>&, std::map<unsigned, KInstruction*>&,
-                    llvm::Function*, KInstruction **, llvm::Type *);
-    KBlockType getKBlockType() const override { return KBlockType::Alloc; };
-    static bool classof(const KBlock *kblock) {
-      return kblock->getKBlockType() == KBlockType::Alloc;
     }
   };
 

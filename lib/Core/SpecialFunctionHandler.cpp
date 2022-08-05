@@ -464,10 +464,10 @@ void SpecialFunctionHandler::handleNew(ExecutionState &state,
                          std::vector<ref<Expr> > &arguments) {
   // XXX should type check args
   assert(arguments.size()==1 && "invalid number of arguments to new");
-  
-  KCallAllocBlock *allocBlock = dyn_cast<KCallAllocBlock>(target->parent);
-  assert(allocBlock && "new called in non KCallAllocBlock!");
-  executor.executeAlloc(state, arguments[0], false, target, executor.typeSystemManager->getWrappedType(allocBlock->allocationType));
+  assert(target->inst->getType() && "New instruction must have a type");
+  executor.executeAlloc(state, arguments[0], false, target, 
+                        executor.typeSystemManager->getWrappedType(target->inst->getType()));
+  executor.typeSystemManager->handleAlloc(executor.getDestCell(state, target).value);
 }
 
 void SpecialFunctionHandler::handleDelete(ExecutionState &state,
@@ -486,9 +486,10 @@ void SpecialFunctionHandler::handleNewArray(ExecutionState &state,
                               std::vector<ref<Expr> > &arguments) {
   // XXX should type check args
   assert(arguments.size()==1 && "invalid number of arguments to new[]");
-
-  KCallAllocBlock *allocBlock = dyn_cast<KCallAllocBlock>(target->parent);
-  executor.executeAlloc(state, arguments[0], false, target, executor.typeSystemManager->getWrappedType(allocBlock->allocationType));
+  assert(target->inst->getType() && "New instruction must have a type");
+  executor.executeAlloc(state, arguments[0], false, target, 
+                        executor.typeSystemManager->getWrappedType(target->inst->getType()));
+  executor.typeSystemManager->handleAlloc(executor.getDestCell(state, target).value);
 }
 
 void SpecialFunctionHandler::handleDeleteArray(ExecutionState &state,

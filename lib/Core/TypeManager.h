@@ -7,20 +7,16 @@
 
 namespace llvm {
 class Type;
+class Function;
 }
 
 namespace klee {
 
-class MemoryObject;
-class ObjectState;
-/// FIXME: temporary hack to pass into "handleFunctionCall"
-typedef std::pair<const MemoryObject *, const ObjectState *> ObjectPair;
-
+class Expr;
 class KType;
 class KModule;
-struct KFunction;
 struct KInstruction;
-class MemoryObject;
+template <class> class ref;
 
 /**
  * Default class for managing type system.
@@ -52,9 +48,14 @@ protected:
    */
   virtual void postInitModule();
 
+  
 public:
   virtual KType *getWrappedType(llvm::Type *);
-  virtual void handleFunctionCall(KFunction *, std::vector<ObjectPair> &);
+
+  virtual void handleAlloc(ref<Expr>);
+  virtual void handleBitcast(KType *, ref<Expr>);
+  virtual void handleFunctionCall(llvm::Function *, std::vector<ref<Expr>> &);
+
 
   virtual ~TypeManager() = default;
 

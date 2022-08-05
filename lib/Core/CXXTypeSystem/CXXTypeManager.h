@@ -2,19 +2,27 @@
 #define KLEE_CXXTYPEMANAGER_H
 
 #include "../TypeManager.h"
+
+#include "klee/Expr/ExprHashMap.h"
 #include "klee/Module/KType.h"
+
 #include "llvm/Support/raw_ostream.h"
 
 #include <map>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 
 namespace llvm {
 class Type;
+class Function;
 }
 
 namespace klee {
+class Expr;
+class KModule;
+template <class> class ref;
 
 namespace cxxtypes {
 
@@ -29,7 +37,6 @@ enum CXXTypeKind {
   FUNCTION
 };
 
-class KModule;
 class CXXKCompositeType;
 class CXXKStructType;
 class CXXKIntegerType;
@@ -42,7 +49,16 @@ class CXXKFunctionType;
 
 class CXXTypeManager final : public TypeManager {
 private:
+  /* List of C++ heap allocating functions. */
+  static const llvm::StringRef allocNewU;
+  static const llvm::StringRef allocNewUArray;
+  static const llvm::StringRef allocNewL;
+  static const llvm::StringRef allocNewLArray;
+
   cxxtypes::CXXKCompositeType *createCompositeType(cxxtypes::CXXKType *);
+
+  ExprHashMap<cxxtypes::CXXKType *> pendingTypeWrites;
+  ExprHashSet newAllocationAddresses;
 
 protected:
   CXXTypeManager(KModule *);
@@ -51,8 +67,11 @@ protected:
 
 public:
   virtual KType *getWrappedType(llvm::Type *) override;
-  virtual void handleFunctionCall(KFunction *,
-                                  std::vector<ObjectPair> &) override;
+
+  virtual void handleFunctionCall(llvm::Function *,
+                                  std::vector<ref<Expr>> &) override;
+  virtual void handleBitcast(KType *, ref<Expr>) override;
+  virtual void handleAlloc(ref<Expr>) override;
 
   static TypeManager *getTypeManager(KModule *);
 };

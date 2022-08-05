@@ -1,5 +1,7 @@
 #include "TypeManager.h"
 
+#include "klee/ADT/Ref.h"
+#include "klee/Expr/Expr.h"
 #include "klee/Module/KInstruction.h"
 #include "klee/Module/KModule.h"
 #include "klee/Module/KType.h"
@@ -38,8 +40,12 @@ KType *TypeManager::getWrappedType(llvm::Type *type) {
  * "Language-specific function", as calls in high level languages
  * can affect type system. By default, it does nothing.
  */
-void TypeManager::handleFunctionCall(KFunction *function,
-                                     std::vector<ObjectPair> &args) {}
+void TypeManager::handleFunctionCall(llvm::Function *,
+                                     std::vector<ref<Expr>> &) {}
+
+void TypeManager::handleAlloc(ref<Expr>) {}
+
+void TypeManager::handleBitcast(KType *, ref<Expr>) {}
 
 /**
  * Performs initialization for struct types, including inner types.
@@ -54,11 +60,13 @@ void TypeManager::initTypesFromStructs() {
    * (e.g. if struct A contains class B, we will make edge from A to B)
    * and pull types to top.
    */
-  std::unordered_map<llvm::StructType *, std::vector<llvm::StructType *>>
-      structTypesGraph;
 
   std::vector<llvm::StructType *> collectedStructTypes =
       parent->module->getIdentifiedStructTypes();
+  for (auto &structType : collectedStructTypes) {
+    getWrappedType(structType);
+  }
+
   for (auto &typesToOffsets : typesMap) {
     if (llvm::isa<llvm::StructType>(typesToOffsets.first)) {
       collectedStructTypes.emplace_back(
@@ -66,42 +74,28 @@ void TypeManager::initTypesFromStructs() {
     }
   }
 
-  for (auto structType : collectedStructTypes) {
-    getWrappedType(structType);
-
-    if (structTypesGraph.count(structType) == 0) {
-      structTypesGraph.emplace(structType, std::vector<llvm::StructType *>());
-    }
-
-    for (auto structTypeMember : structType->elements()) {
-      if (structTypeMember->isStructTy()) {
-        structTypesGraph[structType].emplace_back(
-            llvm::cast<llvm::StructType>(structTypeMember));
-      }
-      /* Note that we initialize all members anyway */
-      getWrappedType(structTypeMember);
-    }
-  }
-
   std::vector<llvm::StructType *> sortedStructTypesGraph;
   std::unordered_set<llvm::Type *> visitedStructTypesGraph;
 
   std::function<void(llvm::StructType *)> dfs =
-      [&structTypesGraph, &sortedStructTypesGraph, &visitedStructTypesGraph,
+      [this,
+       &sortedStructTypesGraph,
+       &visitedStructTypesGraph,
        &dfs](llvm::StructType *type) {
         visitedStructTypesGraph.insert(type);
 
-        for (auto typeTo : structTypesGraph[type]) {
-          if (visitedStructTypesGraph.count(typeTo) == 0) {
-            dfs(typeTo);
+        for (auto typeTo : type->elements()) {
+          getWrappedType(typeTo);
+          if (visitedStructTypesGraph.count(typeTo) == 0 && typeTo->isStructTy()) {
+            dfs(llvm::cast<llvm::StructType>(typeTo));
           }
         }
 
         sortedStructTypesGraph.push_back(type);
       };
 
-  for (auto &typeToOffset : structTypesGraph) {
-    dfs(typeToOffset.first);
+  for (auto &structType : collectedStructTypes) {
+    dfs(structType);
   }
 
   for (auto structType : sortedStructTypesGraph) {

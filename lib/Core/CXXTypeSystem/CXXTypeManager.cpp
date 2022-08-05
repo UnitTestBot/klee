@@ -2,6 +2,8 @@
 #include "../Memory.h"
 #include "../TypeManager.h"
 
+#include "klee/Expr/Expr.h"
+#include "klee/Expr/ExprHashMap.h"
 #include "klee/Module/KModule.h"
 #include "klee/Module/KType.h"
 
@@ -60,7 +62,6 @@ KType *CXXTypeManager::getWrappedType(llvm::Type *type) {
       } else if (unwrappedRawType->isPointerTy()) {
         kt = new cxxtypes::CXXKPointerType(unwrappedRawType, this);
       } else {
-        /// TODO: make a warning at least?
         kt = new cxxtypes::CXXKType(unwrappedRawType, this);
       }
     }
@@ -87,32 +88,37 @@ CXXTypeManager::createCompositeType(cxxtypes::CXXKType *sourceType) {
  * takes arguments by non-constant reference to modify types
  * in memory object.
  */
-void CXXTypeManager::handleFunctionCall(KFunction *kf,
-                                        std::vector<ObjectPair> &args) {
-  if (!kf->function || !kf->function->hasName() || args.size() == 0) {
+void CXXTypeManager::handleFunctionCall(llvm::Function *function,
+                                        std::vector<ref<Expr>> &args) {
+  /* Fast path resolution */
+  if (!function && !function->hasName()) {
     return;
   }
 
+  llvm::StringRef functionName = function->getName();
+
   llvm::ItaniumPartialDemangler demangler;
-  if (!demangler.partialDemangle(kf->function->getName().begin()) &&
-      demangler.isCtorOrDtor()) {
+  if (!demangler.partialDemangle(functionName.begin()) &&
+      demangler.isCtorOrDtor() && args.size() != 0) {
     size_t size = DEMANGLER_BUFFER_SIZE;
     char buf[DEMANGLER_BUFFER_SIZE];
 
     /* Determine if it is a ctor */
     if (demangler.getFunctionBaseName(buf, &size)[0] != '~') {
-      // TODO: debug
-      // llvm::outs() << buf << "\n";
-
-      KType *&objectType =
-          const_cast<ObjectState *>(args.front().second)->dynamicType;
-      if (!llvm::isa<cxxtypes::CXXKCompositeType>(objectType)) {
-        objectType =
-            createCompositeType(llvm::cast<cxxtypes::CXXKType>(objectType));
-      }
-      llvm::cast<cxxtypes::CXXKCompositeType>(objectType)
-          ->insert(getWrappedType(kf->function->begin()->getType()), 0);
+      pendingTypeWrites[args[0]] = cast<cxxtypes::CXXKType>(
+          getWrappedType(function->begin()->getType()));
     }
+  }
+}
+
+void CXXTypeManager::handleAlloc(ref<Expr> address) {
+  newAllocationAddresses.insert(address);
+}
+
+void CXXTypeManager::handleBitcast(KType *typeCastTo, ref<Expr> address) {
+  if (newAllocationAddresses.count(address)) {
+    newAllocationAddresses.erase(address);
+    pendingTypeWrites[address] = cast<cxxtypes::CXXKType>(typeCastTo);
   }
 }
 

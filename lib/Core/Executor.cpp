@@ -155,7 +155,7 @@ cl::opt<bool> LazyInstantiation(
 cl::opt<bool> StrictAliasingRule(
     "strict-aliasing",
     llvm::cl::desc("Turn's on rules based on strict aliasing rule"),
-    llvm::cl::init(true));
+    llvm::cl::init(false));
 } // namespace klee
 
 namespace {
@@ -1794,7 +1794,7 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
                            std::vector<ref<Expr>> &arguments) {
   Instruction *i = ki->inst;
   if (isa_and_nonnull<DbgInfoIntrinsic>(i))
-    return;
+    return;  
   if (f && f->isDeclaration()) {
 #ifndef ENABLE_FP
     Intrinsic::ID id = f->getIntrinsicID();
@@ -1817,7 +1817,7 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
     }
 #endif
     switch (f->getIntrinsicID()) {
-    case Intrinsic::not_intrinsic:
+    case Intrinsic::not_intrinsic:      
       // state may be destroyed by this call, cannot touch
       callExternalFunction(state, ki, f, arguments);
       break;
@@ -2156,34 +2156,12 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
       }
     }
 
-    /* FIXME: this is a part of code only to support constructors in C++
-    and no more. We want to do something like that, but to not resolve
-    all parameters, or make it lazy. Strongly required to be fixed. */ 
-    {
-
-      /* Notice, that it is also not what we want. To fix this
-      we should move KType from Memory Objects to Object States
-      (as KType's can be modified in "handleFunctionCall") */
-      std::vector<ObjectPair> argsMemoryObjects;
-
-      /* TODO: temporary hack for C++ */
-      ConstantExpr *CE = nullptr;
-      if (arguments.size() > 0) {
-        CE = dyn_cast<ConstantExpr>(arguments.front());
-      }
-      if (CE) {
-        ObjectPair op;
-        state.addressSpace.resolveOne(CE, typeSystemManager->getWrappedType(nullptr), op);
-
-        argsMemoryObjects.push_back(op);
-        typeSystemManager->handleFunctionCall(kf, argsMemoryObjects);
-      }
-    }
 
     unsigned numFormals = f->arg_size();
     for (unsigned k = 0; k < numFormals; k++)
       bindArgument(kf, k, state, arguments[k]);
   }
+  typeSystemManager->handleFunctionCall(f, arguments);
 }
 
 void Executor::transferToBasicBlock(BasicBlock *dst, BasicBlock *src,
@@ -2996,12 +2974,15 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     ref<Expr> result = eval(ki, 0, state).value;
     BitCastInst *bc = cast<BitCastInst>(ki->inst);
 
+    llvm::Type *castToType = bc->getType()->getPointerElementType();
+
     if(UseGEPExpr && isGEPExpr(result)) {
       assert(bc->getType()->isPointerTy());
-      gepExprBases[result] = {gepExprBases[result].first, bc->getType()->getPointerElementType()};
+      gepExprBases[result] = {gepExprBases[result].first, castToType};
     }
 
     bindLocal(ki, state, result);
+    typeSystemManager->handleBitcast(typeSystemManager->getWrappedType(castToType), result);
     break;
   }
 
@@ -4416,7 +4397,6 @@ void Executor::callExternalFunction(ExecutionState &state,
     kmodule->targetData->getProgramAddressSpace() 
   );
   
-  /// TODO: code smell.
   bool resolved = state.addressSpace.resolveOne(
     ConstantExpr::create((uint64_t)errno_addr, Expr::Int64), 
     typeSystemManager->getWrappedType(pointer_errno_addr), 
