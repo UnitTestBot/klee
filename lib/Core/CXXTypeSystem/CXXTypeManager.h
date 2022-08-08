@@ -48,15 +48,6 @@ class CXXKFunctionType;
 } // namespace cxxtypes
 
 class CXXTypeManager final : public TypeManager {
-private:
-  /* List of C++ heap allocating functions. */
-  static const llvm::StringRef allocNewU;
-  static const llvm::StringRef allocNewUArray;
-  static const llvm::StringRef allocNewL;
-  static const llvm::StringRef allocNewLArray;
-
-  cxxtypes::CXXKCompositeType *createCompositeType(cxxtypes::CXXKType *);
-
 protected:
   CXXTypeManager(KModule *);
 
@@ -64,7 +55,7 @@ protected:
 
 public:
   virtual KType *getWrappedType(llvm::Type *) override;
-  virtual void handleAlloc(ref<Expr>) override;
+  virtual KType *handleAlloc() override;
 
   static TypeManager *getTypeManager(KModule *);
 };
@@ -124,7 +115,7 @@ protected:
   CXXKCompositeType(KType *, TypeManager *);
 
 public:
-  void insert(KType *, ref<Expr>, ref<Expr> size);
+  virtual void imprintType(KType *, ref<Expr>, ref<Expr> size) override;
   virtual bool isAccessableFrom(CXXKType *) const override;
 
   static bool classof(const KType *);

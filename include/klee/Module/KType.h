@@ -9,6 +9,8 @@ namespace llvm {
 
 namespace klee {    
 class TypeManager;
+class Expr;
+template<class> class ref;
 
 class KType {
   friend TypeManager;
@@ -59,6 +61,8 @@ public:
    * Method to check if 2 types are compatible.
    */
   virtual bool isAccessableFrom(KType *accessingType) const;
+
+  virtual void imprintType(KType *, ref<Expr>, ref<Expr>);
 
   /**
    * Returns the stored raw llvm type.  

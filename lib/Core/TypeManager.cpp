@@ -38,7 +38,10 @@ KType *TypeManager::getWrappedType(llvm::Type *type) {
 }
 
 
-void TypeManager::handleAlloc(ref<Expr>) {}
+KType *TypeManager::handleAlloc() {
+  return getWrappedType(nullptr);
+}
+
 
 /**
  * Performs initialization for struct types, including inner types.

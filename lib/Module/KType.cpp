@@ -1,3 +1,5 @@
+#include "klee/ADT/Ref.h"
+#include "klee/Expr/Expr.h"
 #include "klee/Module/KType.h"
 #include "klee/Module/KModule.h"
 
@@ -28,3 +30,5 @@ llvm::Type *KType::getRawType() const {
 KType::TypeSystemKind KType::getTypeSystemKind() const {
   return typeSystemKind; 
 }
+
+void KType::imprintType(KType *, ref<Expr>, ref<Expr>) {}

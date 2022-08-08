@@ -45,8 +45,6 @@ const ObjectState *AddressSpace::findObject(const MemoryObject *mo) const {
 
 ObjectState *AddressSpace::getWriteable(const MemoryObject *mo,
                                         const ObjectState *os) {
-  assert(!os->readOnly);
-
   // If this address space owns they object, return it
   if (cowKey == os->copyOnWriteOwner)
     return const_cast<ObjectState*>(os);

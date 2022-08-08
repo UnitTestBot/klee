@@ -72,19 +72,18 @@ KType *CXXTypeManager::getWrappedType(llvm::Type *type) {
   return typesMap[type];
 }
 
-cxxtypes::CXXKCompositeType *
-CXXTypeManager::createCompositeType(cxxtypes::CXXKType *sourceType) {
-  assert(!llvm::isa<cxxtypes::CXXKCompositeType>(sourceType) &&
-         "Attempted to create composite type from composite type");
+
+
+/**
+ * We think about allocated memory as a memory without effective type,
+ * i.e. with llvm::Type == nullptr. 
+ */
+KType *CXXTypeManager::handleAlloc() {
   cxxtypes::CXXKCompositeType *compositeType =
-      new cxxtypes::CXXKCompositeType(sourceType, this);
+      new cxxtypes::CXXKCompositeType(getWrappedType(nullptr), this);
   types.emplace_back(compositeType);
   return compositeType;
 }
-
-
-
-void CXXTypeManager::handleAlloc(ref<Expr> address) {}
 
 
 
@@ -178,7 +177,8 @@ cxxtypes::CXXKCompositeType::CXXKCompositeType(KType *type, TypeManager *parent)
   typesLocations[0] = type;
 }
 
-void cxxtypes::CXXKCompositeType::insert(KType *type, ref<Expr> offset, ref<Expr> size) {
+
+void cxxtypes::CXXKCompositeType::imprintType(KType *type, ref<Expr> offset, ref<Expr> size) {
   /*
    * We want to check adjacent types to ensure, that we did not overlapped
    * nothing, and if we overlapped, move bounds for types or even remove them.
@@ -195,7 +195,7 @@ void cxxtypes::CXXKCompositeType::insert(KType *type, ref<Expr> offset, ref<Expr
     
     /* We support C-style principle of effective type. 
     TODO:  this might be not appropriate for C++, as C++ has 
-    "placement new" operator, but in case of C ot is OK. 
+    "placement new" operator, but in case of C it is OK. 
     Therefore we assume, that we write in memory with no
     effective type, i.e. does not overloap any objects 
     before. */

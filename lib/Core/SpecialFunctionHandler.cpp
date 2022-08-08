@@ -466,8 +466,7 @@ void SpecialFunctionHandler::handleNew(ExecutionState &state,
   assert(arguments.size()==1 && "invalid number of arguments to new");
   assert(target->inst->getType() && "New instruction must have a type");
   executor.executeAlloc(state, arguments[0], false, target, 
-                        executor.typeSystemManager->getWrappedType(target->inst->getType()));
-  executor.typeSystemManager->handleAlloc(executor.getDestCell(state, target).value);
+                        executor.typeSystemManager->handleAlloc());
 }
 
 void SpecialFunctionHandler::handleDelete(ExecutionState &state,
@@ -488,8 +487,7 @@ void SpecialFunctionHandler::handleNewArray(ExecutionState &state,
   assert(arguments.size()==1 && "invalid number of arguments to new[]");
   assert(target->inst->getType() && "New instruction must have a type");
   executor.executeAlloc(state, arguments[0], false, target, 
-                        executor.typeSystemManager->getWrappedType(target->inst->getType()));
-  executor.typeSystemManager->handleAlloc(executor.getDestCell(state, target).value);
+                        executor.typeSystemManager->handleAlloc());
 }
 
 void SpecialFunctionHandler::handleDeleteArray(ExecutionState &state,
@@ -505,7 +503,7 @@ void SpecialFunctionHandler::handleMalloc(ExecutionState &state,
                                   std::vector<ref<Expr> > &arguments) {
   // XXX should type check args
   assert(arguments.size()==1 && "invalid number of arguments to malloc");
-  executor.executeAlloc(state, arguments[0], false, target, executor.typeSystemManager->getWrappedType(nullptr));
+  executor.executeAlloc(state, arguments[0], false, target, executor.typeSystemManager->handleAlloc());
 }
 
 void SpecialFunctionHandler::handleMemalign(ExecutionState &state,
@@ -539,7 +537,7 @@ void SpecialFunctionHandler::handleMemalign(ExecutionState &state,
         0, "Symbolic alignment for memalign. Choosing smallest alignment");
   }
 
-  executor.executeAlloc(state, arguments[1], false, target, executor.typeSystemManager->getWrappedType(nullptr), false, 0,
+  executor.executeAlloc(state, arguments[1], false, target, executor.typeSystemManager->handleAlloc(), false, 0,
                         alignment);
 }
 
@@ -803,7 +801,7 @@ void SpecialFunctionHandler::handleCalloc(ExecutionState &state,
 
   ref<Expr> size = MulExpr::create(arguments[0],
                                    arguments[1]);
-  executor.executeAlloc(state, size, false, target, executor.typeSystemManager->getWrappedType(nullptr), true);
+  executor.executeAlloc(state, size, false, target, executor.typeSystemManager->handleAlloc(), true);
 }
 
 void SpecialFunctionHandler::handleRealloc(ExecutionState &state,

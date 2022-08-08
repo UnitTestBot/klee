@@ -155,7 +155,7 @@ cl::opt<bool> LazyInstantiation(
 cl::opt<bool> StrictAliasingRule(
     "strict-aliasing",
     llvm::cl::desc("Turn's on rules based on strict aliasing rule"),
-    llvm::cl::init(true));
+    llvm::cl::init(false));
 } // namespace klee
 
 namespace {
@@ -4783,18 +4783,21 @@ void Executor::executeMemoryOperation(ExecutionState &state,
     if (inBounds) {
       ref<Expr> result;
       const ObjectState *os = op.second;
+
+      ObjectState *wos = state.addressSpace.getWriteable(mo, os);
+      wos->dynamicType->imprintType(targetType, offset, ConstantExpr::alloc(size, Expr::Int64));
+      
       switch (operation) {
       case Write:
         if (os->readOnly) {
           terminateStateOnError(state, "memory error: object read only",
                                 ReadOnly);
         } else {
-          ObjectState *wos = state.addressSpace.getWriteable(mo, os);
           wos->write(offset, value);
         }
         break;
       case Read:
-        result = os->read(offset, type);
+        result = wos->read(offset, type);
 
         if (interpreterOpts.MakeConcreteSymbolic)
           result = replaceReadWithSymbolic(state, result);
@@ -4863,19 +4866,22 @@ void Executor::executeMemoryOperation(ExecutionState &state,
       ExecutionState *bound_inner = branches_inner.first;
       ExecutionState *unbound_inner = branches_inner.second;
       if(bound_inner) {
+        ObjectState *wos = bound_inner->addressSpace.getWriteable(mo, os);
+        wos->dynamicType->imprintType(targetType, mo->getOffsetExpr(address),
+                                      ConstantExpr::alloc(size, Expr::Int64));
+
         switch (operation) {
           case Write: {
             if (os->readOnly) {
               terminateStateOnError(*bound_inner, "memory error: object read only",
                                     ReadOnly);
             } else {
-              ObjectState *wos = bound_inner->addressSpace.getWriteable(mo, os);
               wos->write(mo->getOffsetExpr(address), value);
             }
             break;
           }
           case Read: {
-            ref<Expr> result = os->read(mo->getOffsetExpr(address), type);
+            ref<Expr> result = wos->read(mo->getOffsetExpr(address), type);            
             bindLocal(target, *bound_inner, result);
             break;
           }

@@ -120,7 +120,6 @@ ObjectState::ObjectState(const ObjectState &os)
     dynamicType(os.dynamicType),
     size(os.size),
     readOnly(false) {
-  assert(!os.readOnly && "no need to copy read only object?");
   if (os.knownSymbolics) {
     knownSymbolics = new ref<Expr>[size];
     for (unsigned i=0; i<size; i++)
@@ -486,7 +485,6 @@ ref<Expr> ObjectState::read(unsigned offset, Expr::Width width) const {
 void ObjectState::write(ref<Expr> offset, ref<Expr> value) {
   // Truncate offset to 32-bits.
   offset = ZExtExpr::create(offset, Expr::Int32);
-
   // Check for writes at constant offsets.
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(offset)) {
     write(CE->getZExtValue(32), value);
