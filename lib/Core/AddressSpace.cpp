@@ -97,7 +97,7 @@ bool AddressSpace::resolveOne(ExecutionState &state,
     for (auto &moa : state.symbolics) {
       const ObjectState *os = findObject(moa.first.get());
       if (moa.first->isLazyInstantiated() && moa.first->getLazyInstantiatedSource() == address) {
-        if (!StrictAliasingRule || os->isAccessableFrom(objectType)) {
+        if (os->isAccessableFrom(objectType)) {
           symHack = const_cast<MemoryObject *>(moa.first.get());
           break;
         }
@@ -127,7 +127,7 @@ bool AddressSpace::resolveOne(ExecutionState &state,
       const MemoryObject *mo = res->first;
     
       if (example - mo->address < mo->size) {
-        if (!StrictAliasingRule || res->second->isAccessableFrom(objectType)) {
+        if (res->second->isAccessableFrom(objectType)) {
           result.first = res->first;
           result.second = res->second.get();
           success = true;
@@ -174,7 +174,7 @@ bool AddressSpace::resolveOne(ExecutionState &state,
     for (oi=start; oi!=end; ++oi) {
       const auto &mo = oi->first;
       
-      if (StrictAliasingRule && !oi->second->isAccessableFrom(objectType)) {
+      if (!oi->second->isAccessableFrom(objectType)) {
         continue;
       }
       

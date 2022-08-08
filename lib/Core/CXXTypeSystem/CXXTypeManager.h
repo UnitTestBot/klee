@@ -57,9 +57,6 @@ private:
 
   cxxtypes::CXXKCompositeType *createCompositeType(cxxtypes::CXXKType *);
 
-  ExprHashMap<cxxtypes::CXXKType *> pendingTypeWrites;
-  ExprHashSet newAllocationAddresses;
-
 protected:
   CXXTypeManager(KModule *);
 
@@ -67,10 +64,6 @@ protected:
 
 public:
   virtual KType *getWrappedType(llvm::Type *) override;
-
-  virtual void handleFunctionCall(llvm::Function *,
-                                  std::vector<ref<Expr>> &) override;
-  virtual void handleBitcast(KType *, ref<Expr>) override;
   virtual void handleAlloc(ref<Expr>) override;
 
   static TypeManager *getTypeManager(KModule *);
@@ -122,17 +115,17 @@ class CXXKCompositeType : public CXXKType {
   friend CXXTypeManager;
 
 private:
-  // FIXME: we want to use offsets
-  // std::map<size_t, KType *> typesLocations;
-  std::unordered_set<KType *> insertedTypes;
+  bool containsSymbolic = false;
+
+  std::map<size_t, KType *> typesLocations;
+  std::unordered_map<KType *, unsigned> insertedTypes;
 
 protected:
   CXXKCompositeType(KType *, TypeManager *);
 
 public:
-  void insert(KType *, size_t);
+  void insert(KType *, ref<Expr>, ref<Expr> size);
   virtual bool isAccessableFrom(CXXKType *) const override;
-  virtual std::vector<KType *> getAccessableInnerTypes(KType *) const override;
 
   static bool classof(const KType *);
 };

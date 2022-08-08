@@ -28,14 +28,3 @@ llvm::Type *KType::getRawType() const {
 KType::TypeSystemKind KType::getTypeSystemKind() const {
   return typeSystemKind; 
 }
-
-std::vector<KType *> KType::getAccessableInnerTypes(KType *accessingType) const {
-  std::vector<KType *> result;
-  for (auto &innerTypesToOffsets : innerTypes) {
-    KType *innerType = innerTypesToOffsets.first;
-    if (innerType->isAccessableFrom(accessingType)) {
-      result.emplace_back(innerType);
-    }
-  }
-  return result;
-}

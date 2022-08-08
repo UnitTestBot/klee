@@ -82,45 +82,11 @@ CXXTypeManager::createCompositeType(cxxtypes::CXXKType *sourceType) {
   return compositeType;
 }
 
-/**
- * Handles function calls for constructors, as they can modify
- * type, written in memory. Also notice, that whit function
- * takes arguments by non-constant reference to modify types
- * in memory object.
- */
-void CXXTypeManager::handleFunctionCall(llvm::Function *function,
-                                        std::vector<ref<Expr>> &args) {
-  /* Fast path resolution */
-  if (!function && !function->hasName()) {
-    return;
-  }
 
-  llvm::StringRef functionName = function->getName();
 
-  llvm::ItaniumPartialDemangler demangler;
-  if (!demangler.partialDemangle(functionName.begin()) &&
-      demangler.isCtorOrDtor() && args.size() != 0) {
-    size_t size = DEMANGLER_BUFFER_SIZE;
-    char buf[DEMANGLER_BUFFER_SIZE];
+void CXXTypeManager::handleAlloc(ref<Expr> address) {}
 
-    /* Determine if it is a ctor */
-    if (demangler.getFunctionBaseName(buf, &size)[0] != '~') {
-      pendingTypeWrites[args[0]] = cast<cxxtypes::CXXKType>(
-          getWrappedType(function->begin()->getType()));
-    }
-  }
-}
 
-void CXXTypeManager::handleAlloc(ref<Expr> address) {
-  newAllocationAddresses.insert(address);
-}
-
-void CXXTypeManager::handleBitcast(KType *typeCastTo, ref<Expr> address) {
-  if (newAllocationAddresses.count(address)) {
-    newAllocationAddresses.erase(address);
-    pendingTypeWrites[address] = cast<cxxtypes::CXXKType>(typeCastTo);
-  }
-}
 
 void CXXTypeManager::postInitModule() {
   for (auto &global : parent->module->globals()) {
@@ -208,47 +174,71 @@ bool cxxtypes::CXXKType::classof(const KType *requestedType) {
 cxxtypes::CXXKCompositeType::CXXKCompositeType(KType *type, TypeManager *parent)
     : CXXKType(type->getRawType(), parent) {
   typeKind = CXXTypeKind::COMPOSITE;
-  insertedTypes.insert(type);
-  /// FIXME:
-  // typesLocations[0] = type;
+  insertedTypes.emplace(type, 0);
+  typesLocations[0] = type;
 }
 
-void cxxtypes::CXXKCompositeType::insert(KType *type, size_t offset) {
+void cxxtypes::CXXKCompositeType::insert(KType *type, ref<Expr> offset, ref<Expr> size) {
   /*
    * We want to check adjacent types to ensure, that we did not overlapped
    * nothing, and if we overlapped, move bounds for types or even remove them.
    */
-  insertedTypes.insert(type);
-  /// FIXME:
-  // typesLocations[offset] = type;
+  ConstantExpr *offsetConstant = dyn_cast<ConstantExpr>(offset);
+  ConstantExpr *sizeConstant = dyn_cast<ConstantExpr>(size);
+
+  if (offsetConstant && sizeConstant && !containsSymbolic) {
+    uint64_t offsetValue= offsetConstant->getZExtValue();
+    uint64_t sizeValue = sizeConstant->getZExtValue();
+    
+    std::vector<size_t> toDelete;
+
+    
+    /* We support C-style principle of effective type. 
+    TODO:  this might be not appropriate for C++, as C++ has 
+    "placement new" operator, but in case of C ot is OK. 
+    Therefore we assume, that we write in memory with no
+    effective type, i.e. does not overloap any objects 
+    before. */
+
+    for (auto it = typesLocations.lower_bound(offsetValue);
+              it != typesLocations.end() && offsetValue + sizeValue < it->first; ++it) {
+      toDelete.push_back(it->first);
+    }
+    
+    for (size_t offsetToDelete : toDelete) {
+      if (--insertedTypes[typesLocations[offsetToDelete]] == 0) {
+        insertedTypes.erase(typesLocations[offsetToDelete]);
+      }
+      typesLocations.erase(offsetToDelete);
+    }
+    
+    typesLocations[offsetValue] = type;
+    if (typesLocations.count(offsetValue + sizeValue) == 0) {
+      typesLocations[offsetValue + sizeValue] = nullptr;
+    }
+  }
+  else {
+    /* 
+     * If we have written object by a symbolic address, we will use 
+     * simplified representation for Composite Type, as it is too
+     * dificult to determine relative location of objects in memory
+     * (requires query the solver at least).
+    */
+    containsSymbolic = true;
+  }
+  ++insertedTypes[type];
 }
 
 bool cxxtypes::CXXKCompositeType::isAccessableFrom(
     CXXKType *accessingType) const {
-  //// FIXME:
-  // for (auto &it : typesLocations) {
-  //   if (it.second->isAccessableFrom(accessingType)) {
-  //     return true;
-  //   }
-  // }
   for (auto &it : insertedTypes) {
-    if (it->isAccessableFrom(accessingType)) {
+    if (it.first->isAccessableFrom(accessingType)) {
       return true;
     }
   }
   return false;
 }
 
-std::vector<KType *> cxxtypes::CXXKCompositeType::getAccessableInnerTypes(
-    KType *requestedType) const {
-  std::vector<KType *> result = KType::getAccessableInnerTypes(requestedType);
-  for (auto nestedType : insertedTypes) {
-    if (nestedType->isAccessableFrom(requestedType)) {
-      result.push_back(nestedType);
-    }
-  }
-  return result;
-}
 
 bool cxxtypes::CXXKCompositeType::classof(const KType *requestedType) {
   if (!llvm::isa<CXXKType>(requestedType)) {

@@ -17,6 +17,7 @@ class KType;
 class KModule;
 struct KInstruction;
 template <class> class ref;
+template <class> class ExprHashMap;
 
 /**
  * Default class for managing type system.
@@ -51,11 +52,7 @@ protected:
   
 public:
   virtual KType *getWrappedType(llvm::Type *);
-
   virtual void handleAlloc(ref<Expr>);
-  virtual void handleBitcast(KType *, ref<Expr>);
-  virtual void handleFunctionCall(llvm::Function *, std::vector<ref<Expr>> &);
-
 
   virtual ~TypeManager() = default;
 

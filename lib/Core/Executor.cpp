@@ -155,7 +155,7 @@ cl::opt<bool> LazyInstantiation(
 cl::opt<bool> StrictAliasingRule(
     "strict-aliasing",
     llvm::cl::desc("Turn's on rules based on strict aliasing rule"),
-    llvm::cl::init(false));
+    llvm::cl::init(true));
 } // namespace klee
 
 namespace {
@@ -2161,7 +2161,6 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
     for (unsigned k = 0; k < numFormals; k++)
       bindArgument(kf, k, state, arguments[k]);
   }
-  typeSystemManager->handleFunctionCall(f, arguments);
 }
 
 void Executor::transferToBasicBlock(BasicBlock *dst, BasicBlock *src,
@@ -2982,7 +2981,6 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     }
 
     bindLocal(ki, state, result);
-    typeSystemManager->handleBitcast(typeSystemManager->getWrappedType(castToType), result);
     break;
   }
 
@@ -4840,8 +4838,6 @@ void Executor::executeMemoryOperation(ExecutionState &state,
 
   // XXX there is some query wasteage here. who cares?
   ExecutionState *unbound = &state;
-
-  ref<Expr> aliasingFailure = ConstantExpr::alloc(0, 1); 
 
   for (ResolutionList::iterator i = rl.begin(), ie = rl.end(); i != ie; ++i) {
     const MemoryObject *mo = i->first;

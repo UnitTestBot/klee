@@ -65,11 +65,6 @@ public:
    */
   llvm::Type *getRawType() const;
 
-  /**
-   * Returns list of all accessible inner types for this KType. 
-   */
-  virtual std::vector<KType *> getAccessableInnerTypes(KType *) const;
-
   TypeSystemKind getTypeSystemKind() const;
 
   virtual ~KType() = default;

@@ -2,6 +2,7 @@
 
 #include "klee/ADT/Ref.h"
 #include "klee/Expr/Expr.h"
+#include "klee/Expr/ExprHashMap.h"
 #include "klee/Module/KInstruction.h"
 #include "klee/Module/KModule.h"
 #include "klee/Module/KType.h"
@@ -36,16 +37,8 @@ KType *TypeManager::getWrappedType(llvm::Type *type) {
   return typesMap[type];
 }
 
-/**
- * "Language-specific function", as calls in high level languages
- * can affect type system. By default, it does nothing.
- */
-void TypeManager::handleFunctionCall(llvm::Function *,
-                                     std::vector<ref<Expr>> &) {}
 
 void TypeManager::handleAlloc(ref<Expr>) {}
-
-void TypeManager::handleBitcast(KType *, ref<Expr>) {}
 
 /**
  * Performs initialization for struct types, including inner types.
