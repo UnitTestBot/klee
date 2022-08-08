@@ -4785,7 +4785,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
       const ObjectState *os = op.second;
 
       ObjectState *wos = state.addressSpace.getWriteable(mo, os);
-      wos->dynamicType->imprintType(targetType, offset, ConstantExpr::alloc(size, Expr::Int64));
+      wos->dynamicType->handleMemoryAccess(targetType, offset, ConstantExpr::alloc(size, Expr::Int64));
       
       switch (operation) {
       case Write:
@@ -4867,7 +4867,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
       ExecutionState *unbound_inner = branches_inner.second;
       if(bound_inner) {
         ObjectState *wos = bound_inner->addressSpace.getWriteable(mo, os);
-        wos->dynamicType->imprintType(targetType, mo->getOffsetExpr(address),
+        wos->dynamicType->handleMemoryAccess(targetType, mo->getOffsetExpr(address),
                                       ConstantExpr::alloc(size, Expr::Int64));
 
         switch (operation) {

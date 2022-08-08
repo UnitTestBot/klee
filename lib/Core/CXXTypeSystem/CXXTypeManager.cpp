@@ -16,6 +16,7 @@
 #include "llvm/Support/Casting.h"
 
 #include <cassert>
+#include <utility>
 
 #include "llvm/Support/raw_ostream.h"
 
@@ -32,7 +33,7 @@ CXXTypeManager::CXXTypeManager(KModule *parent) : TypeManager(parent) {}
  */
 KType *CXXTypeManager::getWrappedType(llvm::Type *type) {
   if (typesMap.count(type) == 0) {
-    KType *kt = nullptr;
+    cxxtypes::CXXKType *kt = nullptr;
 
     /* Special case when type is unknown */
     if (type == nullptr) {
@@ -78,9 +79,9 @@ KType *CXXTypeManager::getWrappedType(llvm::Type *type) {
  * We think about allocated memory as a memory without effective type,
  * i.e. with llvm::Type == nullptr. 
  */
-KType *CXXTypeManager::handleAlloc() {
+KType *CXXTypeManager::handleAlloc(ref<Expr> size) {
   cxxtypes::CXXKCompositeType *compositeType =
-      new cxxtypes::CXXKCompositeType(getWrappedType(nullptr), this);
+      new cxxtypes::CXXKCompositeType(getWrappedType(nullptr), this, size);
   types.emplace_back(compositeType);
   return compositeType;
 }
@@ -170,15 +171,25 @@ bool cxxtypes::CXXKType::classof(const KType *requestedType) {
 }
 
 /* Composite type */
-cxxtypes::CXXKCompositeType::CXXKCompositeType(KType *type, TypeManager *parent)
+cxxtypes::CXXKCompositeType::CXXKCompositeType(KType *type, TypeManager *parent, ref<Expr> objectSize)
     : CXXKType(type->getRawType(), parent) {
   typeKind = CXXTypeKind::COMPOSITE;
-  insertedTypes.emplace(type, 0);
-  typesLocations[0] = type;
+  
+  if (ConstantExpr *CE = llvm::dyn_cast<ConstantExpr>(objectSize)) {
+    size_t size = CE->getZExtValue();
+    if (type->getRawType() == nullptr) {
+      ++nonTypedMemorySegments[size];
+    }
+    typesLocations[0] = std::make_pair(type, size);
+  }
+  else {
+    containsSymbolic = true;
+  }
+  insertedTypes.emplace(type);
 }
 
 
-void cxxtypes::CXXKCompositeType::imprintType(KType *type, ref<Expr> offset, ref<Expr> size) {
+void cxxtypes::CXXKCompositeType::handleMemoryAccess(KType *type, ref<Expr> offset, ref<Expr> size) {
   /*
    * We want to check adjacent types to ensure, that we did not overlapped
    * nothing, and if we overlapped, move bounds for types or even remove them.
@@ -189,10 +200,7 @@ void cxxtypes::CXXKCompositeType::imprintType(KType *type, ref<Expr> offset, ref
   if (offsetConstant && sizeConstant && !containsSymbolic) {
     uint64_t offsetValue= offsetConstant->getZExtValue();
     uint64_t sizeValue = sizeConstant->getZExtValue();
-    
-    std::vector<size_t> toDelete;
-
-    
+     
     /* We support C-style principle of effective type. 
     TODO:  this might be not appropriate for C++, as C++ has 
     "placement new" operator, but in case of C it is OK. 
@@ -200,21 +208,43 @@ void cxxtypes::CXXKCompositeType::imprintType(KType *type, ref<Expr> offset, ref
     effective type, i.e. does not overloap any objects 
     before. */
 
-    for (auto it = typesLocations.lower_bound(offsetValue);
-              it != typesLocations.end() && offsetValue + sizeValue < it->first; ++it) {
-      toDelete.push_back(it->first);
+    if (typesLocations.count(offsetValue) &&
+        typesLocations[offsetValue].first->getRawType() != nullptr) {
+      return;
     }
+
+    auto it = std::prev(typesLocations.upper_bound(offsetValue));
+    size_t tail = 0;
+
+    size_t prevOffsetValue = it->first;
+    size_t prevSizeValue = it->second.second;
     
-    for (size_t offsetToDelete : toDelete) {
-      if (--insertedTypes[typesLocations[offsetToDelete]] == 0) {
-        insertedTypes.erase(typesLocations[offsetToDelete]);
+    /* Calculate number of non-typed bytes after object */
+    if (prevOffsetValue + prevSizeValue > offsetValue + sizeValue) {
+      tail = (prevOffsetValue + prevSizeValue) - (offsetValue + sizeValue);
+    }
+
+    /* We will possibly cut this object belowe. So let's 
+    decrease counter immediately */
+    if (--nonTypedMemorySegments[prevSizeValue] == 0) {
+      nonTypedMemorySegments.erase(prevSizeValue);
+      if (nonTypedMemorySegments.empty()) {
+        insertedTypes.erase(it->second.first);
       }
-      typesLocations.erase(offsetToDelete);
     }
-    
-    typesLocations[offsetValue] = type;
-    if (typesLocations.count(offsetValue + sizeValue) == 0) {
-      typesLocations[offsetValue + sizeValue] = nullptr;
+
+    /* Calculate space remaining for non-typed memory in the beginning */
+    if (offsetValue - prevOffsetValue != 0) {
+      it->second.second = std::min(prevSizeValue, offsetValue - prevOffsetValue);
+      ++nonTypedMemorySegments[prevSizeValue];
+    } else {  
+      typesLocations.erase(it);  
+    }
+
+    typesLocations[offsetValue] = std::make_pair(type, sizeValue);
+    if (typesLocations.count(offsetValue + sizeValue) == 0 && tail != 0) {
+      ++nonTypedMemorySegments[tail];
+      typesLocations[offsetValue + sizeValue] = std::make_pair(parent->getWrappedType(nullptr), tail);
     }
   }
   else {
@@ -226,13 +256,13 @@ void cxxtypes::CXXKCompositeType::imprintType(KType *type, ref<Expr> offset, ref
     */
     containsSymbolic = true;
   }
-  ++insertedTypes[type];
+  insertedTypes.emplace(type);
 }
 
 bool cxxtypes::CXXKCompositeType::isAccessableFrom(
     CXXKType *accessingType) const {
   for (auto &it : insertedTypes) {
-    if (it.first->isAccessableFrom(accessingType)) {
+    if (it->isAccessableFrom(accessingType)) {
       return true;
     }
   }
@@ -375,7 +405,7 @@ cxxtypes::CXXKArrayType::CXXKArrayType(llvm::Type *type, TypeManager *parent)
   assert(llvm::isa<CXXKType>(elementKType) &&
          "Type manager returned non CXX type for array element");
   elementType = cast<CXXKType>(elementKType);
-  arraySize = rawArrayType->getArrayNumElements();
+  arrayElementsCount = rawArrayType->getArrayNumElements();
 }
 
 bool cxxtypes::CXXKArrayType::isAccessableFrom(CXXKType *accessingType) const {
@@ -394,7 +424,7 @@ bool cxxtypes::CXXKArrayType::innerIsAccessableFrom(
 bool cxxtypes::CXXKArrayType::innerIsAccessableFrom(
     CXXKArrayType *accessingType) const {
   /// TODO: support arrays of unknown size
-  return (arraySize == accessingType->arraySize) &&
+  return (arrayElementsCount == accessingType->arrayElementsCount) &&
          elementType->isAccessableFrom(accessingType->elementType);
 }
 

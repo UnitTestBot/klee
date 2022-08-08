@@ -62,7 +62,7 @@ public:
    */
   virtual bool isAccessableFrom(KType *accessingType) const;
 
-  virtual void imprintType(KType *, ref<Expr>, ref<Expr>);
+  virtual void handleMemoryAccess(KType *, ref<Expr>, ref<Expr>);
 
   /**
    * Returns the stored raw llvm type.  

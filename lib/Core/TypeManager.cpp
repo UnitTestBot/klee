@@ -38,7 +38,7 @@ KType *TypeManager::getWrappedType(llvm::Type *type) {
 }
 
 
-KType *TypeManager::handleAlloc() {
+KType *TypeManager::handleAlloc(ref<Expr> size) {
   return getWrappedType(nullptr);
 }
 

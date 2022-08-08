@@ -55,7 +55,7 @@ protected:
 
 public:
   virtual KType *getWrappedType(llvm::Type *) override;
-  virtual KType *handleAlloc() override;
+  virtual KType *handleAlloc(ref<Expr> size) override;
 
   static TypeManager *getTypeManager(KModule *);
 };
@@ -107,15 +107,16 @@ class CXXKCompositeType : public CXXKType {
 
 private:
   bool containsSymbolic = false;
+  std::unordered_map<size_t, unsigned> nonTypedMemorySegments;
 
-  std::map<size_t, KType *> typesLocations;
-  std::unordered_map<KType *, unsigned> insertedTypes;
+  std::map<size_t, std::pair<KType *, size_t>> typesLocations;
+  std::unordered_set<KType *> insertedTypes;
 
 protected:
-  CXXKCompositeType(KType *, TypeManager *);
+  CXXKCompositeType(KType *, TypeManager *, ref<Expr>);
 
 public:
-  virtual void imprintType(KType *, ref<Expr>, ref<Expr> size) override;
+  virtual void handleMemoryAccess(KType *, ref<Expr>, ref<Expr> size) override;
   virtual bool isAccessableFrom(CXXKType *) const override;
 
   static bool classof(const KType *);
@@ -214,7 +215,7 @@ class CXXKArrayType : public CXXKType {
 
 private:
   CXXKType *elementType;
-  size_t arraySize;
+  size_t arrayElementsCount;
 
   bool innerIsAccessableFrom(CXXKType *) const;
   bool innerIsAccessableFrom(CXXKArrayType *) const;

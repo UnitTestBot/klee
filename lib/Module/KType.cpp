@@ -14,7 +14,6 @@ using namespace llvm;
 
 KType::KType(llvm::Type *type, TypeManager *parent) : type(type), parent(parent) {
   typeSystemKind = TypeSystemKind::LLVM;
-
   /* Type itself can be reached at offset 0 */
   innerTypes[this].emplace_back(0);
 }
@@ -31,4 +30,4 @@ KType::TypeSystemKind KType::getTypeSystemKind() const {
   return typeSystemKind; 
 }
 
-void KType::imprintType(KType *, ref<Expr>, ref<Expr>) {}
+void KType::handleMemoryAccess(KType *, ref<Expr>, ref<Expr>) {}

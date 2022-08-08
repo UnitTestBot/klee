@@ -52,7 +52,7 @@ protected:
   
 public:
   virtual KType *getWrappedType(llvm::Type *);
-  virtual KType *handleAlloc();
+  virtual KType *handleAlloc(ref<Expr> size);
 
   virtual ~TypeManager() = default;
 
