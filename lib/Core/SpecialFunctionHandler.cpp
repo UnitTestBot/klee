@@ -827,16 +827,21 @@ void SpecialFunctionHandler::handleRealloc(ExecutionState &state,
                                                     true);
     
     if (zeroPointer.first) { // address == 0
-      executor.executeAlloc(*zeroPointer.first, size, false, target, executor.typeSystemManager->getWrappedType(nullptr));
+      executor.executeAlloc(*zeroPointer.first, size, false, target,
+                            executor.typeSystemManager->handleAlloc(size));
     } 
     if (zeroPointer.second) { // address != 0
       Executor::ExactResolutionList rl;
-      executor.resolveExact(*zeroPointer.second, address, executor.typeSystemManager->getWrappedType(nullptr), rl, "realloc");
-      
+      executor.resolveExact(*zeroPointer.second, address,
+                            executor.typeSystemManager->getWrappedType(nullptr), rl,
+                            "realloc");
+
       for (Executor::ExactResolutionList::iterator it = rl.begin(), 
              ie = rl.end(); it != ie; ++it) {
-        executor.executeAlloc(*it->second, size, false, target, executor.typeSystemManager->getWrappedType(nullptr), false, 
-                              it->first.second);
+        executor.executeAlloc(*it->second, size, false, target,
+                              executor.typeSystemManager->handleRealloc(
+                                  it->first.second->dynamicType, size),
+                              false, it->first.second);
       }
     }
   }

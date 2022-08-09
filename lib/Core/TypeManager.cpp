@@ -43,6 +43,11 @@ KType *TypeManager::handleAlloc(ref<Expr> size) {
 }
 
 
+KType *TypeManager::handleRealloc(KType *type, ref<Expr>) {
+  return type;
+}
+
+
 /**
  * Performs initialization for struct types, including inner types.
  * Note, that initialization for structs differs from initialization

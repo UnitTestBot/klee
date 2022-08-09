@@ -87,6 +87,51 @@ KType *CXXTypeManager::handleAlloc(ref<Expr> size) {
 }
 
 
+/**
+ * Creates a new type from this: copy all types from given 
+ * type, which lie in segment [address, addres + size).
+ */
+KType *CXXTypeManager::handleRealloc(KType *type, ref<Expr> size) {
+  /**
+   * C standard says that realloc can be called on memory, that were allocated
+   * using malloc, calloc, memalign, or realloc. Therefore, let's fail execution
+   * if this did not get appropriate pointer.
+   */
+  cxxtypes::CXXKCompositeType *reallocFromType = dyn_cast<cxxtypes::CXXKCompositeType>(type);
+  assert(reallocFromType && "handleRealloc called on non CompositeType");
+  
+  cxxtypes::CXXKCompositeType *resultType = dyn_cast<cxxtypes::CXXKCompositeType>(handleAlloc(size));
+  assert(resultType && "handleAlloc returned non CompositeType");  
+  
+  /**
+   * If we made realloc from simplified composite type or 
+   * allocated object with symbolic size, just return previous,
+   * as we do not care about inner structure of given type anymore. 
+   */
+  resultType->containsSymbolic = reallocFromType->containsSymbolic;
+  ConstantExpr *constantSize = llvm::dyn_cast<ConstantExpr>(size); 
+  if (reallocFromType->containsSymbolic || !constantSize) {
+    resultType->insertedTypes = reallocFromType->insertedTypes;
+    return resultType;
+  }
+
+  size_t sizeValue = constantSize->getZExtValue();
+  for (auto offsetToTypeSizePair = reallocFromType->typesLocations.begin(),
+            itEnd = reallocFromType->typesLocations.end();
+       offsetToTypeSizePair != itEnd; ++offsetToTypeSizePair) {
+    size_t prevOffset = offsetToTypeSizePair->first;
+    KType *prevType = offsetToTypeSizePair->second.first;
+    size_t prevSize = offsetToTypeSizePair->second.second;
+
+    if (prevOffset < sizeValue) {
+      resultType->handleMemoryAccess(prevType, ConstantExpr::alloc(prevOffset, Context::get().getPointerWidth()),
+                                     ConstantExpr::alloc(prevSize, Context::get().getPointerWidth()));
+    }
+  }
+  return resultType;
+}
+
+
 
 void CXXTypeManager::postInitModule() {
   for (auto &global : parent->module->globals()) {
@@ -140,6 +185,7 @@ bool cxxtypes::CXXKType::isAccessableFrom(KType *accessingType) const {
     }
 
     /* TODO: debug output. Maybe put it in aditional log */
+    
     // type->print(llvm::outs() << "Accessing ");
     // accessingType->getRawType()->print(llvm::outs() << " from ");
     bool ok = isAccessableFrom(accessingCXXType);
@@ -208,12 +254,17 @@ void cxxtypes::CXXKCompositeType::handleMemoryAccess(KType *type, ref<Expr> offs
     effective type, i.e. does not overloap any objects 
     before. */
 
-    if (typesLocations.count(offsetValue) &&
-        typesLocations[offsetValue].first->getRawType() != nullptr) {
+    auto it = std::prev(typesLocations.upper_bound(offsetValue));
+    
+    /* We do not overwrite types in memory */
+    if (it->second.first->getRawType() != nullptr) {
+      return;
+    }
+    if (std::next(it) != typesLocations.end() &&
+        std::next(it)->first < offsetValue + sizeValue) {
       return;
     }
 
-    auto it = std::prev(typesLocations.upper_bound(offsetValue));
     size_t tail = 0;
 
     size_t prevOffsetValue = it->first;
@@ -228,9 +279,6 @@ void cxxtypes::CXXKCompositeType::handleMemoryAccess(KType *type, ref<Expr> offs
     decrease counter immediately */
     if (--nonTypedMemorySegments[prevSizeValue] == 0) {
       nonTypedMemorySegments.erase(prevSizeValue);
-      if (nonTypedMemorySegments.empty()) {
-        insertedTypes.erase(it->second.first);
-      }
     }
 
     /* Calculate space remaining for non-typed memory in the beginning */
@@ -246,6 +294,10 @@ void cxxtypes::CXXKCompositeType::handleMemoryAccess(KType *type, ref<Expr> offs
       ++nonTypedMemorySegments[tail];
       typesLocations[offsetValue + sizeValue] = std::make_pair(parent->getWrappedType(nullptr), tail);
     }
+
+    if (nonTypedMemorySegments.empty()) {
+      insertedTypes.erase(parent->getWrappedType(nullptr));
+    }
   }
   else {
     /* 
@@ -256,7 +308,10 @@ void cxxtypes::CXXKCompositeType::handleMemoryAccess(KType *type, ref<Expr> offs
     */
     containsSymbolic = true;
   }
-  insertedTypes.emplace(type);
+  /* We do not want to add nullptr type to composite type */
+  if (type->getRawType() != nullptr) {
+    insertedTypes.emplace(type);
+  }
 }
 
 bool cxxtypes::CXXKCompositeType::isAccessableFrom(
@@ -489,7 +544,7 @@ bool cxxtypes::CXXKFunctionType::innerIsAccessableFrom(
   }
 
   /*
-   * FIXME: We need to check return value, but it can differ though.
+   * FIXME: We need to check return value, but it can differ though in llvm IR.
    * E.g., first member in structs is i32 (...), that can be accessed later
    * by void (...). Need a research how to maintain it properly.
    */
@@ -535,7 +590,6 @@ bool cxxtypes::CXXKPointerType::innerIsAccessableFrom(
 
 bool cxxtypes::CXXKPointerType::isPointerToChar() const {
   if (llvm::isa<CXXKIntegerType>(elementType)) {
-    /// FIXME: we do not want to access raw type
     return (elementType->getRawType()->getIntegerBitWidth() == 8);
   }
   return false;

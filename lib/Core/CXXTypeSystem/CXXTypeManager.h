@@ -55,7 +55,8 @@ protected:
 
 public:
   virtual KType *getWrappedType(llvm::Type *) override;
-  virtual KType *handleAlloc(ref<Expr> size) override;
+  virtual KType *handleAlloc(ref<Expr>) override;
+  virtual KType *handleRealloc(KType *, ref<Expr>) override;
 
   static TypeManager *getTypeManager(KModule *);
 };
