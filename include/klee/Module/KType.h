@@ -4,46 +4,44 @@
 #include <unordered_map>
 #include <vector>
 namespace llvm {
-  class Type;
+class Type;
 }
 
-namespace klee {    
+namespace klee {
 class TypeManager;
 class Expr;
-template<class> class ref;
+template <class> class ref;
 
 class KType {
   friend TypeManager;
+
 protected:
   /**
    * Represents type of used TypeManager. Required
-   * for llvm RTTI. 
+   * for llvm RTTI.
    */
-  enum TypeSystemKind {
-    LLVM, 
-    CXX
-  } typeSystemKind;
+  enum TypeSystemKind { LLVM, CXX } typeSystemKind;
 
   /**
    * Wrapped type.
    */
   llvm::Type *type;
-  
+
   /**
    * Owning type manager system. Note, that only it can
    * create instances of KTypes.
    */
   TypeManager *parent;
-  
+
   /**
    * Innner types. Maps type to their offsets in current
-   * type. Should contain type itself and 
+   * type. Should contain type itself and
    * all types, that can be found in that object.
-   * For example, if object of type A contains object 
-   * of type B, then all types in B can be accessed via A. 
+   * For example, if object of type A contains object
+   * of type B, then all types in B can be accessed via A.
    */
-  std::unordered_map<KType*, std::vector<uint64_t>> innerTypes;
-  
+  std::unordered_map<KType *, std::vector<uint64_t>> innerTypes;
+
   KType(llvm::Type *, TypeManager *);
 
   /**
@@ -62,10 +60,10 @@ public:
    */
   virtual bool isAccessableFrom(KType *accessingType) const;
 
-  virtual void handleMemoryAccess(KType *, ref<Expr>, ref<Expr>);
+  virtual void handleMemoryAccess(KType *, ref<Expr>, ref<Expr>, bool isWrite);
 
   /**
-   * Returns the stored raw llvm type.  
+   * Returns the stored raw llvm type.
    */
   llvm::Type *getRawType() const;
 
@@ -73,6 +71,6 @@ public:
 
   virtual ~KType() = default;
 };
-}
+} // namespace klee
 
 #endif

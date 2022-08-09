@@ -17,7 +17,7 @@
 namespace llvm {
 class Type;
 class Function;
-}
+} // namespace llvm
 
 namespace klee {
 class Expr;
@@ -117,7 +117,8 @@ protected:
   CXXKCompositeType(KType *, TypeManager *, ref<Expr>);
 
 public:
-  virtual void handleMemoryAccess(KType *, ref<Expr>, ref<Expr> size) override;
+  virtual void handleMemoryAccess(KType *, ref<Expr>, ref<Expr> size,
+                                  bool isWrite) override;
   virtual bool isAccessableFrom(CXXKType *) const override;
 
   static bool classof(const KType *);

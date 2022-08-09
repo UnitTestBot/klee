@@ -2889,8 +2889,11 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
   case Instruction::Load: {
     ref<Expr> base = eval(ki, 0, state).value;
-    executeMemoryOperation(state, Read, typeSystemManager->getWrappedType(cast<llvm::LoadInst>(ki->inst)->getPointerOperandType()), 
-                           base, nullptr, ki);
+    executeMemoryOperation(
+        state, Read,
+        typeSystemManager->getWrappedType(
+            cast<llvm::LoadInst>(ki->inst)->getPointerOperandType()),
+        base, nullptr, ki);
     break;
   }
 
@@ -4785,10 +4788,12 @@ void Executor::executeMemoryOperation(ExecutionState &state,
       const ObjectState *os = op.second;
 
       ObjectState *wos = state.addressSpace.getWriteable(mo, os);
-      wos->dynamicType->handleMemoryAccess(targetType, offset, ConstantExpr::alloc(size, Expr::Int64));
       
       switch (operation) {
       case Write:
+        wos->dynamicType->handleMemoryAccess(
+            targetType, offset,
+            ConstantExpr::alloc(size, Context::get().getPointerWidth()), true);
         if (os->readOnly) {
           terminateStateOnError(state, "memory error: object read only",
                                 ReadOnly);
@@ -4797,6 +4802,9 @@ void Executor::executeMemoryOperation(ExecutionState &state,
         }
         break;
       case Read:
+        wos->dynamicType->handleMemoryAccess(
+          targetType, offset,
+          ConstantExpr::alloc(size, Context::get().getPointerWidth()), false);
         result = wos->read(offset, type);
 
         if (interpreterOpts.MakeConcreteSymbolic)
@@ -4867,11 +4875,13 @@ void Executor::executeMemoryOperation(ExecutionState &state,
       ExecutionState *unbound_inner = branches_inner.second;
       if(bound_inner) {
         ObjectState *wos = bound_inner->addressSpace.getWriteable(mo, os);
-        wos->dynamicType->handleMemoryAccess(targetType, mo->getOffsetExpr(address),
-                                      ConstantExpr::alloc(size, Expr::Int64));
 
         switch (operation) {
           case Write: {
+            wos->dynamicType->handleMemoryAccess(
+                targetType, mo->getOffsetExpr(address),
+                ConstantExpr::alloc(size, Context::get().getPointerWidth()),
+                true);
             if (os->readOnly) {
               terminateStateOnError(*bound_inner, "memory error: object read only",
                                     ReadOnly);
@@ -4881,6 +4891,10 @@ void Executor::executeMemoryOperation(ExecutionState &state,
             break;
           }
           case Read: {
+            wos->dynamicType->handleMemoryAccess(
+                targetType, mo->getOffsetExpr(address),
+                ConstantExpr::alloc(size, Context::get().getPointerWidth()),
+                false);
             ref<Expr> result = wos->read(mo->getOffsetExpr(address), type);            
             bindLocal(target, *bound_inner, result);
             break;
@@ -5116,7 +5130,13 @@ ExecutionState* Executor::formState(Function *f,
     bindArgument(kf, i, *state, arguments[i]);
 
   if (argvMO) {
-    ObjectState *argvOS = bindObjectInState(*state, argvMO, typeSystemManager->getWrappedType(nullptr), false);
+    llvm::Type *argumentType = llvm::PointerType::get(
+        llvm::IntegerType::get(kmodule->module->getContext(), 8),
+        kmodule->targetData->getProgramAddressSpace());
+
+    llvm::Type *argvType = llvm::ArrayType::get(argumentType, 1);
+
+    ObjectState *argvOS = bindObjectInState(*state, argvMO, typeSystemManager->getWrappedType(argvType), false);
 
     for (int i=0; i<argc+1+envc+1+1; i++) {
       if (i==argc || i>=argc+1+envc) {
@@ -5132,7 +5152,7 @@ ExecutionState* Executor::formState(Function *f,
                              /*alignment=*/8);
         if (!arg)
           klee_error("Could not allocate memory for function arguments");
-        ObjectState *os = bindObjectInState(*state, arg, typeSystemManager->getWrappedType(nullptr), false);
+        ObjectState *os = bindObjectInState(*state, arg, typeSystemManager->getWrappedType(argumentType), false);
         for (j=0; j<len+1; j++)
           os->write8(j, s[j]);
 

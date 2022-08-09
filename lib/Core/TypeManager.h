@@ -8,7 +8,7 @@
 namespace llvm {
 class Type;
 class Function;
-}
+} // namespace llvm
 
 namespace klee {
 
@@ -49,10 +49,9 @@ protected:
    */
   virtual void postInitModule();
 
-  
 public:
   virtual KType *getWrappedType(llvm::Type *);
-  
+
   virtual KType *handleAlloc(ref<Expr> size);
   virtual KType *handleRealloc(KType *, ref<Expr>);
 

@@ -37,16 +37,11 @@ KType *TypeManager::getWrappedType(llvm::Type *type) {
   return typesMap[type];
 }
 
-
 KType *TypeManager::handleAlloc(ref<Expr> size) {
   return getWrappedType(nullptr);
 }
 
-
-KType *TypeManager::handleRealloc(KType *type, ref<Expr>) {
-  return type;
-}
-
+KType *TypeManager::handleRealloc(KType *type, ref<Expr>) { return type; }
 
 /**
  * Performs initialization for struct types, including inner types.
@@ -78,22 +73,20 @@ void TypeManager::initTypesFromStructs() {
   std::vector<llvm::StructType *> sortedStructTypesGraph;
   std::unordered_set<llvm::Type *> visitedStructTypesGraph;
 
-  std::function<void(llvm::StructType *)> dfs =
-      [this,
-       &sortedStructTypesGraph,
-       &visitedStructTypesGraph,
-       &dfs](llvm::StructType *type) {
-        visitedStructTypesGraph.insert(type);
+  std::function<void(llvm::StructType *)> dfs = [this, &sortedStructTypesGraph,
+                                                 &visitedStructTypesGraph,
+                                                 &dfs](llvm::StructType *type) {
+    visitedStructTypesGraph.insert(type);
 
-        for (auto typeTo : type->elements()) {
-          getWrappedType(typeTo);
-          if (visitedStructTypesGraph.count(typeTo) == 0 && typeTo->isStructTy()) {
-            dfs(llvm::cast<llvm::StructType>(typeTo));
-          }
-        }
+    for (auto typeTo : type->elements()) {
+      getWrappedType(typeTo);
+      if (visitedStructTypesGraph.count(typeTo) == 0 && typeTo->isStructTy()) {
+        dfs(llvm::cast<llvm::StructType>(typeTo));
+      }
+    }
 
-        sortedStructTypesGraph.push_back(type);
-      };
+    sortedStructTypesGraph.push_back(type);
+  };
 
   for (auto &structType : collectedStructTypes) {
     dfs(structType);
