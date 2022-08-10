@@ -328,7 +328,7 @@ SpecialFunctionHandler::readStringAtAddress(ExecutionState &state,
     return "";
   }
   ref<ConstantExpr> address = cast<ConstantExpr>(addressExpr);
-  if (!state.addressSpace.resolveOne(address, executor.typeSystemManager->getWrappedType(nullptr), op)) {
+  if (!state.addressSpace.resolveOne(address, executor.typeSystemManager->getUnknownType(), op)) {
     executor.terminateStateOnError(
         state, "Invalid string pointer passed to one of the klee_ functions",
         Executor::TerminateReason::User);
@@ -628,7 +628,7 @@ void SpecialFunctionHandler::handlePreferCex(ExecutionState &state,
     cond = NeExpr::create(cond, ConstantExpr::alloc(0, cond->getWidth()));
 
   Executor::ExactResolutionList rl;
-  executor.resolveExact(state, arguments[0], executor.typeSystemManager->getWrappedType(nullptr), rl, "prefex_cex");
+  executor.resolveExact(state, arguments[0], executor.typeSystemManager->getUnknownType(), rl, "prefex_cex");
   
   assert(rl.size() == 1 &&
          "prefer_cex target must resolve to precisely one object");
@@ -734,7 +734,7 @@ void SpecialFunctionHandler::handleGetObjSize(ExecutionState &state,
   assert(arguments.size()==1 &&
          "invalid number of arguments to klee_get_obj_size");
   Executor::ExactResolutionList rl;
-  executor.resolveExact(state, arguments[0], executor.typeSystemManager->getWrappedType(nullptr), rl, "klee_get_obj_size");
+  executor.resolveExact(state, arguments[0], executor.typeSystemManager->getUnknownType(), rl, "klee_get_obj_size");
   for (Executor::ExactResolutionList::iterator it = rl.begin(), 
          ie = rl.end(); it != ie; ++it) {
     executor.bindLocal(
@@ -833,7 +833,7 @@ void SpecialFunctionHandler::handleRealloc(ExecutionState &state,
     if (zeroPointer.second) { // address != 0
       Executor::ExactResolutionList rl;
       executor.resolveExact(*zeroPointer.second, address,
-                            executor.typeSystemManager->getWrappedType(nullptr), rl,
+                            executor.typeSystemManager->getUnknownType(), rl,
                             "realloc");
 
       for (Executor::ExactResolutionList::iterator it = rl.begin(), 
@@ -873,7 +873,7 @@ void SpecialFunctionHandler::handleCheckMemoryAccess(ExecutionState &state,
     ObjectPair op;
 
     if (!state.addressSpace.resolveOne(cast<ConstantExpr>(address), 
-                                       executor.typeSystemManager->getWrappedType(nullptr), op)) {
+                                       executor.typeSystemManager->getUnknownType(), op)) {
       executor.terminateStateOnError(state,
                                      "check_memory_access: memory error",
 				     Executor::Ptr, NULL,
@@ -916,7 +916,7 @@ void SpecialFunctionHandler::handleDefineFixedObject(ExecutionState &state,
   MemoryObject *mo = executor.memory->allocateFixed(address, 
                                                     size,
                                                     state.prevPC->inst);
-  executor.bindObjectInState(state, mo, executor.typeSystemManager->getWrappedType(nullptr), false);
+  executor.bindObjectInState(state, mo, executor.typeSystemManager->getUnknownType(), false);
   mo->isUserSpecified = true; // XXX hack;
 }
 
@@ -938,7 +938,7 @@ void SpecialFunctionHandler::handleMakeSymbolic(ExecutionState &state,
   }
 
   Executor::ExactResolutionList rl;
-  executor.resolveExact(state, arguments[0], executor.typeSystemManager->getWrappedType(nullptr), rl, "make_symbolic");
+  executor.resolveExact(state, arguments[0], executor.typeSystemManager->getUnknownType(), rl, "make_symbolic");
   
   for (Executor::ExactResolutionList::iterator it = rl.begin(), 
          ie = rl.end(); it != ie; ++it) {
@@ -981,7 +981,7 @@ void SpecialFunctionHandler::handleMarkGlobal(ExecutionState &state,
          "invalid number of arguments to klee_mark_global");  
 
   Executor::ExactResolutionList rl;
-  executor.resolveExact(state, arguments[0], executor.typeSystemManager->getWrappedType(nullptr), rl, "mark_global");
+  executor.resolveExact(state, arguments[0], executor.typeSystemManager->getUnknownType(), rl, "mark_global");
   
   for (Executor::ExactResolutionList::iterator it = rl.begin(), 
          ie = rl.end(); it != ie; ++it) {

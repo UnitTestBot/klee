@@ -45,11 +45,6 @@ KType *CXXTypeManager::getWrappedType(llvm::Type *type) {
         unwrappedRawType = unwrappedRawType->getVectorElementType();
       }
 
-      /// TODO: debug
-      // type->print(llvm::outs() << "Registered ");
-      // unwrappedRawType->print(llvm::outs() << " as ");
-      // llvm::outs() << "\n";
-
       if (unwrappedRawType->isStructTy()) {
         kt = new cxxtypes::CXXKStructType(unwrappedRawType, this);
       } else if (unwrappedRawType->isIntegerTy()) {
@@ -79,7 +74,7 @@ KType *CXXTypeManager::getWrappedType(llvm::Type *type) {
  */
 KType *CXXTypeManager::handleAlloc(ref<Expr> size) {
   cxxtypes::CXXKCompositeType *compositeType =
-      new cxxtypes::CXXKCompositeType(getWrappedType(nullptr), this, size);
+      new cxxtypes::CXXKCompositeType(getUnknownType(), this, size);
   types.emplace_back(compositeType);
   return compositeType;
 }
@@ -183,14 +178,7 @@ bool cxxtypes::CXXKType::isAccessableFrom(KType *accessingType) const {
     if (isAccessingFromChar(accessingCXXType)) {
       return true;
     }
-
-    /* TODO: debug output. Maybe put it in aditional log */
-
-    // type->print(llvm::outs() << "Accessing ");
-    // accessingType->getRawType()->print(llvm::outs() << " from ");
     bool ok = isAccessableFrom(accessingCXXType);
-    // llvm::outs() << " : " << (ok ? "succeed" : "rejected") << "\n";
-
     return ok;
   }
   assert(false && "Attempted to compare raw llvm type with C++ type!");
@@ -257,11 +245,11 @@ void cxxtypes::CXXKCompositeType::handleMemoryAccess(KType *type,
     uint64_t sizeValue = sizeConstant->getZExtValue();
 
     /* We support C-style principle of effective type.
-    TODO:  this might be not appropriate for C++, as C++ has
+    This might be not appropriate for C++, as C++ has
     "placement new" operator, but in case of C it is OK.
     Therefore we assume, that we write in memory with no
-    effective type, i.e. does not overloap any objects
-    before. */
+    effective type, i.e. do not overloap objects placed in this 
+    object before. */
 
     auto it = std::prev(typesLocations.upper_bound(offsetValue));
 
@@ -303,11 +291,11 @@ void cxxtypes::CXXKCompositeType::handleMemoryAccess(KType *type,
     if (typesLocations.count(offsetValue + sizeValue) == 0 && tail != 0) {
       ++nonTypedMemorySegments[tail];
       typesLocations[offsetValue + sizeValue] =
-          std::make_pair(parent->getWrappedType(nullptr), tail);
+          std::make_pair(parent->getUnknownType(), tail);
     }
 
     if (nonTypedMemorySegments.empty()) {
-      insertedTypes.erase(parent->getWrappedType(nullptr));
+      insertedTypes.erase(parent->getUnknownType());
     }
   } else {
     /*

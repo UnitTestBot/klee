@@ -5,6 +5,7 @@
 #include <vector>
 namespace llvm {
 class Type;
+class raw_ostream;
 }
 
 namespace klee {
@@ -68,6 +69,8 @@ public:
   llvm::Type *getRawType() const;
 
   TypeSystemKind getTypeSystemKind() const;
+
+  virtual void print(llvm::raw_ostream &) const;
 
   virtual ~KType() = default;
 };

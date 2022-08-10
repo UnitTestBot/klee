@@ -55,6 +55,8 @@ public:
   virtual KType *handleAlloc(ref<Expr> size);
   virtual KType *handleRealloc(KType *, ref<Expr>);
 
+  KType *getUnknownType();
+
   virtual ~TypeManager() = default;
 
   static TypeManager *getTypeManager(KModule *);

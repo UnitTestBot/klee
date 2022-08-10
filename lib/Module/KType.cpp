@@ -28,3 +28,11 @@ KType::TypeSystemKind KType::getTypeSystemKind() const {
 }
 
 void KType::handleMemoryAccess(KType *, ref<Expr>, ref<Expr>, bool isWrite) {}
+
+void KType::print(llvm::raw_ostream &os) const {
+  if (type == nullptr) {
+    os << "nullptr";
+  } else {
+    type->print(os);
+  }
+}

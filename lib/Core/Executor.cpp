@@ -1656,7 +1656,7 @@ MemoryObject *Executor::serializeLandingpad(ExecutionState &state,
 
   MemoryObject *mo =
       memory->allocate(serialized.size(), true, false, nullptr, 1);
-  ObjectState *os = bindObjectInState(state, mo, typeSystemManager->getWrappedType(nullptr), false);
+  ObjectState *os = bindObjectInState(state, mo, typeSystemManager->getUnknownType(), false);
   for (unsigned i = 0; i < serialized.size(); i++) {
     os->write8(i, serialized[i]);
   }
@@ -1930,8 +1930,9 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
       // size. This happens to work for x86-32 and x86-64, however.
       Expr::Width WordSize = Context::get().getPointerWidth();
       if (WordSize == Expr::Int32) {
-        executeMemoryOperation(state, Write, typeSystemManager->getWrappedType(nullptr), arguments[0],
-                               sf.varargs->getBaseExpr(), nullptr);
+        executeMemoryOperation(
+            state, Write, typeSystemManager->getUnknownType(), arguments[0],
+            sf.varargs->getBaseExpr(), nullptr);
       } else {
         assert(WordSize == Expr::Int64 && "Unknown word size!");
 
@@ -1939,19 +1940,18 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
         // instead of implementing it, we can do a simple hack: just
         // make a function believe that all varargs are on stack.
         executeMemoryOperation(
-            state, Write, typeSystemManager->getWrappedType(nullptr),
-            arguments[0],
+            state, Write, typeSystemManager->getUnknownType(), arguments[0],
             ConstantExpr::create(48, 32), nullptr); // gp_offset
         executeMemoryOperation(
-            state, Write, typeSystemManager->getWrappedType(nullptr),
+            state, Write, typeSystemManager->getUnknownType(),
             AddExpr::create(arguments[0], ConstantExpr::create(4, 64)),
             ConstantExpr::create(304, 32), nullptr); // fp_offset
         executeMemoryOperation(
-            state, Write, typeSystemManager->getWrappedType(nullptr),
+            state, Write, typeSystemManager->getUnknownType(),
             AddExpr::create(arguments[0], ConstantExpr::create(8, 64)),
             sf.varargs->getBaseExpr(), nullptr); // overflow_arg_area
         executeMemoryOperation(
-            state, Write, typeSystemManager->getWrappedType(nullptr),
+            state, Write, typeSystemManager->getUnknownType(),
             AddExpr::create(arguments[0], ConstantExpr::create(16, 64)),
             ConstantExpr::create(0, 64), nullptr); // reg_save_area
       }
@@ -2130,7 +2130,7 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
               0, "While allocating varargs: malloc did not align to 16 bytes.");
         }
 
-        ObjectState *os = bindObjectInState(state, mo, typeSystemManager->getWrappedType(nullptr), true);
+        ObjectState *os = bindObjectInState(state, mo, typeSystemManager->getUnknownType(), true);
 
         llvm::Function::arg_iterator ati = std::next(f->arg_begin(), funcArgs);
         llvm::Type *argType = (ati == f->arg_end()) ? nullptr : ati->getType();
@@ -2900,8 +2900,11 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
   case Instruction::Store: {
     ref<Expr> base = eval(ki, 1, state).value;
     ref<Expr> value = eval(ki, 0, state).value;
-    executeMemoryOperation(state, Write, typeSystemManager->getWrappedType(cast<llvm::StoreInst>(ki->inst)->getPointerOperandType()),
-                           base, value, ki);
+    executeMemoryOperation(
+        state, Write,
+        typeSystemManager->getWrappedType(
+            cast<llvm::StoreInst>(ki->inst)->getPointerOperandType()),
+        base, value, ki);
     break;
   }
 
@@ -4658,7 +4661,7 @@ void Executor::executeFree(ExecutionState &state,
   }
   if (zeroPointer.second) { // address != 0
     ExactResolutionList rl;
-    resolveExact(*zeroPointer.second, address, typeSystemManager->getWrappedType(nullptr), rl,"free");
+    resolveExact(*zeroPointer.second, address, typeSystemManager->getUnknownType(), rl,"free");
     
     for (Executor::ExactResolutionList::iterator it = rl.begin(), 
            ie = rl.end(); it != ie; ++it) {
