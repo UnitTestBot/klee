@@ -155,7 +155,7 @@ cl::opt<bool> LazyInstantiation(
 cl::opt<bool> StrictAliasingRule(
     "strict-aliasing",
     llvm::cl::desc("Turn's on rules based on strict aliasing rule"),
-    llvm::cl::init(false));
+    llvm::cl::init(true));
 } // namespace klee
 
 namespace {
@@ -182,7 +182,7 @@ cl::opt<bool> EmitAllErrors(
 
 cl::opt<bool> SkipNotLazyAndSymbolicPointers(
     "skip-not-lazy-and-symbolic-pointers",
-    cl::init(false),
+    cl::init(true),
     cl::desc("Set pointers only on lazy and make_symbolic variables (default=false)"),
     cl::cat(TestGenCat));
 
@@ -4689,7 +4689,10 @@ void Executor::resolveExact(ExecutionState &state,
   p = optimizer.optimizeExpr(p, true);
   // XXX we may want to be capping this?
   ResolutionList rl;
-  state.addressSpace.resolve(state, solver, p, type, rl);
+  
+  /* We do not need this variable here, just a placeholder for resolve */
+  ResolutionList rlSkipped;
+  state.addressSpace.resolve(state, solver, p, type, rl, rlSkipped);
   
   
   ExecutionState *unbound = &state;
@@ -4826,27 +4829,28 @@ void Executor::executeMemoryOperation(ExecutionState &state,
 
   address = optimizer.optimizeExpr(address, true);
   ResolutionList rl;
+  ResolutionList rlSkipped;
+
   solver->setTimeout(coreSolverTimeout);
   bool incomplete;
 
   if (SkipNotLazyAndSymbolicPointers) {
     if (UseGEPExpr && isGEPExpr(address))
       incomplete = state.addressSpace.fastResolve(
-          state, solver, base, targetType, rl, 0,
-          coreSolverTimeout);
+          state, solver, base, targetType, rl, rlSkipped, 0, coreSolverTimeout);
     else
-      incomplete = state.addressSpace.fastResolve(state, solver, address, targetType,
-                                                  rl, 0, coreSolverTimeout);
+      incomplete =
+          state.addressSpace.fastResolve(state, solver, address, targetType, rl,
+                                         rlSkipped, 0, coreSolverTimeout);
   } else {
     if (UseGEPExpr && isGEPExpr(address))
       incomplete = state.addressSpace.resolve(
-          state, solver, base, targetType, rl, 0,
-          coreSolverTimeout);
+          state, solver, base, targetType, rl, rlSkipped, 0, coreSolverTimeout);
     else
-      incomplete = state.addressSpace.resolve(state, solver, address, targetType,
-                                                  rl, 0, coreSolverTimeout);
+      incomplete =
+          state.addressSpace.resolve(state, solver, address, targetType, rl,
+                                     rlSkipped, 0, coreSolverTimeout);
   }
-
 
   solver->setTimeout(time::Span());
 
@@ -4916,6 +4920,28 @@ void Executor::executeMemoryOperation(ExecutionState &state,
 
   // XXX should we distinguish out of bounds and overlapped cases?
   if (unbound) {
+    /* Now we will prepare constrains for skipped objects in order
+    to be sure, that lazy initialization will not allocate object
+    in one of the objects */
+    ref<Expr> addressInSkippedObjects = ConstantExpr::alloc(0, Expr::Bool);
+    for (auto &opSkipped : rlSkipped) {
+      addressInSkippedObjects = OrExpr::create(
+          addressInSkippedObjects, opSkipped.first->getBoundsCheckPointer(address));
+    }
+
+    /* We can use bound state to get interesting test case for objects, that
+    we've skipped later. */
+    StatePair sp = fork(*unbound, addressInSkippedObjects, true);
+    unbound = sp.second;
+    if (sp.first) {
+      terminateState(*sp.first);
+    }
+
+    if (!unbound) {
+      return;
+    }
+
+
     if (incomplete) {
       terminateStateEarly(*unbound, "Query timed out (resolve).");
     } else if (LazyInstantiation && (isa<ReadExpr>(address) || isa<ConcatExpr>(address) || (UseGEPExpr && isGEPExpr(address)))) {

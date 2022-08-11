@@ -108,7 +108,8 @@ namespace klee {
                  TimingSolver *solver,
                  ref<Expr> p,
                  KType *objectType,
-                 ResolutionList &rl, 
+                 ResolutionList &rl,
+                 ResolutionList &rlSkipped, 
                  unsigned maxResolutions=0,
                  time::Span timeout=time::Span()) const;
 
@@ -118,6 +119,7 @@ namespace klee {
                      ref<Expr> p,
                      KType *objectType,
                      ResolutionList &rl,
+                     ResolutionList &rlSkipped,
                      unsigned maxResolutions=0,
                      time::Span timeout=time::Span()) const;
 
