@@ -248,7 +248,7 @@ void cxxtypes::CXXKCompositeType::handleMemoryAccess(KType *type,
     This might be not appropriate for C++, as C++ has
     "placement new" operator, but in case of C it is OK.
     Therefore we assume, that we write in memory with no
-    effective type, i.e. do not overloap objects placed in this 
+    effective type, i.e. do not overloap objects placed in this
     object before. */
 
     auto it = std::prev(typesLocations.upper_bound(offsetValue));

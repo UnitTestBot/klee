@@ -328,7 +328,8 @@ SpecialFunctionHandler::readStringAtAddress(ExecutionState &state,
     return "";
   }
   ref<ConstantExpr> address = cast<ConstantExpr>(addressExpr);
-  if (!state.addressSpace.resolveOne(address, executor.typeSystemManager->getUnknownType(), op)) {
+  if (!state.addressSpace.resolveOne(
+          address, executor.typeSystemManager->getUnknownType(), op)) {
     executor.terminateStateOnError(
         state, "Invalid string pointer passed to one of the klee_ functions",
         Executor::TerminateReason::User);
@@ -463,9 +464,9 @@ void SpecialFunctionHandler::handleNew(ExecutionState &state,
                          KInstruction *target,
                          std::vector<ref<Expr> > &arguments) {
   // XXX should type check args
-  assert(arguments.size()==1 && "invalid number of arguments to new");
+  assert(arguments.size() == 1 && "invalid number of arguments to new");
   assert(target->inst->getType() && "New instruction must have a type");
-  executor.executeAlloc(state, arguments[0], false, target, 
+  executor.executeAlloc(state, arguments[0], false, target,
                         executor.typeSystemManager->handleAlloc(arguments[0]));
 }
 
@@ -484,9 +485,9 @@ void SpecialFunctionHandler::handleNewArray(ExecutionState &state,
                               KInstruction *target,
                               std::vector<ref<Expr> > &arguments) {
   // XXX should type check args
-  assert(arguments.size()==1 && "invalid number of arguments to new[]");
+  assert(arguments.size() == 1 && "invalid number of arguments to new[]");
   assert(target->inst->getType() && "New instruction must have a type");
-  executor.executeAlloc(state, arguments[0], false, target, 
+  executor.executeAlloc(state, arguments[0], false, target,
                         executor.typeSystemManager->handleAlloc(arguments[0]));
 }
 
@@ -503,7 +504,8 @@ void SpecialFunctionHandler::handleMalloc(ExecutionState &state,
                                   std::vector<ref<Expr> > &arguments) {
   // XXX should type check args
   assert(arguments.size()==1 && "invalid number of arguments to malloc");
-  executor.executeAlloc(state, arguments[0], false, target, executor.typeSystemManager->handleAlloc(arguments[0]));
+  executor.executeAlloc(state, arguments[0], false, target,
+                        executor.typeSystemManager->handleAlloc(arguments[0]));
 }
 
 void SpecialFunctionHandler::handleMemalign(ExecutionState &state,
@@ -628,8 +630,10 @@ void SpecialFunctionHandler::handlePreferCex(ExecutionState &state,
     cond = NeExpr::create(cond, ConstantExpr::alloc(0, cond->getWidth()));
 
   Executor::ExactResolutionList rl;
-  executor.resolveExact(state, arguments[0], executor.typeSystemManager->getUnknownType(), rl, "prefex_cex");
-  
+  executor.resolveExact(state, arguments[0],
+                        executor.typeSystemManager->getUnknownType(), rl,
+                        "prefex_cex");
+
   assert(rl.size() == 1 &&
          "prefer_cex target must resolve to precisely one object");
 
@@ -734,7 +738,9 @@ void SpecialFunctionHandler::handleGetObjSize(ExecutionState &state,
   assert(arguments.size()==1 &&
          "invalid number of arguments to klee_get_obj_size");
   Executor::ExactResolutionList rl;
-  executor.resolveExact(state, arguments[0], executor.typeSystemManager->getUnknownType(), rl, "klee_get_obj_size");
+  executor.resolveExact(state, arguments[0],
+                        executor.typeSystemManager->getUnknownType(), rl,
+                        "klee_get_obj_size");
   for (Executor::ExactResolutionList::iterator it = rl.begin(), 
          ie = rl.end(); it != ie; ++it) {
     executor.bindLocal(
@@ -759,15 +765,14 @@ void SpecialFunctionHandler::handleGetErrno(ExecutionState &state,
 
   // Retrieve the memory object of the errno variable
   ObjectPair result;
-  llvm::Type *pointer_errno_addr = llvm::PointerType::get(
-    llvm::IntegerType::get(executor.kmodule->module->getContext(), sizeof(*errno_addr) * 8),
-    executor.kmodule->targetData->getProgramAddressSpace()
-  );
+  llvm::Type *pointerErrnoAddr = llvm::PointerType::get(
+      llvm::IntegerType::get(executor.kmodule->module->getContext(),
+                             sizeof(*errno_addr) * 8),
+      executor.kmodule->targetData->getProgramAddressSpace());
 
   bool resolved = state.addressSpace.resolveOne(
       ConstantExpr::create((uint64_t)errno_addr, Expr::Int64),
-      executor.typeSystemManager->getWrappedType(pointer_errno_addr),
-      result);
+      executor.typeSystemManager->getWrappedType(pointerErrnoAddr), result);
   if (!resolved)
     executor.terminateStateOnError(state, "Could not resolve address for errno",
                                    Executor::User);
@@ -802,7 +807,8 @@ void SpecialFunctionHandler::handleCalloc(ExecutionState &state,
 
   ref<Expr> size = MulExpr::create(arguments[0],
                                    arguments[1]);
-  executor.executeAlloc(state, size, false, target, executor.typeSystemManager->handleAlloc(size), true);
+  executor.executeAlloc(state, size, false, target,
+                        executor.typeSystemManager->handleAlloc(size), true);
 }
 
 void SpecialFunctionHandler::handleRealloc(ExecutionState &state,
@@ -819,13 +825,12 @@ void SpecialFunctionHandler::handleRealloc(ExecutionState &state,
                                                true);
   
   if (zeroSize.first) { // size == 0
-    executor.executeFree(*zeroSize.first, address, target);   
+    executor.executeFree(*zeroSize.first, address, target);
   }
   if (zeroSize.second) { // size != 0
-    Executor::StatePair zeroPointer = executor.fork(*zeroSize.second, 
-                                                    Expr::createIsZero(address), 
-                                                    true);
-    
+    Executor::StatePair zeroPointer =
+        executor.fork(*zeroSize.second, Expr::createIsZero(address), true);
+
     if (zeroPointer.first) { // address == 0
       executor.executeAlloc(*zeroPointer.first, size, false, target,
                             executor.typeSystemManager->handleAlloc(size));
@@ -840,7 +845,7 @@ void SpecialFunctionHandler::handleRealloc(ExecutionState &state,
              ie = rl.end(); it != ie; ++it) {
         executor.executeAlloc(*it->second, size, false, target,
                               executor.typeSystemManager->handleRealloc(
-                                  it->first.second->dynamicType, size),
+                                  it->first.second->getDynamicType(), size),
                               false, it->first.second);
       }
     }
@@ -872,8 +877,9 @@ void SpecialFunctionHandler::handleCheckMemoryAccess(ExecutionState &state,
   } else {
     ObjectPair op;
 
-    if (!state.addressSpace.resolveOne(cast<ConstantExpr>(address), 
-                                       executor.typeSystemManager->getUnknownType(), op)) {
+    if (!state.addressSpace.resolveOne(
+            cast<ConstantExpr>(address),
+            executor.typeSystemManager->getUnknownType(), op)) {
       executor.terminateStateOnError(state,
                                      "check_memory_access: memory error",
 				     Executor::Ptr, NULL,
@@ -910,13 +916,13 @@ void SpecialFunctionHandler::handleDefineFixedObject(ExecutionState &state,
          "expect constant address argument to klee_define_fixed_object");
   assert(isa<ConstantExpr>(arguments[1]) &&
          "expect constant size argument to klee_define_fixed_object");
-  
+
   uint64_t address = cast<ConstantExpr>(arguments[0])->getZExtValue();
   uint64_t size = cast<ConstantExpr>(arguments[1])->getZExtValue();
-  MemoryObject *mo = executor.memory->allocateFixed(address, 
-                                                    size,
-                                                    state.prevPC->inst);
-  executor.bindObjectInState(state, mo, executor.typeSystemManager->getUnknownType(), false);
+  MemoryObject *mo =
+      executor.memory->allocateFixed(address, size, state.prevPC->inst);
+  executor.bindObjectInState(
+      state, mo, executor.typeSystemManager->getUnknownType(), false);
   mo->isUserSpecified = true; // XXX hack;
 }
 
@@ -938,8 +944,10 @@ void SpecialFunctionHandler::handleMakeSymbolic(ExecutionState &state,
   }
 
   Executor::ExactResolutionList rl;
-  executor.resolveExact(state, arguments[0], executor.typeSystemManager->getUnknownType(), rl, "make_symbolic");
-  
+  executor.resolveExact(state, arguments[0],
+                        executor.typeSystemManager->getUnknownType(), rl,
+                        "make_symbolic");
+
   for (Executor::ExactResolutionList::iterator it = rl.begin(), 
          ie = rl.end(); it != ie; ++it) {
     const MemoryObject *mo = it->first.first;
@@ -965,7 +973,8 @@ void SpecialFunctionHandler::handleMakeSymbolic(ExecutionState &state,
     assert(success && "FIXME: Unhandled solver failure");
     
     if (res) {
-      executor.executeMakeSymbolic(*s, mo, it->first.second->dynamicType, name, false);
+      executor.executeMakeSymbolic(*s, mo, it->first.second->getDynamicType(),
+                                   name, false);
     } else {      
       executor.terminateStateOnError(*s, 
                                      "wrong size given to klee_make_symbolic[_name]", 
@@ -981,8 +990,10 @@ void SpecialFunctionHandler::handleMarkGlobal(ExecutionState &state,
          "invalid number of arguments to klee_mark_global");  
 
   Executor::ExactResolutionList rl;
-  executor.resolveExact(state, arguments[0], executor.typeSystemManager->getUnknownType(), rl, "mark_global");
-  
+  executor.resolveExact(state, arguments[0],
+                        executor.typeSystemManager->getUnknownType(), rl,
+                        "mark_global");
+
   for (Executor::ExactResolutionList::iterator it = rl.begin(), 
          ie = rl.end(); it != ie; ++it) {
     const MemoryObject *mo = it->first.first;

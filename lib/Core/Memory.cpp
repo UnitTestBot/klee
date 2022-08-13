@@ -19,6 +19,7 @@
 #include "klee/Support/OptionCategories.h"
 #include "klee/Solver/Solver.h"
 #include "klee/Support/ErrorHandling.h"
+#include "klee/Module/KType.h"
 
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instruction.h"
@@ -119,7 +120,7 @@ ObjectState::ObjectState(const ObjectState &os)
     updates(os.updates),
     dynamicType(os.dynamicType),
     size(os.size),
-    readOnly(false) {
+    readOnly(os.readOnly) {
   if (os.knownSymbolics) {
     knownSymbolics = new ref<Expr>[size];
     for (unsigned i=0; i<size; i++)
@@ -129,12 +130,9 @@ ObjectState::ObjectState(const ObjectState &os)
   memcpy(concreteStore, os.concreteStore, size*sizeof(*concreteStore));
 }
 
-
-ObjectState::ObjectState(const ObjectState &os, KType *dt) 
-  : ObjectState(os) {
+ObjectState::ObjectState(const ObjectState &os, KType *dt) : ObjectState(os) {
   dynamicType = dt;
 }
-
 
 ObjectState::~ObjectState() {
   delete concreteMask;
@@ -585,6 +583,10 @@ void ObjectState::print() const {
   for (const auto *un = updates.head.get(); un; un = un->next.get()) {
     llvm::errs() << "\t\t[" << un->index << "] = " << un->value << "\n";
   }
+}
+
+KType *ObjectState::getDynamicType() const {
+  return dynamicType;
 }
 
 bool ObjectState::isAccessableFrom(KType *accessingType) const {

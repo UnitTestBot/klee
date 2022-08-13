@@ -6,7 +6,7 @@
 namespace llvm {
 class Type;
 class raw_ostream;
-}
+} // namespace llvm
 
 namespace klee {
 class TypeManager;
@@ -61,6 +61,9 @@ public:
    */
   virtual bool isAccessableFrom(KType *accessingType) const;
 
+  /**
+   * Handler for possible memory access. By default does nothing.
+   */
   virtual void handleMemoryAccess(KType *, ref<Expr>, ref<Expr>, bool isWrite);
 
   /**

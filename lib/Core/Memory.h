@@ -16,7 +16,6 @@
 
 #include "Context.h"
 #include "TimingSolver.h"
-#include "klee/Module/KType.h"
 
 #include "klee/Expr/Expr.h"
 
@@ -36,6 +35,8 @@ class BitArray;
 class ExecutionState;
 class MemoryManager;
 class Solver;
+class KType;
+
 class MemoryObject {
   friend class STPBuilder;
   friend class ObjectState;
@@ -66,7 +67,6 @@ public:
 
   MemoryManager *parent;
 
-  
   /// "Location" for which this memory object was allocated. This
   /// should be either the allocating instruction or the global object
   /// it was allocated for (or whatever else makes sense).
@@ -84,8 +84,6 @@ public:
 
 public:
   // XXX this is just a temp hack, should be removed
-
-
   explicit
   MemoryObject(uint64_t _address) 
     : id(counter++),
@@ -229,9 +227,9 @@ private:
   // mutable because we may need flush during read of const
   mutable UpdateList updates;
 
-public:
   KType *dynamicType;
 
+public:
   unsigned size;
 
   bool readOnly;
@@ -282,6 +280,9 @@ public:
                             const ExecutionState &state) const;
 
   bool isAccessableFrom(KType *) const;
+
+  KType *getDynamicType() const;
+
 private:
   const UpdateList &getUpdates() const;
 

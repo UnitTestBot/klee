@@ -34,7 +34,6 @@ namespace llvm {
   class Instruction;
   class Module;
   class DataLayout;
-  class Type;
 
   /// Compute the true target of a function call, resolving LLVM aliases
   /// and bitcasts.
@@ -50,13 +49,11 @@ namespace klee {
   struct KInstruction;
   class KModule;
   struct KFunction;
-  class KType;
   template<class T> class ref;
 
   enum KBlockType {
     Base,
     Call,
-    Alloc
   };
 
   struct KBlock {
@@ -93,7 +90,6 @@ namespace klee {
     explicit KCallBlock(KFunction*, llvm::BasicBlock*, KModule*,
                     std::map<llvm::Instruction*, unsigned>&, std::map<unsigned, KInstruction*>&,
                     llvm::Function*, KInstruction **);
-
     KBlockType getKBlockType() const override { return KBlockType::Call; };
     static bool classof(const KBlock *kblock) {
       return kblock->getKBlockType() == KBlockType::Call;

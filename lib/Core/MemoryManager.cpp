@@ -18,12 +18,9 @@
 
 #include "klee/Expr/Expr.h"
 #include "klee/Support/ErrorHandling.h"
-#include "klee/Module/KType.h"
 
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/MathExtras.h"
-
-#include "llvm/IR/Instructions.h"
 
 #include <inttypes.h>
 #include <sys/mman.h>
@@ -112,6 +109,7 @@ MemoryObject *MemoryManager::allocate(uint64_t size, bool isLocal,
     klee_warning_once(0, "Large alloc: %" PRIu64
                          " bytes.  KLEE may run out of memory.",
                       size);
+
   // Return NULL if size is zero, this is equal to error during allocation
   if (NullOnZeroMalloc && size == 0)
     return 0;
@@ -176,10 +174,8 @@ MemoryObject *MemoryManager::allocateFixed(uint64_t address, uint64_t size,
 #endif
 
   ++stats::allocations;
-
   MemoryObject *res =
       new MemoryObject(address, size, false, true, true, allocSite, this);
-
   objects.insert(res);
   return res;
 }

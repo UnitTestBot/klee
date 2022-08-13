@@ -21,13 +21,10 @@
 #include "klee/Module/Cell.h"
 #include "klee/Module/InstructionInfoTable.h"
 #include "klee/Module/KInstruction.h"
-#include "klee/Module/KType.h"
 #include "klee/Module/KModule.h"
 #include "klee/Support/Debug.h"
 #include "klee/Support/ErrorHandling.h"
 #include "klee/Support/ModuleUtil.h"
-#include "llvm/IR/InstIterator.h"
-
 
 #if LLVM_VERSION_CODE >= LLVM_VERSION(4, 0)
 #include "llvm/Bitcode/BitcodeWriter.h"
@@ -46,7 +43,6 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/ValueSymbolTable.h"
 #include "llvm/IR/Verifier.h"
-#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/Linker/Linker.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Path.h"
@@ -62,8 +58,6 @@
 #endif
 
 #include <sstream>
-#include <unordered_map>
-#include <unordered_set>
 
 using namespace llvm;
 using namespace klee;
@@ -450,6 +444,7 @@ void KModule::manifest(InterpreterHandler *ih, bool forceSourceOutput) {
   }
 
   /* Build shadow structures */
+
   infos = std::unique_ptr<InstructionInfoTable>(
       new InstructionInfoTable(*module.get()));
 
@@ -505,8 +500,6 @@ void KModule::manifest(InterpreterHandler *ih, bool forceSourceOutput) {
     llvm::errs() << "]\n";
   }
 }
-
-
 
 void KModule::checkModule() {
   InstructionOperandTypeCheckPass *operandTypeCheckPass =
@@ -666,16 +659,11 @@ KFunction::KFunction(llvm::Function *_function,
   // The first arg_size() registers are reserved for formals.
   unsigned rnum = numArgs;
 
-  std::map<llvm::Value *, llvm::Type *> bitcast2type;
   for (llvm::Function::iterator bbit = function->begin(),
          bbie = function->end(); bbit != bbie; ++bbit) {
     for (llvm::BasicBlock::iterator it = bbit->begin(), ie = bbit->end();
-         it != ie; ++it) {
-      if (it->getOpcode() == Instruction::BitCast && bitcast2type.count(it->getOperand(0)) == 0) {
-        bitcast2type.emplace(it->getOperand(0), it->getType());
-      }
+         it != ie; ++it)
       registerMap[&*it] = rnum++;
-    }
   }
   numRegisters = rnum;
 
@@ -792,7 +780,6 @@ KBlock::KBlock(KFunction *_kfunction, llvm::BasicBlock *block, KModule *km,
     reg2inst[registerMap[&*it]] = ki;
   }
 }
-
 
 KCallBlock::KCallBlock(KFunction *_kfunction, llvm::BasicBlock *block, KModule *km,
                     std::map<Instruction*, unsigned> &registerMap, std::map<unsigned, KInstruction*> &reg2inst,
