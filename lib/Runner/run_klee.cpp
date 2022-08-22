@@ -162,8 +162,7 @@ namespace {
     const int MAX_PROCESS_NUMBER = 50;
     cl::opt<int> ProcessNumber(
         "process-number",
-        cl::desc("Number of parallel process in klee, must lie in [1, " +
-                 std::to_string(MAX_PROCESS_NUMBER) + "] (default = 1)."),
+        cl::desc("Number of parallel process in klee, must lie in [1, 50] (default = 1)."),
         cl::init(1), cl::cat(StartCat));
 
     cl::opt<std::string>

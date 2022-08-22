@@ -970,7 +970,7 @@ void SpecialFunctionHandler::handleTypeMismatchV1(
       executor.toConstant(state, pointerExpr, "handleTypeMismatchV1");
   if (pointer->isZero()) {
     executor.terminateStateOnError(state, "invalid usage of null pointer",
-                                   StateTerminationType::UndefinedBehaviour);
+                                   StateTerminationType::UndefinedBehavior);
     return;
   } else {
     auto pointerAddress = pointer->getAPValue().getZExtValue();
@@ -978,7 +978,7 @@ void SpecialFunctionHandler::handleTypeMismatchV1(
             "either misaligned address for %p or invalid usage of address %p with "
             "insufficient space",
             pointerAddress, pointerAddress);
-    executor.terminateStateOnError(state, message, StateTerminationType::UndefinedBehaviour);
+    executor.terminateStateOnError(state, message, StateTerminationType::UndefinedBehavior);
   }
 }
 
@@ -996,13 +996,13 @@ void SpecialFunctionHandler::handleAlignmentAssumption(
   if (offset->isZero()) {
     auto message = formattedMessage("assumption of %llu byte alignment failed",
                                     alignmentValue);
-    executor.terminateStateOnError(state, message, StateTerminationType::UndefinedBehaviour);
+    executor.terminateStateOnError(state, message, StateTerminationType::UndefinedBehavior);
   } else {
     auto message = formattedMessage("assumption of %llu byte alignment (with "
                                     "offset of %llu byte) for pointer "
                                     "failed",
                                     alignmentValue, offsetValue);
-    executor.terminateStateOnError(state, message, StateTerminationType::UndefinedBehaviour);
+    executor.terminateStateOnError(state, message, StateTerminationType::UndefinedBehavior);
   }
 }
 
@@ -1045,14 +1045,14 @@ void SpecialFunctionHandler::handleShiftOutOfBounds(
     ExecutionState &state, KInstruction *target,
     std::vector<ref<Expr>> &arguments) {
   executor.terminateStateOnError(state, "shifted value is invalid",
-                                 StateTerminationType::UndefinedBehaviour);
+                                 StateTerminationType::UndefinedBehavior);
 }
 
 void SpecialFunctionHandler::handleOutOfBounds(
     ExecutionState &state, KInstruction *target,
     std::vector<ref<Expr>> &arguments) {
   executor.terminateStateOnError(state, "index out of bounds",
-                                 StateTerminationType::UndefinedBehaviour);
+                                 StateTerminationType::UndefinedBehavior);
 }
 
 void SpecialFunctionHandler::handleBuiltinUnreachable(
@@ -1060,7 +1060,7 @@ void SpecialFunctionHandler::handleBuiltinUnreachable(
     std::vector<ref<Expr>> &arguments) {
   executor.terminateStateOnError(
       state, "execution reached an unreachable program point",
-      StateTerminationType::UndefinedBehaviour);
+      StateTerminationType::UndefinedBehavior);
 }
 
 void SpecialFunctionHandler::handleMissingReturn(
@@ -1070,7 +1070,7 @@ void SpecialFunctionHandler::handleMissingReturn(
       state,
       "execution reached the end of a value-returning function "
       "without returning a value",
-      StateTerminationType::UndefinedBehaviour);
+      StateTerminationType::UndefinedBehavior);
 }
 
 void SpecialFunctionHandler::handleVlaBoundNotPositive(
@@ -1079,7 +1079,7 @@ void SpecialFunctionHandler::handleVlaBoundNotPositive(
   executor.terminateStateOnError(state,
                                  "variable length array bound evaluates to "
                                  "non-positive value",
-                                 StateTerminationType::UndefinedBehaviour);
+                                 StateTerminationType::UndefinedBehavior);
 }
 
 void SpecialFunctionHandler::handleFloatCastOverflow(
@@ -1088,21 +1088,21 @@ void SpecialFunctionHandler::handleFloatCastOverflow(
   executor.terminateStateOnError(
       state,
       "floating point value is outside the range of representable values",
-      StateTerminationType::UndefinedBehaviour);
+      StateTerminationType::UndefinedBehavior);
 }
 
 void SpecialFunctionHandler::handleLoadInvalidValue(
     ExecutionState &state, KInstruction *target,
     std::vector<ref<Expr>> &arguments) {
   executor.terminateStateOnError(state, "load invalid value",
-                                 StateTerminationType::UndefinedBehaviour);
+                                 StateTerminationType::UndefinedBehavior);
 }
 
 void SpecialFunctionHandler::handleImplicitConversion(
     ExecutionState &state, KInstruction *target,
     std::vector<ref<Expr>> &arguments) {
   executor.terminateStateOnError(state, "invalid implicit conversion",
-                                 StateTerminationType::UndefinedBehaviour);
+                                 StateTerminationType::UndefinedBehavior);
 }
 
 void SpecialFunctionHandler::handleInvalidBuiltin(
@@ -1111,7 +1111,7 @@ void SpecialFunctionHandler::handleInvalidBuiltin(
   executor.terminateStateOnError(
       state,
       "passing zero to either ctz() or clz(), which is not a valid argument",
-      StateTerminationType::UndefinedBehaviour);
+      StateTerminationType::UndefinedBehavior);
 }
 
 void SpecialFunctionHandler::handleNonnullReturnV1(
@@ -1120,7 +1120,7 @@ void SpecialFunctionHandler::handleNonnullReturnV1(
   executor.terminateStateOnError(
       state,
       "null pointer returned from function declared to never return null",
-      StateTerminationType::UndefinedBehaviour);
+      StateTerminationType::UndefinedBehavior);
 }
 
 void SpecialFunctionHandler::handleNullabilityReturnV1(
@@ -1129,7 +1129,7 @@ void SpecialFunctionHandler::handleNullabilityReturnV1(
   executor.terminateStateOnError(
       state,
       "null pointer returned from function declared to never return null",
-      StateTerminationType::UndefinedBehaviour);
+      StateTerminationType::UndefinedBehavior);
 }
 
 void SpecialFunctionHandler::handleNonnullArg(
@@ -1138,7 +1138,7 @@ void SpecialFunctionHandler::handleNonnullArg(
   executor.terminateStateOnError(
       state,
       "null pointer passed as argument, which is declared to never be null",
-      StateTerminationType::UndefinedBehaviour);
+      StateTerminationType::UndefinedBehavior);
 }
 
 void SpecialFunctionHandler::handleNullabilityArg(
@@ -1147,7 +1147,7 @@ void SpecialFunctionHandler::handleNullabilityArg(
   executor.terminateStateOnError(
       state,
       "null pointer passed as argument, which is declared to never be null",
-      StateTerminationType::UndefinedBehaviour);
+      StateTerminationType::UndefinedBehavior);
 }
 
 void SpecialFunctionHandler::handlePointerOverflow(
@@ -1162,21 +1162,21 @@ void SpecialFunctionHandler::handlePointerOverflow(
   if (base->isZero() && result->isZero()) {
     executor.terminateStateOnError(state,
                                    "applying zero offset to null pointer",
-                                   StateTerminationType::UndefinedBehaviour);
+                                   StateTerminationType::UndefinedBehavior);
   } else if (base->isZero() && !result->isZero()) {
     auto message = formattedMessage(
         "applying non-zero offset %llu to null pointer", resultValue);
-    executor.terminateStateOnError(state, message, StateTerminationType::UndefinedBehaviour);
+    executor.terminateStateOnError(state, message, StateTerminationType::UndefinedBehavior);
   } else if (!base->isZero() && result->isZero()) {
     auto message = formattedMessage(
         "applying non-zero offset to non-null pointer %p produced null pointer",
         baseValue);
-    executor.terminateStateOnError(state, message, StateTerminationType::UndefinedBehaviour);
+    executor.terminateStateOnError(state, message, StateTerminationType::UndefinedBehavior);
   } else {
     auto message =
         formattedMessage("pointer arithmetic with base %p overflowed to %p",
                          baseValue, resultValue);
-    executor.terminateStateOnError(state, message, StateTerminationType::UndefinedBehaviour);
+    executor.terminateStateOnError(state, message, StateTerminationType::UndefinedBehavior);
   }
 }
 

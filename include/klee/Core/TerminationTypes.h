@@ -32,7 +32,8 @@
   TTYPE(Ptr, 16U, "ptr.err")                                                   \
   TTYPE(ReadOnly, 17U, "read_only.err")                                        \
   TTYPE(ReportError, 18U, "report_error.err")                                  \
-  MARK(PROGERR, 18U)                                                           \
+  TTYPE(UndefinedBehavior, 19U, "undefined_behavior.err")                      \
+  MARK(PROGERR, 19U)                                                           \
   TTYPE(User, 23U, "user.err")                                                 \
   MARK(USERERR, 23U)                                                           \
   TTYPE(Execution, 25U, "exec.err")                                            \
@@ -42,8 +43,7 @@
   TTYPE(Merge, 28U, "")                                                        \
   TTYPE(SilentExit, 29U, "")                                                   \
   TTYPE(Paused, 30U, "")                                                       \
-  TTYPE(UndefinedBehaviour, 31U, "")                                           \
-  MARK(END, 31U)
+  MARK(END, 30U)
 
 ///@brief Reason an ExecutionState got terminated.
 enum class StateTerminationType : std::uint8_t {
