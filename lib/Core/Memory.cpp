@@ -17,6 +17,7 @@
 #include "klee/Expr/ArrayCache.h"
 #include "klee/Expr/Assignment.h"
 #include "klee/Expr/Expr.h"
+#include "klee/Module/KType.h"
 #include "klee/Support/OptionCategories.h"
 #include "klee/Solver/Solver.h"
 #include "klee/Support/ErrorHandling.h"
@@ -76,7 +77,7 @@ void MemoryObject::getAllocInfo(std::string &result) const {
 
 /***/
 
-ObjectState::ObjectState(const MemoryObject *mo)
+ObjectState::ObjectState(const MemoryObject *mo, KType *dt)
   : copyOnWriteOwner(0),
     object(mo),
     concreteStore(new uint8_t[mo->size]),
@@ -85,6 +86,7 @@ ObjectState::ObjectState(const MemoryObject *mo)
     unflushedMask(nullptr),
     updates(nullptr, nullptr),
     lastUpdate(nullptr),
+    dynamicType(dt),
     size(mo->size),
     readOnly(false) {
   if (!UseConstantArrays) {
@@ -98,7 +100,7 @@ ObjectState::ObjectState(const MemoryObject *mo)
 }
 
 
-ObjectState::ObjectState(const MemoryObject *mo, const Array *array)
+ObjectState::ObjectState(const MemoryObject *mo, const Array *array, KType *dt)
   : copyOnWriteOwner(0),
     object(mo),
     concreteStore(new uint8_t[mo->size]),
@@ -106,6 +108,7 @@ ObjectState::ObjectState(const MemoryObject *mo, const Array *array)
     knownSymbolics(nullptr),
     unflushedMask(nullptr),
     updates(array, nullptr),
+    dynamicType(dt),
     size(mo->size),
     lastUpdate(nullptr),
     readOnly(false) {
@@ -122,9 +125,9 @@ ObjectState::ObjectState(const ObjectState &os)
     unflushedMask(os.unflushedMask ? new BitArray(*os.unflushedMask, os.size) : nullptr),
     updates(os.updates),
     lastUpdate(os.lastUpdate),
+    dynamicType(os.dynamicType),
     size(os.size),
-    readOnly(false) {
-  assert(!os.readOnly && "no need to copy read only object?");
+    readOnly(os.readOnly) {
   if (os.knownSymbolics) {
     knownSymbolics = new ref<Expr>[size];
     for (unsigned i=0; i<size; i++)
@@ -598,4 +601,12 @@ void ObjectState::print() const {
   for (const auto *un = updates.head.get(); un; un = un->next.get()) {
     llvm::errs() << "\t\t[" << un->index << "] = " << un->value << "\n";
   }
+}
+
+KType *ObjectState::getDynamicType() const {
+  return dynamicType;
+}
+
+bool ObjectState::isAccessableFrom(KType *accessingType) const {
+  return !UseTBAA || dynamicType->isAccessableFrom(accessingType);
 }

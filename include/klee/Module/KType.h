@@ -3,8 +3,9 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <unordered_map>
 #include <vector>
+#include <unordered_map>
+
 namespace llvm {
 class Type;
 class raw_ostream;

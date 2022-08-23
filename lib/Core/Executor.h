@@ -86,6 +86,7 @@ namespace klee {
   class StatsTracker;
   class TimingSolver;
   class TreeStreamWriter;
+  class TypeManager;
   class MergeHandler;
   class MergingSearcher;
   template<class T> class ref;
@@ -118,6 +119,8 @@ private:
   ExternalDispatcher *externalDispatcher;
   TimingSolver *solver;
   MemoryManager *memory;
+  TypeManager *typeSystemManager;
+
   std::set<ExecutionState*, ExecutionStateIDCompare> states;
   std::set<ExecutionState *, ExecutionStateIDCompare> pausedStates;
   StatsTracker *statsTracker;
@@ -229,9 +232,11 @@ private:
 
   void run(ExecutionState &initialState);
 
+  void initializeTypeManager();
+
   // Given a concrete object in our [klee's] address space, add it to 
   // objects checked code can reference.
-  MemoryObject *addExternalObject(ExecutionState &state, void *addr, 
+  MemoryObject *addExternalObject(ExecutionState &state, void *addr, KType *,
                                   unsigned size, bool isReadOnly);
 
   void initializeGlobalAlias(const llvm::Constant *c);
@@ -255,7 +260,8 @@ private:
                             std::vector< ref<Expr> > &arguments);
 
   ObjectState *bindObjectInState(ExecutionState &state, const MemoryObject *mo,
-                                 bool isLocal, const Array *array = 0);
+                                 KType *dynamicType, bool IsAlloca,
+                                 const Array *array = 0);
 
   /// Resolve a pointer to the memory objects it could point to the
   /// start of, forking execution when necessary and generating errors
@@ -267,7 +273,7 @@ private:
   /// beginning of.
   typedef std::vector<std::pair<IDType, ExecutionState *>> ExactResolutionList;
   void resolveExact(ExecutionState &state,
-                    ref<Expr> p,
+                    ref<Expr> p, KType *type,
                     ExactResolutionList &results,
                     const std::string &name);
 
@@ -290,13 +296,10 @@ private:
   /// \param allocationAlignment If non-zero, the given alignment is
   /// used. Otherwise, the alignment is deduced via
   /// Executor::getAllocationAlignment
-  void executeAlloc(ExecutionState &state,
-                    ref<Expr> size,
-                    bool isLocal,
-                    KInstruction *target,
-                    bool zeroMemory=false,
-                    const ObjectState *reallocFrom=0,
-                    size_t allocationAlignment=0);
+  void executeAlloc(ExecutionState &state, ref<Expr> size, bool isLocal,
+                    KInstruction *target, KType *type, bool zeroMemory = false,
+                    const ObjectState *reallocFrom = 0,
+                    size_t allocationAlignment = 0);
 
   /// Free the given address with checking for errors. If target is
   /// given it will be bound to 0 in the resulting states (this is a
@@ -326,13 +329,15 @@ private:
   // and perform the operation
   void executeMemoryOperation(ExecutionState &state,
                               bool isWrite,
+                              KType *targetType,
                               ref<Expr> address,
                               ref<Expr> value /* undef if read */,
                               KInstruction *target /* undef if write */);
 
   IDType lazyInitializeObject(ExecutionState &state, ref<Expr> address,
-                              KInstruction *target, uint64_t size);
+                              KInstruction *target, KType *targetType, uint64_t size);
   void executeMakeSymbolic(ExecutionState &state, const MemoryObject *mo,
+                           KType *type,
                            const std::string &name,
                            const SymbolicSource *source, bool isLocal);
 
