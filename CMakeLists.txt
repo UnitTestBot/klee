@@ -779,7 +779,7 @@ if (ENABLE_UNIT_TESTS OR ENABLE_SYSTEM_TESTS)
   )
 
   set(LIT_ARGS
-    "-v;-s"
+    "-v;-s;--time-tests"
     CACHE
     STRING
     "Lit arguments"
