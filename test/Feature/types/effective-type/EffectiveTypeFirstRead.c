@@ -1,6 +1,6 @@
 // RUN: %clang %s -emit-llvm -g -c -o %t.bc
 // RUN: rm -rf %t.klee-out
-// RUN: %klee --output-dir=%t.klee-out --type-system=CXX --use-tbaa --lazy-instantiation=false --use-gep-expr %t.bc | FileCheck %s
+// RUN: %klee --output-dir=%t.klee-out --type-system=CXX --use-tbaa --lazy-instantiation=false --use-gep-expr %t.bc 2>&1 | FileCheck %s
 
 #include "klee/klee.h"
 #include <assert.h>
@@ -19,11 +19,11 @@ int main() {
   klee_make_symbolic(&pointer, sizeof(pointer), "pointer");
   *pointer = 1;
 
-  // CHECK: x
+  // CHECK-DAG: x
   if ((void *)pointer == (void *)area) {
     printf("x\n");
     // CHECK-NOT: ASSERTION FAIL
-    assert(area[3] == 1);
+    assert((area[0] == 1) ^ (area[3] == 1));
   }
 
   return 0;

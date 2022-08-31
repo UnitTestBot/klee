@@ -1,6 +1,6 @@
 // RUN: %clang %s -emit-llvm -g -c -o %t.bc
 // RUN: rm -rf %t.klee-out
-// RUN: %klee --output-dir=%t.klee-out --type-system=CXX --use-tbaa --lazy-instantiation=false --use-gep-expr %t.bc
+// RUN: %klee --output-dir=%t.klee-out --type-system=CXX --use-tbaa --lazy-instantiation=false --use-gep-expr %t.bc 2>&1 | FileCheck %s
 
 #include "klee/klee.h"
 #include <cassert>
@@ -26,7 +26,7 @@ int main() {
   klee_make_symbolic(&ptr_int, sizeof(ptr_int), "ptr_int");
   *ptr_int = 100;
 
-  // CHECK: x
+  // CHECK-DAG: x
   if (isSameAddress(ptr_int, s)) {
     printf("x\n");
     return 0;
@@ -36,7 +36,7 @@ int main() {
   klee_make_symbolic(&ptr_float, sizeof(ptr_float), "ptr_float");
   *ptr_float = 10.f;
 
-  // CHECK: y
+  // CHECK-DAG: y
   if (isSameAddress(ptr_float, s)) {
     printf("y\n");
     return 0;

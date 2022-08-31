@@ -1,6 +1,6 @@
 // RUN: %clang %s -emit-llvm -g -c -o %t.bc
 // RUN: rm -rf %t.klee-out
-// RUN: %klee --output-dir=%t.klee-out --type-system=CXX --use-tbaa --lazy-instantiation=false --use-gep-expr %t.bc | FileCheck %s
+// RUN: %klee --output-dir=%t.klee-out --type-system=CXX --use-tbaa --lazy-instantiation=false --use-gep-expr %t.bc 2>&1 | FileCheck %s
 
 #include "klee/klee.h"
 
@@ -20,7 +20,7 @@ int main() {
 
   int created = 0;
 
-  // CHECK: x
+  // CHECK-DAG: x
   if ((void *)float_ptr == (void *)area) {
     ++created;
     printf("x\n");
@@ -30,8 +30,8 @@ int main() {
   klee_make_symbolic(&int_ptr, sizeof(int_ptr), "int_ptr");
   *int_ptr = 11;
 
-  // CHECK: y
-  // CHECK: z
+  // CHECK-DAG: y
+  // CHECK-DAG: z
   if ((void *)int_ptr == (void *)area + sizeof(float)) {
     ++created;
     printf(created == 2 ? "z\n" : "y\n");

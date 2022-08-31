@@ -1,6 +1,6 @@
 // RUN: %clang %s -emit-llvm -g -c -o %t.bc
 // RUN: rm -rf %t.klee-out
-// RUN: %klee --output-dir=%t.klee-out --type-system=CXX --use-tbaa --lazy-instantiation=false --use-gep-expr %t.bc | FileCheck %s
+// RUN: %klee --output-dir=%t.klee-out --type-system=CXX --use-tbaa --lazy-instantiation=false --use-gep-expr %t.bc 2>&1 | FileCheck %s
 
 #include "klee/klee.h"
 #include <assert.h>
@@ -45,10 +45,10 @@ int main() {
   char *anyPointer;
   klee_make_symbolic(&anyPointer, sizeof(anyPointer), "anyPointer");
   *anyPointer = '0';
-  // CHECK: a
-  // CHECK: b
-  // CHECK: c
-  // CHECK: d
+  // CHECK-DAG: a
+  // CHECK-DAG: b
+  // CHECK-DAG: c
+  // CHECK-DAG: d
   if ((void *)anyPointer == (void *)&a) {
     printf("a\n");
     return 0;

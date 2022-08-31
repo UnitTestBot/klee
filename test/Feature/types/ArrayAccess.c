@@ -1,6 +1,6 @@
 // RUN: %clang %s -emit-llvm -g -c -o %t.bc
 // RUN: rm -rf %t.klee-out
-// RUN: %klee --output-dir=%t.klee-out --type-system=CXX --use-tbaa --lazy-instantiation=false --use-gep-expr %t.bc | FileCheck %s
+// RUN: %klee --output-dir=%t.klee-out --type-system=CXX --use-tbaa --lazy-instantiation=false --use-gep-expr %t.bc 2>&1 | FileCheck %s
 
 #include "klee/klee.h"
 #include <assert.h>
@@ -17,7 +17,7 @@ int main() {
   // CHECK-NOT: ASSERTION FAIL
   assert((void *)ptr != (void *)array_float);
 
-  // CHECK: x
+  // CHECK-DAG: x
   if ((void *)ptr == (void *)array_int) {
     printf("x\n");
     return 0;
@@ -30,7 +30,7 @@ int main() {
   // CHECK-NOT: ASSERTION FAIL
   assert((void *)ptr_array_float != (void *)&array_int);
 
-  // CHECK: y
+  // CHECK-DAG: y
   if (ptr_array_float == &array_float) {
     printf("y\n");
     return 2;

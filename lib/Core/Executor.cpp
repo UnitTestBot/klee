@@ -159,6 +159,12 @@ cl::opt<bool>
             cl::desc("Turns on restrictions based on types compatibility for "
                      "symbolic pointers (default=false)"),
             cl::init(false));
+
+cl::opt<bool>
+    AlignSymbolicPointers("align-symbolic-pointers",
+                          cl::desc("Makes symbolic pointers aligned according"
+                                   "to the used type system (default=true)"),
+                          cl::init(true));
 } // namespace klee
 
 namespace {
@@ -5002,7 +5008,19 @@ void Executor::executeMemoryOperation(ExecutionState &state,
     if (!unbound)
       break;
   }
-  
+
+
+  if (unbound) {
+    StatePair branches =
+        fork(*unbound, Expr::createIsZero(base), true, BranchType::MemOp);
+    ExecutionState *bound = branches.first;
+    if (bound) {
+      terminateStateOnError(*bound, "memory error: null pointer exception",
+                            StateTerminationType::Ptr);
+    }
+    unbound = branches.second;
+  }
+
   // XXX should we distinguish out of bounds and overlapped cases?
   if (unbound) {
     if (incomplete) {
@@ -5122,7 +5140,15 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
     const Array *array = makeArray(state, mo->size, name);
     const_cast<Array*>(array)->binding = mo;
     const_cast<MemoryObject *>(mo)->isKleeMakeSymbolic = true;
-    bindObjectInState(state, mo, type, isLocal, array);
+    ObjectState *os = bindObjectInState(state, mo, type, isLocal, array);
+
+    if (AlignSymbolicPointers) {
+      if (ref<Expr> alignmentRestrictions =
+              type->getContentRestrictions(os->read(0, os->size * CHAR_BIT))) {
+        addConstraint(state, alignmentRestrictions);
+      }
+    }
+
     state.addSymbolic(mo, array);
     
     std::map< ExecutionState*, std::vector<SeedInfo> >::iterator it = 
