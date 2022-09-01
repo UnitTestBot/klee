@@ -437,6 +437,12 @@ BasicBlock *ExecutionState::getPrevPCBlock() {
 BasicBlock *ExecutionState::getPCBlock() { return pc->inst->getParent(); }
 
 void ExecutionState::addLevel(BasicBlock *bb) {
-  multilevel.insert(bb);
-  level.insert(bb);
+  KFunction *kf = prevPC->parent->parent;
+  KModule *kmodule = kf->parent;
+
+  if (prevPC->inst->isTerminator() &&
+      kmodule->mainFunctions.count(kf->function)) {
+    multilevel.insert(bb);
+    level.insert(bb);
+  }
 }

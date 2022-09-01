@@ -578,7 +578,8 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
 
 llvm::Module *
 Executor::setModule(std::vector<std::unique_ptr<llvm::Module>> &modules,
-                    const ModuleOptions &opts) {
+                    const ModuleOptions &opts,
+                    const std::vector<llvm::Function *> &mainFunctions) {
   assert(!kmodule && !modules.empty() &&
          "can only register one module"); // XXX gross
 
@@ -622,6 +623,7 @@ Executor::setModule(std::vector<std::unique_ptr<llvm::Module>> &modules,
 
   // 4.) Manifest the module
   kmodule->manifest(interpreterHandler, StatsTracker::useStatistics());
+  kmodule->mainFunctions.insert(mainFunctions.begin(), mainFunctions.end());
 
   specialFunctionHandler->bind();
 
@@ -3986,8 +3988,10 @@ void Executor::executeStep(ExecutionState &state) {
 
 bool Executor::tryBoundedExecuteStep(ExecutionState &state, unsigned bound) {
   KInstruction *prevKI = state.prevPC;
+  KFunction *kf = prevKI->parent->parent;
 
-  if (prevKI->inst->isTerminator()) {
+  if (prevKI->inst->isTerminator() &&
+      kmodule->mainFunctions.count(kf->function)) {
     addHistoryResult(state);
     if (state.multilevel.count(state.getPCBlock()) > bound) {
       pauseState(state);

@@ -1815,6 +1815,13 @@ int run_klee(int argc, char **argv, char **envp) {
 
     llvm::Module *mainModule = M.get();
 
+    std::vector<llvm::Function *> mainFunctions;
+    for (auto &Function : *mainModule) {
+      if (!Function.isDeclaration()) {
+        mainFunctions.push_back(&Function);
+      }
+    }
+
     const std::string &module_triple = mainModule->getTargetTriple();
     std::string host_triple = llvm::sys::getDefaultTargetTriple();
 
@@ -2006,7 +2013,7 @@ int run_klee(int argc, char **argv, char **envp) {
     // Get the desired main function.  klee_main initializes uClibc
     // locale and other data and then calls main.
 
-    auto finalModule = interpreter->setModule(loadedModules, Opts);
+    auto finalModule = interpreter->setModule(loadedModules, Opts, mainFunctions);
 
     if (InteractiveMode) {
       klee_message("KLEE finish preprocessing.");

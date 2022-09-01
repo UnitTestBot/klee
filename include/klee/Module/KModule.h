@@ -22,6 +22,7 @@
 #include <memory>
 #include <set>
 #include <vector>
+#include <unordered_set>
 
 namespace llvm {
   class BasicBlock;
@@ -175,6 +176,7 @@ namespace klee {
     // Functions which escape (may be called indirectly)
     // XXX change to KFunction
     std::set<llvm::Function*> escapingFunctions;
+    std::unordered_set<llvm::Function *> mainFunctions;
 
     std::unique_ptr<InstructionInfoTable> infos;
 

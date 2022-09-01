@@ -563,8 +563,10 @@ public:
     replayPosition = 0;
   }
 
-  llvm::Module *setModule(std::vector<std::unique_ptr<llvm::Module>> &modules,
-                          const ModuleOptions &opts) override;
+  llvm::Module *
+  setModule(std::vector<std::unique_ptr<llvm::Module>> &modules,
+            const ModuleOptions &opts,
+            const std::vector<llvm::Function *> &mainFunctions) override;
 
   void useSeeds(const std::vector<struct KTest *> *seeds) override {
     usingSeeds = seeds;
