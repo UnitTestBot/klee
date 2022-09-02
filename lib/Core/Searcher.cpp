@@ -265,6 +265,9 @@ TargetedSearcher::tryGetWeight(ExecutionState *es, double &weight) {
       bb = kb->basicBlock;
     }
     sfNum++;
+
+    if (minCallWeight < sfNum)
+      break;
   }
 
   WeightResult res = Miss;
