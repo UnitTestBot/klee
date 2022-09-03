@@ -4781,7 +4781,7 @@ void Executor::resolveExact(ExecutionState &state, ref<Expr> p, KType *type,
 
   /* We do not need this variable here, just a placeholder for resolve */
   ResolutionList rlSkipped;
-  state.addressSpace.resolve(state, solver, p, type, rl, rlSkipped);
+  state.addressSpace.resolve(state, solver, p, p, type, rl, rlSkipped);
 
   ExecutionState *unbound = &state;
   for (ResolutionList::iterator it = rl.begin(), ie = rl.end(); 
@@ -4823,12 +4823,17 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   }
   unsigned bytes = Expr::getMinBytesForWidth(type);
 
-  ref<Expr> base = UseGEPExpr && isGEPExpr(address) ? gepExprBases[address].first : address;
+  ref<Expr> base = address;
   unsigned size = bytes;
+  KType *baseTargetType = targetType;
 
   if (UseGEPExpr && isGEPExpr(address)) {
+    base = gepExprBases[address].first;
     size = kmodule->targetData->getTypeStoreSize(gepExprBases[address].second);
-    targetType = typeSystemManager->getWrappedType(
+    // NOTE: The baseTargetType can be used for during resolution if we want to
+    // prevent the base type from being used as a mask (may be necessary for the
+    // c++ type system).
+    baseTargetType = typeSystemManager->getWrappedType(
         llvm::PointerType::get(gepExprBases[address].second,
                                kmodule->targetData->getAllocaAddrSpace()));
   }
@@ -4847,8 +4852,8 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   bool success;
   solver->setTimeout(coreSolverTimeout);
 
-  if (!state.addressSpace.resolveOne(state, solver, address, targetType, op,
-                                     success)) {
+  if (!state.addressSpace.resolveOne(state, solver, address, base, targetType,
+                                     op, success)) {
     address = toConstant(state, address, "resolveOne failure");
     success = state.addressSpace.resolveOne(cast<ConstantExpr>(address),
                                             targetType, op);
@@ -4921,21 +4926,13 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   bool incomplete;
 
   if (SkipNotLazyAndSymbolicPointers) {
-    if (UseGEPExpr && isGEPExpr(address))
-      incomplete = state.addressSpace.fastResolve(
-          state, solver, base, targetType, rl, rlSkipped, 0, coreSolverTimeout);
-    else
-      incomplete =
-          state.addressSpace.fastResolve(state, solver, address, targetType, rl,
-                                         rlSkipped, 0, coreSolverTimeout);
+    incomplete =
+        state.addressSpace.fastResolve(state, solver, address, base, targetType,
+                                       rl, rlSkipped, 0, coreSolverTimeout);
   } else {
-    if (UseGEPExpr && isGEPExpr(address))
-      incomplete = state.addressSpace.resolve(
-          state, solver, base, targetType, rl, rlSkipped, 0, coreSolverTimeout);
-    else
-      incomplete =
-          state.addressSpace.resolve(state, solver, address, targetType, rl,
-                                     rlSkipped, 0, coreSolverTimeout);
+    incomplete =
+        state.addressSpace.resolve(state, solver, address, base, targetType, rl,
+                                   rlSkipped, 0, coreSolverTimeout);
   }
 
   solver->setTimeout(time::Span());
@@ -4946,12 +4943,8 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   for (ResolutionList::iterator i = rl.begin(), ie = rl.end(); i != ie; ++i) {
     const MemoryObject *mo = i->first;
     const ObjectState *os = i->second;
-    ref<Expr> inBounds;
 
-    if (UseGEPExpr && isGEPExpr(address))
-      inBounds = mo->getBoundsCheckPointer(base, 1);
-    else
-      inBounds = mo->getBoundsCheckPointer(address, 1);
+    ref<Expr> inBounds = mo->getBoundsCheckPointer(address, bytes);
 
     StatePair branches = fork(*unbound, inBounds, true, BranchType::MemOp);
     ExecutionState *bound = branches.first;
@@ -4959,58 +4952,60 @@ void Executor::executeMemoryOperation(ExecutionState &state,
 
     // bound can be 0 on failure or overlapped
     if (bound) {
-      ref<Expr> inBounds = mo->getBoundsCheckPointer(address, bytes);
-      if (UseGEPExpr && isGEPExpr(address)) {
-        inBounds =
-            AndExpr::create(inBounds, mo->getBoundsCheckPointer(base, size));
-      }
-      StatePair branches_inner =
-          fork(*bound, inBounds, true, BranchType::MemOp);
-      ExecutionState *bound_inner = branches_inner.first;
-      ExecutionState *unbound_inner = branches_inner.second;
-      if (bound_inner) {
-        /* FIXME: Notice, that here we are creating a new instance of object
-        for every memory operation in order to handle type changes. This might
-        waste too much memory as we do now always modify something. To fix this
-        we can ask memory if we will make anything, and create a copy if
-        required. */
-        ObjectState *wos = bound_inner->addressSpace.getWriteable(mo, os);
+      /* FIXME: Notice, that here we are creating a new instance of object
+      for every memory operation in order to handle type changes. This might
+      waste too much memory as we do now always modify something. To fix this
+      we can ask memory if we will make anything, and create a copy if
+      required. */
+      ObjectState *wos = bound->addressSpace.getWriteable(mo, os);
 
-        switch (operation) {
-          case Write: {
-            wos->getDynamicType()->handleMemoryAccess(
-                targetType, mo->getOffsetExpr(address),
-                ConstantExpr::alloc(size, Context::get().getPointerWidth()),
-                true);
-            if (wos->readOnly) {
-              terminateStateOnError(*bound_inner, "memory error: object read only",
-                                    StateTerminationType::ReadOnly);
-            } else {
-              wos->write(mo->getOffsetExpr(address), value);
-            }
-            break;
-          }
-          case Read: {
-            wos->getDynamicType()->handleMemoryAccess(
-                targetType, mo->getOffsetExpr(address),
-                ConstantExpr::alloc(size, Context::get().getPointerWidth()),
-                false);
-            ref<Expr> result = wos->read(mo->getOffsetExpr(address), type);            
-            bindLocal(target, *bound_inner, result);
-            break;
-          }
+      switch (operation) {
+      case Write: {
+        wos->getDynamicType()->handleMemoryAccess(
+            targetType, mo->getOffsetExpr(address),
+            ConstantExpr::alloc(size, Context::get().getPointerWidth()), true);
+        if (wos->readOnly) {
+          terminateStateOnError(*bound, "memory error: object read only",
+                                StateTerminationType::ReadOnly);
+        } else {
+          wos->write(mo->getOffsetExpr(address), value);
         }
+        break;
       }
-      if (unbound_inner) {
-        terminateStateOnError(
-            *unbound_inner, "memory error: out of bound pointer",
-            StateTerminationType::Ptr, getAddressInfo(*unbound_inner, address, mo));
+      case Read: {
+        wos->getDynamicType()->handleMemoryAccess(
+            targetType, mo->getOffsetExpr(address),
+            ConstantExpr::alloc(size, Context::get().getPointerWidth()), false);
+        ref<Expr> result = wos->read(mo->getOffsetExpr(address), type);
+        bindLocal(target, *bound, result);
+        break;
+      }
       }
     }
 
     unbound = branches.second;
-    if (!unbound)
+
+    if (unbound && isReadFromSymbolicArray(base)) {
+      if (base == mo->getBaseExpr()) {
+        terminateStateOnError(*unbound, "memory error: out of bound pointer",
+                              StateTerminationType::Ptr,
+                              getAddressInfo(*unbound, address, mo));
+        unbound = nullptr;
+      } else {
+        ref<Expr> baseInObject = mo->getBoundsCheckPointer(base, 1);
+        branches = fork(*unbound, baseInObject, true, BranchType::MemOp);
+        bound = branches.first;
+        if (bound) {
+          // the resolved object size was unsuitable, base cannot resolve to this object
+          terminateStateEarly(*bound, "", StateTerminationType::SilentExit);
+        }
+        unbound = branches.second;
+      }
+    }
+
+    if (!unbound) {
       break;
+    }
   }
 
 
@@ -5029,15 +5024,9 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   if (unbound) {
     if (incomplete) {
       terminateStateOnSolverError(*unbound, "Query timed out (resolve).");
-    } else if (LazyInstantiation && (isa<ReadExpr>(address) || isa<ConcatExpr>(address) || (UseGEPExpr && isGEPExpr(address)))) {
-      
-      if (!isReadFromSymbolicArray(base)) {
-        terminateStateEarly(
-            *unbound, "Instantiation source contains read from concrete array",
-            StateTerminationType::Execution);
-        return;
-      }
-
+    } else if (LazyInstantiation && isReadFromSymbolicArray(base) &&
+               (isa<ReadExpr>(address) || isa<ConcatExpr>(address) ||
+                (UseGEPExpr && isGEPExpr(address)))) {
       ObjectPair p =
           lazyInstantiateVariable(*unbound, base, target, targetType, size);
       assert(p.first && p.second);

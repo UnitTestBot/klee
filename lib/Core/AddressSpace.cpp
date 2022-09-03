@@ -74,8 +74,9 @@ bool AddressSpace::resolveOne(const ref<ConstantExpr> &addr, KType *objectType,
 }
 
 bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
-                              ref<Expr> address, KType *objectType,
-                              ObjectPair &result, bool &success) const {
+                              ref<Expr> address, ref<Expr> base,
+                              KType *objectType, ObjectPair &result,
+                              bool &success) const {
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(address)) {
     success = resolveOne(CE, objectType, result);
     return true;
@@ -85,7 +86,7 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
     MemoryObject *symHack = nullptr;
     for (auto &moa : state.symbolics) {
       if (moa.first->isLazyInstantiated() &&
-          moa.first->getLazyInstantiatedSource() == address) {
+          moa.first->getLazyInstantiatedSource() == base) {
         symHack = const_cast<MemoryObject *>(moa.first.get());
         break;
       }
@@ -231,9 +232,9 @@ int AddressSpace::checkPointerInObject(ExecutionState &state,
 }
 
 bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
-                           ref<Expr> p, KType *objectType, ResolutionList &rl,
-                           ResolutionList &rlSkipped, unsigned maxResolutions,
-                           time::Span timeout) const {
+                           ref<Expr> p, ref<Expr> base, KType *objectType,
+                           ResolutionList &rl, ResolutionList &rlSkipped,
+                           unsigned maxResolutions, time::Span timeout) const {
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(p)) {
     ObjectPair res;
     if (resolveOne(CE, objectType, res))
@@ -245,7 +246,7 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
     MemoryObject *symHack = nullptr;
     for (auto &moa : state.symbolics) {
       if (moa.first->isLazyInstantiated() &&
-          moa.first->getLazyInstantiatedSource() == p) {
+          moa.first->getLazyInstantiatedSource() == base) {
         symHack = const_cast<MemoryObject *>(moa.first.get());
         break;
       }
@@ -346,7 +347,7 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
 }
 
 bool AddressSpace::fastResolve(ExecutionState &state, TimingSolver *solver,
-                               ref<Expr> p, KType *objectType,
+                               ref<Expr> p, ref<Expr> base, KType *objectType,
                                ResolutionList &rl, ResolutionList &rlSkipped,
                                unsigned maxResolutions,
                                time::Span timeout) const {
@@ -361,7 +362,7 @@ bool AddressSpace::fastResolve(ExecutionState &state, TimingSolver *solver,
     MemoryObject *symHack = nullptr;
     for (auto &moa : state.symbolics) {
       if (moa.first->isLazyInstantiated() &&
-          moa.first->getLazyInstantiatedSource() == p) {
+          moa.first->getLazyInstantiatedSource() == base) {
         symHack = const_cast<MemoryObject *>(moa.first.get());
         break;
       }

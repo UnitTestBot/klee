@@ -84,8 +84,8 @@ namespace klee {
     ///               (when returning true).
     /// \return true iff an object was found at \a address.
     bool resolveOne(ExecutionState &state, TimingSolver *solver,
-                    ref<Expr> address, KType *objectType, ObjectPair &result,
-                    bool &success) const;
+                    ref<Expr> address, ref<Expr> base, KType *objectType,
+                    ObjectPair &result, bool &success) const;
 
     /// Resolve pointer `p` to a list of `ObjectPairs` it can point
     /// to. If `maxResolutions` is non-zero then no more than that many
@@ -94,14 +94,14 @@ namespace klee {
     /// \return true iff the resolution is incomplete (`maxResolutions`
     /// is non-zero and it was reached, or a query timed out).
     bool resolve(ExecutionState &state, TimingSolver *solver, ref<Expr> p,
-                 KType *objectType, ResolutionList &rl,
+                 ref<Expr> base, KType *objectType, ResolutionList &rl,
                  ResolutionList &rlSkipped, unsigned maxResolutions = 0,
                  time::Span timeout = time::Span()) const;
 
     /// Resolve as above, but only to MakeSymbolic and LazyInstantiated
     /// variables
     bool fastResolve(ExecutionState &state, TimingSolver *solver, ref<Expr> p,
-                     KType *objectType, ResolutionList &rl,
+                     ref<Expr> base, KType *objectType, ResolutionList &rl,
                      ResolutionList &rlSkipped, unsigned maxResolutions = 0,
                      time::Span timeout = time::Span()) const;
 
