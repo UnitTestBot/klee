@@ -110,6 +110,12 @@ cl::opt<std::string> BCovCheckInterval(
              "Set to 0s to disable (default=0s)"),
     cl::init("0s"), cl::cat(StatsCat));
 
+cl::opt<bool> UseCovCheck("use-cov-check",
+                          cl::desc("Check klee for coverage progress. "
+                                   "Check progress every time after a certain number of instructions. "
+                                   "Set to false to disable (default=false)"),
+                          cl::init(false), cl::cat(StatsCat));
+
 // XXX I really would like to have dynamic rate control for something like this.
 cl::opt<std::string> UncoveredUpdateInterval(
     "uncovered-update-interval", cl::init("30s"),
@@ -178,7 +184,10 @@ StatsTracker::StatsTracker(Executor &_executor, std::string _objectFilename,
     fullBranches(0),
     partialBranches(0),
     totalBranches(0),
-    updateMinDistToUncovered(_updateMinDistToUncovered) {
+    totalInstructions(0),
+    localInstructionCount(0),
+    updateMinDistToUncovered(_updateMinDistToUncovered),
+    releaseStates(false) {
 
   const time::Span statsWriteInterval(StatsWriteInterval);
   if (StatsWriteAfterInstructions > 0 && statsWriteInterval)
@@ -295,14 +304,24 @@ StatsTracker::StatsTracker(Executor &_executor, std::string _objectFilename,
     }));
   }
 
+  covCheckAfterInstructions =
+      numBranches * (stats::coveredInstructions + stats::uncoveredInstructions);
+
   if (bCovCheckInterval) {
     executor.timers.add(std::make_unique<Timer>(bCovCheckInterval, [&] {
       if ((2 * fullBranches + partialBranches) > totalBranches) {
         totalBranches = 2 * fullBranches + partialBranches;
       } else {
-        klee_message(
-            "HaltTimer invoked due to absense of progress in branch coverage");
-        executor.setHaltExecution(true);
+        if (!releaseStates) {
+          klee_message("InhibitForking enabled due to absense of progress in "
+                       "branch coverage");
+          releaseStates = true;
+          executor.setInhibitForking(true);
+        } else {
+          klee_message("HaltTimer invoked due to absense of progress in branch "
+                       "coverage");
+          executor.setHaltExecution(true);
+        }
       }
     }));
   }
@@ -399,6 +418,29 @@ void StatsTracker::stepInstruction(ExecutionState &es) {
   if (istatsFile && IStatsWriteAfterInstructions &&
       stats::instructions % IStatsWriteAfterInstructions.getValue() == 0)
     writeIStats();
+
+  ++localInstructionCount;
+
+  if (UseCovCheck && localInstructionCount >= covCheckAfterInstructions) {
+    if ((2 * fullBranches + partialBranches) > totalBranches ||
+        stats::coveredInstructions > totalInstructions) {
+      totalBranches = 2 * fullBranches + partialBranches;
+      totalInstructions = stats::coveredInstructions;
+      localInstructionCount = 0;
+    } else {
+      if (!releaseStates) {
+        klee_message(
+            "InhibitForking enabled due to absense of progress in coverage");
+        releaseStates = true;
+        localInstructionCount = 0;
+        executor.setInhibitForking(true);
+      } else {
+        klee_message(
+            "HaltTimer invoked due to absense of progress in coverage");
+        executor.setHaltExecution(true);
+      }
+    }
+  }
 }
 
 ///
