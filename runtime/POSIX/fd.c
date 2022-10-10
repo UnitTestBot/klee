@@ -156,7 +156,7 @@ int __fd_open(const char *pathname, int flags, mode_t mode) {
   /* Should be the case if file was available, but just in case. */
   memset(f, 0, sizeof *f);
 
-  df = __get_sym_file(pathname); 
+  df = __get_sym_file(pathname);
   if (df) {    
     /* XXX Should check access against mode / stat / possible
        deletion. */
