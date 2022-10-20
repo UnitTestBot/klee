@@ -33,10 +33,16 @@ namespace klee {
   public:
     const ConstraintSet &constraints;
     ref<Expr> expr;
+    bool produceValidityCore = false;
 
-    Query(const ConstraintSet& _constraints, ref<Expr> _expr)
-      : constraints(_constraints), expr(_expr) {
-    }
+    Query(const ConstraintSet &_constraints, ref<Expr> _expr,
+          bool _produceValidityCore = false)
+        : constraints(_constraints), expr(_expr),
+          produceValidityCore(_produceValidityCore) {}
+
+    Query(const Query &query)
+        : constraints(query.constraints), expr(query.expr),
+          produceValidityCore(query.produceValidityCore) {}
 
     /// withExpr - Return a copy of the query with the given expression.
     Query withExpr(ref<Expr> _expr) const {
@@ -53,8 +59,173 @@ namespace klee {
       return withExpr(Expr::createIsZero(expr));
     }
 
+    Query withValidityCore() const { return Query(constraints, expr, true); }
+
+    Query withConstraints(const ConstraintSet &_constraints) const {
+      return Query(_constraints, expr, produceValidityCore);
+    }
+
     /// Dump query
     void dump() const ;
+  };
+
+  struct ValidityCore {
+  public:
+    typedef std::vector<ref<Expr>> constraints_typ;
+    std::vector<ref<Expr>> constraints;
+    ref<Expr> expr;
+
+    ValidityCore()
+        : constraints(std::vector<ref<Expr>>()),
+          expr(ConstantExpr::alloc(1, Expr::Bool)) {}
+
+    ValidityCore(const constraints_typ &_constraints, ref<Expr> _expr)
+        : constraints(_constraints), expr(_expr) {}
+
+    /// withExpr - Return a copy of the validity core with the given expression.
+    ValidityCore withExpr(ref<Expr> _expr) const {
+      return ValidityCore(constraints, _expr);
+    }
+
+    /// withFalse - Return a copy of the validity core with a false expression.
+    ValidityCore withFalse() const {
+      return ValidityCore(constraints, ConstantExpr::alloc(0, Expr::Bool));
+    }
+
+    /// negateExpr - Return a copy of the validity core with the expression
+    /// negated.
+    ValidityCore negateExpr() const {
+      return withExpr(Expr::createIsZero(expr));
+    }
+
+    /// Dump validity core
+    void dump() const;
+
+    bool compare(const ValidityCore &b) const {
+      return constraints == b.constraints && expr == b.expr;
+    }
+
+    bool operator==(const ValidityCore &b) const { return compare(b); }
+
+    bool operator!=(const ValidityCore &b) const { return !compare(b); }
+  };
+
+  class SolverRespone {
+  public:
+    enum ResponseKind {
+      Valid = 1,
+      Invalid = -1,
+    };
+
+    /// @brief Required by klee::ref-managed objects
+    class ReferenceCounter _refCount;
+
+    virtual ~SolverRespone() = default;
+
+    virtual ResponseKind getResponseKind() const = 0;
+
+    virtual bool
+    getInitialValuesFor(const std::vector<const Array *> &objects,
+                        std::vector<std::vector<unsigned char>> &values) {
+      return false;
+    }
+
+    virtual bool getInitialValues(
+        std::map<const Array *, std::vector<unsigned char>> &values) {
+      return false;
+    }
+
+    virtual bool getValidityCore(ValidityCore &validityCore) { return false; }
+
+    static bool classof(const Query *) { return true; }
+
+    virtual bool compare(const SolverRespone &b) const = 0;
+
+    bool operator==(const SolverRespone &b) const { return compare(b); }
+
+    bool operator!=(const SolverRespone &b) const { return !compare(b); }
+  };
+
+  class ValidResponse : public SolverRespone {
+  private:
+    ValidityCore result;
+
+  public:
+    ValidResponse(const ValidityCore &validityCore) : result(validityCore) {}
+
+    bool getValidityCore(ValidityCore &validityCore) {
+      validityCore = result;
+      return true;
+    }
+
+    ResponseKind getResponseKind() const { return Valid; };
+
+    static bool classof(const SolverRespone *result) {
+      return result->getResponseKind() == ResponseKind::Valid;
+    }
+    static bool classof(const ValidResponse *) { return true; }
+
+    bool compare(const SolverRespone &b) const {
+      if (b.getResponseKind() != ResponseKind::Valid)
+        return false;
+      const ValidResponse &vb = static_cast<const ValidResponse &>(b);
+      return result == vb.result;
+    }
+  };
+
+  class InvalidResponse : public SolverRespone {
+  private:
+    std::map<const Array *, std::vector<unsigned char>> result;
+
+  public:
+    InvalidResponse(const std::vector<const Array *> &objects,
+                    const std::vector<std::vector<unsigned char>> &values) {
+      std::vector<std::vector<unsigned char>>::const_iterator values_it =
+          values.begin();
+
+      for (std::vector<const Array *>::const_iterator i = objects.begin(),
+                                                      e = objects.end();
+           i != e; ++i, ++values_it) {
+        result[*i] = *values_it;
+      }
+    }
+
+    InvalidResponse(const std::map<const Array *, std::vector<unsigned char>>
+                        &initialValues)
+        : result(initialValues) {}
+
+    bool getInitialValuesFor(const std::vector<const Array *> &objects,
+                             std::vector<std::vector<unsigned char>> &values) {
+      values.reserve(objects.size());
+      for (auto object : objects) {
+        if (result.count(object)) {
+          values.push_back(result.at(object));
+        } else {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    bool getInitialValues(
+        std::map<const Array *, std::vector<unsigned char>> &values) {
+      values.insert(result.begin(), result.end());
+      return true;
+    }
+
+    ResponseKind getResponseKind() const { return Invalid; };
+
+    static bool classof(const SolverRespone *result) {
+      return result->getResponseKind() == ResponseKind::Invalid;
+    }
+    static bool classof(const InvalidResponse *) { return true; }
+
+    bool compare(const SolverRespone &b) const {
+      if (b.getResponseKind() != ResponseKind::Invalid)
+        return false;
+      const InvalidResponse &ib = static_cast<const InvalidResponse &>(b);
+      return result == ib.result;
+    }
   };
 
   class Solver {
@@ -94,7 +265,9 @@ namespace klee {
     ///
     /// \return True on success.
     bool evaluate(const Query&, Validity &result);
-  
+    bool evaluate(const Query &, ref<SolverRespone> &queryResult,
+                  ref<SolverRespone> &negateQueryResult);
+
     /// mustBeTrue - Determine if the expression is provably true.
     /// 
     /// This evaluates the following logical formula:
@@ -195,6 +368,9 @@ namespace klee {
     bool getInitialValues(const Query&, 
                           const std::vector<const Array*> &objects,
                           std::vector< std::vector<unsigned char> > &result);
+
+    bool getValidityCore(const Query &, ValidityCore &validityCore,
+                         bool &result);
 
     /// getRange - Compute a tight range of possible values for a given
     /// expression.

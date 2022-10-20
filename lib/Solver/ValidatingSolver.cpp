@@ -31,6 +31,9 @@ public:
                             const std::vector<const Array *> &objects,
                             std::vector<std::vector<unsigned char> > &values,
                             bool &hasSolution);
+  bool check(const Query &query, ref<SolverRespone> &result);
+  bool computeValidityCore(const Query &query, ValidityCore &validityCore,
+                           bool &isValid);
   SolverRunStatus getOperationStatusCode();
   char *getConstraintLog(const Query &);
   void setCoreSolverTimeout(time::Span timeout);
@@ -110,7 +113,8 @@ bool ValidatingSolver::computeInitialValues(
     for (auto const &constraint : query.constraints)
       constraints = AndExpr::create(constraints, constraint);
 
-    if (!oracle->impl->computeTruth(Query(bindings, constraints), answer))
+    if (!oracle->impl->computeTruth(
+            Query(bindings, constraints, query.produceValidityCore), answer))
       return false;
     if (!answer)
       assert(0 && "invalid solver result (computeInitialValues)");
@@ -120,6 +124,39 @@ bool ValidatingSolver::computeInitialValues(
     if (!answer)
       assert(0 && "invalid solver result (computeInitialValues)");
   }
+
+  return true;
+}
+
+bool ValidatingSolver::check(const Query &query, ref<SolverRespone> &result) {
+  ref<SolverRespone> answer;
+
+  if (!solver->impl->check(query, result))
+    return false;
+  if (!oracle->impl->check(query, answer))
+    return false;
+
+  if (result != answer)
+    assert(0 && "invalid solver result (check)");
+
+  return true;
+}
+
+bool ValidatingSolver::computeValidityCore(const Query &query,
+                                           ValidityCore &validityCore,
+                                           bool &isValid) {
+  ValidityCore answerCore;
+  bool answer;
+
+  if (!solver->impl->computeValidityCore(query, validityCore, isValid))
+    return false;
+  if (!oracle->impl->computeValidityCore(query, answerCore, answer))
+    return false;
+
+  if (validityCore != answerCore)
+    assert(0 && "invalid solver result (check)");
+  if (isValid != answer)
+    assert(0 && "invalid solver result (check)");
 
   return true;
 }

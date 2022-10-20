@@ -27,6 +27,8 @@ Solver *createCoreSolver(CoreSolverType cst) {
   case STP_SOLVER:
 #ifdef ENABLE_STP
     klee_message("Using STP solver backend");
+    assert(!ProduceUnsatCore &&
+           "Producing unsat cores doesn't support for STP solver");
     return new STPSolver(UseForkedCoreSolver, CoreSolverOptimizeDivides);
 #else
     klee_message("Not compiled with STP support");
@@ -35,6 +37,8 @@ Solver *createCoreSolver(CoreSolverType cst) {
   case METASMT_SOLVER:
 #ifdef ENABLE_METASMT
     klee_message("Using MetaSMT solver backend");
+    assert(!ProduceUnsatCore &&
+           "Producing unsat cores doesn't support for MetaSMT solver");
     return createMetaSMTSolver();
 #else
     klee_message("Not compiled with MetaSMT support");

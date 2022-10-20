@@ -61,7 +61,10 @@ namespace klee {
     ///
     /// \return True on success
     virtual bool computeValidity(const Query& query, Solver::Validity &result);
-    
+    virtual bool computeValidity(const Query &query,
+                                 ref<SolverRespone> &queryResult,
+                                 ref<SolverRespone> &negatedQueryResult);
+
     /// computeTruth - Determine whether the given query expression is provably true
     /// given the constraints.
     ///
@@ -93,7 +96,12 @@ namespace klee {
                                       std::vector< std::vector<unsigned char> > 
                                         &values,
                                       bool &hasSolution) = 0;
-    
+
+    virtual bool check(const Query &query, ref<SolverRespone> &result);
+
+    virtual bool computeValidityCore(const Query &query,
+                                     ValidityCore &validityCore, bool &isValid);
+
     /// getOperationStatusCode - get the status of the last solver operation
     virtual SolverRunStatus getOperationStatusCode() = 0;
 

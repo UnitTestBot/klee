@@ -135,6 +135,16 @@ StagedSolverImpl::computeInitialValues(const Query& query,
                                                hasSolution);
 }
 
+bool StagedSolverImpl::check(const Query &query, ref<SolverRespone> &result) {
+  return secondary->impl->check(query, result);
+}
+
+bool StagedSolverImpl::computeValidityCore(const Query &query,
+                                           ValidityCore &validityCore,
+                                           bool &isValid) {
+  return secondary->impl->computeValidityCore(query, validityCore, isValid);
+}
+
 SolverImpl::SolverRunStatus StagedSolverImpl::getOperationStatusCode() {
   return secondary->impl->getOperationStatusCode();
 }

@@ -94,6 +94,40 @@ bool Solver::getValue(const Query& query, ref<ConstantExpr> &result) {
   return true;
 }
 
+bool Solver::evaluate(const Query &query, ref<SolverRespone> &queryResult,
+                      ref<SolverRespone> &negateQueryResult) {
+  assert(query.expr->getWidth() == Expr::Bool && "Invalid expression type!");
+
+  // Maintain invariants implementations expect.
+  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(query.expr)) {
+    if (CE->isTrue()) {
+      queryResult = new ValidResponse(ValidityCore());
+      return impl->check(query.negateExpr(), negateQueryResult);
+    } else {
+      negateQueryResult = new ValidResponse(ValidityCore());
+      return impl->check(query, queryResult);
+    }
+  }
+
+  return impl->computeValidity(query, queryResult, negateQueryResult);
+}
+
+bool Solver::getValidityCore(const Query &query, ValidityCore &validityCore,
+                             bool &result) {
+  assert(query.expr->getWidth() == Expr::Bool && "Invalid expression type!");
+
+  // Maintain invariants implementations expect.
+  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(query.expr)) {
+    result = CE->isTrue() ? true : false;
+    if (result) {
+      validityCore = ValidityCore();
+    }
+    return true;
+  }
+
+  return impl->computeValidityCore(query, validityCore, result);
+}
+
 bool 
 Solver::getInitialValues(const Query& query,
                          const std::vector<const Array*> &objects,

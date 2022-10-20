@@ -82,8 +82,9 @@ class CexCachingSolver : public SolverImpl {
     return lookupAssignment(query, key, result);
   }
 
-  bool getAssignment(const Query& query, Assignment *&result);
-  
+  bool getAssignment(const Query &query, Assignment *&result,
+                     ValidityCore *validityCore = nullptr);
+
 public:
   CexCachingSolver(Solver *_solver) : solver(_solver) {}
   ~CexCachingSolver();
@@ -95,6 +96,9 @@ public:
                             const std::vector<const Array*> &objects,
                             std::vector< std::vector<unsigned char> > &values,
                             bool &hasSolution);
+  bool check(const Query &query, ref<SolverRespone> &result);
+  bool computeValidityCore(const Query &, ValidityCore &validityCore,
+                           bool &isValid);
   SolverRunStatus getOperationStatusCode();
   char *getConstraintLog(const Query& query);
   void setCoreSolverTimeout(time::Span timeout);
@@ -219,7 +223,8 @@ bool CexCachingSolver::lookupAssignment(const Query &query,
   return found;
 }
 
-bool CexCachingSolver::getAssignment(const Query& query, Assignment *&result) {
+bool CexCachingSolver::getAssignment(const Query &query, Assignment *&result,
+                                     ValidityCore *validityCore) {
   KeyType key;
   if (lookupAssignment(query, key, result))
     return true;
@@ -227,24 +232,37 @@ bool CexCachingSolver::getAssignment(const Query& query, Assignment *&result) {
   std::vector<const Array*> objects;
   findSymbolicObjects(key.begin(), key.end(), objects);
 
-  std::vector< std::vector<unsigned char> > values;
+  std::vector<std::vector<unsigned char>> values;
+  ref<SolverRespone> queryResult;
   bool hasSolution;
-  if (!solver->impl->computeInitialValues(query, objects, values, 
-                                          hasSolution))
-    return false;
-    
+  if (validityCore) {
+    if (!solver->impl->check(query, queryResult))
+      return false;
+    hasSolution = isa<InvalidResponse>(queryResult);
+  } else {
+    if (!solver->impl->computeInitialValues(query, objects, values,
+                                            hasSolution))
+      return false;
+  }
+
   Assignment *binding;
   if (hasSolution) {
-    binding = new Assignment(objects, values);
+    if (validityCore) {
+      Assignment::bindings_ty bindings;
+      queryResult->getInitialValues(bindings);
+      binding = new Assignment(bindings);
+    } else {
+      binding = new Assignment(objects, values);
+    }
 
     // Memoize the result.
-    std::pair<assignmentsTable_ty::iterator, bool>
-      res = assignmentsTable.insert(binding);
+    std::pair<assignmentsTable_ty::iterator, bool> res =
+        assignmentsTable.insert(binding);
     if (!res.second) {
       delete binding;
       binding = *res.first;
     }
-    
+
     if (DebugCexCacheCheckBinding)
       if (!binding->satisfies(key.begin(), key.end())) {
         query.dump();
@@ -252,9 +270,11 @@ bool CexCachingSolver::getAssignment(const Query& query, Assignment *&result) {
         klee_error("Generated assignment doesn't match query");
       }
   } else {
-    binding = (Assignment*) 0;
+    if (validityCore)
+     queryResult->getValidityCore(*validityCore);
+    binding = (Assignment *)0;
   }
-  
+
   result = binding;
   cache.insert(key, binding);
 
@@ -279,6 +299,10 @@ bool CexCachingSolver::computeValidity(const Query& query,
     return false;
   assert(a && "computeValidity() must have assignment");
   ref<Expr> q = a->evaluate(query.expr);
+
+  if (!isa<ConstantExpr>(q) && solver->impl->computeValue(query, q))
+    return false;
+
   assert(isa<ConstantExpr>(q) && 
          "assignment evaluation did not result in constant");
 
@@ -331,6 +355,11 @@ bool CexCachingSolver::computeValue(const Query& query,
     return false;
   assert(a && "computeValue() must have assignment");
   result = a->evaluate(query.expr);  
+
+  if (!isa<ConstantExpr>(result) &&
+      solver->impl->computeValue(query, result))
+    return false;
+
   assert(isa<ConstantExpr>(result) && 
          "assignment evaluation did not result in constant");
   return true;
@@ -366,6 +395,36 @@ CexCachingSolver::computeInitialValues(const Query& query,
     }
   }
   
+  return true;
+}
+
+bool CexCachingSolver::check(const Query &query, ref<SolverRespone> &result) {
+  TimerStatIncrementer t(stats::cexCacheTime);
+  Assignment *a;
+  ValidityCore validityCore;
+  if (!getAssignment(query, a, &validityCore))
+    return false;
+
+  if (!a) {
+    result = new ValidResponse(validityCore);
+    return true;
+  }
+
+  result = new InvalidResponse(a->bindings);
+
+  return true;
+}
+
+bool CexCachingSolver::computeValidityCore(const Query &query, ValidityCore &validityCore,
+                        bool &isValid) {
+  TimerStatIncrementer t(stats::cexCacheTime);
+
+  Assignment *a;
+  if (!getAssignment(query, a, &validityCore))
+    return false;
+
+  isValid = !a;
+
   return true;
 }
 
