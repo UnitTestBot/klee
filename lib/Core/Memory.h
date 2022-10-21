@@ -222,6 +222,8 @@ private:
   // mutable because we may need flush during read of const
   mutable UpdateList updates;
 
+  ref<UpdateNode> lastUpdate;
+
 public:
   unsigned size;
 

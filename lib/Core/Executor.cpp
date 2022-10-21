@@ -462,6 +462,13 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
         setHaltExecution(true);
       }));
 
+  const time::Span releaseTime = time::microseconds((maxTime.toMicroseconds()/2));
+  if (releaseTime) timers.add(
+        std::make_unique<Timer>(releaseTime, [&]{
+        klee_message("ReleaseTimer invoked");
+        setInhibitForking(true);
+      }));
+
   coreSolverTimeout = time::Span{MaxCoreSolverTime};
   if (coreSolverTimeout) UseForkedCoreSolver = true;
   Solver *coreSolver = klee::createCoreSolver(CoreSolverToUse);
