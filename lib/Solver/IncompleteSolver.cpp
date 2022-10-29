@@ -135,7 +135,7 @@ StagedSolverImpl::computeInitialValues(const Query& query,
                                                hasSolution);
 }
 
-bool StagedSolverImpl::check(const Query &query, ref<SolverRespone> &result) {
+bool StagedSolverImpl::check(const Query &query, ref<SolverResponse> &result) {
   return secondary->impl->check(query, result);
 }
 

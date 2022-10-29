@@ -31,7 +31,7 @@ public:
                             const std::vector<const Array *> &objects,
                             std::vector<std::vector<unsigned char> > &values,
                             bool &hasSolution);
-  bool check(const Query &query, ref<SolverRespone> &result);
+  bool check(const Query &query, ref<SolverResponse> &result);
   bool computeValidityCore(const Query &query, ValidityCore &validityCore,
                            bool &isValid);
   SolverRunStatus getOperationStatusCode();
@@ -128,8 +128,8 @@ bool ValidatingSolver::computeInitialValues(
   return true;
 }
 
-bool ValidatingSolver::check(const Query &query, ref<SolverRespone> &result) {
-  ref<SolverRespone> answer;
+bool ValidatingSolver::check(const Query &query, ref<SolverResponse> &result) {
+  ref<SolverResponse> answer;
 
   if (!solver->impl->check(query, result))
     return false;

@@ -110,7 +110,7 @@ namespace klee {
     bool operator!=(const ValidityCore &b) const { return !compare(b); }
   };
 
-  class SolverRespone {
+  class SolverResponse {
   public:
     enum ResponseKind {
       Valid = 1,
@@ -120,7 +120,7 @@ namespace klee {
     /// @brief Required by klee::ref-managed objects
     class ReferenceCounter _refCount;
 
-    virtual ~SolverRespone() = default;
+    virtual ~SolverResponse() = default;
 
     virtual ResponseKind getResponseKind() const = 0;
 
@@ -139,14 +139,14 @@ namespace klee {
 
     static bool classof(const Query *) { return true; }
 
-    virtual bool compare(const SolverRespone &b) const = 0;
+    virtual bool compare(const SolverResponse &b) const = 0;
 
-    bool operator==(const SolverRespone &b) const { return compare(b); }
+    bool operator==(const SolverResponse &b) const { return compare(b); }
 
-    bool operator!=(const SolverRespone &b) const { return !compare(b); }
+    bool operator!=(const SolverResponse &b) const { return !compare(b); }
   };
 
-  class ValidResponse : public SolverRespone {
+  class ValidResponse : public SolverResponse {
   private:
     ValidityCore result;
 
@@ -160,12 +160,12 @@ namespace klee {
 
     ResponseKind getResponseKind() const { return Valid; };
 
-    static bool classof(const SolverRespone *result) {
+    static bool classof(const SolverResponse *result) {
       return result->getResponseKind() == ResponseKind::Valid;
     }
     static bool classof(const ValidResponse *) { return true; }
 
-    bool compare(const SolverRespone &b) const {
+    bool compare(const SolverResponse &b) const {
       if (b.getResponseKind() != ResponseKind::Valid)
         return false;
       const ValidResponse &vb = static_cast<const ValidResponse &>(b);
@@ -173,7 +173,7 @@ namespace klee {
     }
   };
 
-  class InvalidResponse : public SolverRespone {
+  class InvalidResponse : public SolverResponse {
   private:
     std::map<const Array *, std::vector<unsigned char>> result;
 
@@ -215,12 +215,12 @@ namespace klee {
 
     ResponseKind getResponseKind() const { return Invalid; };
 
-    static bool classof(const SolverRespone *result) {
+    static bool classof(const SolverResponse *result) {
       return result->getResponseKind() == ResponseKind::Invalid;
     }
     static bool classof(const InvalidResponse *) { return true; }
 
-    bool compare(const SolverRespone &b) const {
+    bool compare(const SolverResponse &b) const {
       if (b.getResponseKind() != ResponseKind::Invalid)
         return false;
       const InvalidResponse &ib = static_cast<const InvalidResponse &>(b);
@@ -265,8 +265,8 @@ namespace klee {
     ///
     /// \return True on success.
     bool evaluate(const Query&, Validity &result);
-    bool evaluate(const Query &, ref<SolverRespone> &queryResult,
-                  ref<SolverRespone> &negateQueryResult);
+    bool evaluate(const Query &, ref<SolverResponse> &queryResult,
+                  ref<SolverResponse> &negateQueryResult);
 
     /// mustBeTrue - Determine if the expression is provably true.
     /// 
@@ -371,6 +371,8 @@ namespace klee {
 
     bool getValidityCore(const Query &, ValidityCore &validityCore,
                          bool &result);
+
+    bool check(const Query &, ref<SolverResponse> &queryResult);
 
     /// getRange - Compute a tight range of possible values for a given
     /// expression.

@@ -96,7 +96,7 @@ public:
                             const std::vector<const Array*> &objects,
                             std::vector< std::vector<unsigned char> > &values,
                             bool &hasSolution);
-  bool check(const Query &query, ref<SolverRespone> &result);
+  bool check(const Query &query, ref<SolverResponse> &result);
   bool computeValidityCore(const Query &, ValidityCore &validityCore,
                            bool &isValid);
   SolverRunStatus getOperationStatusCode();
@@ -233,7 +233,7 @@ bool CexCachingSolver::getAssignment(const Query &query, Assignment *&result,
   findSymbolicObjects(key.begin(), key.end(), objects);
 
   std::vector<std::vector<unsigned char>> values;
-  ref<SolverRespone> queryResult;
+  ref<SolverResponse> queryResult;
   bool hasSolution;
   if (validityCore) {
     if (!solver->impl->check(query, queryResult))
@@ -398,7 +398,7 @@ CexCachingSolver::computeInitialValues(const Query& query,
   return true;
 }
 
-bool CexCachingSolver::check(const Query &query, ref<SolverRespone> &result) {
+bool CexCachingSolver::check(const Query &query, ref<SolverResponse> &result) {
   TimerStatIncrementer t(stats::cexCacheTime);
   Assignment *a;
   ValidityCore validityCore;
@@ -408,6 +408,21 @@ bool CexCachingSolver::check(const Query &query, ref<SolverRespone> &result) {
   if (!a) {
     result = new ValidResponse(validityCore);
     return true;
+  }
+
+  ExprHashSet expressions;
+  expressions.insert(query.constraints.begin(), query.constraints.end());
+  expressions.insert(query.expr);
+
+  std::vector<const Array *> objects;
+  findObjects(expressions.begin(), expressions.end(), objects);
+  for (unsigned i = 0; i < objects.size(); ++i) {
+    const Array *os = objects[i];
+    Assignment::bindings_ty::iterator it = a->bindings.find(os);
+
+    if (it == a->bindings.end()) {
+      a->bindings[os] = std::vector<unsigned char>(os->size, 0);
+    }
   }
 
   result = new InvalidResponse(a->bindings);

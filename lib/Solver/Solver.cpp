@@ -94,8 +94,8 @@ bool Solver::getValue(const Query& query, ref<ConstantExpr> &result) {
   return true;
 }
 
-bool Solver::evaluate(const Query &query, ref<SolverRespone> &queryResult,
-                      ref<SolverRespone> &negateQueryResult) {
+bool Solver::evaluate(const Query &query, ref<SolverResponse> &queryResult,
+                      ref<SolverResponse> &negateQueryResult) {
   assert(query.expr->getWidth() == Expr::Bool && "Invalid expression type!");
 
   // Maintain invariants implementations expect.
@@ -140,6 +140,10 @@ Solver::getInitialValues(const Query& query,
     return false;
     
   return success;
+}
+
+bool Solver::check(const Query &query, ref<SolverRespone> &queryResult) {
+  return impl->check(query, queryResult);
 }
 
 std::pair< ref<Expr>, ref<Expr> > Solver::getRange(const Query& query) {

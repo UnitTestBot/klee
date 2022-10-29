@@ -206,7 +206,7 @@ bool QueryLoggingSolver::computeInitialValues(
   return success;
 }
 
-bool QueryLoggingSolver::check(const Query &query, ref<SolverRespone> &result) {
+bool QueryLoggingSolver::check(const Query &query, ref<SolverResponse> &result) {
   startQuery(query, "Check");
 
   bool success = solver->impl->check(query, result);

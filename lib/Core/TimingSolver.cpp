@@ -136,8 +136,8 @@ bool TimingSolver::getInitialValues(
 }
 
 bool TimingSolver::evaluate(const ConstraintSet &constraints, ref<Expr> expr,
-                            ref<SolverRespone> &queryResult,
-                            ref<SolverRespone> &negatedQueryResult,
+                            ref<SolverResponse> &queryResult,
+                            ref<SolverResponse> &negatedQueryResult,
                             SolverQueryMetaData &metaData) {
   TimerStatIncrementer timer(stats::solverTime);
 

@@ -30,8 +30,8 @@ bool SolverImpl::computeValidity(const Query &query, Solver::Validity &result) {
 }
 
 bool SolverImpl::computeValidity(const Query &query,
-                                 ref<SolverRespone> &queryResult,
-                                 ref<SolverRespone> &negatedQueryResult) {
+                                 ref<SolverResponse> &queryResult,
+                                 ref<SolverResponse> &negatedQueryResult) {
   if (!check(query, queryResult))
     return false;
   if (!check(query.negateExpr(), negatedQueryResult))
@@ -39,7 +39,7 @@ bool SolverImpl::computeValidity(const Query &query,
   return true;
 }
 
-bool SolverImpl::check(const Query &query, ref<SolverRespone> &result) {
+bool SolverImpl::check(const Query &query, ref<SolverResponse> &result) {
   if (ProduceUnsatCore)
     klee_error("check is not implemented");
   return false;

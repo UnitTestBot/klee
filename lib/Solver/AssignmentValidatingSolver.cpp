@@ -32,7 +32,7 @@ public:
                             const std::vector<const Array *> &objects,
                             std::vector<std::vector<unsigned char> > &values,
                             bool &hasSolution);
-  bool check(const Query &query, ref<SolverRespone> &result);
+  bool check(const Query &query, ref<SolverResponse> &result);
   bool computeValidityCore(const Query &query, ValidityCore &validityCore,
                         bool &isValid);
   void validateAssigment(const Query &query,
@@ -130,7 +130,7 @@ bool AssignmentValidatingSolver::computeInitialValues(
 }
 
 bool AssignmentValidatingSolver::check(const Query &query,
-                                       ref<SolverRespone> &result) {
+                                       ref<SolverResponse> &result) {
   if (!solver->impl->check(query, result)) {
     return false;
   }
