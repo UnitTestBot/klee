@@ -55,14 +55,33 @@ static void __create_new_dfile(exe_disk_file_t *dfile, unsigned size,
 
   const char *sp;
   char sname[64];
-  for (sp=name; *sp; ++sp)
+  char read_bytes_name[64];
+  char write_bytes_name[64];
+  for (sp=name; *sp; ++sp){
     sname[sp-name] = *sp;
+    read_bytes_name[sp - name] = *sp;
+    write_bytes_name[sp - name] = *sp;
+  }
   memcpy(&sname[sp-name], "-stat", 6);
+  memcpy(&read_bytes_name[sp - name], "-read", 6);
+  memcpy(&write_bytes_name[sp - name], "-write", 7);
 
   assert(size);
 
   dfile->size = size;
   dfile->contents = malloc(dfile->size);
+
+  unsigned *ptr_read = malloc(sizeof(unsigned));
+  unsigned *ptr_write = malloc(sizeof(unsigned));
+  klee_make_symbolic(ptr_read, sizeof(unsigned), read_bytes_name);
+  klee_make_symbolic(ptr_write, sizeof(unsigned), write_bytes_name);
+  memcpy(&dfile->read_bytes_symbolic, ptr_read, sizeof(unsigned));
+  memcpy(&dfile->write_bytes_symbolic, ptr_write, sizeof(unsigned));
+  free(ptr_read);
+  free(ptr_write);
+  dfile->read_bytes_real = 0;
+  dfile->write_bytes_real = 0;
+
   if (!dfile->contents)
     klee_report_error(__FILE__, __LINE__, "out of memory in klee_init_env", "user.err");
   klee_make_symbolic(dfile->contents, dfile->size, name);
