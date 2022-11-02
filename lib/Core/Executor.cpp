@@ -258,6 +258,13 @@ cl::opt<bool> AllExternalWarnings(
              "as opposed to once per function (default=false)"),
     cl::cat(ExtCallsCat));
 
+cl::opt<bool> MockExternalCalls(
+    "mock-external-calls",
+    cl::init(false),
+    cl::desc("If true, all external calls are mocked, i.e. return values are made symbolic "
+             "and then added to generated test cases. "
+             "If false, fails on externall calls."),
+    cl::cat(ExtCallsCat));
 
 /*** Seeding options ***/
 
@@ -4546,8 +4553,15 @@ void Executor::callExternalFunction(ExecutionState &state,
   bool success = externalDispatcher->executeCall(callable, target->inst, args, roundingMode);
 
   if (!success) {
-    terminateStateOnError(state, "failed external call: " + callable->getName(),
-                          StateTerminationType::External);
+    if (MockExternalCalls) {
+      if (target->inst->getType()->isSized()) {
+        prepareSymbolicValue(state, target);
+      }
+    } else {
+      terminateStateOnError(state,
+                            "failed external call: " + callable->getName(),
+                            StateTerminationType::External);
+    }
     return;
   }
 
@@ -5352,7 +5366,6 @@ ref<Expr> Executor::makeSymbolicValue(Value *value, ExecutionState &state, uint6
   MemoryObject *mo = 
     memory->allocate(size, true, /*isGlobal=*/false,
                      value, /*allocationAlignment=*/8);
-  memory->deallocate(mo);
   const Array *array = makeArray(state, size, name);
   const_cast<Array*>(array)->binding = mo;
   state.addSymbolic(mo, array);
