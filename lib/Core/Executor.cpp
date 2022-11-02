@@ -5370,8 +5370,9 @@ ref<Expr> Executor::makeSymbolicValue(Value *value, ExecutionState &state, uint6
   const_cast<Array*>(array)->binding = mo;
   state.addSymbolic(mo, array);
   assert(value && "Attempted to make symbolic value from nullptr Value");
-  ObjectState *os = new ObjectState(
-      mo, array, typeSystemManager->getWrappedType(value->getType()));
+  ObjectState *os = bindObjectInState(
+      state, mo, typeSystemManager->getWrappedType(value->getType()), false,
+      array);
   ref<Expr> result = os->read(0, width);
   return result;
 }
