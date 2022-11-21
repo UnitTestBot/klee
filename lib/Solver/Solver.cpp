@@ -142,7 +142,7 @@ Solver::getInitialValues(const Query& query,
   return success;
 }
 
-bool Solver::check(const Query &query, ref<SolverRespone> &queryResult) {
+bool Solver::check(const Query &query, ref<SolverResponse> &queryResult) {
   return impl->check(query, queryResult);
 }
 
