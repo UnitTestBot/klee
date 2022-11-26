@@ -117,6 +117,10 @@ namespace {
                 cl::desc("Write .sym.path files for each test case (default=false)"),
                 cl::cat(TestCaseCat));
 
+  cl::opt<bool>
+      WriteStates("write-states", cl::init(false),
+                  cl::desc("Write state info for debug (default=false)"),
+                  cl::cat(TestCaseCat));
 
   /*** Startup options ***/
 
@@ -500,6 +504,10 @@ void KleeHandler::processTestCase(const ExecutionState &state,
         ++m_numGeneratedTests;
       }
 
+      if (WriteStates) {
+        auto f = openTestFile("state", id);
+        m_interpreter->logState(state, id, f);
+      }
     }
 
     for (unsigned i = 0; i < ktest.numObjects; i++) {

@@ -552,6 +552,9 @@ public:
 
   void setInitializationGraph(const ExecutionState &state, KTest &tc) override;
 
+  void logState(const ExecutionState &state, int id,
+                std::unique_ptr<llvm::raw_fd_ostream> &f) override;
+
   bool getSymbolicSolution(const ExecutionState &state, KTest &res) override;
 
   void getCoveredLines(const ExecutionState &state,
