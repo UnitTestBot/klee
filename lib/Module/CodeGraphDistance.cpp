@@ -76,7 +76,7 @@ void CodeGraphDistance::calculateDistance(KFunction *kf) {
       }
       KFunction *callKF = functionMap[callBlock->calledFunction];
       if (dist.count(callKF) == 0) {
-        dist[callKF] = dist[callKF] + 1;
+        dist[callKF] = dist[currKF] + 1;
         sort.push_back({callKF, dist[currKF] + 1});
         nodes.push_back(callKF);
       }
@@ -103,7 +103,7 @@ void CodeGraphDistance::calculateBackwardDistance(KFunction *kf) {
       }
       KFunction *callKF = functionMap[cf];
       if (bdist.count(callKF) == 0) {
-        bdist[callKF] = bdist[callKF] + 1;
+        bdist[callKF] = bdist[currKF] + 1;
         bsort.push_back({callKF, bdist[currKF] + 1});
         nodes.push_back(callKF);
       }
