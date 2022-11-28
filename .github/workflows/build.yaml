@@ -2,9 +2,9 @@ name: CI
 
 on:
   pull_request:
-    branches: master
+    branches: refactor_v2
   push:
-    branches: master
+    branches: refactor_v2
 
 # Defaults for building KLEE
 env:
