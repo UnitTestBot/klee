@@ -15,10 +15,13 @@
 #include "MergeHandler.h"
 #include "PTree.h"
 #include "StatsTracker.h"
+#include "Target.h"
 
 #include "klee/ADT/DiscretePDF.h"
+#include "klee/ADT/WeightedQueue.h"
 #include "klee/ADT/RNG.h"
 #include "klee/Statistics/Statistics.h"
+#include "klee/Module/CodeGraphDistance.h"
 #include "klee/Module/InstructionInfoTable.h"
 #include "klee/Module/KInstruction.h"
 #include "klee/Module/KModule.h"
@@ -144,6 +147,435 @@ void RandomSearcher::printName(llvm::raw_ostream &os) {
   os << "RandomSearcher\n";
 }
 
+static unsigned int ulog2(unsigned int val) {
+  if (val == 0)
+    return UINT_MAX;
+  if (val == 1)
+    return 0;
+  unsigned int ret = 0;
+  while (val > 1) {
+    val >>= 1;
+    ret++;
+  }
+  return ret;
+}
+
+///
+
+TargetedSearcher::TargetedSearcher(Target target, CodeGraphDistance &_distance)
+    : states(std::make_unique<
+             WeightedQueue<ExecutionState *, ExecutionStateIDCompare>>()),
+      target(target), codeGraphDistance(_distance),
+      distanceToTargetFunction(
+          codeGraphDistance.getBackwardDistance(target.getBlock()->parent)) {}
+
+ExecutionState &TargetedSearcher::selectState() { return *states->choose(0); }
+
+bool TargetedSearcher::distanceInCallGraph(KFunction *kf, KBlock *kb,
+                                           unsigned int &distance) {
+  distance = UINT_MAX;
+  const std::unordered_map<KBlock *, unsigned> &dist =
+      codeGraphDistance.getDistance(kb);
+  KBlock *targetBB = target.getBlock();
+  KFunction *targetF = targetBB->parent;
+
+  if (kf == targetF && dist.count(targetBB) != 0) {
+    distance = 0;
+    return true;
+  }
+
+  for (auto &kCallBlock : kf->kCallBlocks) {
+    if (dist.count(kCallBlock) != 0) {
+      KFunction *calledKFunction =
+          kf->parent->functionMap[kCallBlock->calledFunction];
+      if (distanceToTargetFunction.count(calledKFunction) != 0 &&
+          distance > distanceToTargetFunction.at(calledKFunction) + 1) {
+        distance = distanceToTargetFunction.at(calledKFunction) + 1;
+      }
+    }
+  }
+  return distance != UINT_MAX;
+}
+
+TargetedSearcher::WeightResult
+TargetedSearcher::tryGetLocalWeight(ExecutionState *es, weight_type &weight,
+                                    const std::vector<KBlock *> &localTargets) {
+  unsigned int intWeight = es->steppedMemoryInstructions;
+  KFunction *currentKF = es->stack.back().kf;
+  KBlock *currentKB = currentKF->blockMap[es->getPCBlock()];
+  KBlock *prevKB = currentKF->blockMap[es->getPrevPCBlock()];
+  const std::unordered_map<KBlock *, unsigned> &dist =
+      codeGraphDistance.getDistance(currentKB);
+  unsigned int localWeight = UINT_MAX;
+  for (auto &end : localTargets) {
+    if (dist.count(end) > 0) {
+      unsigned int w = dist.at(end);
+      localWeight = std::min(w, localWeight);
+    }
+  }
+
+  if (localWeight == UINT_MAX)
+    return Miss;
+  if (localWeight == 0 && prevKB != currentKB)
+    return Done;
+
+  intWeight += localWeight;
+  weight = ulog2(intWeight); // number on [0,32)-discrete-interval
+  return Continue;
+}
+
+TargetedSearcher::WeightResult
+TargetedSearcher::tryGetPreTargetWeight(ExecutionState *es,
+                                        weight_type &weight) {
+  KFunction *currentKF = es->stack.back().kf;
+  std::vector<KBlock *> localTargets;
+  for (auto &kCallBlock : currentKF->kCallBlocks) {
+    KFunction *calledKFunction =
+        currentKF->parent->functionMap[kCallBlock->calledFunction];
+    if (distanceToTargetFunction.count(calledKFunction) > 0) {
+      localTargets.push_back(kCallBlock);
+    }
+  }
+
+  if (localTargets.empty())
+    return Miss;
+
+  WeightResult res = tryGetLocalWeight(es, weight, localTargets);
+  weight = weight + 32; // number on [32,64)-discrete-interval
+  return res == Done ? Continue : res;
+}
+
+TargetedSearcher::WeightResult
+TargetedSearcher::tryGetPostTargetWeight(ExecutionState *es,
+                                         weight_type &weight) {
+  KFunction *currentKF = es->stack.back().kf;
+  std::vector<KBlock *> &localTargets = currentKF->returnKBlocks;
+
+  if (localTargets.empty())
+    return Miss;
+
+  WeightResult res = tryGetLocalWeight(es, weight, localTargets);
+  weight = weight + 32; // number on [32,64)-discrete-interval
+  return res == Done ? Continue : res;
+}
+
+TargetedSearcher::WeightResult
+TargetedSearcher::tryGetTargetWeight(ExecutionState *es, weight_type &weight) {
+  std::vector<KBlock *> localTargets = {target.getBlock()};
+  WeightResult res = tryGetLocalWeight(es, weight, localTargets);
+  return res;
+}
+
+TargetedSearcher::WeightResult
+TargetedSearcher::tryGetWeight(ExecutionState *es, weight_type &weight) {
+  if (target.atReturn()) {
+    if (es->prevPC->parent == target.getBlock() &&
+        es->prevPC == target.getBlock()->getLastInstruction()) {
+      return Done;
+    } else if (es->pc->parent == target.getBlock()) {
+      weight = 0;
+      return Continue;
+    }
+  }
+
+  BasicBlock *bb = es->getPCBlock();
+  KBlock *kb = es->stack.back().kf->blockMap[bb];
+  KInstruction *ki = es->pc;
+  if (kb->numInstructions && kb->getFirstInstruction() != ki &&
+      states->tryGetWeight(es, weight)) {
+    return Continue;
+  }
+  unsigned int minCallWeight = UINT_MAX, minSfNum = UINT_MAX, sfNum = 0;
+  for (auto sfi = es->stack.rbegin(), sfe = es->stack.rend(); sfi != sfe;
+       sfi++) {
+    unsigned callWeight;
+    if (distanceInCallGraph(sfi->kf, kb, callWeight)) {
+      callWeight *= 2;
+      callWeight += sfNum;
+      if (callWeight < minCallWeight) {
+        minCallWeight = callWeight;
+        minSfNum = sfNum;
+      }
+    }
+
+    if (sfi->caller) {
+      kb = sfi->caller->parent;
+      bb = kb->basicBlock;
+    }
+    sfNum++;
+
+    if (minCallWeight < sfNum)
+      break;
+  }
+
+  WeightResult res = Miss;
+  if (minCallWeight == 0)
+    res = tryGetTargetWeight(es, weight);
+  else if (minSfNum == 0)
+    res = tryGetPreTargetWeight(es, weight);
+  else if (minSfNum != UINT_MAX)
+    res = tryGetPostTargetWeight(es, weight);
+  return res;
+}
+
+void TargetedSearcher::update(
+    ExecutionState *current, const std::vector<ExecutionState *> &addedStates,
+    const std::vector<ExecutionState *> &removedStates) {
+  weight_type weight = 0;
+
+  // update current
+  if (current && std::find(removedStates.begin(), removedStates.end(),
+                           current) == removedStates.end()) {
+    switch (tryGetWeight(current, weight)) {
+    case Continue:
+      states->update(current, weight);
+      break;
+    case Done:
+      reachedOnLastUpdate.push_back(current);
+      break;
+    case Miss:
+      current->targets.erase(target);
+      states->remove(current);
+      break;
+    }
+  }
+
+  // insert states
+  for (const auto state : addedStates) {
+    switch (tryGetWeight(state, weight)) {
+    case Continue:
+      states->insert(state, weight);
+      break;
+    case Done:
+      states->insert(state, weight);
+      reachedOnLastUpdate.push_back(state);
+      break;
+    case Miss:
+      state->targets.erase(target);
+      break;
+    }
+  }
+
+  // remove states
+  for (const auto state : removedStates) {
+    if (target.atReturn() &&
+        state->prevPC == target.getBlock()->getLastInstruction())
+      reachedOnLastUpdate.push_back(state);
+    else {
+      state->targets.erase(target);
+      states->remove(state);
+    }
+  }
+}
+
+bool TargetedSearcher::empty() { return states->empty(); }
+
+void TargetedSearcher::printName(llvm::raw_ostream &os) {
+  os << "TargetedSearcher";
+}
+
+TargetedSearcher::~TargetedSearcher() {
+  while (!states->empty()) {
+    auto &state = selectState();
+    state.targets.erase(target);
+    states->remove(&state);
+  }
+}
+
+std::vector<ExecutionState *> TargetedSearcher::reached() {
+  return reachedOnLastUpdate;
+}
+
+void TargetedSearcher::removeReached() {
+  for (auto state : reachedOnLastUpdate) {
+    states->remove(state);
+    state->targets.erase(target);
+  }
+  reachedOnLastUpdate.clear();
+}
+
+///
+
+GuidedSearcher::GuidedSearcher(
+    Searcher *baseSearcher, CodeGraphDistance &codeGraphDistance,
+    TargetCalculator &stateHistory,
+    std::set<ExecutionState *, ExecutionStateIDCompare> &pausedStates,
+    std::size_t bound, bool stopAfterReachingTarget)
+    : baseSearcher(baseSearcher), codeGraphDistance(codeGraphDistance),
+      stateHistory(stateHistory), pausedStates(pausedStates), bound(bound),
+      stopAfterReachingTarget(stopAfterReachingTarget) {}
+
+ExecutionState &GuidedSearcher::selectState() {
+  unsigned size = targetedSearchers.size();
+  index = (index + 1) % (size + 1);
+  if (stopAfterReachingTarget && index == size)
+    return baseSearcher->selectState();
+  else {
+    index = index % size;
+    auto it = targetedSearchers.begin();
+    std::advance(it, index);
+    Target target = it->first;
+    assert(targetedSearchers.find(target) != targetedSearchers.end() &&
+           !targetedSearchers[target]->empty());
+    return targetedSearchers[target]->selectState();
+  }
+}
+
+void GuidedSearcher::innerUpdate(
+    ExecutionState *current, const std::vector<ExecutionState *> &addedStates,
+    const std::vector<ExecutionState *> &removedStates) {
+  std::map<Target, std::vector<ExecutionState *>> addedTStates;
+  std::map<Target, std::vector<ExecutionState *>> removedTStates;
+  std::vector<ExecutionState *> targetlessStates;
+  std::vector<ExecutionState *> addedTargetlessStates(addedStates.begin(),
+                                                      addedStates.end());
+  std::vector<ExecutionState *> removedTargetlessStates(removedStates.begin(),
+                                                        removedStates.end());
+
+  std::set<Target> targets;
+
+  for (const auto state : addedStates) {
+    if (!state->targets.empty()) {
+      for (auto target : state->targets) {
+        targets.insert(target);
+        addedTStates[target].push_back(state);
+      }
+    } else {
+      targetlessStates.push_back(state);
+    }
+  }
+
+  for (const auto state : removedStates) {
+    for (auto target : state->targets) {
+      targets.insert(target);
+      removedTStates[target].push_back(state);
+    }
+  }
+
+  std::set<Target> currTargets;
+  if (current) {
+    currTargets = current->targets;
+  }
+
+  if (current && !currTargets.empty()) {
+    for (auto target : current->targets) {
+      targets.insert(target);
+    }
+  } else if (current && std::find(removedStates.begin(), removedStates.end(),
+                                  current) == removedStates.end()) {
+    targetlessStates.push_back(current);
+  }
+
+  if (!removedTargetlessStates.empty()) {
+    std::vector<ExecutionState *> alt = removedTargetlessStates;
+    for (const auto state : alt) {
+      auto it = pausedStates.find(state);
+      if (it != pausedStates.end()) {
+        pausedStates.erase(it);
+        removedTargetlessStates.erase(
+            std::remove(removedTargetlessStates.begin(),
+                        removedTargetlessStates.end(), state),
+            removedTargetlessStates.end());
+      }
+    }
+  }
+
+  for (const auto state : targetlessStates) {
+    KInstruction *prevKI = state->prevPC;
+    if (prevKI->inst->isTerminator() &&
+        state->multilevel.count(state->getPCBlock()) > bound) {
+      Target target(stateHistory.calculate(*state));
+      if (target) {
+        state->targets.insert(target);
+        targets.insert(target);
+        addedTStates[target].push_back(state);
+      } else {
+        pausedStates.insert(state);
+        if (std::find(addedStates.begin(), addedStates.end(), state) !=
+            addedStates.end()) {
+          auto is = std::find(addedTargetlessStates.begin(),
+                              addedTargetlessStates.end(), state);
+          addedTargetlessStates.erase(is);
+        } else {
+          removedTargetlessStates.push_back(state);
+        }
+      }
+    }
+  }
+
+  for (auto target : targets) {
+    ExecutionState *currTState =
+        currTargets.count(target) != 0 ? current : nullptr;
+
+    if (targetedSearchers.count(target) == 0)
+      addTarget(target);
+    targetedSearchers[target]->update(currTState, addedTStates[target],
+                                      removedTStates[target]);
+    if (targetedSearchers[target]->empty())
+      targetedSearchers.erase(target);
+  }
+
+  baseSearcher->update(current, addedTargetlessStates, removedTargetlessStates);
+}
+
+void GuidedSearcher::update(
+    ExecutionState *current, const std::vector<ExecutionState *> &addedStates,
+    const std::vector<ExecutionState *> &removedStates,
+    std::map<Target, std::unordered_set<ExecutionState *>> &reachedStates) {
+  innerUpdate(current, addedStates, removedStates);
+  collectReached(reachedStates);
+  clearReached();
+}
+
+void GuidedSearcher::update(
+    ExecutionState *current, const std::vector<ExecutionState *> &addedStates,
+    const std::vector<ExecutionState *> &removedStates) {
+  innerUpdate(current, addedStates, removedStates);
+  clearReached();
+}
+
+void GuidedSearcher::collectReached(
+    std::map<Target, std::unordered_set<ExecutionState *>> &reachedStates) {
+  std::map<Target, std::unordered_set<ExecutionState *>> ret;
+  std::vector<Target> targets;
+  for (auto const &targetSearcher : targetedSearchers)
+    targets.push_back(targetSearcher.first);
+  for (auto target : targets) {
+    auto reached = targetedSearchers[target]->reached();
+    if (!reached.empty()) {
+      for (auto state : reached)
+        reachedStates[target].insert(state);
+    }
+  }
+}
+
+void GuidedSearcher::clearReached() {
+  std::vector<Target> targets;
+  for (auto const &targetSearcher : targetedSearchers)
+    targets.push_back(targetSearcher.first);
+  for (auto target : targets) {
+    auto reached = targetedSearchers[target]->reached();
+    if (!reached.empty()) {
+      targetedSearchers[target]->removeReached();
+      if (stopAfterReachingTarget || targetedSearchers[target]->empty())
+        targetedSearchers.erase(target);
+    }
+  }
+}
+
+bool GuidedSearcher::empty() {
+  return stopAfterReachingTarget ? baseSearcher->empty()
+                                 : targetedSearchers.empty();
+}
+
+void GuidedSearcher::printName(llvm::raw_ostream &os) {
+  os << "GuidedSearcher";
+}
+
+void GuidedSearcher::addTarget(Target target) {
+  targetedSearchers[target] =
+      std::make_unique<TargetedSearcher>(target, codeGraphDistance);
+}
 
 ///
 

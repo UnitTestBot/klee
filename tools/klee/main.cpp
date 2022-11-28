@@ -1248,6 +1248,13 @@ int main(int argc, char **argv, char **envp) {
 
   llvm::Module *mainModule = M.get();
 
+  std::vector<llvm::Function *> moduleFunctions;
+  for (auto &Function : *mainModule) {
+    if (!Function.isDeclaration()) {
+      moduleFunctions.push_back(&Function);
+    }
+  }
+
   const std::string &module_triple = mainModule->getTargetTriple();
   std::string host_triple = llvm::sys::getDefaultTargetTriple();
 
@@ -1409,7 +1416,8 @@ int main(int argc, char **argv, char **envp) {
   // Get the desired main function.  klee_main initializes uClibc
   // locale and other data and then calls main.
 
-  auto finalModule = interpreter->setModule(loadedModules, Opts);
+  auto finalModule =
+      interpreter->setModule(loadedModules, Opts, moduleFunctions);
   Function *mainFn = finalModule->getFunction(EntryPoint);
   if (!mainFn) {
     klee_error("Entry function '%s' not found in module.", EntryPoint.c_str());

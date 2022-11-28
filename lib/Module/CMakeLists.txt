@@ -7,7 +7,9 @@
 #
 #===------------------------------------------------------------------------===#
 set(KLEE_MODULE_COMPONENT_SRCS
+  CallSplitter.cpp
   Checks.cpp
+  CodeGraphDistance.cpp
   FunctionAlias.cpp
   InstructionInfoTable.cpp
   InstructionOperandTypeCheckPass.cpp
