@@ -60,7 +60,7 @@ void TargetCalculator::update(const ExecutionState &state) {
 
 bool TargetCalculator::differenceIsEmpty(
     const ExecutionState &state,
-    const std::map<llvm::BasicBlock *, VisitedBlocks> &history,
+    const std::unordered_map<llvm::BasicBlock *, VisitedBlocks> &history,
     KBlock *target) {
   std::vector<BasicBlock *> diff;
   std::set<BasicBlock *> left(state.level.begin(), state.level.end());
@@ -73,7 +73,7 @@ bool TargetCalculator::differenceIsEmpty(
 
 bool TargetCalculator::differenceIsEmpty(
     const ExecutionState &state,
-    const std::map<llvm::BasicBlock *, VisitedTransitions> &history,
+    const std::unordered_map<llvm::BasicBlock *, VisitedTransitions> &history,
     KBlock *target) {
   std::vector<Transition> diff;
   std::set<Transition> left(state.transitionLevel.begin(),
@@ -87,10 +87,10 @@ bool TargetCalculator::differenceIsEmpty(
 
 Target TargetCalculator::calculate(ExecutionState &state) {
   BasicBlock *initialBlock = state.getInitPCBlock();
-  std::map<llvm::BasicBlock *, VisitedBlocks> &history =
+  std::unordered_map<llvm::BasicBlock *, VisitedBlocks> &history =
       blocksHistory[initialBlock];
-  std::map<llvm::BasicBlock *, VisitedTransitions> &transitionHistory =
-      transitionsHistory[initialBlock];
+  std::unordered_map<llvm::BasicBlock *, VisitedTransitions>
+      &transitionHistory = transitionsHistory[initialBlock];
   BasicBlock *bb = state.getPCBlock();
   KFunction *kf = module.functionMap.at(bb->getParent());
   KBlock *kb = kf->blockMap[bb];

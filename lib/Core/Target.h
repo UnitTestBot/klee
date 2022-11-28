@@ -11,22 +11,18 @@
 #define KLEE_TARGET_H
 
 #include "klee/Module/KModule.h"
-#include "llvm/Support/Casting.h"
 #include "klee/Support/OptionCategories.h"
+#include "llvm/Support/Casting.h"
 
-#include <unordered_set>
 #include <map>
+#include <unordered_set>
 
 namespace klee {
 class CodeGraphDistance;
 class ExecutionState;
 class Executor;
 
-enum TargetCalculateBy {
-  Default,
-  Blocks,
-  Transitions
-};
+enum TargetCalculateBy { Default, Blocks, Transitions };
 
 struct Target {
 private:
@@ -62,17 +58,15 @@ struct TransitionHash {
 class TargetCalculator {
   typedef std::unordered_set<llvm::BasicBlock *> VisitedBlocks;
   typedef std::unordered_set<Transition, TransitionHash> VisitedTransitions;
-  
-  enum HistoryKind {
-    Blocks,
-    Transitions
-  };
 
-  typedef std::map<llvm::BasicBlock *,
-                   std::map<llvm::BasicBlock *, VisitedBlocks>>
+  enum HistoryKind { Blocks, Transitions };
+
+  typedef std::unordered_map<
+      llvm::BasicBlock *, std::unordered_map<llvm::BasicBlock *, VisitedBlocks>>
       BlocksHistory;
-  typedef std::map<llvm::BasicBlock *,
-                   std::map<llvm::BasicBlock *, VisitedTransitions>>
+  typedef std::unordered_map<
+      llvm::BasicBlock *,
+      std::unordered_map<llvm::BasicBlock *, VisitedTransitions>>
       TransitionsHistory;
 
 public:
@@ -90,11 +84,13 @@ private:
   TransitionsHistory transitionsHistory;
 
   bool differenceIsEmpty(
-    const ExecutionState &state, const std::map<llvm::BasicBlock *, VisitedBlocks> &history,
-    KBlock *target);
+      const ExecutionState &state,
+      const std::unordered_map<llvm::BasicBlock *, VisitedBlocks> &history,
+      KBlock *target);
   bool differenceIsEmpty(
-    const ExecutionState &state, const std::map<llvm::BasicBlock *, VisitedTransitions> &history,
-    KBlock *target);
+      const ExecutionState &state,
+      const std::unordered_map<llvm::BasicBlock *, VisitedTransitions> &history,
+      KBlock *target);
 };
 } // namespace klee
 

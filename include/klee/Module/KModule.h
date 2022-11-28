@@ -20,6 +20,7 @@
 #include <set>
 #include <vector>
 #include <unordered_set>
+#include <unordered_map>
 
 namespace llvm {
   class BasicBlock;
@@ -66,8 +67,8 @@ namespace klee {
 
   public:
     KBlock(KFunction *, llvm::BasicBlock *, KModule *,
-           std::map<llvm::Instruction *, unsigned> &,
-           std::map<unsigned, KInstruction *> &,
+           std::unordered_map<llvm::Instruction *, unsigned> &,
+           std::unordered_map<unsigned, KInstruction *> &,
            KInstruction **);
     KBlock(const KBlock &) = delete;
     KBlock &operator=(const KBlock &) = delete;
@@ -77,7 +78,7 @@ namespace klee {
     static bool classof(const KBlock *) { return true; }
 
     void handleKInstruction(
-        std::map<llvm::Instruction *, unsigned> &instructionToRegisterMap,
+        std::unordered_map<llvm::Instruction *, unsigned> &instructionToRegisterMap,
         llvm::Instruction *inst, KModule *km, KInstruction *ki);
     KInstruction * getFirstInstruction() const noexcept { return instructions[0]; }
     KInstruction * getLastInstruction() const noexcept { return instructions[numInstructions - 1]; }
@@ -90,8 +91,8 @@ namespace klee {
 
   public:
     KCallBlock(KFunction *, llvm::BasicBlock *, KModule *,
-               std::map<llvm::Instruction *, unsigned> &,
-               std::map<unsigned, KInstruction *> &, llvm::Function *,
+               std::unordered_map<llvm::Instruction *, unsigned> &,
+               std::unordered_map<unsigned, KInstruction *> &, llvm::Function *,
                KInstruction **);
     static bool classof(const KCallBlock *) { return true; }
     static bool classof(const KBlock *E) {
@@ -106,8 +107,8 @@ namespace klee {
   struct KReturnBlock : KBlock {
   public:
     KReturnBlock(KFunction *, llvm::BasicBlock *, KModule *,
-                 std::map<llvm::Instruction *, unsigned> &,
-                 std::map<unsigned, KInstruction *> &, KInstruction **);
+                 std::unordered_map<llvm::Instruction *, unsigned> &,
+                 std::unordered_map<unsigned, KInstruction *> &, KInstruction **);
     static bool classof(const KReturnBlock *) { return true; }
     static bool classof(const KBlock *E) {
       return E->getKBlockType() == KBlockType::Return;
@@ -121,14 +122,14 @@ namespace klee {
 
     unsigned numArgs, numRegisters;
 
-    std::map<unsigned, KInstruction *> registerToInstructionMap;
+    std::unordered_map<unsigned, KInstruction *> registerToInstructionMap;
     unsigned numInstructions;
     unsigned numBlocks;
     KInstruction **instructions;
 
-    std::map<llvm::Instruction *, KInstruction *> instructionMap;
+    std::unordered_map<llvm::Instruction *, KInstruction *> instructionMap;
     std::vector<std::unique_ptr<KBlock>> blocks;
-    std::map<llvm::BasicBlock *, KBlock *> blockMap;
+    std::unordered_map<llvm::BasicBlock *, KBlock *> blockMap;
     KBlock *entryKBlock;
     std::vector<KBlock *> returnKBlocks;
     std::vector<KCallBlock *> kCallBlocks;
@@ -170,8 +171,8 @@ namespace klee {
 
     // Our shadow versions of LLVM structures.
     std::vector<std::unique_ptr<KFunction>> functions;
-    std::map<llvm::Function*, KFunction*> functionMap;
-    std::map<llvm::Function *, std::set<llvm::Function *>> callMap;
+    std::unordered_map<llvm::Function*, KFunction*> functionMap;
+    std::unordered_map<llvm::Function *, std::set<llvm::Function *>> callMap;
 
     // Functions which escape (may be called indirectly)
     // XXX change to KFunction
@@ -182,7 +183,7 @@ namespace klee {
     std::unique_ptr<InstructionInfoTable> infos;
 
     std::vector<llvm::Constant*> constants;
-    std::map<const llvm::Constant *, std::unique_ptr<KConstant>> constantMap;
+    std::unordered_map<const llvm::Constant *, std::unique_ptr<KConstant>> constantMap;
     KConstant* getKConstant(const llvm::Constant *c);
 
     std::unique_ptr<Cell[]> constantTable;

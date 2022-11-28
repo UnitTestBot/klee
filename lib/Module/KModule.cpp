@@ -457,7 +457,7 @@ KConstant::KConstant(llvm::Constant* _ct, unsigned _id, KInstruction* _ki) {
 
 static int
 getOperandNum(Value *v,
-              std::map<Instruction *, unsigned> &instructionToRegisterMap,
+              std::unordered_map<Instruction *, unsigned> &instructionToRegisterMap,
               KModule *km, KInstruction *ki) {
   if (Instruction *inst = dyn_cast<Instruction>(v)) {
     return instructionToRegisterMap[inst];
@@ -474,7 +474,7 @@ getOperandNum(Value *v,
 }
 
 void KBlock::handleKInstruction(
-    std::map<Instruction *, unsigned> &instructionToRegisterMap,
+    std::unordered_map<Instruction *, unsigned> &instructionToRegisterMap,
     llvm::Instruction *inst, KModule *km, KInstruction *ki) {
   ki->parent = this;
   ki->inst = inst;
@@ -512,7 +512,7 @@ KFunction::KFunction(llvm::Function *_function, KModule *_km)
     numBlocks++;
   }
   instructions = new KInstruction *[numInstructions];
-  std::map<Instruction *, unsigned> instructionToRegisterMap;
+  std::unordered_map<Instruction *, unsigned> instructionToRegisterMap;
   // Assign unique instruction IDs to each basic block
   unsigned n = 0;
   // The first arg_size() registers are reserved for formals.
@@ -570,8 +570,8 @@ KFunction::~KFunction() {
 }
 
 KBlock::KBlock(KFunction *_kfunction, llvm::BasicBlock *block, KModule *km,
-               std::map<Instruction *, unsigned> &instructionToRegisterMap,
-               std::map<unsigned, KInstruction *> &registerToInstructionMap,
+               std::unordered_map<Instruction *, unsigned> &instructionToRegisterMap,
+               std::unordered_map<unsigned, KInstruction *> &registerToInstructionMap,
                KInstruction **instructionsKF)
     : parent(_kfunction), basicBlock(block), numInstructions(0),
       trackCoverage(true) {
@@ -603,8 +603,8 @@ KBlock::KBlock(KFunction *_kfunction, llvm::BasicBlock *block, KModule *km,
 
 KCallBlock::KCallBlock(
     KFunction *_kfunction, llvm::BasicBlock *block, KModule *km,
-    std::map<Instruction *, unsigned> &instructionToRegisterMap,
-    std::map<unsigned, KInstruction *> &registerToInstructionMap,
+    std::unordered_map<Instruction *, unsigned> &instructionToRegisterMap,
+    std::unordered_map<unsigned, KInstruction *> &registerToInstructionMap,
     llvm::Function *_calledFunction, KInstruction **instructionsKF)
     : KBlock::KBlock(_kfunction, block, km, instructionToRegisterMap,
                      registerToInstructionMap, instructionsKF),
@@ -625,8 +625,8 @@ KFunction *KCallBlock::getKFunction() const {
 
 KReturnBlock::KReturnBlock(
     KFunction *_kfunction, llvm::BasicBlock *block, KModule *km,
-    std::map<Instruction *, unsigned> &instructionToRegisterMap,
-    std::map<unsigned, KInstruction *> &registerToInstructionMap,
+    std::unordered_map<Instruction *, unsigned> &instructionToRegisterMap,
+    std::unordered_map<unsigned, KInstruction *> &registerToInstructionMap,
     KInstruction **instructionsKF)
     : KBlock::KBlock(_kfunction, block, km, instructionToRegisterMap,
                      registerToInstructionMap, instructionsKF) {}
