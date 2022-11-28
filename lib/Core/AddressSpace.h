@@ -27,6 +27,8 @@ namespace klee {
   typedef std::pair<const MemoryObject*, const ObjectState*> ObjectPair;
   typedef std::vector<ObjectPair> ResolutionList;  
 
+  typedef std::function<bool(const MemoryObject *)> MOPredicate;
+
   /// Function object ordering MemoryObject's by address.
   struct MemoryObjectLT {
     bool operator()(const MemoryObject *a, const MemoryObject *b) const;
@@ -82,11 +84,11 @@ namespace klee {
     /// \param[out] result An ObjectPair this address can resolve to 
     ///               (when returning true).
     /// \return true iff an object was found at \a address.
-    bool resolveOne(ExecutionState &state, 
-                    TimingSolver *solver,
-                    ref<Expr> address,
-                    ObjectPair &result,
-                    bool &success) const;
+    bool resolveOne(ExecutionState &state, TimingSolver *solver,
+                    ref<Expr> address, ObjectPair &result, bool &success) const;
+    bool resolveOne(ExecutionState &state, TimingSolver *solver,
+                    ref<Expr> address, ObjectPair &result,
+                    MOPredicate predicate, bool &success) const;
 
     /// Resolve pointer `p` to a list of `ObjectPairs` it can point
     /// to. If `maxResolutions` is non-zero then no more than that many
@@ -94,12 +96,14 @@ namespace klee {
     ///
     /// \return true iff the resolution is incomplete (`maxResolutions`
     /// is non-zero and it was reached, or a query timed out).
-    bool resolve(ExecutionState &state,
-                 TimingSolver *solver,
-                 ref<Expr> p,
-                 ResolutionList &rl, 
-                 unsigned maxResolutions=0,
-                 time::Span timeout=time::Span()) const;
+    bool resolve(ExecutionState &state, TimingSolver *solver, ref<Expr> p,
+                 ResolutionList &rl, unsigned maxResolutions = 0,
+                 time::Span timeout = time::Span()) const;
+    bool resolve(ExecutionState &state, TimingSolver *solver, ref<Expr> p,
+                 ResolutionList &rl,
+                 MOPredicate predicate,
+                 unsigned maxResolutions = 0,
+                 time::Span timeout = time::Span()) const;
 
     /***/
 

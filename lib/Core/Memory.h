@@ -41,12 +41,15 @@ class MemoryObject {
 
 private:
   static int counter;
+  static int time;
   /// @brief Required by klee::ref-managed objects
   mutable class ReferenceCounter _refCount;
 
 public:
   unsigned id;
+  mutable unsigned timestamp;
   uint64_t address;
+  ref<Expr> lazyInitializationSource;
 
   /// size in bytes
   unsigned size;
@@ -74,7 +77,9 @@ public:
   explicit
   MemoryObject(uint64_t _address) 
     : id(counter++),
+      timestamp(time++),
       address(_address),
+      lazyInitializationSource(nullptr),
       size(0),
       isFixed(true),
       parent(NULL),
@@ -84,9 +89,13 @@ public:
   MemoryObject(uint64_t _address, unsigned _size, 
                bool _isLocal, bool _isGlobal, bool _isFixed,
                const llvm::Value *_allocSite,
-               MemoryManager *_parent)
+               MemoryManager *_parent,
+               ref<Expr> _lazyInitializationSource = nullptr,
+               unsigned _timestamp = 0 /* unused if _lazyInstantiatedSource is null*/)
     : id(counter++),
+      timestamp(_timestamp),
       address(_address),
+      lazyInitializationSource(_lazyInitializationSource),
       size(_size),
       name("unnamed"),
       isLocal(_isLocal),
@@ -95,6 +104,11 @@ public:
       isUserSpecified(false),
       parent(_parent), 
       allocSite(_allocSite) {
+    if (lazyInitializationSource) {
+      timestamp = _timestamp;
+    } else {
+      timestamp = time++;
+    }
   }
 
   ~MemoryObject();
@@ -106,8 +120,26 @@ public:
     this->name = name;
   }
 
-  ref<ConstantExpr> getBaseExpr() const { 
+  void updateTimestamp() const {
+    this->timestamp = time++;
+  }
+
+  bool isLazyInitialized() const { return bool(lazyInitializationSource); }
+  ref<Expr> getLazyInitializationSource() const {
+    return lazyInitializationSource;
+  }
+  void setlazyInitializationSource(ref<Expr> source) {
+    lazyInitializationSource = source;
+  }
+  ref<ConstantExpr> getBaseConstantExpr() const {
     return ConstantExpr::create(address, Context::get().getPointerWidth());
+  }
+  ref<Expr> getBaseExpr() const {
+    if (!lazyInitializationSource) {
+      return getBaseConstantExpr();
+    } else {
+      return lazyInitializationSource;
+    }
   }
   ref<ConstantExpr> getSizeExpr() const { 
     return ConstantExpr::create(size, Context::get().getPointerWidth());
@@ -156,6 +188,7 @@ public:
     if (allocSite != b.allocSite)
       return (allocSite < b.allocSite ? -1 : 1);
 
+    assert(lazyInitializationSource == b.lazyInitializationSource);
     return 0;
   }
 };
