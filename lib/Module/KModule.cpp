@@ -111,6 +111,11 @@ namespace {
       SplitCalls("split-calls",
                  cl::desc("Split each call in own basic block (default=true)"),
                  cl::init(true), cl::cat(klee::ModuleCat));
+
+  cl::opt<bool>
+      SplitReturns("split-returns",
+                 cl::desc("Split each return in own basic block (default=true)"),
+                 cl::init(true), cl::cat(klee::ModuleCat));
 }
 
 /***/
@@ -299,6 +304,9 @@ void KModule::optimiseAndPrepare(
   pm3.add(new FunctionAliasPass());
   if (SplitCalls) {
     pm3.add(new CallSplitter());
+  }
+  if (SplitReturns) {
+    pm3.add(new ReturnSplitter());
   }
   pm3.run(*module);
 }
@@ -532,7 +540,7 @@ KFunction::KFunction(llvm::Function *_function, KModule *_km)
     KBlock *kb;
     Instruction *fit = &*(*bbit).begin();
     Instruction *lit = &*(--(*bbit).end());
-    if (isa<CallInst>(fit) || isa<InvokeInst>(lit)) {
+    if (SplitCalls && (isa<CallInst>(fit) || isa<InvokeInst>(fit))) {
 #if LLVM_VERSION_CODE >= LLVM_VERSION(8, 0)
       const CallBase &cs = cast<CallBase>(*fit);
       Value *fp = cs.getCalledOperand();
@@ -546,7 +554,7 @@ KFunction::KFunction(llvm::Function *_function, KModule *_km)
                          registerToInstructionMap, f, &instructions[n]);
       kCallBlocks.push_back(ckb);
       kb = ckb;
-    } else if (isa<ReturnInst>(lit)) {
+    } else if (SplitReturns && isa<ReturnInst>(lit)) {
       kb = new KReturnBlock(this, &*bbit, parent, instructionToRegisterMap,
                             registerToInstructionMap, &instructions[n]);
       returnKBlocks.push_back(kb);

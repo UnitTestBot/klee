@@ -211,6 +211,13 @@ public:
   CallSplitter() : llvm::FunctionPass(ID) {}
   bool runOnFunction(llvm::Function &F) override;
 };
+
+class ReturnSplitter : public llvm::FunctionPass {
+public:
+  static char ID;
+  ReturnSplitter() : llvm::FunctionPass(ID) {}
+  bool runOnFunction(llvm::Function &F) override;
+};
 } // namespace klee
 
 #endif /* KLEE_PASSES_H */

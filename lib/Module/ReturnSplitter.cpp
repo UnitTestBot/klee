@@ -1,4 +1,4 @@
-//===-- CallSplitter.cpp -------------------------------------------------------===//
+//===-- ReturnSplitter.cpp -------------------------------------------------------===//
 //
 //                     The KLEE Symbolic Virtual Machine
 //
@@ -18,9 +18,9 @@ using namespace llvm;
 
 namespace klee {
 
-char CallSplitter::ID = 0;
+char ReturnSplitter::ID = 0;
 
-bool CallSplitter::runOnFunction(Function &F) {
+bool ReturnSplitter::runOnFunction(Function &F) {
   unsigned n = F.getBasicBlockList().size();
   BasicBlock **blocks = new BasicBlock *[n];
   unsigned i = 0;
@@ -35,24 +35,10 @@ bool CallSplitter::runOnFunction(Function &F) {
     llvm::BasicBlock::iterator ie = fbb->end();
     Instruction *firstInst = &*it;
     while (it != ie) {
-      if (isa<CallInst>(it)) {
-        Instruction *callInst = &*it++;
-        Instruction *afterCallInst = &*it;
-        if (callInst != firstInst) {
-          fbb = fbb->splitBasicBlock(callInst);
-        }
-        if (isa<BranchInst>(afterCallInst) &&
-            cast<BranchInst>(afterCallInst)->isUnconditional()) {
-          break;
-        }
-        fbb = fbb->splitBasicBlock(afterCallInst);
-        it = fbb->begin();
-        ie = fbb->end();
-        firstInst = &*it;
-      } else if (isa<InvokeInst>(it)) {
-        Instruction *invokeInst = &*it++;
-        if (invokeInst != firstInst) {
-          fbb = fbb->splitBasicBlock(invokeInst);
+      if (isa<ReturnInst>(it)) {
+        Instruction *returnInst = &*it++;
+        if (returnInst != firstInst) {
+          fbb = fbb->splitBasicBlock(returnInst);
         }
       } else {
         it++;
