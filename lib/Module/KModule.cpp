@@ -407,6 +407,14 @@ KBlock *KModule::getKBlock(llvm::BasicBlock *bb) {
   return functionMap[bb->getParent()]->blockMap[bb];
 }
 
+bool KModule::inMainModule(llvm::Function *f) {
+  auto found = std::find_if(mainModuleFunctions.begin(), mainModuleFunctions.end(),
+                            [&f](const std::string &str) {
+                              return str == f->getName().str();
+                            });
+  return found != mainModuleFunctions.end();
+}
+
 Function *llvm::getTargetFunction(Value *calledVal) {
   SmallPtrSet<const GlobalValue *, 3> Visited;
 
@@ -538,8 +546,8 @@ KFunction::KFunction(llvm::Function *_function, KModule *_km)
                                 bbie = function->end();
        bbit != bbie; ++bbit) {
     KBlock *kb;
-    Instruction *fit = &*(*bbit).begin();
-    Instruction *lit = &*(--(*bbit).end());
+    Instruction *fit = &bbit->front();
+    Instruction *lit = &bbit->back();
     if (SplitCalls && (isa<CallInst>(fit) || isa<InvokeInst>(fit))) {
 #if LLVM_VERSION_CODE >= LLVM_VERSION(8, 0)
       const CallBase &cs = cast<CallBase>(*fit);

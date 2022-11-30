@@ -510,7 +510,7 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
 llvm::Module *
 Executor::setModule(std::vector<std::unique_ptr<llvm::Module>> &modules,
                     const ModuleOptions &opts,
-                    const std::vector<llvm::Function *> &moduleFunctions) {
+                    const std::vector<std::string> &mainModuleFunctions) {
   assert(!kmodule && !modules.empty() &&
          "can only register one module"); // XXX gross
 
@@ -554,8 +554,9 @@ Executor::setModule(std::vector<std::unique_ptr<llvm::Module>> &modules,
 
   // 4.) Manifest the module
   kmodule->manifest(interpreterHandler, StatsTracker::useStatistics());
-  kmodule->moduleFunctions.insert(moduleFunctions.begin(),
-                                  moduleFunctions.end());
+  kmodule->mainModuleFunctions.insert(kmodule->mainModuleFunctions.end(),
+                                  mainModuleFunctions.begin(),
+                                  mainModuleFunctions.end());
 
   specialFunctionHandler->bind();
 
@@ -3548,7 +3549,7 @@ void Executor::run(ExecutionState &initialState) {
       KFunction *kf = prevKI->parent->parent;
 
       if (prevKI->inst->isTerminator() &&
-          kmodule->moduleFunctions.count(kf->function)) {
+          kmodule->inMainModule(kf->function)) {
         targetCalculator->update(state);
       }
 

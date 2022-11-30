@@ -1256,10 +1256,10 @@ int main(int argc, char **argv, char **envp) {
 
   llvm::Module *mainModule = M.get();
 
-  std::vector<llvm::Function *> moduleFunctions;
+  std::vector<std::string> mainModuleFunctions;
   for (auto &Function : *mainModule) {
     if (!Function.isDeclaration()) {
-      moduleFunctions.push_back(&Function);
+        mainModuleFunctions.push_back(Function.getName().str());
     }
   }
 
@@ -1425,7 +1425,7 @@ int main(int argc, char **argv, char **envp) {
   // locale and other data and then calls main.
 
   auto finalModule =
-      interpreter->setModule(loadedModules, Opts, moduleFunctions);
+      interpreter->setModule(loadedModules, Opts, mainModuleFunctions);
   Function *mainFn = finalModule->getFunction(EntryPoint);
   if (!mainFn) {
     klee_error("Entry function '%s' not found in module.", EntryPoint.c_str());

@@ -110,7 +110,7 @@ public:
   virtual llvm::Module *
   setModule(std::vector<std::unique_ptr<llvm::Module>> &modules,
             const ModuleOptions &opts,
-            const std::vector<llvm::Function *> &moduleFunctions) = 0;
+            const std::vector<std::string> &mainModuleFunctions) = 0;
 
   // supply a tree stream writer which the interpreter will use
   // to record the concrete path (as a stream of '0' and '1' bytes).

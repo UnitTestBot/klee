@@ -178,7 +178,7 @@ namespace klee {
     // XXX change to KFunction
     std::set<llvm::Function*> escapingFunctions;
 
-    std::unordered_set<llvm::Function *> moduleFunctions;
+    std::vector<std::string> mainModuleFunctions;
 
     std::unique_ptr<InstructionInfoTable> infos;
 
@@ -233,6 +233,8 @@ namespace klee {
     void checkModule();
 
     KBlock *getKBlock(llvm::BasicBlock *bb);
+
+    bool inMainModule(llvm::Function *f);
   };
 } // End klee namespace
 

@@ -474,7 +474,7 @@ void ExecutionState::increaseLevel() {
   KModule *kmodule = kf->parent;
 
   if (prevPC->inst->isTerminator() &&
-      kmodule->moduleFunctions.count(kf->function)) {
+      kmodule->inMainModule(kf->function)) {
     multilevel.insert(srcbb);
     level.insert(srcbb);
   }
