@@ -24,6 +24,10 @@ namespace klee {
 
     bool allowFreeValues;
     bindings_ty bindings;
+
+    friend bool operator==(const Assignment &lhs, const Assignment &rhs) {
+      return lhs.bindings == rhs.bindings;
+    }
     
   public:
     Assignment(bool _allowFreeValues=false) 
@@ -46,14 +50,16 @@ namespace klee {
     }
     
     ref<Expr> evaluate(const Array *mo, unsigned index) const;
-    ref<Expr> evaluate(ref<Expr> e);
+    ref<Expr> evaluate(ref<Expr> e) const;
     ConstraintSet createConstraintsFromAssignment() const;
 
     template<typename InputIterator>
     bool satisfies(InputIterator begin, InputIterator end);
     void dump();
+
+    std::vector<const Array *> getArrays();
   };
-  
+
   class AssignmentEvaluator : public ExprEvaluator {
     const Assignment &a;
 
@@ -84,7 +90,7 @@ namespace klee {
     }
   }
 
-  inline ref<Expr> Assignment::evaluate(ref<Expr> e) { 
+  inline ref<Expr> Assignment::evaluate(ref<Expr> e) const {
     AssignmentEvaluator v(*this);
     return v.visit(e); 
   }

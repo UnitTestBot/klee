@@ -15,6 +15,7 @@
 
 #include "klee/ADT/BitArray.h"
 #include "klee/Expr/ArrayCache.h"
+#include "klee/Expr/Assignment.h"
 #include "klee/Expr/Expr.h"
 #include "klee/Support/OptionCategories.h"
 #include "klee/Solver/Solver.h"
@@ -27,6 +28,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <cassert>
+#include <llvm/Support/Casting.h>
 #include <sstream>
 
 using namespace llvm;
@@ -86,9 +88,10 @@ ObjectState::ObjectState(const MemoryObject *mo)
     size(mo->size),
     readOnly(false) {
   if (!UseConstantArrays) {
+    auto sb = this->getSourceBuilder();
     static unsigned id = 0;
     const Array *array =
-        getArrayCache()->CreateArray("tmp_arr" + llvm::utostr(++id), size);
+        getArrayCache()->CreateArray("tmp_arr" + llvm::utostr(++id), size, sb->makeSymbolic());
     updates = UpdateList(array, 0);
   }
   memset(concreteStore, 0, size);
@@ -143,6 +146,11 @@ ArrayCache *ObjectState::getArrayCache() const {
   return object->parent->getArrayCache();
 }
 
+SourceBuilder *ObjectState::getSourceBuilder() const {
+  assert(object && "object was NULL");
+  return object->parent->getSourceBuilder();
+}
+
 /***/
 
 const UpdateList &ObjectState::getUpdates() const {
@@ -183,8 +191,9 @@ const UpdateList &ObjectState::getUpdates() const {
     }
 
     static unsigned id = 0;
+    auto sb = getSourceBuilder();
     const Array *array = getArrayCache()->CreateArray(
-        "const_arr" + llvm::utostr(++id), size, &Contents[0],
+        "const_arr" + llvm::utostr(++id), size, sb->constant(), &Contents[0],
         &Contents[0] + Contents.size());
     updates = UpdateList(array, 0);
 

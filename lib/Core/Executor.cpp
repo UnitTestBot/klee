@@ -31,16 +31,20 @@
 #include "klee/Core/Interpreter.h"
 #include "klee/Expr/ArrayExprOptimizer.h"
 #include "klee/Expr/Assignment.h"
+#include "klee/Expr/Constraints.h"
 #include "klee/Expr/Expr.h"
 #include "klee/Expr/ExprPPrinter.h"
 #include "klee/Expr/ExprSMTLIBPrinter.h"
 #include "klee/Expr/ExprUtil.h"
+#include "klee/Expr/IndependentSet.h"
+#include "klee/Expr/SymbolicSource.h"
 #include "klee/Module/Cell.h"
 #include "klee/Module/CodeGraphDistance.h"
 #include "klee/Module/InstructionInfoTable.h"
 #include "klee/Module/KInstruction.h"
 #include "klee/Module/KModule.h"
 #include "klee/Solver/Common.h"
+#include "klee/Solver/ConcretizationManager.h"
 #include "klee/Solver/SolverCmdLine.h"
 #include "klee/Solver/SolverStats.h"
 #include "klee/Statistics/TimerStatIncrementer.h"
@@ -57,6 +61,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
+#include <llvm/Support/Casting.h>
 #if LLVM_VERSION_CODE < LLVM_VERSION(8, 0)
 #include "llvm/IR/CallSite.h"
 #endif
@@ -449,11 +454,13 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
                    InterpreterHandler *ih)
     : Interpreter(opts), interpreterHandler(ih), searcher(0),
       externalDispatcher(new ExternalDispatcher(ctx)), statsTracker(0),
-      pathWriter(0), symPathWriter(0), specialFunctionHandler(0), timers{time::Span(TimerInterval)},
-      codeGraphDistance(new CodeGraphDistance()), replayKTest(0), replayPath(0), usingSeeds(0),
-      atMemoryLimit(false), inhibitForking(false), haltExecution(false),
-      ivcEnabled(false), debugLogBuffer(debugBufferString) {
-
+      pathWriter(0), symPathWriter(0),
+      specialFunctionHandler(0), timers{time::Span(TimerInterval)},
+      cm(new ConcretizationManager()),
+      codeGraphDistance(new CodeGraphDistance()), replayKTest(0), replayPath(0),
+      usingSeeds(0), atMemoryLimit(false), inhibitForking(false),
+      haltExecution(false), ivcEnabled(false),
+      debugLogBuffer(debugBufferString) {
 
   const time::Span maxTime{MaxTime};
   if (maxTime) timers.add(
@@ -476,15 +483,22 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
     klee_error("Failed to create core solver\n");
   }
 
+  ConcretizationManager *cmSolver = nullptr;
+  if (true) { // Add flag for symcretes
+    cmSolver = cm;
+  }
+
   Solver *solver = constructSolverChain(
       coreSolver,
       interpreterHandler->getOutputFilename(ALL_QUERIES_SMT2_FILE_NAME),
       interpreterHandler->getOutputFilename(SOLVER_QUERIES_SMT2_FILE_NAME),
       interpreterHandler->getOutputFilename(ALL_QUERIES_KQUERY_FILE_NAME),
-      interpreterHandler->getOutputFilename(SOLVER_QUERIES_KQUERY_FILE_NAME));
+      interpreterHandler->getOutputFilename(SOLVER_QUERIES_KQUERY_FILE_NAME),
+      cmSolver);
 
   this->solver = new TimingSolver(solver, EqualitySubstitution);
-  memory = new MemoryManager(&arrayCache);
+
+  memory = new MemoryManager(&arrayCache, &sourceBuilder);
 
   initializeSearchOptions();
 
@@ -591,6 +605,7 @@ Executor::~Executor() {
   delete statsTracker;
   delete solver;
   delete targetCalculator;
+  delete cm;
 }
 
 /***/
@@ -777,7 +792,7 @@ void Executor::allocateGlobalObjects(ExecutionState &state) {
     if (!mo)
       klee_error("out of memory");
     globalObjects.emplace(&v, mo);
-    globalAddresses.emplace(&v, mo->getBaseExpr());
+    globalAddresses.emplace(&v, mo->getBaseConstantExpr());
   }
 }
 
@@ -3999,9 +4014,9 @@ ref<Expr> Executor::replaceReadWithSymbolic(ExecutionState &state,
   // and return it.
   
   static unsigned id;
-  const Array *array =
-      arrayCache.CreateArray("rrws_arr" + llvm::utostr(++id),
-                             Expr::getMinBytesForWidth(e->getWidth()));
+  const Array *array = arrayCache.CreateArray(
+      "rrws_arr" + llvm::utostr(++id), Expr::getMinBytesForWidth(e->getWidth()),
+      sourceBuilder.makeSymbolic());
   ref<Expr> res = Expr::createTempRead(array, e->getWidth());
   ref<Expr> eq = NotOptimizedExpr::create(EqExpr::create(e, res));
   llvm::errs() << "Making symbolic: " << eq << "\n";
@@ -4315,7 +4330,9 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   
   // XXX there is some query wasteage here. who cares?
   ExecutionState *unbound = &state;
-  
+
+  ref<Expr> checkOutOfBounds = ConstantExpr::create(1, Expr::Bool);
+
   for (ResolutionList::iterator i = rl.begin(), ie = rl.end(); i != ie; ++i) {
     const MemoryObject *mo = i->first;
     const ObjectState *os = i->second;
@@ -4327,11 +4344,22 @@ void Executor::executeMemoryOperation(ExecutionState &state,
           AndExpr::create(inBounds, mo->getBoundsCheckPointer(base, size));
     }
 
-    StatePair branches = fork(*unbound, inBounds, true, BranchType::MemOp);
-    ExecutionState *bound = branches.first;
+    bool mayBeInBounds;
+    solver->setTimeout(coreSolverTimeout);
+    bool success = solver->mayBeTrue(unbound->constraints, inBounds,
+                                     mayBeInBounds, unbound->queryMetaData);
+    solver->setTimeout(time::Span());
+    if (!success) {
+      terminateStateOnSolverError(*unbound, "Query timed out (resolve)");
+      return;
+    }
 
-    // bound can be 0 on failure or overlapped 
-    if (bound) {
+    if (mayBeInBounds) {
+      ExecutionState *bound = unbound->branch();
+      addedStates.push_back(bound);
+      processTree->attach(unbound->ptreeNode, bound, unbound, BranchType::MemOp);
+      addConstraint(*bound, inBounds);
+
       bound->addPointerResolution(base, address, mo);
 
       if (isWrite) {
@@ -4346,53 +4374,28 @@ void Executor::executeMemoryOperation(ExecutionState &state,
         ref<Expr> result = os->read(mo->getOffsetExpr(address), type);
         bindLocal(target, *bound, result);
       }
-    }
 
-    unbound = branches.second;
-
-    if (unbound && isReadFromSymbolicArray(base)) {
-      if (base == mo->getBaseExpr()) {
-        terminateStateOnError(*unbound, "memory error: out of bound pointer",
-                              StateTerminationType::Ptr,
-                              getAddressInfo(*unbound, address, mo));
-        unbound = nullptr;
-      } else {
-        ref<Expr> baseInObject = mo->getBoundsCheckPointer(base, 1);
-        if (unbound->isGEPExpr(address)) {
-          baseInObject = OrExpr::create(baseInObject,
-                                        mo->getBoundsCheckPointer(base, size));
-        }
-        branches = fork(*unbound, baseInObject, true, BranchType::MemOp);
-        bound = branches.first;
-        if (bound) {
-          // the resolved object size was unsuitable, base cannot resolve to this object
-          terminateStateEarly(*bound, "", StateTerminationType::SilentExit);
-        }
-        unbound = branches.second;
-      }
-    }
-
-    if (!unbound) {
-      break;
+      checkOutOfBounds = AndExpr::create(NotExpr::create(inBounds), checkOutOfBounds);
     }
   }
   
-  if (unbound) {
-    StatePair branches =
-        fork(*unbound, Expr::createIsZero(base), true, BranchType::MemOp);
-    ExecutionState *bound = branches.first;
-    if (bound) {
-      terminateStateOnError(*bound, "memory error: null pointer exception",
-                            StateTerminationType::Ptr);
-    }
-    unbound = branches.second;
+  StatePair branches =
+      fork(*unbound, Expr::createIsZero(base), true, BranchType::MemOp);
+  ExecutionState *bound = branches.first;
+  if (bound) {
+    terminateStateOnError(*bound, "memory error: null pointer exception",
+                          StateTerminationType::Ptr);
   }
+  unbound = branches.second;
 
   // XXX should we distinguish out of bounds and overlapped cases?
   if (unbound) {
+    Assignment symcreteSolution = cm->get(unbound->constraints);
+
     if (incomplete) {
       terminateStateOnSolverError(*unbound, "Query timed out (resolve).");
-    } else if (LazyInitialization && isReadFromSymbolicArray(base) &&
+    } else if (LazyInitialization &&
+               isReadFromSymbolicArray(symcreteSolution.evaluate(base)) &&
                (isa<ReadExpr>(address) || isa<ConcatExpr>(address) ||
                 state.isGEPExpr(address))) {
       ObjectPair p = lazyInitializeObject(*unbound, base, target, size);
@@ -4444,24 +4447,56 @@ ObjectPair Executor::lazyInitializeObject(ExecutionState &state,
   if (state.getBase(address, moBasePair)) {
     timestamp = moBasePair.first->timestamp;
   }
-  MemoryObject *mo =
-      memory->allocate(size, false, /*isGlobal=*/false, allocSite,
-                       /*allocationAlignment=*/8, address, timestamp);
-  executeMakeSymbolic(state, mo, "lazy_initialization", false);
+
+  static int id = 0;
+
+  std::string name = "lazy_initialization";
+  std::string symcreteAddressName = name + "_address" + llvm::utostr(id++);
+
+  const Array *addressArray = arrayCache.CreateArray(
+      symcreteAddressName, Context::get().getPointerWidth() / CHAR_BIT,
+      sourceBuilder.symbolicAddress());
+  ref<Expr> addressExpr =
+      Expr::createTempRead(addressArray, Context::get().getPointerWidth());
+
+  MemoryObject *mo = memory->allocate(
+      size, false, /*isGlobal=*/false, allocSite,
+      /*allocationAlignment=*/8, addressExpr, address, timestamp);
+
+  Assignment addressEquality(true);
+  unsigned char *bytesBegin = reinterpret_cast<unsigned char*>(&mo->address);
+  addressEquality.bindings[addressArray] = std::vector<unsigned char>(bytesBegin, bytesBegin + sizeof(mo->address));
+  
+  ref<Expr> addressEqualityExpr = EqExpr::create(addressExpr, address);
+
+  cm->add(Query(state.constraints, addressEqualityExpr), addressEquality);
+  addConstraint(state, addressEqualityExpr);
+
+  executeMakeSymbolic(state, mo, name, false);
   ObjectPair op;
   state.addressSpace.resolveOne(mo->getBaseConstantExpr().get(), op);
   return op;
 }
 
-const Array *Executor::makeArray(ExecutionState &state, const uint64_t size,
-                                 const std::string &name) {
+const Array *Executor::makeArray(ExecutionState &state, uint64_t size,
+                                 const std::string &name,
+                                 const SymbolicSource *source) {
   static uint64_t id = 0;
-  // std::string uniqueName = name + "#" + std::to_string(id++);
-  std::string uniqueName = name;
-  while (!state.arrayNames.insert(uniqueName).second) {
-    uniqueName = name + "_" + llvm::utostr(++id);
+  std::string uniqueName;
+  if (source->getKind() != SymbolicSource::Kind::Constant &&
+      source->getKind() != SymbolicSource::Kind::MakeSymbolic) {
+    uniqueName = source->getName() + "[" + name + "]";
+    while (!state.arrayNames.insert(uniqueName).second) {
+      uniqueName = source->getName() + "[" + name + llvm::utostr(++id) + "]";
+    }
+  } else {
+    uniqueName = name;
+    while (!state.arrayNames.insert(uniqueName).second) {
+      uniqueName = name + llvm::utostr(++id);
+    }
   }
-  const Array *array = arrayCache.CreateArray(uniqueName, size);
+
+  const Array *array = arrayCache.CreateArray(uniqueName, size, source);
 
   return array;
 }
@@ -4472,7 +4507,7 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
                                    bool isLocal) {
   // Create a new object state for the memory object (instead of a copy).
   if (!replayKTest) {
-    const Array *array = makeArray(state, mo->size, name);
+    const Array *array = makeArray(state, mo->size, name, source);
     bindObjectInState(state, mo, false, array);
     state.addSymbolic(mo, array);
     
@@ -4633,7 +4668,7 @@ void Executor::runFunctionAsMain(Function *f,
 
   // hack to clear memory objects
   delete memory;
-  memory = new MemoryManager(NULL);
+  memory = new MemoryManager(NULL, NULL);
 
   globalObjects.clear();
   globalAddresses.clear();

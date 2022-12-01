@@ -101,27 +101,6 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
   } else {
     TimerStatIncrementer timer(stats::resolveTime);
 
-    ref<Expr> base =
-        state.isGEPExpr(address) ? state.gepExprBases[address].first : address;
-    MemoryObject *symHack = nullptr;
-    for (auto &moa : state.symbolics) {
-      if (moa.first->isLazyInitialized() &&
-          moa.first->getLazyInitializationSource() == base) {
-        symHack = const_cast<MemoryObject *>(moa.first.get());
-        break;
-      }
-    }
-
-    if (symHack) {
-      auto osi = objects.find(symHack);
-      if (osi != objects.end()) {
-        result.first = osi->first;
-        result.second = osi->second.get();
-        success = true;
-        return true;
-      }
-    }
-
     // try cheap search, will succeed for any inbounds pointer
 
     ref<ConstantExpr> cex;
@@ -228,7 +207,7 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
   }
   if (SkipNotSymbolicObjects) {
     predicate = [&state, predicate](const MemoryObject *mo) {
-      return predicate(mo) && state.inSymbolics(mo);
+      return predicate(mo) && state.inSymbolics(mo) && mo->isLazyInitialized();
     };
   }
 
@@ -283,25 +262,6 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
   } else {
     TimerStatIncrementer timer(stats::resolveTime);
 
-    ref<Expr> base =
-        state.isGEPExpr(p) ? state.gepExprBases[p].first : p;
-    MemoryObject *symHack = nullptr;
-    for (auto &moa : state.symbolics) {
-      if (moa.first->isLazyInitialized() &&
-          moa.first->getLazyInitializationSource() == base) {
-        symHack = const_cast<MemoryObject *>(moa.first.get());
-        break;
-      }
-    }
-
-    if (symHack) {
-      auto osi = objects.find(symHack);
-      if (osi != objects.end()) {
-        auto res = std::make_pair(osi->first, osi->second.get());
-        rl.push_back(res);
-        return false;
-      }
-    }
     // XXX in general this isn't exactly what we want... for
     // a multiple resolution case (or for example, a \in {b,c,0})
     // we want to find the first object, find a cex assuming
@@ -401,7 +361,7 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
   }
   if (SkipNotSymbolicObjects) {
     predicate = [&state, predicate](const MemoryObject *mo) {
-      return predicate(mo) && state.inSymbolics(mo);
+      return predicate(mo) && state.inSymbolics(mo) && mo->isLazyInitialized();
     };
   }
 

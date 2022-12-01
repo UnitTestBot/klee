@@ -12,6 +12,7 @@
 
 #include "klee/Expr/Expr.h"
 #include "klee/Expr/ExprHashMap.h"
+#include "klee/Solver/ConcretizationManager.h"
 #include "klee/System/Time.h"
 #include "klee/Solver/SolverCmdLine.h"
 
@@ -32,7 +33,7 @@ namespace klee {
 
   struct Query {
   public:
-    const ConstraintSet &constraints;
+    const ConstraintSet constraints;
     ref<Expr> expr;
 
     Query(const ConstraintSet &_constraints, ref<Expr> _expr)
@@ -58,6 +59,12 @@ namespace klee {
 
     Query withConstraints(const ConstraintSet &_constraints) const {
       return Query(_constraints, expr);
+    }
+    /// Get all arrays that figure in the query
+    std::vector<const Array *> gatherArrays() const;
+
+    friend bool operator<(const Query &lhs, const Query &rhs) {
+      return lhs.constraints < rhs.constraints || lhs.expr < rhs.expr;
     }
 
     /// Dump query
@@ -264,7 +271,7 @@ namespace klee {
                   ref<SolverResponse> &negateQueryResult);
 
     /// mustBeTrue - Determine if the expression is provably true.
-    /// 
+    ///
     /// This evaluates the following logical formula:
     ///
     /// \f[ \forall X constraints(X) \to query(X) \f]
@@ -449,6 +456,8 @@ namespace klee {
 
   // Create a solver based on the supplied ``CoreSolverType``.
   Solver *createCoreSolver(CoreSolverType cst);
+
+  Solver *createSolverBlueprint(Solver *s, ConcretizationManager *cm);
 }
 
 #endif /* KLEE_SOLVER_H */

@@ -24,9 +24,12 @@
 #include "klee/Core/TerminationTypes.h"
 #include "klee/Expr/ArrayCache.h"
 #include "klee/Expr/ArrayExprOptimizer.h"
+#include "klee/Expr/SourceBuilder.h"
+#include "klee/Expr/SymbolicSource.h"
 #include "klee/Module/Cell.h"
 #include "klee/Module/KInstruction.h"
 #include "klee/Module/KModule.h"
+#include "klee/Solver/ConcretizationManager.h"
 #include "klee/System/Time.h"
 
 #include "llvm/ADT/Twine.h"
@@ -78,6 +81,7 @@ namespace klee {
   class SeedInfo;
   class SpecialFunctionHandler;
   struct StackFrame;
+  class SymbolicSource;
   class TargetCalculator;
   class StatsTracker;
   class TimingSolver;
@@ -120,6 +124,8 @@ private:
   TreeStreamWriter *pathWriter, *symPathWriter;
   SpecialFunctionHandler *specialFunctionHandler;
   TimerGroup timers;
+  SourceBuilder sourceBuilder;
+  ConcretizationManager *cm;
   std::unique_ptr<PTree> processTree;
   std::unique_ptr<CodeGraphDistance> codeGraphDistance;
   TargetCalculator *targetCalculator;
@@ -463,8 +469,8 @@ private:
   /// bindModuleConstants - Initialize the module constant table.
   void bindModuleConstants();
 
-  const Array *makeArray(ExecutionState &state, const uint64_t size,
-                         const std::string &name);
+  const Array *makeArray(ExecutionState &state, uint64_t size,
+                         const std::string &name, const SymbolicSource *source);
 
   template <typename SqType, typename TypeIt>
   void computeOffsetsSeqTy(KGEPInstruction *kgepi,

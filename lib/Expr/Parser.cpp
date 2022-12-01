@@ -14,6 +14,7 @@
 #include "klee/Expr/ExprPPrinter.h"
 #include "klee/Expr/Parser/Lexer.h"
 #include "klee/Expr/Parser/Parser.h"
+#include "klee/Expr/SourceBuilder.h"
 #include "klee/Solver/Solver.h"
 
 #include "llvm/ADT/APInt.h"
@@ -109,6 +110,7 @@ namespace {
     const MemoryBuffer *TheMemoryBuffer;
     ExprBuilder *Builder;
     ArrayCache TheArrayCache;
+    SourceBuilder sb;
     bool ClearArrayAfterQuery;
 
     Lexer TheLexer;
@@ -521,10 +523,10 @@ DeclResult ParserImpl::ParseArrayDecl() {
   const Identifier *Label = GetOrCreateIdentifier(Name);
   const Array *Root;
   if (!Values.empty())
-    Root = TheArrayCache.CreateArray(Label->Name, Size.get(), &Values[0],
-                                     &Values[0] + Values.size());
+    Root = TheArrayCache.CreateArray(Label->Name, Size.get(), sb.constant(),
+                                     &Values[0], &Values[0] + Values.size());
   else
-    Root = TheArrayCache.CreateArray(Label->Name, Size.get());
+    Root = TheArrayCache.CreateArray(Label->Name, Size.get(), sb.makeSymbolic());
   ArrayDecl *AD = new ArrayDecl(Label, Size.get(), 
                                 DomainType.get(), RangeType.get(), Root);
 
@@ -1316,8 +1318,9 @@ VersionResult ParserImpl::ParseVersionSpecifier() {
   // Define update list to avoid use-of-undef errors.
   if (!Res.isValid()) {
     // FIXME: I'm not sure if this is right. Do we need a unique array here?
-    Res =
-        VersionResult(true, UpdateList(TheArrayCache.CreateArray("", 0), NULL));
+    Res = VersionResult(
+        true,
+        UpdateList(TheArrayCache.CreateArray("", 0, sb.makeSymbolic()), NULL));
   }
   
   if (Label)

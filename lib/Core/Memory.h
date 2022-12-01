@@ -13,7 +13,9 @@
 #include "Context.h"
 #include "TimingSolver.h"
 
+#include "klee/Expr/Assignment.h"
 #include "klee/Expr/Expr.h"
+#include "klee/Expr/SourceBuilder.h"
 
 #include "llvm/ADT/StringExtras.h"
 
@@ -49,6 +51,7 @@ public:
   unsigned id;
   mutable unsigned timestamp;
   uint64_t address;
+  ref<Expr> addressExpr;
   ref<Expr> lazyInitializationSource;
 
   /// size in bytes
@@ -79,6 +82,7 @@ public:
     : id(counter++),
       timestamp(time++),
       address(_address),
+      addressExpr(nullptr),
       lazyInitializationSource(nullptr),
       size(0),
       isFixed(true),
@@ -90,11 +94,13 @@ public:
                bool _isLocal, bool _isGlobal, bool _isFixed,
                const llvm::Value *_allocSite,
                MemoryManager *_parent,
+               ref<Expr> _addressExpr = nullptr,
                ref<Expr> _lazyInitializationSource = nullptr,
                unsigned _timestamp = 0 /* unused if _lazyInstantiatedSource is null*/)
     : id(counter++),
       timestamp(_timestamp),
       address(_address),
+      addressExpr(_addressExpr),
       lazyInitializationSource(_lazyInitializationSource),
       size(_size),
       name("unnamed"),
@@ -135,11 +141,10 @@ public:
     return ConstantExpr::create(address, Context::get().getPointerWidth());
   }
   ref<Expr> getBaseExpr() const {
-    if (!lazyInitializationSource) {
-      return getBaseConstantExpr();
-    } else {
-      return lazyInitializationSource;
+    if (addressExpr) {
+      return addressExpr;
     }
+    return getBaseConstantExpr();
   }
   ref<ConstantExpr> getSizeExpr() const { 
     return ConstantExpr::create(size, Context::get().getPointerWidth());
@@ -313,6 +318,7 @@ private:
   void setKnownSymbolic(unsigned offset, Expr *value);
 
   ArrayCache *getArrayCache() const;
+  SourceBuilder *getSourceBuilder() const;
 };
   
 } // End klee namespace

@@ -10,6 +10,7 @@
 #include "klee/Solver/Solver.h"
 
 #include "klee/Expr/Constraints.h"
+#include "klee/Expr/ExprUtil.h"
 #include "klee/Solver/SolverImpl.h"
 
 using namespace klee;
@@ -268,6 +269,12 @@ std::pair< ref<Expr>, ref<Expr> > Solver::getRange(const Query& query) {
 
   return std::make_pair(ConstantExpr::create(min, width),
                         ConstantExpr::create(max, width));
+}
+
+std::vector<const Array *> Query::gatherArrays() const {
+  std::vector<const Array *> arrays = constraints.gatherArrays();
+  findObjects(expr, arrays);
+  return arrays;
 }
 
 void Query::dump() const {

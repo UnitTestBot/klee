@@ -41,4 +41,14 @@ ConstraintSet Assignment::createConstraintsFromAssignment() const {
   }
   return result;
 }
+
+std::vector<const Array *> Assignment::getArrays() {
+  std::vector<const Array*> arrays;
+  arrays.reserve(bindings.size());
+  for (auto i : bindings) {
+    arrays.push_back(i.first);
+  }
+  return arrays;
+}
+
 }

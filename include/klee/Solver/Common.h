@@ -14,6 +14,7 @@
 #ifndef KLEE_COMMON_H
 #define KLEE_COMMON_H
 
+#include "klee/Solver/ConcretizationManager.h"
 #include "klee/Solver/Solver.h"
 
 #include <string>
@@ -28,7 +29,8 @@ namespace klee {
                                  std::string querySMT2LogPath,
                                  std::string baseSolverQuerySMT2LogPath,
                                  std::string queryKQueryLogPath,
-                                 std::string baseSolverQueryKQueryLogPath);
+                                 std::string baseSolverQueryKQueryLogPath,
+                                 ConcretizationManager *cm);
 }
 
 
