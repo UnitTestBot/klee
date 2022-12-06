@@ -402,6 +402,9 @@ ssize_t read(int fd, void *buf, size_t count) {
     memcpy(buf, f->dfile->contents + f->off, count);
     f->off += count;
     
+    if (fd == 0 && __exe_env.max_off < f->off) {
+      __exe_env.max_off = f->off;
+    }
     return count;
   }
 }
@@ -472,6 +475,9 @@ ssize_t write(int fd, const void *buf, size_t count) {
       __exe_fs.stdout_writes += actual_count;
 
     f->off += count;
+    if (fd == 0 && __exe_env.max_off < f->off) {
+      __exe_env.max_off = f->off;
+    }
     return count;
   }
 }
@@ -1177,7 +1183,8 @@ int rmdir(const char *pathname) {
     }
   }
 
-  klee_warning("ignoring (EPERM)");
+  klee_report_error(__FILE__, __LINE__, "Ignoring external call: "
+		                        "symex safety", ".xxx");
   errno = EPERM;
   return -1;
 }
@@ -1198,7 +1205,8 @@ int unlink(const char *pathname) {
     }
   }
 
-  klee_warning("ignoring (EPERM)");
+  klee_report_error(__FILE__, __LINE__, "Ignoring external call: "
+                                        "symex safety", ".xxx");
   errno = EPERM;
   return -1;
 }
@@ -1221,7 +1229,8 @@ int unlinkat(int dirfd, const char *pathname, int flags) {
     }
   }
 
-  klee_warning("ignoring (EPERM)");
+  klee_report_error(__FILE__, __LINE__, "Ignoring external call: "
+                                        "symex safety", ".xxx");
   errno = EPERM;
   return -1;
 }
@@ -1433,8 +1442,9 @@ int chroot(const char *path) {
   if (path[0] == '/' && path[1] == '\0') {
     return 0;
   }
-  
-  klee_warning("ignoring (ENOENT)");
+
+  klee_report_error(__FILE__, __LINE__, "Ignoring external call: "
+                                        "symex safety", ".xxx");
   errno = ENOENT;
   return -1;
 }
