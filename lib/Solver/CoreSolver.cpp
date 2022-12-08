@@ -27,8 +27,11 @@ Solver *createCoreSolver(CoreSolverType cst) {
   case STP_SOLVER:
 #ifdef ENABLE_STP
     klee_message("Using STP solver backend");
-    assert(!ProduceUnsatCore &&
-           "Producing unsat cores doesn't support for STP solver");
+    if (ProduceUnsatCore) {
+      ProduceUnsatCore = false;
+      klee_message(
+          "Unsat cores are only supported by Z3, disabling unsat cores.");
+    }
     return new STPSolver(UseForkedCoreSolver, CoreSolverOptimizeDivides);
 #else
     klee_message("Not compiled with STP support");
@@ -36,9 +39,13 @@ Solver *createCoreSolver(CoreSolverType cst) {
 #endif
   case METASMT_SOLVER:
 #ifdef ENABLE_METASMT
+    ProduceUnsatCore = false;
     klee_message("Using MetaSMT solver backend");
-    assert(!ProduceUnsatCore &&
-           "Producing unsat cores doesn't support for MetaSMT solver");
+    if (ProduceUnsatCore) {
+      ProduceUnsatCore = false;
+      klee_message(
+          "Unsat cores are only supported by Z3, disabling unsat cores.");
+    }
     return createMetaSMTSolver();
 #else
     klee_message("Not compiled with MetaSMT support");
