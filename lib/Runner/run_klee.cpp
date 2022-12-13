@@ -26,6 +26,7 @@
 #include "klee/Support/PrintVersion.h"
 #include "klee/System/Time.h"
 #include "klee/ADT/TestCaseUtils.h"
+#include "klee/Support/SarifReport.h"
 
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/IR/Constants.h"
@@ -149,6 +150,10 @@ namespace {
     cl::opt<bool> InteractiveMode("interactive",
                                   cl::desc("Launch klee in interactive mode."),
                                   cl::init(false), cl::cat(StartCat));
+    
+    cl::opt<std::string> SarifFile("sarif",
+                                  cl::desc("Path to sarif file. If present, launch klee in targeted mode for sarif results"),
+                                  cl::init("-"), cl::cat(StartCat));
 
     cl::opt<int> TimeoutPerFunction("timeout-per-function",
                                     cl::desc("Timeout per function in klee."),
@@ -1718,6 +1723,18 @@ int run_klee(int argc, char **argv, char **envp) {
     llvm::InitializeNativeTarget();
 
     parseArguments(argc, argv);
+
+    if (SarifFile == "-") {
+      klee_error("LOL");
+      return 0;
+    } else {
+      std::ifstream f(SarifFile);
+      json data = json::parse(f);
+      SarifReport report = data.get<SarifReport>();
+      json out = report;
+      klee_error(out.dump().c_str());
+      return 0;
+    }
 
     static bool registeredOnErrorHandler = false;
     if (!registeredOnErrorHandler) {

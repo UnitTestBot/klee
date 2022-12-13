@@ -17,6 +17,7 @@ klee_add_component(kleeSupport
   Time.cpp
   Timer.cpp
   TreeStream.cpp
+  SarifReport.cpp
 )
 
 target_link_libraries(kleeSupport PUBLIC ${ZLIB_LIBRARIES})
