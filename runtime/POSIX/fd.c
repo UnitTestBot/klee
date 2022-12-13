@@ -409,7 +409,6 @@ ssize_t read(int fd, void *buf, size_t count) {
   }
 }
 
-
 ssize_t write(int fd, const void *buf, size_t count) {
   static int n_calls = 0;
   exe_file_t *f;
@@ -481,7 +480,6 @@ ssize_t write(int fd, const void *buf, size_t count) {
     return count;
   }
 }
-
 
 off64_t __fd_lseek(int fd, off64_t offset, int whence) {
   off64_t new_off;
