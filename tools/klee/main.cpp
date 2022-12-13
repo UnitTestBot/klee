@@ -191,6 +191,11 @@ namespace {
                    cl::init(false),
                    cl::cat(LinkCat));
 
+  cl::opt<bool>
+      WithFPRuntime("fp-runtime",
+                    cl::desc("Link with floating-point KLEE library."),
+                    cl::init(false), cl::cat(LinkCat));
+
   cl::opt<std::string> RuntimeBuild(
       "runtime-build",
       cl::desc("Link with versions of the runtime library that were built with "
@@ -805,6 +810,30 @@ static const char *modelledExternals[] = {
   "__ubsan_handle_sub_overflow",
   "__ubsan_handle_mul_overflow",
   "__ubsan_handle_divrem_overflow",
+  // Floating point intrinstics
+  "klee_rintf",
+  "klee_rint",
+  "klee_rintl",
+  "klee_is_nan_float",
+  "klee_is_nan_double",
+  "klee_is_nan_long_double",
+  "klee_is_infinite_float",
+  "klee_is_infinite_double",
+  "klee_is_infinite_long_double",
+  "klee_is_normal_float",
+  "klee_is_normal_double",
+  "klee_is_normal_long_double",
+  "klee_is_subnormal_float",
+  "klee_is_subnormal_double",
+  "klee_is_subnormal_long_double",
+  "klee_get_rounding_mode",
+  "klee_set_rounding_mode_internal",
+  "klee_sqrt_float",
+  "klee_sqrt_double",
+  "klee_sqrt_long_double",
+  "klee_abs_float",
+  "klee_abs_double",
+  "klee_abs_long_double"
 };
 
 // Symbols we aren't going to warn about
@@ -1289,7 +1318,8 @@ int main(int argc, char **argv, char **envp) {
   Interpreter::ModuleOptions Opts(LibraryDir.c_str(), EntryPoint, opt_suffix,
                                   /*Optimize=*/OptimizeModule,
                                   /*CheckDivZero=*/CheckDivZero,
-                                  /*CheckOvershift=*/CheckOvershift);
+                                  /*CheckOvershift=*/CheckOvershift,
+                                  /*WithFPRuntime=*/WithFPRuntime);
 
   if (WithPOSIXRuntime) {
     SmallString<128> Path(Opts.LibraryDir);
@@ -1302,6 +1332,18 @@ int main(int argc, char **argv, char **envp) {
 
     std::string libcPrefix = (Libc == LibcType::UcLibc ? "__user_" : "");
     preparePOSIX(loadedModules, libcPrefix);
+  }
+
+  if (WithFPRuntime) {
+#if ENABLE_FP
+    SmallString<128> Path(Opts.LibraryDir);
+    llvm::sys::path::append(Path, "libkleeRuntimeFp" + opt_suffix + ".bca");
+    if (!klee::loadFile(Path.c_str(), mainModule->getContext(), loadedModules,
+                        errorMsg))
+      klee_error("error loading klee FP runtime '%s': %s", Path.c_str(), errorMsg.c_str());
+#else
+    klee_error("unable to link with klee FP runtime without -DENABLE_FLOATING_POINT=ON");
+#endif
   }
 
   if (Libcxx) {
