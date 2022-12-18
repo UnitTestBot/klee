@@ -12,6 +12,7 @@
 #include "klee/Expr/ArrayCache.h"
 #include "klee/Expr/Constraints.h"
 #include "klee/Expr/Expr.h"
+#include "klee/Expr/SourceBuilder.h"
 #include "klee/Solver/Solver.h"
 #include "klee/Solver/SolverCmdLine.h"
 
@@ -54,7 +55,8 @@ void testOperation(Solver &solver,
 
     unsigned size = Expr::getMinBytesForWidth(operandWidth);
     static uint64_t id = 0;
-    const Array *array = ac.CreateArray("arr" + llvm::utostr(++id), size);
+    const Array *array = ac.CreateArray("arr" + llvm::utostr(++id), size,
+                                        SourceBuilder().makeSymbolic());
     symbolicArgs.push_back(Expr::CreateArg(Expr::createTempRead(array, 
                                                                 operandWidth)));
   }

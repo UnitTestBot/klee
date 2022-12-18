@@ -44,7 +44,7 @@ namespace {
 
 /***/
 
-int MemoryObject::counter = 0;
+IDType MemoryObject::counter = 1;
 int MemoryObject::time = 0;
 
 MemoryObject::~MemoryObject() {

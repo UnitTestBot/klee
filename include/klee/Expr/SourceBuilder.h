@@ -10,7 +10,8 @@ class SourceBuilder {
 private:
   ref<SymbolicSource> constantSource;
   ref<SymbolicSource> makeSymbolicSource;
-  ref<SymbolicAddressSource> symbolicAddressSource;
+  ref<SymbolicSource> symbolicAddressSource;
+  ref<SymbolicSource> lazyInitializationSymbolicSource;
 
 public:
   SourceBuilder();
@@ -18,6 +19,7 @@ public:
   SymbolicSource *constant() const;
   SymbolicSource *makeSymbolic() const;
   SymbolicSource *symbolicAddress() const;
+  SymbolicSource *lazyInitializationMakeSymbolic() const;
 };
 
 };

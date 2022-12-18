@@ -16,7 +16,7 @@ klee_add_component(kleaverSolver
   CoreSolver.cpp
   DummySolver.cpp
   FastCexSolver.cpp
-  SolverBlueprint.cpp
+  ConcretizingSolver.cpp
   IncompleteSolver.cpp
   IndependentSolver.cpp
   MetaSMTSolver.cpp

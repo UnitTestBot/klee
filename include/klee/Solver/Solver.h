@@ -63,6 +63,8 @@ namespace klee {
     /// Get all arrays that figure in the query
     std::vector<const Array *> gatherArrays() const;
 
+    bool containsSymcretes() const;
+
     friend bool operator<(const Query &lhs, const Query &rhs) {
       return lhs.constraints < rhs.constraints || lhs.expr < rhs.expr;
     }
@@ -457,7 +459,7 @@ namespace klee {
   // Create a solver based on the supplied ``CoreSolverType``.
   Solver *createCoreSolver(CoreSolverType cst);
 
-  Solver *createSolverBlueprint(Solver *s, ConcretizationManager *cm);
+  Solver *createConcretizingSolver(Solver *s, ConcretizationManager *cm);
 }
 
 #endif /* KLEE_SOLVER_H */

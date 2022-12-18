@@ -157,9 +157,8 @@ void ConstraintManager::addConstraintInternal(const ref<Expr> &e) {
 }
 
 void ConstraintManager::addConstraint(const ref<Expr> &e) {
-  // ref<Expr> simplified = simplifyExpr(constraints, e);
-  // addConstraintInternal(simplified);
-  addConstraintInternal(e);
+  ref<Expr> simplified = simplifyExpr(constraints, e);
+  addConstraintInternal(simplified);
 }
 
 ConstraintManager::ConstraintManager(ConstraintSet &_constraints)

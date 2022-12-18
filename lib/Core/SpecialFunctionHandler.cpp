@@ -243,7 +243,7 @@ bool SpecialFunctionHandler::handle(ExecutionState &state,
 std::string 
 SpecialFunctionHandler::readStringAtAddress(ExecutionState &state, 
                                             ref<Expr> addressExpr) {
-  ObjectPair op;
+  IDType idStringAddress;
   addressExpr = executor.toUnique(state, addressExpr);
   if (!isa<ConstantExpr>(addressExpr)) {
     executor.terminateStateOnUserError(
@@ -251,11 +251,12 @@ SpecialFunctionHandler::readStringAtAddress(ExecutionState &state,
     return "";
   }
   ref<ConstantExpr> address = cast<ConstantExpr>(addressExpr);
-  if (!state.addressSpace.resolveOne(address, op)) {
+  if (!state.addressSpace.resolveOne(address, idStringAddress)) {
     executor.terminateStateOnUserError(
         state, "Invalid string pointer passed to one of the klee_ functions");
     return "";
   }
+  ObjectPair op = state.addressSpace.findObject(idStringAddress);
   const MemoryObject *mo = op.first;
   const ObjectState *os = op.second;
 
@@ -646,9 +647,11 @@ void SpecialFunctionHandler::handleGetObjSize(ExecutionState &state,
   executor.resolveExact(state, arguments[0], rl, "klee_get_obj_size");
   for (Executor::ExactResolutionList::iterator it = rl.begin(), 
          ie = rl.end(); it != ie; ++it) {
+    const MemoryObject *mo =
+        it->second->addressSpace.findObject(it->first).first;
     executor.bindLocal(
         target, *it->second,
-        ConstantExpr::create(it->first.first->size,
+        ConstantExpr::create(mo->size,
                              executor.kmodule->targetData->getTypeSizeInBits(
                                  target->inst->getType())));
   }
@@ -667,12 +670,14 @@ void SpecialFunctionHandler::handleGetErrno(ExecutionState &state,
 #endif
 
   // Retrieve the memory object of the errno variable
-  ObjectPair result;
+  IDType idErrnoObject;
   bool resolved = state.addressSpace.resolveOne(
-      ConstantExpr::create((uint64_t)errno_addr, Expr::Int64), result);
+      ConstantExpr::create((uint64_t)errno_addr, Expr::Int64), idErrnoObject);
   if (!resolved)
-    executor.terminateStateOnUserError(state, "Could not resolve address for errno");
-  executor.bindLocal(target, state, result.second->read(0, Expr::Int32));
+    executor.terminateStateOnUserError(state,
+                                       "Could not resolve address for errno");
+  const ObjectState *os = state.addressSpace.findObject(idErrnoObject).second;
+  executor.bindLocal(target, state, os->read(0, Expr::Int32));
 }
 
 void SpecialFunctionHandler::handleErrnoLocation(
@@ -735,8 +740,9 @@ void SpecialFunctionHandler::handleRealloc(ExecutionState &state,
       
       for (Executor::ExactResolutionList::iterator it = rl.begin(), 
              ie = rl.end(); it != ie; ++it) {
-        executor.executeAlloc(*it->second, size, false, target, false, 
-                              it->first.second);
+        const ObjectState *os =
+            it->second->addressSpace.findObject(it->first).second;
+        executor.executeAlloc(*it->second, size, false, target, false, os);
       }
     }
   }
@@ -763,17 +769,17 @@ void SpecialFunctionHandler::handleCheckMemoryAccess(ExecutionState &state,
   if (!isa<ConstantExpr>(address) || !isa<ConstantExpr>(size)) {
     executor.terminateStateOnUserError(state, "check_memory_access requires constant args");
   } else {
-    ObjectPair op;
+    IDType idObject;
 
-    if (!state.addressSpace.resolveOne(cast<ConstantExpr>(address), op)) {
+    if (!state.addressSpace.resolveOne(cast<ConstantExpr>(address), idObject)) {
       executor.terminateStateOnError(state,
                                      "check_memory_access: memory error",
                                      StateTerminationType::Ptr,
                                      executor.getAddressInfo(state, address));
     } else {
-      ref<Expr> chk = 
-        op.first->getBoundsCheckPointer(address, 
-                                        cast<ConstantExpr>(size)->getZExtValue());
+      const MemoryObject *mo = state.addressSpace.findObject(idObject).first;
+      ref<Expr> chk = mo->getBoundsCheckPointer(
+          address, cast<ConstantExpr>(size)->getZExtValue());
       if (!chk->isTrue()) {
         executor.terminateStateOnError(state,
                                        "check_memory_access: memory error",
@@ -833,11 +839,12 @@ void SpecialFunctionHandler::handleMakeSymbolic(ExecutionState &state,
   
   for (Executor::ExactResolutionList::iterator it = rl.begin(), 
          ie = rl.end(); it != ie; ++it) {
-    const MemoryObject *mo = it->first.first;
+    ObjectPair op = it->second->addressSpace.findObject(it->first);
+    const MemoryObject *mo = op.first;
     mo->setName(name);
     mo->updateTimestamp();
     
-    const ObjectState *old = it->first.second;
+    const ObjectState *old = op.second;
     ExecutionState *s = it->second;
     
     if (old->readOnly) {
@@ -856,7 +863,8 @@ void SpecialFunctionHandler::handleMakeSymbolic(ExecutionState &state,
     assert(success && "FIXME: Unhandled solver failure");
     
     if (res) {
-      executor.executeMakeSymbolic(*s, mo, name, false);
+      executor.executeMakeSymbolic(
+          *s, mo, name, executor.sourceBuilder.makeSymbolic(), false);
     } else {      
       executor.terminateStateOnUserError(*s, "Wrong size given to klee_make_symbolic");
     }
@@ -874,7 +882,8 @@ void SpecialFunctionHandler::handleMarkGlobal(ExecutionState &state,
   
   for (Executor::ExactResolutionList::iterator it = rl.begin(), 
          ie = rl.end(); it != ie; ++it) {
-    const MemoryObject *mo = it->first.first;
+    const MemoryObject *mo =
+        it->second->addressSpace.findObject(it->first).first;
     assert(!mo->isLocal);
     mo->isGlobal = true;
   }

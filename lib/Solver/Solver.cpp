@@ -11,6 +11,7 @@
 
 #include "klee/Expr/Constraints.h"
 #include "klee/Expr/ExprUtil.h"
+#include "klee/Expr/SymbolicSource.h"
 #include "klee/Solver/SolverImpl.h"
 
 using namespace klee;
@@ -286,6 +287,15 @@ void Query::dump() const {
   llvm::errs() << "Query [\n";
   expr->dump();
   llvm::errs() << "]\n";
+}
+
+bool Query::containsSymcretes() const {
+  for (const auto array : gatherArrays()) {
+    if (array->source->getKind() == SymbolicSource::Kind::SymbolicAddress) {
+      return true;
+    }
+  }
+  return false;
 }
 
 void ValidityCore::dump() const {

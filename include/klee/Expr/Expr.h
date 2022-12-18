@@ -496,7 +496,7 @@ public:
 
   /// This represents the reason why this array was created as well as some
   /// additional info.
-  SymbolicSource *source;
+  const SymbolicSource *source;
 
   /// Domain is how many bits can be used to access the array [32 bits]
   /// Range is the size (in bits) of the number stored there (array of bytes -> 8)
@@ -526,7 +526,7 @@ private:
   /// not parse correctly since two arrays with the same name cannot be
   /// distinguished once printed.
   Array(const std::string &_name, uint64_t _size,
-        SymbolicSource *source,
+        const SymbolicSource *source,
         const ref<ConstantExpr> *constantValuesBegin = 0,
         const ref<ConstantExpr> *constantValuesEnd = 0,
         Expr::Width _domain = Expr::Int32, Expr::Width _range = Expr::Int8);

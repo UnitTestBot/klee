@@ -7,7 +7,9 @@ using namespace klee;
 SourceBuilder::SourceBuilder() {
   constantSource = ref<SymbolicSource>(new ConstantSource());
   makeSymbolicSource = ref<SymbolicSource>(new MakeSymbolicSource());
-  symbolicAddressSource = ref<SymbolicAddressSource>(new SymbolicAddressSource());
+  symbolicAddressSource = ref<SymbolicSource>(new SymbolicAddressSource());
+  lazyInitializationSymbolicSource =
+      ref<SymbolicSource>(new LazyInitializationSymbolicSource());
 }
 
 SymbolicSource *SourceBuilder::constant() const{
@@ -20,4 +22,8 @@ SymbolicSource *SourceBuilder::makeSymbolic() const{
 
 SymbolicSource *SourceBuilder::symbolicAddress() const {
   return symbolicAddressSource.get();
+}
+
+SymbolicSource *SourceBuilder::lazyInitializationMakeSymbolic() const {
+  return lazyInitializationSymbolicSource.get();
 }

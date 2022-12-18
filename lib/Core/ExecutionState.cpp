@@ -390,8 +390,8 @@ bool ExecutionState::merge(const ExecutionState &b) {
   for (std::set<const MemoryObject*>::iterator it = mutated.begin(), 
          ie = mutated.end(); it != ie; ++it) {
     const MemoryObject *mo = *it;
-    const ObjectState *os = addressSpace.findObject(mo);
-    const ObjectState *otherOS = b.addressSpace.findObject(mo);
+    const ObjectState *os = addressSpace.findObject(mo).second;
+    const ObjectState *otherOS = b.addressSpace.findObject(mo).second;
     assert(os && !os->readOnly && 
            "objects mutated but not writable in merging state");
     assert(otherOS);

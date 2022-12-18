@@ -54,7 +54,7 @@ Solver *constructSolverChain(Solver *coreSolver, std::string querySMT2LogPath,
     solver = createCachingSolver(solver);
 
   if (cm)
-    solver = createSolverBlueprint(solver, cm);
+    solver = createConcretizingSolver(solver, cm);
 
   if (UseIndependentSolver)
     solver = createIndependentSolver(solver);

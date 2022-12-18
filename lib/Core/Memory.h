@@ -34,6 +34,8 @@ class ExecutionState;
 class MemoryManager;
 class Solver;
 
+typedef uint64_t IDType;
+
 class MemoryObject {
   friend class STPBuilder;
   friend class ObjectState;
@@ -42,13 +44,16 @@ class MemoryObject {
   friend class ref<const MemoryObject>;
 
 private:
-  static int counter;
+  // Counter is using for id's of MemoryObjects.
+  //
+  // Value 0 is reserved for erroneous objects.
+  static IDType counter;
   static int time;
   /// @brief Required by klee::ref-managed objects
   mutable class ReferenceCounter _refCount;
 
 public:
-  unsigned id;
+  const IDType id;
   mutable unsigned timestamp;
   uint64_t address;
   ref<Expr> addressExpr;

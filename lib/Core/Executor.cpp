@@ -1261,7 +1261,12 @@ void Executor::addConstraint(ExecutionState &state, ref<Expr> condition) {
       klee_warning("seeds patched for violating constraint"); 
   }
 
+  ConstraintSet oldCS = state.constraints;
   state.addConstraint(condition);
+  if (cm->get(state.constraints).bindings.empty()) {
+    cm->add(Query(oldCS, condition), Assignment(true));
+  }
+
   if (ivcEnabled)
     doImpliedValueConcretization(state, condition, 
                                  ConstantExpr::alloc(1, Expr::Bool));
@@ -2017,9 +2022,9 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
             ConstantExpr *CE = dyn_cast<ConstantExpr>(arguments[k]);
             assert(CE); // byval argument needs to be a concrete pointer
 
-            ObjectPair op;
-            state.addressSpace.resolveOne(CE, op);
-            const ObjectState *osarg = op.second;
+            IDType idObject;
+            state.addressSpace.resolveOne(CE, idObject);
+            const ObjectState *osarg = state.addressSpace.findObject(idObject).second;
             assert(osarg);
             for (unsigned i = 0; i < osarg->size; i++)
               os->write(offsets[k] + i, osarg->read8(i));
@@ -3900,11 +3905,12 @@ void Executor::callExternalFunction(ExecutionState &state,
       assert(success && "FIXME: Unhandled solver failure");
       (void) success;
       ce->toMemory(&args[wordIndex]);
-      ObjectPair op;
+      IDType result;
       // Checking to see if the argument is a pointer to something
       if (ce->getWidth() == Context::get().getPointerWidth() &&
-          state.addressSpace.resolveOne(ce, op)) {
-        op.second->flushToConcreteStore(solver, state);
+          state.addressSpace.resolveOne(ce, result)) {
+        state.addressSpace.findObject(result).second->flushToConcreteStore(
+            solver, state);
       }
       wordIndex += (ce->getWidth()+63)/64;
     } else {
@@ -3931,12 +3937,14 @@ void Executor::callExternalFunction(ExecutionState &state,
 #ifndef WINDOWS
   // Update external errno state with local state value
   int *errno_addr = getErrnoLocation(state);
-  ObjectPair result;
+  IDType idResult;
   bool resolved = state.addressSpace.resolveOne(
-      ConstantExpr::create((uint64_t)errno_addr, Expr::Int64), result);
+      ConstantExpr::create((uint64_t)errno_addr, Expr::Int64), idResult);
   if (!resolved)
     klee_error("Could not resolve memory object for errno");
-  ref<Expr> errValueExpr = result.second->read(0, sizeof(*errno_addr) * 8);
+  ObjectPair result = state.addressSpace.findObject(idResult);
+  ref<Expr> errValueExpr = result.second->read(
+      0, sizeof(*errno_addr) * 8);
   ConstantExpr *errnoValue = dyn_cast<ConstantExpr>(errValueExpr);
   if (!errnoValue) {
     terminateStateOnExecError(state,
@@ -4179,7 +4187,9 @@ void Executor::executeFree(ExecutionState &state,
     
     for (Executor::ExactResolutionList::iterator it = rl.begin(), 
            ie = rl.end(); it != ie; ++it) {
-      const MemoryObject *mo = it->first.first;
+      const MemoryObject *mo =
+          zeroPointer.second->addressSpace.findObject(it->first).first;
+
       if (mo->isLocal) {
         terminateStateOnError(*it->second, "free of alloca",
                               StateTerminationType::Free,
@@ -4210,7 +4220,8 @@ void Executor::resolveExact(ExecutionState &state,
   ExecutionState *unbound = &state;
   for (ResolutionList::iterator it = rl.begin(), ie = rl.end(); 
        it != ie; ++it) {
-    ref<Expr> inBounds = EqExpr::create(p, it->first->getBaseExpr());
+    const MemoryObject *mo = unbound->addressSpace.findObject(*it).first;
+    ref<Expr> inBounds = EqExpr::create(p, mo->getBaseExpr());
 
     StatePair branches =
         fork(*unbound, inBounds, true, BranchType::ResolvePointer);
@@ -4253,25 +4264,28 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   address = optimizer.optimizeExpr(address, true);
 
   // fast path: single in-bounds resolution
-  ObjectPair op;
+  IDType idFastResult;
   bool success;
 
   if (state.resolvedPointers.count(address)) {
     success = true;
     const MemoryObject* mo = state.resolvedPointers[address].first;
-    op = std::make_pair(mo, state.addressSpace.findObject(mo));
+    idFastResult = mo->id;
   } else {
     solver->setTimeout(coreSolverTimeout);
 
-    if (!state.addressSpace.resolveOne(state, solver, address, op, success)) {
+    if (!state.addressSpace.resolveOne(state, solver, address, idFastResult,
+                                       success)) {
       address = toConstant(state, address, "resolveOne failure");
-      success = state.addressSpace.resolveOne(cast<ConstantExpr>(address), op);
+      success = state.addressSpace.resolveOne(cast<ConstantExpr>(address),
+                                              idFastResult);
     }
 
     solver->setTimeout(time::Span());
   }
 
   if (success) {
+    ObjectPair op = state.addressSpace.findObject(idFastResult);
     const MemoryObject *mo = op.first;
 
     if (MaxSymArraySize && mo->size >= MaxSymArraySize) {
@@ -4327,18 +4341,19 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   bool incomplete = state.addressSpace.resolve(state, solver, address, rl,
                                                0, coreSolverTimeout);
   solver->setTimeout(time::Span());
-  
+
   // XXX there is some query wasteage here. who cares?
-  ExecutionState *unbound = &state;
 
   ref<Expr> checkOutOfBounds = ConstantExpr::create(1, Expr::Bool);
 
+  std::vector<ref<Expr>> resolveConditions;
+  std::vector<IDType> resolveID;
+
   for (ResolutionList::iterator i = rl.begin(), ie = rl.end(); i != ie; ++i) {
-    const MemoryObject *mo = i->first;
-    const ObjectState *os = i->second;
+    const MemoryObject *mo = state.addressSpace.findObject(*i).first;
     ref<Expr> inBounds = mo->getBoundsCheckPointer(address, bytes);
-    
-    if (unbound->isGEPExpr(address)) {
+
+    if (state.isGEPExpr(address)) {
       inBounds = AndExpr::create(inBounds, mo->getBoundsCheckPointer(base, 1));
       inBounds =
           AndExpr::create(inBounds, mo->getBoundsCheckPointer(base, size));
@@ -4346,39 +4361,51 @@ void Executor::executeMemoryOperation(ExecutionState &state,
 
     bool mayBeInBounds;
     solver->setTimeout(coreSolverTimeout);
-    bool success = solver->mayBeTrue(unbound->constraints, inBounds,
-                                     mayBeInBounds, unbound->queryMetaData);
+    bool success = solver->mayBeTrue(state.constraints, inBounds, mayBeInBounds,
+                                     state.queryMetaData);
     solver->setTimeout(time::Span());
     if (!success) {
-      terminateStateOnSolverError(*unbound, "Query timed out (resolve)");
+      terminateStateOnSolverError(state, "Query timed out (resolve)");
       return;
     }
 
     if (mayBeInBounds) {
-      ExecutionState *bound = unbound->branch();
-      addedStates.push_back(bound);
-      processTree->attach(unbound->ptreeNode, bound, unbound, BranchType::MemOp);
-      addConstraint(*bound, inBounds);
+      resolveConditions.push_back(inBounds);
+      resolveID.push_back(*i);
+    }
+    checkOutOfBounds =
+        AndExpr::create(NotExpr::create(inBounds), checkOutOfBounds);
+  }
 
-      bound->addPointerResolution(base, address, mo);
+  // Fictive condition just to keep state for unbound case.
+  resolveConditions.push_back(ConstantExpr::create(1, Expr::Bool));
 
-      if (isWrite) {
-        if (os->readOnly) {
-          terminateStateOnError(*bound, "memory error: object read only",
-                                StateTerminationType::ReadOnly);
-        } else {
-          ObjectState *wos = bound->addressSpace.getWriteable(mo, os);
-          wos->write(mo->getOffsetExpr(address), value);
-        }
+  std::vector<ExecutionState *> statesForMemoryOperation;
+  branch(state, resolveConditions, statesForMemoryOperation, BranchType::MemOp);
+
+  for (unsigned int i = 0; i < resolveID.size(); ++i) {
+    ExecutionState *bound = statesForMemoryOperation[i];
+    ObjectPair op = bound->addressSpace.findObject(resolveID[i]);
+    const MemoryObject *mo = op.first;
+    const ObjectState *os = op.second;
+
+    bound->addPointerResolution(base, address, mo);
+
+    if (isWrite) {
+      if (os->readOnly) {
+        terminateStateOnError(*bound, "memory error: object read only",
+                              StateTerminationType::ReadOnly);
       } else {
-        ref<Expr> result = os->read(mo->getOffsetExpr(address), type);
-        bindLocal(target, *bound, result);
+        ObjectState *wos = bound->addressSpace.getWriteable(mo, os);
+        wos->write(mo->getOffsetExpr(address), value);
       }
-
-      checkOutOfBounds = AndExpr::create(NotExpr::create(inBounds), checkOutOfBounds);
+    } else {
+      ref<Expr> result = os->read(mo->getOffsetExpr(address), type);
+      bindLocal(target, *bound, result);
     }
   }
-  
+
+  ExecutionState *unbound = statesForMemoryOperation.back();
   StatePair branches =
       fork(*unbound, Expr::createIsZero(base), true, BranchType::MemOp);
   ExecutionState *bound = branches.first;
@@ -4395,48 +4422,73 @@ void Executor::executeMemoryOperation(ExecutionState &state,
     if (incomplete) {
       terminateStateOnSolverError(*unbound, "Query timed out (resolve).");
     } else if (LazyInitialization &&
-               isReadFromSymbolicArray(symcreteSolution.evaluate(base)) &&
+               isReadFromSymbolicArray(toUnique(*unbound, base)) &&
                (isa<ReadExpr>(address) || isa<ConcatExpr>(address) ||
                 state.isGEPExpr(address))) {
-      ObjectPair p = lazyInitializeObject(*unbound, base, target, size);
+      IDType idLazyInitialization =
+          lazyInitializeObject(*unbound, base, target, size);
+
+      // Lazy initialization might fail if we've got unappropriate address
+      if (!idLazyInitialization) {
+        return;
+      }
+
+      ObjectPair p = unbound->addressSpace.findObject(idLazyInitialization);
       assert(p.first && p.second);
 
       const MemoryObject *mo = p.first;
       ref<Expr> inBounds = mo->getBoundsCheckPointer(address, bytes);
+      if (unbound->isGEPExpr(address)) {
+        inBounds =
+            AndExpr::create(inBounds, mo->getBoundsCheckPointer(base, 1));
+        inBounds =
+            AndExpr::create(inBounds, mo->getBoundsCheckPointer(base, size));
+      }
 
-      Solver::Validity res;
-      time::Span timeout = coreSolverTimeout;
-      solver->setTimeout(timeout);
-      solver->evaluate(unbound->constraints, inBounds, res,
-                       unbound->queryMetaData);
-      solver->setTimeout(time::Span());
+      StatePair sp = fork(*unbound, inBounds, true, BranchType::MemOp);
+      bound = sp.first;
+      unbound = sp.second;
 
-      if (res == Solver::False) {
+      if (unbound) {
         terminateStateOnError(*unbound, "memory error: out of bound pointer",
                               StateTerminationType::Ptr,
                               getAddressInfo(*unbound, address, mo));
-      } else {
-        addConstraint(*unbound, inBounds);
-        unbound->addPointerResolution(base, address, mo);
+      }
+      if (bound) {
+        bound->addPointerResolution(base, address, mo);
         if (isWrite) {
           ObjectState *wos =
-              unbound->addressSpace.getWriteable(p.first, p.second);
+              bound->addressSpace.getWriteable(p.first, p.second);
           wos->write(p.first->getOffsetExpr(address), value);
         } else {
           ref<Expr> result =
               p.second->read(p.first->getOffsetExpr(address), type);
-          bindLocal(target, *unbound, result);
+          bindLocal(target, *bound, result);
         }
       }
     } else {
-      terminateStateOnError(*unbound, "memory error: out of bound pointer",
-                            StateTerminationType::Ptr,
-                            getAddressInfo(*unbound, address));
+      bool mayBeOutOfBound = false;
+      solver->setTimeout(coreSolverTimeout);
+      bool success = solver->mayBeTrue(unbound->constraints, checkOutOfBounds,
+                                       mayBeOutOfBound, unbound->queryMetaData);
+      solver->setTimeout(time::Span());
+      if (!success) {
+        terminateStateOnSolverError(*unbound, "Query timed out (executeMemoryOperation)");
+        return;
+      }
+      if (mayBeOutOfBound) {
+        addConstraint(*unbound, checkOutOfBounds);
+        terminateStateOnError(*unbound, "memory error: out of bound pointer",
+                              StateTerminationType::Ptr,
+                              getAddressInfo(*unbound, address));
+      } else {
+        terminateStateEarly(*unbound, "", StateTerminationType::SilentExit);
+      }
     }
   }
 }
 
-ObjectPair Executor::lazyInitializeObject(ExecutionState &state,
+IDType Executor::lazyInitializeObject(ExecutionState &state,
                                              ref<Expr> address,
                                              KInstruction *target,
                                              uint64_t size) {
@@ -4448,14 +4500,11 @@ ObjectPair Executor::lazyInitializeObject(ExecutionState &state,
     timestamp = moBasePair.first->timestamp;
   }
 
-  static int id = 0;
+  std::string name = "address";
 
-  std::string name = "lazy_initialization";
-  std::string symcreteAddressName = name + "_address" + llvm::utostr(id++);
-
-  const Array *addressArray = arrayCache.CreateArray(
-      symcreteAddressName, Context::get().getPointerWidth() / CHAR_BIT,
-      sourceBuilder.symbolicAddress());
+  const Array *addressArray =
+      makeArray(state, Context::get().getPointerWidth() / CHAR_BIT,
+                name, sourceBuilder.symbolicAddress());
   ref<Expr> addressExpr =
       Expr::createTempRead(addressArray, Context::get().getPointerWidth());
 
@@ -4463,19 +4512,45 @@ ObjectPair Executor::lazyInitializeObject(ExecutionState &state,
       size, false, /*isGlobal=*/false, allocSite,
       /*allocationAlignment=*/8, addressExpr, address, timestamp);
 
-  Assignment addressEquality(true);
-  unsigned char *bytesBegin = reinterpret_cast<unsigned char*>(&mo->address);
-  addressEquality.bindings[addressArray] = std::vector<unsigned char>(bytesBegin, bytesBegin + sizeof(mo->address));
-  
+  // Check if address is suitable for LI object.
+  ref<Expr> checkAddressForLazyInitializationExpr = EqExpr::create(
+      address,
+      ConstantExpr::create(mo->address, Context::get().getPointerWidth()));
+
+  bool mayBeLazyInitialized = false;
+  solver->setTimeout(coreSolverTimeout);
+  bool success = solver->mayBeTrue(state.constraints,
+                                   checkAddressForLazyInitializationExpr,
+                                   mayBeLazyInitialized, state.queryMetaData);
+  solver->setTimeout(time::Span());
+  if (!success) {
+    terminateStateOnSolverError(state,
+                                "Query timed out (Lazy initialization).");
+    return 0;
+  }
+
+  if (!mayBeLazyInitialized) {
+    terminateStateEarly(state, "", StateTerminationType::SilentExit);
+    return 0;
+  }
+
+  Assignment addressEqualityAssignment(true);
+  unsigned char *bytesBegin = reinterpret_cast<unsigned char *>(&mo->address);
+  addressEqualityAssignment.bindings[addressArray] =
+      std::vector<unsigned char>(bytesBegin, bytesBegin + sizeof(mo->address));
+
   ref<Expr> addressEqualityExpr = EqExpr::create(addressExpr, address);
 
-  cm->add(Query(state.constraints, addressEqualityExpr), addressEquality);
+  cm->add(Query(state.constraints, addressEqualityExpr),
+          addressEqualityAssignment);
   addConstraint(state, addressEqualityExpr);
 
-  executeMakeSymbolic(state, mo, name, false);
-  ObjectPair op;
-  state.addressSpace.resolveOne(mo->getBaseConstantExpr().get(), op);
-  return op;
+  executeMakeSymbolic(state, mo, name,
+                      sourceBuilder.lazyInitializationMakeSymbolic(), false);
+  IDType LazyInstantiatedObjectID;
+  state.addressSpace.resolveOne(mo->getBaseConstantExpr().get(),
+                                LazyInstantiatedObjectID);
+  return LazyInstantiatedObjectID;
 }
 
 const Array *Executor::makeArray(ExecutionState &state, uint64_t size,
@@ -4504,6 +4579,7 @@ const Array *Executor::makeArray(ExecutionState &state, uint64_t size,
 void Executor::executeMakeSymbolic(ExecutionState &state, 
                                    const MemoryObject *mo,
                                    const std::string &name,
+                                   const SymbolicSource *source,
                                    bool isLocal) {
   // Create a new object state for the memory object (instead of a copy).
   if (!replayKTest) {
@@ -4914,7 +4990,7 @@ void Executor::doImpliedValueConcretization(ExecutionState &state,
       // FIXME: This is the sole remaining usage of the Array object
       // variable. Kill me.
       const MemoryObject *mo = 0; //re->updates.root->object;
-      const ObjectState *os = state.addressSpace.findObject(mo);
+      const ObjectState *os = state.addressSpace.findObject(mo).second;
 
       if (!os) {
         // object has been free'd, no need to concretize (although as

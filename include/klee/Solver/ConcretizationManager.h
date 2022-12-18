@@ -14,9 +14,10 @@ private:
   MapOfSets<ref<Expr>, Assignment> concretizations;
 
 public:
-  Assignment get(ConstraintSet set);
-  void add(ConstraintSet oldCS, ConstraintSet newCS, Assignment assign);
-  void add(const Query &q, Assignment assign);
+  Assignment get(const ConstraintSet &set);
+  void add(const ConstraintSet &oldCS, const ConstraintSet &newCS,
+           const Assignment &assign);
+  void add(const Query &q, const Assignment &assign);
 };
 
 }; // end klee namespace
