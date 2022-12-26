@@ -10,6 +10,8 @@
 #ifndef KLEE_KTEST_H
 #define KLEE_KTEST_H
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -24,6 +26,7 @@ extern "C" {
   typedef struct KTestObject KTestObject;
   struct KTestObject {
     char *name;
+    uint64_t address; // As a heuristic for now
     unsigned numBytes;
     unsigned char *bytes;
     unsigned numPointers;

@@ -30,6 +30,7 @@ static void push_obj(KTest *b, const char *name, unsigned total_bytes,
   assert(b->numObjects < MAX);
 
   o->name = strdup(name);
+  o->address = 0;
   o->numBytes = total_bytes;
   o->bytes = (unsigned char *)malloc(o->numBytes);
   o->numPointers = 0;
@@ -43,6 +44,7 @@ static void push_range(KTest *b, const char *name, unsigned value) {
   assert(b->numObjects < MAX);
 
   o->name = strdup(name);
+  o->address = 0;
   o->numBytes = 4;
   o->bytes = (unsigned char *)malloc(o->numBytes);
   o->numPointers = 0;

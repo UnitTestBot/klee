@@ -5400,6 +5400,7 @@ bool Executor::getSymbolicSolution(const ExecutionState &state,
     auto mo = state.symbolics[i].first;
     KTestObject *o = &res.objects[i];
     o->name = const_cast<char*>(mo->name.c_str());
+    o->address = mo->address;
     o->numBytes = values[i].size();
     o->bytes = new unsigned char[o->numBytes];
     std::copy(values[i].begin(), values[i].end(), o->bytes);
