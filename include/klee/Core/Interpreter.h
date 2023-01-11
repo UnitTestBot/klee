@@ -16,14 +16,11 @@
 #include <cstdint>
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <unordered_map>
 #include <vector>
-
-#include <nonstd/optional.hpp>
-
-using nonstd::optional;
 
 struct KTest;
 
@@ -55,6 +52,7 @@ public:
 
   virtual void incPathsCompleted() = 0;
   virtual void incPathsExplored(std::uint32_t num = 1) = 0;
+  virtual void incSummarizedLocations() = 0;
 
   virtual void processTestCase(const ExecutionState &state, const char *message,
                                const char *suffix, bool isError = false) = 0;
@@ -65,6 +63,8 @@ using FLCtoOpcode = std::unordered_map<
     std::string,
     std::unordered_map<
         unsigned, std::unordered_map<unsigned, std::unordered_set<unsigned>>>>;
+
+enum class ExecutionKind { Forward, Bidirectional };
 
 class Interpreter {
 public:
@@ -114,9 +114,9 @@ public:
     /// symbolic execution on concrete programs.
     unsigned MakeConcreteSymbolic;
     GuidanceKind Guidance;
-    nonstd::optional<SarifReport> Paths;
+    std::optional<SarifReport> Paths;
 
-    InterpreterOptions(nonstd::optional<SarifReport> Paths)
+    InterpreterOptions(std::optional<SarifReport> Paths)
         : MakeConcreteSymbolic(false), Guidance(GuidanceKind::NoGuidance),
           Paths(std::move(Paths)) {}
   };
