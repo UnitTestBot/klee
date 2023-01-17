@@ -11,6 +11,7 @@
 #define KLEE_EXPRPPRINTER_H
 
 #include "klee/Expr/Expr.h"
+#include "klee/Expr/Lemma.h"
 
 namespace llvm {
 class raw_ostream;
@@ -74,6 +75,8 @@ public:
                          const Array *const *evalArraysBegin = 0,
                          const Array *const *evalArraysEnd = 0,
                          bool printArrayDecls = true);
+
+  static void printLemma(llvm::raw_ostream &os, const Lemma &l);
 };
 
 } // namespace klee
