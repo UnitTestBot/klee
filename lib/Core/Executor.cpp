@@ -58,6 +58,7 @@
 #include "klee/System/MemoryUsage.h"
 #include "klee/System/Time.h"
 #include "klee/Support/RoundingModeUtil.h"
+#include "klee/Support/KBlockTrie.h"
 
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringExtras.h"
@@ -579,7 +580,8 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
 llvm::Module *
 Executor::setModule(std::vector<std::unique_ptr<llvm::Module>> &modules,
                     const ModuleOptions &opts,
-                    const std::vector<llvm::Function *> &mainFunctions) {
+                    const std::vector<llvm::Function *> &mainFunctions,
+                    InstructionsMap& instructionsMap) {
   assert(!kmodule && !modules.empty() &&
          "can only register one module"); // XXX gross
 
@@ -624,6 +626,8 @@ Executor::setModule(std::vector<std::unique_ptr<llvm::Module>> &modules,
   // 4.) Manifest the module
   kmodule->manifest(interpreterHandler, StatsTracker::useStatistics());
   kmodule->mainFunctions.insert(mainFunctions.begin(), mainFunctions.end());
+  
+  infoTableToInstructionsMap(*kmodule->infos, instructionsMap);
 
   specialFunctionHandler->bind();
 

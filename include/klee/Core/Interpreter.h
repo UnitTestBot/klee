@@ -14,6 +14,7 @@
 #include <set>
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 struct KTest;
 struct TestCase;
@@ -25,12 +26,15 @@ class LLVMContext;
 class Module;
 class raw_ostream;
 class raw_fd_ostream;
+class Instruction;
 }
 
 namespace klee {
 class ExecutionState;
 class Interpreter;
 class TreeStreamWriter;
+
+using InstructionsMap = std::unordered_map<std::string, std::unordered_map<unsigned, std::unordered_map<unsigned, std::vector<const llvm::Instruction*>>>>;
 
 class InterpreterHandler {
 public:
@@ -113,7 +117,8 @@ public:
   virtual llvm::Module *
   setModule(std::vector<std::unique_ptr<llvm::Module>> &modules,
             const ModuleOptions &opts,
-            const std::vector<llvm::Function *> &mainFunctions) = 0;
+            const std::vector<llvm::Function *> &mainFunctions,
+            InstructionsMap& instructionsMap) = 0;
 
   // supply a tree stream writer which the interpreter will use
   // to record the concrete path (as a stream of '0' and '1' bytes).
