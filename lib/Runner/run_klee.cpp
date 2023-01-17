@@ -1732,7 +1732,7 @@ int run_klee(int argc, char **argv, char **envp) {
       json data = json::parse(f);
       SarifReport report = data.get<SarifReport>();
       json out = report;
-      klee_error(out.dump().c_str());
+      klee_error("NICE");
       return 0;
     }
 
@@ -2030,7 +2030,14 @@ int run_klee(int argc, char **argv, char **envp) {
     // Get the desired main function.  klee_main initializes uClibc
     // locale and other data and then calls main.
 
-    auto finalModule = interpreter->setModule(loadedModules, Opts, mainFunctions);
+    InstructionsMap instructionsMap;
+    auto finalModule = interpreter->setModule(loadedModules, Opts, mainFunctions, instructionsMap);
+
+    if (SarifFile != "-") {
+      std::ifstream f(SarifFile);
+      json data = json::parse(f);
+      SarifReport report = data.get<SarifReport>();
+    }
 
     if (InteractiveMode) {
       klee_message("KLEE finish preprocessing.");
