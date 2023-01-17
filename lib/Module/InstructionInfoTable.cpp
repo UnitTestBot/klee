@@ -206,3 +206,9 @@ InstructionInfoTable::getFunctionInfo(const llvm::Function &f) const {
 
   return *found->second.get();
 }
+
+const std::unordered_map<const llvm::Instruction *,
+                       std::unique_ptr<InstructionInfo>> &
+InstructionInfoTable::getInfos() const {
+  return infos;    
+}

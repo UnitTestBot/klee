@@ -18,6 +18,7 @@ klee_add_component(kleeSupport
   Timer.cpp
   TreeStream.cpp
   SarifReport.cpp
+  KBlockTrie.cpp
 )
 
 target_link_libraries(kleeSupport PUBLIC ${ZLIB_LIBRARIES})

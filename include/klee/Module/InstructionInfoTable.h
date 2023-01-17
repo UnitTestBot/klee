@@ -77,6 +77,8 @@ namespace klee {
     unsigned getMaxID() const;
     const InstructionInfo &getInfo(const llvm::Instruction &) const;
     const FunctionInfo &getFunctionInfo(const llvm::Function &) const;
+    const std::unordered_map<const llvm::Instruction *,
+                       std::unique_ptr<InstructionInfo>> &getInfos() const;
   };
 
 }
