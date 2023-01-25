@@ -35,7 +35,7 @@ public:
     }
     for (auto i = hash.rbegin(); i != hash.rend(); i++) {
       if ((*i).count(e)) {
-        return {(*i).at(e), false};
+        return {(*i).at(e), true};
       }
     }
     return {e, false};
@@ -137,9 +137,10 @@ protected:
   virtual Action visitFNeg(const FNegExpr &);
   virtual Action visitFRint(const FRintExpr &);
 
-private:
-  typedef ExprHashMap<ref<Expr>> visited_ty;
+  typedef VisitorHash visited_ty;
   visited_ty visited;
+
+private:
   bool recursive;
 
   ref<Expr> visitActual(const ref<Expr> &e);
