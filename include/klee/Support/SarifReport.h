@@ -14,62 +14,61 @@
 #include <string>
 
 #include <klee/Misc/json.hpp>
+#include <klee/Misc/optional.hpp>
+
 using json = nlohmann::json;
+using nonstd::optional;
+
+namespace nlohmann {
+    template <typename T>
+    struct adl_serializer<nonstd::optional<T>> {
+        static void to_json(json& j, const nonstd::optional<T>& opt) {
+            if (opt == nonstd::nullopt) {
+                j = nullptr;
+            } else {
+              j = *opt;
+            }
+        }
+
+        static void from_json(const json& j, nonstd::optional<T>& opt) {
+            if (j.is_null()) {
+                opt = nonstd::nullopt;
+            } else {
+                opt = j.get<T>();
+            }
+        }
+    };
+}
 
 namespace klee {
-    template<typename T>
-    struct Option {
-        T value = {};
-        bool is_empty = true;
-    };
-
-    template<typename T>
-    void to_json(json& j, const Option<T>& p) {
-        if (p.is_empty) {
-            j = nullptr;
-        } else {
-            j = p.value;
-        }
-    }
-
-    template<typename T>
-    void from_json(const json& j, Option<T>& p) {
-        if (j.is_null()) {
-            p.is_empty = true;
-        } else {
-            p.value = j.get<T>();
-            p.is_empty = false;
-        }
-    }
-
     struct Message {
-        Option<std::string> text;
-        Option<std::string> id;
+        optional<std::string> text;
+        optional<std::string> id;
     };
 
     struct ArtifactLocation {
-        Option<std::string> uri;
+        optional<std::string> uri;
     };
 
     struct Region {
-        Option<int> startLine;
-        Option<int> endLine;
-        Option<int> startColumn;
-        Option<int> endColumn;
+        optional<int> startLine;
+        optional<int> endLine;
+        optional<int> startColumn;
+        optional<int> endColumn;
     };
 
     struct PhysicalLocation {
-        Option<ArtifactLocation> artifactLocation;
-        Option<Region> region;
+        optional<ArtifactLocation> artifactLocation;
+        optional<Region> region;
     };
 
     struct Location {
-        Option<PhysicalLocation> physicalLocation;
+        optional<PhysicalLocation> physicalLocation;
     };
 
     struct ThreadFlowLocation {
-        Option<Location> location; 
-        Option<int> nestingLevel;
+        optional<Location> location; 
+        optional<int> nestingLevel;
     };
 
     struct ThreadFlow {
@@ -82,7 +81,7 @@ namespace klee {
 
     struct Result {
         Message message;
-        Option<std::string> ruleId;
+        optional<std::string> ruleId;
         std::vector<Location> locations;
         std::vector<CodeFlow> codeFlows;
     };

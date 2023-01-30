@@ -23,40 +23,40 @@ namespace klee {
     std::vector<const llvm::Instruction*> getInstructions(const PhysicalLocation& location, InstructionsMap& instructionMap) {
         std::vector<const llvm::Instruction*> result;
 
-        if (location.artifactLocation.is_empty) {
+        if (!location.artifactLocation) {
             return result;
         }
 
-        const Option<std::string>& filename = location.artifactLocation.value.uri;
+        const optional<std::string>& filename = location.artifactLocation->uri;
 
-        if (filename.is_empty) {
+        if (!filename) {
             return result;
         }
 
-        std::unordered_map<unsigned, std::unordered_map<unsigned, std::vector<const llvm::Instruction*>>>& instructionsInFile = instructionMap[filename.value];
-        if (location.region.is_empty) {
+        std::unordered_map<unsigned, std::unordered_map<unsigned, std::vector<const llvm::Instruction*>>>& instructionsInFile = instructionMap[*filename];
+        if (!location.region) {
             return result;
         }
 
-        const Region& region = location.region.value;
+        const Region& region = *location.region;
 
-        if (region.startLine.is_empty) {
+        if (!region.startLine) {
             return result;
         }
 
-        if (!region.endLine.is_empty && region.endLine.value != region.startLine.value) {
+        if (region.endLine && *region.endLine != *region.startLine) {
             return result;
         }
 
-        std::unordered_map<unsigned, std::vector<const llvm::Instruction*>>& instructionsInLine = instructionsInFile[region.startLine.value];
+        std::unordered_map<unsigned, std::vector<const llvm::Instruction*>>& instructionsInLine = instructionsInFile[*region.startLine];
 
-        if (region.startColumn.is_empty || region.endColumn.is_empty) {
+        if (!region.startColumn || !region.endColumn) {
             for (const auto& p : instructionsInLine) {
                 result.insert(result.end(), p.second.begin(), p.second.end());
             }
         } else {
             for (const auto& p : instructionsInLine) {
-                if (p.first >= region.startColumn.value && p.first <= region.endColumn.value) {
+                if (p.first >= *region.startColumn && p.first <= *region.endColumn) {
                     result.insert(result.end(), p.second.begin(), p.second.end());
                 }
             }
