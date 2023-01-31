@@ -65,30 +65,88 @@ namespace klee {
         return result;
     }
 
-    void Trie::addCodeFlow(std::vector<std::vector<const llvm::Instruction*>>& codeFlow, SarifError error) {
+    SourceCodeToByteCode::SourceCodeToByteCode(const std::vector<const llvm::Instruction*>& instructions) {
+        for (const auto p : instructions) {
+            blocks.insert(p->getParent());
+        }
+
+        if (instructions.size() == 1) {
+            instruction = optional<const llvm::Instruction*>(instructions.back());
+        }
+    }
+
+    void Trie::addCodeFlow(std::vector<SourceCodeToByteCode>& codeFlow, SarifError error) {
         root->addCodeFlow(codeFlow, error);
     }
 
-    void TrieNode::addCodeFlow(std::vector<std::vector<const llvm::Instruction*>>& codeFlow, SarifError error) {
+    void TrieNode::addCodeFlow(std::vector<SourceCodeToByteCode>& codeFlow, SarifError error) {
         if (codeFlow.size() == 0) {
             errors[error] = false;
             return;
         }
 
-        std::vector<const llvm::Instruction*> insts = std::move(codeFlow.back());
+        std::unordered_set<const llvm::BasicBlock*> blocks = std::move(codeFlow.back().blocks);
         codeFlow.pop_back();
 
-        for (const llvm::Instruction* step : insts) {
-            addCodeFlow(step, codeFlow, error);
+        std::unordered_set<const llvm::BasicBlock*> newBlocks;
+
+        for (const auto step : blocks) {
+            bool newBlockAdded = addCodeFlow(step, codeFlow, error);
+            if (newBlockAdded) {
+                newBlocks.insert(step);
+            }
+        }
+
+        if (newBlocks.size() > 0) {
+            for (const auto block : newBlocks) {
+                colorsDist[current_color].insert(block);
+                colors[block] = current_color;
+            }
+            ++current_color;
+        }
+
+        std::unordered_map<size_t, std::unordered_set<const llvm::BasicBlock*>> dist;
+        for (const auto block : blocks) {
+            dist[colors[block]].insert(block);
+        }
+
+        for (const auto& p : dist) {
+            if (p.second.size() != colorsDist[p.first].size()) {
+                for (const auto block : p.second) {
+                    colorsDist[p.first].erase(block);
+                    colorsDist[current_color].insert(block);
+                    colors[block] = current_color;
+                }
+                ++current_color;
+            }
         }
     }
 
-    void TrieNode::addCodeFlow(const llvm::Instruction* step, std::vector<std::vector<const llvm::Instruction*>>& restCodeFlow, SarifError error) {
+    bool TrieNode::addCodeFlow(const llvm::BasicBlock* step, std::vector<SourceCodeToByteCode>& restCodeFlow, SarifError error) {
+        bool newBlockAdded = false;
         if (successors.count(step) == 0) {
             successors[step] = std::make_unique<TrieNode>();
+            newBlockAdded = true;
         }
 
         successors[step]->addCodeFlow(restCodeFlow, error);
+        return newBlockAdded;
+    }
+
+    void Trie::mergeNodes() {
+        root->mergeNodes();
+    }
+
+    void TrieNode::mergeNodes() {
+        for (const auto& p : colorsDist) {
+            if (p.second.size() > 1) {
+                std::shared_ptr<TrieNode> node = successors[*p.second.begin()];
+                for (const auto block : p.second) {
+                    successors[block] = node;
+                }
+                node->mergeNodes();
+            }
+        }
     }
 
 } // namespace klee

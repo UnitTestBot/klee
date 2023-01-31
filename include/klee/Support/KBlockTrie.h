@@ -14,8 +14,11 @@
 #include "klee/Support/SarifReport.h"
 #include "klee/Module/KModule.h"
 
+#include "llvm/IR/Instruction.h"
+
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 #include <string>
 #include <memory>
 
@@ -29,24 +32,36 @@ namespace klee {
     
     std::vector<const llvm::Instruction*> getInstructions(const PhysicalLocation& location, const InstructionsMap& instructionMap);
 
+    struct SourceCodeToByteCode {
+        std::unordered_set<const llvm::BasicBlock*> blocks;
+        optional<const llvm::Instruction*> instruction;
+
+        SourceCodeToByteCode(const std::vector<const llvm::Instruction*>& instructions);
+    };
+
     struct TrieNode {
-        std::unordered_map<const llvm::Instruction*, std::unique_ptr<TrieNode>> successors;
+        std::unordered_map<const llvm::BasicBlock*, std::shared_ptr<TrieNode>> successors;
         std::unordered_map<SarifError, bool> errors;
+        std::unordered_map<size_t, std::unordered_set<const llvm::BasicBlock*>> colorsDist;
+        std::unordered_map<const llvm::BasicBlock*, size_t> colors;
+        size_t current_color = 0;
 
         bool isLeaf() {
             return errors.empty();
         }
 
-        void addCodeFlow(std::vector<std::vector<const llvm::Instruction*>>& codeFlow, SarifError error);
+        void addCodeFlow(std::vector<SourceCodeToByteCode>& codeFlow, SarifError error);
+        void mergeNodes();
     private:
-        void addCodeFlow(const llvm::Instruction* step, std::vector<std::vector<const llvm::Instruction*>>& restCodeFlow, SarifError error);
+        bool addCodeFlow(const llvm::BasicBlock* step, std::vector<SourceCodeToByteCode>& restCodeFlow, SarifError error);
     };
 
     class Trie {
     public:
         const std::unique_ptr<TrieNode> root = std::make_unique<TrieNode>();
 
-        void addCodeFlow(std::vector<std::vector<const llvm::Instruction*>>& codeFlow, SarifError error);
+        void addCodeFlow(std::vector<SourceCodeToByteCode>& codeFlow, SarifError error);
+        void mergeNodes();
     };
 }
 
