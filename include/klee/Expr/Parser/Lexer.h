@@ -31,6 +31,7 @@ struct Token {
     KWArray,    ///< 'array'
     KWFalse,    ///< 'false'
     KWQuery,    ///< 'query'
+    KWLemma,    ///< 'lemma'
     KWPath,     ///< 'path'
     KWDefault,  ///< 'default'
     KWNull,     ///< 'null'
