@@ -55,5 +55,11 @@ struct RefTargetCmp {
   }
 };
 
+struct RefTargetLess {
+  bool operator()(const ref<Target> &a, const ref<Target> &b) const {
+    return a.get() < b.get();
+  }
+};
+
 } // namespace klee
 #endif /* KLEE_TARGETHASH_H */

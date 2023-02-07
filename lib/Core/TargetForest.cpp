@@ -16,6 +16,28 @@
 using namespace klee;
 using namespace llvm;
 
+TargetForest::TargetsVector::TargetsVector(const ref<Target>& target) {
+  targetsVec.push_back(target);
+  sortAndComputeHash();
+}
+
+TargetForest::TargetsVector::TargetsVector(const TargetsSet* targets) {
+  for (const auto& p : *targets) {
+    targetsVec.push_back(p);
+  }
+  sortAndComputeHash();
+}
+
+void TargetForest::TargetsVector::sortAndComputeHash() {
+  std::sort(targetsVec.begin(), targetsVec.end(), RefTargetLess{});
+  RefTargetHash hasher;
+  std::size_t seed = targetsVec.size();
+  for(const auto& r : targetsVec) {
+    seed ^= hasher(r) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+  }
+  hashValue = seed;
+}
+
 void TargetForest::Layer::pathForestToTargetForest(
   TargetForest::Layer *self,
   PathForest *pathForest,

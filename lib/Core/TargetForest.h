@@ -23,6 +23,7 @@
 #include "klee/Core/TargetedExecutionReporter.h"
 
 #include <unordered_map>
+#include <vector>
 
 namespace klee {
 struct RefTargetHash;
@@ -30,14 +31,45 @@ struct RefTargetCmp;
 struct TargetsHistoryHash;
 struct EquivTargetsHistoryCmp;
 struct TargetsHistoryCmp;
+struct TargetsVectorHash;
+struct TargetsVectorCmp;
 
 class TargetForest {
 public:
   using TargetsSet = std::unordered_set<ref<Target>, RefTargetHash, RefTargetCmp>;
 private:
+  class TargetsVector {
+  public:
+    explicit TargetsVector(const ref<Target>& target);
+    explicit TargetsVector(const TargetsSet* targets);
+    std::size_t hash() const { return hashValue; }
+    bool operator==(const TargetsVector& other) const {
+      return targetsVec == other.targetsVec;
+    }
+  private:
+    std::vector<ref<Target>> targetsVec;
+    std::size_t hashValue;
+
+    void sortAndComputeHash();
+  };
+
+  struct TargetsVectorHash {
+    std::size_t operator()(const TargetsVector &t) const {
+      return t.hash();
+    }
+  };
+
+  struct TargetsVectorCmp {
+    bool operator()(const TargetsVector &a,
+                    const TargetsVector &b) const {
+      return a == b;
+    }
+  };
+
   class Layer {
     using InternalLayer = std::unordered_map<ref<Target>, ref<Layer>, RefTargetHash, RefTargetCmp>;
     InternalLayer forest;
+    std::unordered_map<TargetsVector, ref<Layer>, TargetsVectorHash, TargetsVectorCmp> targetsABC;
 
     /// @brief Confidence in % that this layer (i.e., parent target node) can be reached
     confidence::ty confidence;
