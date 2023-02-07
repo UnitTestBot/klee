@@ -16,6 +16,10 @@
 using namespace klee;
 using namespace llvm;
 
+TargetForest::TargetsVector::EquivTargetsVectorHashSet
+    TargetForest::TargetsVector::cachedVectors;
+TargetForest::TargetsVector::TargetsVectorHashSet TargetForest::TargetsVector::vectors;
+
 TargetForest::TargetsVector::TargetsVector(const ref<Target>& target) {
   targetsVec.push_back(target);
   sortAndComputeHash();
@@ -36,6 +40,37 @@ void TargetForest::TargetsVector::sortAndComputeHash() {
     seed ^= hasher(r) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
   }
   hashValue = seed;
+}
+
+ref<TargetForest::TargetsVector> TargetForest::TargetsVector::create(const ref<Target>& target) {
+  TargetsVector *vec = new TargetsVector(target);
+  return create(vec);
+}
+
+ref<TargetForest::TargetsVector> TargetForest::TargetsVector::create(const TargetsSet* targets) {
+  TargetsVector *vec = new TargetsVector(targets);
+  return create(vec);
+}
+
+ref<TargetForest::TargetsVector> TargetForest::TargetsVector::create(TargetsVector* vec) {
+ std::pair<EquivTargetsVectorHashSet::const_iterator, bool> success =
+      cachedVectors.insert(vec);
+  if (success.second) {
+    // Cache miss
+    vectors.insert(vec);
+    return vec;
+  }
+  // Cache hit
+  delete vec;
+  vec = *(success.first);
+  return vec;
+}
+
+TargetForest::TargetsVector::~TargetsVector() {
+  if (vectors.find(this) != vectors.end()) {
+    vectors.erase(this);
+    cachedVectors.erase(this);
+  }
 }
 
 void TargetForest::Layer::pathForestToTargetForest(

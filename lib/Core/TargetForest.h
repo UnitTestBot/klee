@@ -33,43 +33,75 @@ struct EquivTargetsHistoryCmp;
 struct TargetsHistoryCmp;
 struct TargetsVectorHash;
 struct TargetsVectorCmp;
+struct EquivTargetsVectorCmp;
+struct RefTargetsVectorHash;
+struct RefTargetsVectorCmp;
 
 class TargetForest {
 public:
   using TargetsSet = std::unordered_set<ref<Target>, RefTargetHash, RefTargetCmp>;
-private:
+
   class TargetsVector {
   public:
-    explicit TargetsVector(const ref<Target>& target);
-    explicit TargetsVector(const TargetsSet* targets);
+    static ref<TargetsVector> create(const ref<Target>& target);
+    static ref<TargetsVector> create(const TargetsSet* targets);
+
+    ~TargetsVector();
     std::size_t hash() const { return hashValue; }
     bool operator==(const TargetsVector& other) const {
       return targetsVec == other.targetsVec;
     }
+
+    /// @brief Required by klee::ref-managed objects
+    class ReferenceCounter _refCount;
   private:
+    explicit TargetsVector(const ref<Target>& target);
+    explicit TargetsVector(const TargetsSet* targets);
+    static ref<TargetsVector> create(TargetsVector* vec);
+
+    typedef std::unordered_set<TargetsVector *, TargetsVectorHash, EquivTargetsVectorCmp> EquivTargetsVectorHashSet;
+    typedef std::unordered_set<TargetsVector *, TargetsVectorHash, TargetsVectorCmp> TargetsVectorHashSet;
+
+    static EquivTargetsVectorHashSet cachedVectors;
+    static TargetsVectorHashSet vectors;
     std::vector<ref<Target>> targetsVec;
     std::size_t hashValue;
 
     void sortAndComputeHash();
   };
 
-  struct TargetsVectorHash {
-    std::size_t operator()(const TargetsVector &t) const {
-      return t.hash();
+  struct RefTargetsVectorHash {
+    unsigned operator()(const ref<TargetForest::TargetsVector> &t) const {
+      return t->hash();
     }
   };
 
-  struct TargetsVectorCmp {
-    bool operator()(const TargetsVector &a,
-                    const TargetsVector &b) const {
-      return a == b;
+  struct RefTargetsVectorCmp {
+    bool operator()(const ref<TargetForest::TargetsVector> &a,
+                    const ref<TargetForest::TargetsVector> &b) const {
+      return a.get() == b.get();
+    }
+  };
+private:
+  class Layer;
+
+  struct RefLayerHash {
+    std::size_t operator()(const ref<Layer> &t) const {
+      return std::hash<Layer *>{}(t.get());
+    }
+  };
+
+  struct RefLayerCmp {
+    bool operator()(const ref<Layer> &a,
+                    const ref<Layer> &b) const {
+      return a.get() == b.get();
     }
   };
 
   class Layer {
     using InternalLayer = std::unordered_map<ref<Target>, ref<Layer>, RefTargetHash, RefTargetCmp>;
     InternalLayer forest;
-    std::unordered_map<TargetsVector, ref<Layer>, TargetsVectorHash, TargetsVectorCmp> targetsABC;
+    std::unordered_map<ref<TargetsVector>, ref<Layer>, RefTargetsVectorHash, RefTargetsVectorCmp> targetsABC;
 
     /// @brief Confidence in % that this layer (i.e., parent target node) can be reached
     confidence::ty confidence;
@@ -270,6 +302,28 @@ struct RefTargetsHistoryCmp {
     return a.get() == b.get();
   }
 };
+
+struct TargetsVectorHash {
+  std::size_t operator()(const TargetForest::TargetsVector* t) const {
+    return t->hash();
+  }
+};
+
+struct TargetsVectorCmp {
+  bool operator()(const TargetForest::TargetsVector* a,
+                  const TargetForest::TargetsVector* b) const {
+    return a == b;
+  }
+};
+
+struct EquivTargetsVectorCmp {
+  bool operator()(const TargetForest::TargetsVector* a,
+                  const TargetForest::TargetsVector* b) const {
+    if (a == NULL || b == NULL)
+      return false;
+    return *a == *b;
+  }
+};  
 
 } // End klee namespace
 
