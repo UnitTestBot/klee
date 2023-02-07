@@ -45,15 +45,17 @@ class Decl {
 public:
   enum DeclKind {
     ArrayDeclKind,
+    PathDeclKind,
     ExprVarDeclKind,
     VersionVarDeclKind,
     QueryCommandDeclKind,
+    LemmaCommandDeclKind,
 
-    DeclKindLast = QueryCommandDeclKind,
+    DeclKindLast = LemmaCommandDeclKind,
     VarDeclKindFirst = ExprVarDeclKind,
     VarDeclKindLast = VersionVarDeclKind,
     CommandDeclKindFirst = QueryCommandDeclKind,
-    CommandDeclKindLast = QueryCommandDeclKind
+    CommandDeclKindLast = LemmaCommandDeclKind
   };
 
 private:
@@ -91,6 +93,24 @@ public:
     return D->getKind() == Decl::ArrayDeclKind;
   }
   static bool classof(const ArrayDecl *) { return true; }
+};
+
+// PathDecl - Path declarations.
+// Example: TODO
+class PathDecl : public Decl {
+public:
+  // Path defined by this decl.
+  Path path;
+
+public:
+  PathDecl(Path path) : Decl(PathDeclKind), path(path) {}
+
+  virtual void dump();
+
+  static bool classof(const Decl *D) {
+    return D->getKind() == Decl::PathDeclKind;
+  }
+  static bool classof(const PathDecl *) { return true; }
 };
 
 /// VarDecl - Variable declarations, used to associate names to
@@ -185,6 +205,24 @@ public:
     return D->getKind() == QueryCommandDeclKind;
   }
   static bool classof(const QueryCommand *) { return true; }
+};
+
+class LemmaCommand : public CommandDecl {
+public:
+  ExprOrderedSet constraints;
+  Path path;
+
+  LemmaCommand(ExprOrderedSet constraints, Path path)
+      : CommandDecl(LemmaCommandDeclKind), constraints(constraints),
+        path(path) {}
+
+  // TODO
+  virtual void dump() {}
+
+  static bool classof(const Decl *D) {
+    return D->getKind() == LemmaCommandDeclKind;
+  }
+  static bool classof(const LemmaCommand *) { return true; }
 };
 
 /// Parser - Public interface for parsing a .kquery language file.
