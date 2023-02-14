@@ -606,8 +606,8 @@ void GuidedSearcher::innerUpdate(
   TargetForest::TargetsSet currTargets;
   if (current) {
     auto targets = current->targetForest.getTargets();
-    for (auto &targetF : *targets) {
-      auto target = targetF.first;
+    for (auto it = targets->targets2VectorBegin(); it != targets->targets2VectorEnd(); ++it) {
+      auto target = it->first;
       assert(target && "Target should be not null!");
       currTargets.insert(target);
     }
@@ -688,10 +688,10 @@ void GuidedSearcher::innerUpdate(
   for (const auto state : targetedAddedStates) {
     auto history = state->targetForest.getHistory();
     auto targets = state->targetForest.getTargets();
-    for (auto &targetF : *targets) {
+    for (auto it = targets->targets2VectorBegin(); it != targets->targets2VectorEnd(); ++it) {
       tmpAddedStates.push_back(state);
       assert(!state->targetForest.empty());
-      auto target = targetF.first;
+      auto target = it->first;
       bool canReach =
         updateTargetedSearcher(history, target, nullptr, tmpAddedStates,
                                tmpRemovedStates);
@@ -706,9 +706,9 @@ void GuidedSearcher::innerUpdate(
   for (const auto state : baseRemovedStates) {
     auto history = state->targetForest.getHistory();
     auto targets = state->targetForest.getTargets();
-    for (auto &targetF : *targets) {
+    for (auto it = targets->targets2VectorBegin(); it != targets->targets2VectorEnd(); ++it) {
       tmpRemovedStates.push_back(state);
-      auto target = targetF.first;
+      auto target = it->first;
       bool canReach =
         updateTargetedSearcher(history, target, nullptr, tmpAddedStates,
                                tmpRemovedStates);
@@ -775,8 +775,8 @@ void GuidedSearcher::clearReached(const std::vector<ExecutionState *> &removedSt
       if (std::find(removedStates.begin(), removedStates.end(), state) ==
           removedStates.end()) {
         tmpRemovedStates.push_back(state);
-        for (auto &targetF : *targets) {
-          auto anotherTarget = targetF.first;
+        for (auto it = targets->targets2VectorBegin(); it != targets->targets2VectorEnd(); ++it) {
+          auto anotherTarget = it->first;
           if (target != anotherTarget) {
             updateTargetedSearcher(history, anotherTarget, nullptr,
                                    tmpAddedStates, tmpRemovedStates);
@@ -813,8 +813,8 @@ void GuidedSearcher::clearReached(const std::vector<ExecutionState *> &removedSt
     auto history = state->targetForest.getHistory();
     auto targets = state->targetForest.getTargets();
     tmpAddedStates.push_back(state);
-    for (auto &targetF : *targets) {
-      auto target = targetF.first;
+    for (auto it = targets->targets2VectorBegin(); it != targets->targets2VectorEnd(); ++it) {
+      auto target = it->first;
       updateTargetedSearcher(history, target, nullptr, tmpAddedStates,
                              tmpRemovedStates);
     }

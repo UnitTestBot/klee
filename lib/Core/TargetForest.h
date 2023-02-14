@@ -52,6 +52,10 @@ public:
       return targetsVec == other.targetsVec;
     }
 
+    const std::vector<ref<Target>>& getTargets() const { return targetsVec; }
+
+    std::string toString() const { return ""; }
+
     /// @brief Required by klee::ref-managed objects
     class ReferenceCounter _refCount;
   private:
@@ -83,34 +87,22 @@ public:
     }
   };
 private:
-  class Layer;
-
-  struct RefLayerHash {
-    std::size_t operator()(const ref<Layer> &t) const {
-      return std::hash<Layer *>{}(t.get());
-    }
-  };
-
-  struct RefLayerCmp {
-    bool operator()(const ref<Layer> &a,
-                    const ref<Layer> &b) const {
-      return a.get() == b.get();
-    }
-  };
-
   class Layer {
-    using InternalLayer = std::unordered_map<ref<Target>, ref<Layer>, RefTargetHash, RefTargetCmp>;
+    using InternalLayer = std::unordered_map<ref<TargetsVector>, ref<Layer>, RefTargetsVectorHash, RefTargetsVectorCmp>;
     InternalLayer forest;
-    std::unordered_map<ref<TargetsVector>, ref<Layer>, RefTargetsVectorHash, RefTargetsVectorCmp> targetsABC;
+    using Targets2Vector = std::unordered_map<ref<Target>, std::unordered_set<ref<TargetsVector>, RefTargetsVectorHash, RefTargetsVectorCmp>, RefTargetHash, RefTargetCmp>;
+    Targets2Vector targets2Vector;
 
     /// @brief Confidence in % that this layer (i.e., parent target node) can be reached
     confidence::ty confidence;
 
-    Layer(const InternalLayer &forest, confidence::ty confidence) : forest(forest), confidence(confidence) {}
-    explicit Layer(const Layer *layer) : Layer(layer->forest, layer->confidence) {}
+    Layer(const InternalLayer &forest, const Targets2Vector &targets2Vector, confidence::ty confidence) : forest(forest), targets2Vector(targets2Vector), confidence(confidence) {}
+    explicit Layer(const Layer *layer) : Layer(layer->forest, layer->targets2Vector, layer->confidence) {}
     explicit Layer(const ref<Layer> layer) : Layer(layer.get()) {}
     void unionWith(Layer *other);
     void block(ref<Target> target);
+    void removeTarget(ref<Target> target);
+    Layer *removeChild(ref<TargetsVector> child) const;
 
     confidence::ty getConfidence(confidence::ty parentConfidence) const {
       return confidence::min(parentConfidence, confidence);
@@ -129,6 +121,7 @@ private:
 
   public:
     using iterator = InternalLayer::const_iterator;
+    using targets2VectorIterator = Targets2Vector::const_iterator;
 
     /// @brief Required by klee::ref-managed objects
     class ReferenceCounter _refCount;
@@ -136,17 +129,23 @@ private:
     explicit Layer() : confidence(confidence::MaxConfidence) {}
     Layer(PathForest *pathForest, std::unordered_map<LocatedEvent *, TargetsSet *> &loc2Targets, std::unordered_set<unsigned> &broken_traces);
 
-    iterator find(ref<Target> b) const { return forest.find(b); }
+    iterator find(ref<TargetsVector> b) const { return forest.find(b); }
+    targets2VectorIterator find(ref<Target> b) const { return targets2Vector.find(b); }
     iterator begin() const { return forest.begin(); }
     iterator end() const { return forest.end(); }
-    void insert(ref<Target> loc, ref<Layer> nextLayer) { forest[loc] = nextLayer; }
+    targets2VectorIterator targets2VectorBegin() const { return targets2Vector.begin(); }
+    targets2VectorIterator targets2VectorEnd() const { return targets2Vector.end(); };
+    void insert(ref<TargetsVector> loc, ref<Layer> nextLayer) { forest[loc] = nextLayer; }
+    void insertTargets2Vec(ref<Target> target, ref<TargetsVector> targetsVec) { targets2Vector[target].insert(targetsVec); }
     bool empty() const { return forest.empty(); }
     bool deepFind(ref<Target> target) const;
     bool deepFindIn(ref<Target> child, ref<Target> target) const;
     size_t size() const { return forest.size(); }
-    Layer *replaceChildWith(ref<Target> child, Layer *other) const;
+    Layer *replaceChildWith(ref<Target> child, const std::unordered_set<ref<TargetsVector>, RefTargetsVectorHash, RefTargetsVectorCmp> &other) const;
+    Layer *replaceChildWith(ref<TargetsVector> child, Layer *other) const;
     Layer *removeChild(ref<Target> child) const;
     Layer *addChild(ref<Target> child) const;
+    Layer *blockLeafInChild(ref<TargetsVector> child, ref<Target> leaf) const;
     Layer *blockLeafInChild(ref<Target> child, ref<Target> leaf) const;
     Layer *blockLeaf(ref<Target> leaf) const;
     bool allNodesRefCountOne() const;
@@ -242,8 +241,10 @@ public:
   bool empty() const { return forest.isNull() || forest->empty(); }
   Layer::iterator begin() const { return forest->begin(); }
   Layer::iterator end() const { return forest->end(); }
-  bool contains(ref<Target> b) { return forest->find(b) != forest->end(); }
   bool deepContains(ref<Target> b) { return forest->deepFind(b); }
+  Layer::targets2VectorIterator targets2VectorBegin() const { return forest->targets2VectorBegin(); }
+  Layer::targets2VectorIterator targets2VectorEnd() const { return forest->targets2VectorEnd(); }
+  bool contains(ref<Target> b) { return forest->find(b) != forest->targets2VectorEnd(); }
 
   /// @brief Number of children of this layer (immediate successors)
   size_t successorCount() const { return forest->size(); }
@@ -324,6 +325,19 @@ struct EquivTargetsVectorCmp {
     return *a == *b;
   }
 };  
+
+// struct RefTargetsVectorHash {
+//   unsigned operator()(const ref<TargetForest::TargetsVector> &t) const {
+//     return t->hash();
+//   }
+// };
+
+// struct RefTargetsVectorCmp {
+//   bool operator()(const ref<TargetForest::TargetsVector> &a,
+//                   const ref<TargetForest::TargetsVector> &b) const {
+//     return a.get() == b.get();
+//   }
+// };
 
 } // End klee namespace
 

@@ -258,8 +258,8 @@ void TargetedExecutionManager::reportFalseNegative(ExecutionState &state,
 
 bool TargetedExecutionManager::reportTruePositive(ExecutionState &state, ReachWithError error) {
   bool atLeastOneReported = false;
-  for (auto kvp : state.targetForest) {
-    auto target = kvp.first;
+  for (auto it = state.targetForest.targets2VectorBegin(); it != state.targetForest.targets2VectorEnd(); ++it) {
+    auto target = it->first;
     if (target->getError() != error || broken_traces.count(target->getId()))
       continue;
     auto expectedLocation = target->getLocation();
