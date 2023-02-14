@@ -327,14 +327,26 @@ TargetForest::Layer *TargetForest::Layer::replaceChildWith(ref<TargetForest::Tar
   return result;
 }
 
-TargetForest::Layer *TargetForest::Layer::replaceChildWith(ref<Target> child, const std::unordered_set<ref<TargetsVector>, RefTargetsVectorHash, RefTargetsVectorCmp> &other) const { // TODO()
+TargetForest::Layer *TargetForest::Layer::replaceChildWith(ref<Target> child, const std::unordered_set<ref<TargetsVector>, RefTargetsVectorHash, RefTargetsVectorCmp>& other) const {
   std::vector<Layer *> layers;
   for (auto& targetsVec : other) {
     auto it = forest.find(targetsVec);
     assert(it != forest.end());
     layers.push_back(it->second.get());
   }
-  auto result = removeChild(child);
+  auto result = new Layer(this);
+  for (auto& targetsVec : other) {
+    for (auto& target : targetsVec->getTargets()) {
+      auto it = result->targets2Vector.find(target);
+      if (it != result->targets2Vector.end()) {
+        it->second.erase(targetsVec);
+        if (it->second.empty()) {
+          result->targets2Vector.erase(it);
+        }
+      }
+    }
+    result->forest.erase(targetsVec);
+  }
   for (auto layer : layers) { 
     result->unionWith(layer);
   }
