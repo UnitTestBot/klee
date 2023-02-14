@@ -278,6 +278,11 @@ private:
                             KCallable *callable,
                             std::vector< ref<Expr> > &arguments);
 
+  void mockExternalFunction(ExecutionState &state,
+                            KInstruction *target,
+                            KFunction *kf,
+                            std::vector< ref<Expr> > &arguments);
+
   ObjectState *bindObjectInState(ExecutionState &state, const MemoryObject *mo,
                                  KType *dynamicType, bool IsAlloca,
                                  const Array *array = 0);

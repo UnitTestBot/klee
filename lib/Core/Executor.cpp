@@ -258,6 +258,13 @@ cl::opt<bool> AllExternalWarnings(
              "as opposed to once per function (default=false)"),
     cl::cat(ExtCallsCat));
 
+cl::opt<bool> MockExternalCalls(
+    "mock-external-calls",
+    cl::init(false),
+    cl::desc("If true, all external calls are mocked. Allowed only if solver is Z3."
+             "If false, fails on external calls."),
+    cl::cat(ExtCallsCat));
+
 
 /*** Seeding options ***/
 
@@ -534,6 +541,9 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
   coreSolverTimeout = time::Span{MaxCoreSolverTime};
   if (coreSolverTimeout) UseForkedCoreSolver = true;
   Solver *coreSolver = klee::createCoreSolver(CoreSolverToUse);
+  if (CoreSolverToUse != Z3_SOLVER && MockExternalCalls) {
+    klee_error("External calls can be mocked only with Z3 solver enabled");
+  }
   if (!coreSolver) {
     klee_error("Failed to create core solver\n");
   }
@@ -4409,6 +4419,38 @@ static std::set<std::string> okExternals(okExternalsList,
                                          okExternalsList + 
                                          (sizeof(okExternalsList)/sizeof(okExternalsList[0])));
 
+void Executor::mockExternalFunction(ExecutionState &state, KInstruction *target,
+                                    KFunction *kf,
+                                    std::vector<ref<Expr>> &arguments) {
+  if (!target->inst->getType()->isSized())
+    return;
+
+  static int id = 0;
+  id++;
+  for (size_t i = 0; i < kf->numArgs; i++) {
+    auto arg = kf->function->getArg(i);
+    uint64_t size = kmodule->targetData->getTypeStoreSize(arg->getType());
+    uint64_t width = kmodule->targetData->getTypeSizeInBits(arg->getType());
+    ref<Expr> argExpr =
+        makeSymbolicValue(arg, state, size, width,
+                          kf->getName().str() + "_" + std::to_string(id) +
+                              "_arg_" + std::to_string(i));
+    bindLocal(target, state, argExpr);
+    addConstraint(state, EqExpr::create(arguments[i], argExpr));
+  }
+
+  Instruction *allocSite = target->inst;
+  uint64_t size = kmodule->targetData->getTypeStoreSize(allocSite->getType());
+  uint64_t width = kmodule->targetData->getTypeSizeInBits(allocSite->getType());
+  ref<Expr> result =
+      makeSymbolicValue(allocSite, state, size, width,
+                        kf->getName().str() + "_" + std::to_string(id));
+  bindLocal(target, state, result);
+  ref<Expr> fun =
+      ApplyFunctionExpr::create(kf->getName().str(), arguments, width);
+  addConstraint(state, EqExpr::create(fun, result));
+}
+
 void Executor::callExternalFunction(ExecutionState &state,
                                     KInstruction *target,
                                     KCallable *callable,
@@ -4546,8 +4588,17 @@ void Executor::callExternalFunction(ExecutionState &state,
   bool success = externalDispatcher->executeCall(callable, target->inst, args, roundingMode);
 
   if (!success) {
-    terminateStateOnError(state, "failed external call: " + callable->getName(),
-                          StateTerminationType::External);
+    if (MockExternalCalls) {
+      if (!isa<KFunction>(callable)) {
+        return;
+      }
+      mockExternalFunction(state, target, cast<KFunction>(callable),
+                           arguments);
+    } else {
+      terminateStateOnError(state,
+                            "failed external call: " + callable->getName(),
+                            StateTerminationType::External);
+    }
     return;
   }
 
@@ -5352,13 +5403,14 @@ ref<Expr> Executor::makeSymbolicValue(Value *value, ExecutionState &state, uint6
   MemoryObject *mo = 
     memory->allocate(size, true, /*isGlobal=*/false,
                      value, /*allocationAlignment=*/8);
-  memory->deallocate(mo);
   const Array *array = makeArray(state, size, name);
   const_cast<Array*>(array)->binding = mo;
   state.addSymbolic(mo, array);
+  mo->setName(name);
   assert(value && "Attempted to make symbolic value from nullptr Value");
-  ObjectState *os = new ObjectState(
-      mo, array, typeSystemManager->getWrappedType(value->getType()));
+  ObjectState *os = bindObjectInState(
+      state, mo, typeSystemManager->getWrappedType(value->getType()), false,
+      array);
   ref<Expr> result = os->read(0, width);
   return result;
 }

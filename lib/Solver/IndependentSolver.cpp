@@ -455,7 +455,9 @@ bool assertCreatedPointEvaluatesToTrue(
 
   for (auto const &constraint : query.constraints) {
     ref<Expr> ret = assign.evaluate(constraint);
-
+    if (!isa<ApplyFunctionExpr>(ret)) {
+      return true;
+    }
     assert(isa<ConstantExpr>(ret) &&
            "assignment evaluation did not result in constant");
     ref<ConstantExpr> evaluatedConstraint = dyn_cast<ConstantExpr>(ret);

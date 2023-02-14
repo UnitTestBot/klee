@@ -126,6 +126,7 @@ ref<Expr> ExprVisitor::visitActual(const ref<Expr> &e) {
     case Expr::FRint: res = visitFRint(static_cast<FRintExpr &>(ep)); break;
     case Expr::FAbs: res = visitFAbs(static_cast<FAbsExpr &>(ep)); break;
     case Expr::FNeg: res = visitFNeg(static_cast<FNegExpr &>(ep)); break;
+    case Expr::ApplyFunction: res = visitApplyFunction(static_cast<ApplyFunctionExpr &>(ep)); break;
     case Expr::Constant:
     default:
       assert(0 && "invalid expression kind");
@@ -136,7 +137,7 @@ ref<Expr> ExprVisitor::visitActual(const ref<Expr> &e) {
       assert(0 && "invalid kind");
     case Action::DoChildren: {  
       bool rebuild = false;
-      ref<Expr> e(&ep), kids[8];
+      ref<Expr> e(&ep), kids[8];  // TODO: why is 8 here?
       unsigned count = ep.getNumKids();
       for (unsigned i=0; i<count; i++) {
         ref<Expr> kid = ep.getKid(i);
@@ -398,4 +399,8 @@ ExprVisitor::Action ExprVisitor::visitFMax(const FMaxExpr &) {
 
 ExprVisitor::Action ExprVisitor::visitFMin(const FMinExpr &) {
     return Action::doChildren();
+}
+
+ExprVisitor::Action ExprVisitor::visitApplyFunction(const ApplyFunctionExpr &) {
+  return Action::doChildren();
 }
