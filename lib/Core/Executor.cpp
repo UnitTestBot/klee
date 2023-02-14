@@ -2472,8 +2472,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
   if (guidanceKind == GuidanceKind::ErrorGuidance &&
       state.prevPC->inst->isTerminator()) {
-    for (auto it = state.targetForest.targets2VectorBegin(); it != state.targetForest.targets2VectorEnd(); ++it) {
-      auto target = it->first;
+    for (auto kvp : state.targetForest) {
+      auto target = kvp.first;
       auto expectedLocation = target->getLocation();
       if (target->getError() == ReachWithError::Reachable &&
           expectedLocation->isTheSameAsIn(ki)) {

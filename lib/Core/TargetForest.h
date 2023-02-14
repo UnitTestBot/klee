@@ -120,8 +120,7 @@ private:
       unsigned total) const;
 
   public:
-    using iterator = InternalLayer::const_iterator;
-    using targets2VectorIterator = Targets2Vector::const_iterator;
+    using iterator = Targets2Vector::const_iterator;
 
     /// @brief Required by klee::ref-managed objects
     class ReferenceCounter _refCount;
@@ -129,12 +128,9 @@ private:
     explicit Layer() : confidence(confidence::MaxConfidence) {}
     Layer(PathForest *pathForest, std::unordered_map<LocatedEvent *, TargetsSet *> &loc2Targets, std::unordered_set<unsigned> &broken_traces);
 
-    iterator find(ref<TargetsVector> b) const { return forest.find(b); }
-    targets2VectorIterator find(ref<Target> b) const { return targets2Vector.find(b); }
-    iterator begin() const { return forest.begin(); }
-    iterator end() const { return forest.end(); }
-    targets2VectorIterator targets2VectorBegin() const { return targets2Vector.begin(); }
-    targets2VectorIterator targets2VectorEnd() const { return targets2Vector.end(); };
+    iterator find(ref<Target> b) const { return targets2Vector.find(b); }
+    iterator begin() const { return targets2Vector.begin(); }
+    iterator end() const { return targets2Vector.end(); }
     void insert(ref<TargetsVector> loc, ref<Layer> nextLayer) { forest[loc] = nextLayer; }
     void insertTargets2Vec(ref<Target> target, ref<TargetsVector> targetsVec) { targets2Vector[target].insert(targetsVec); }
     bool empty() const { return forest.empty(); }
@@ -228,7 +224,6 @@ public:
   class ReferenceCounter _refCount;
   unsigned getDebugReferenceCount() { return forest->_refCount.getCount(); }
   KFunction *getEntryFunction() { return entryFunction; }
-  void debugStepToRandomLoc();
 
   TargetForest(ref<Layer> layer, KFunction *entryFunction) : forest(layer), history(History::create()), entryFunction(entryFunction) {}
   TargetForest() : TargetForest(new Layer(), nullptr) {}
@@ -325,19 +320,6 @@ struct EquivTargetsVectorCmp {
     return *a == *b;
   }
 };  
-
-// struct RefTargetsVectorHash {
-//   unsigned operator()(const ref<TargetForest::TargetsVector> &t) const {
-//     return t->hash();
-//   }
-// };
-
-// struct RefTargetsVectorCmp {
-//   bool operator()(const ref<TargetForest::TargetsVector> &a,
-//                   const ref<TargetForest::TargetsVector> &b) const {
-//     return a.get() == b.get();
-//   }
-// };
 
 } // End klee namespace
 

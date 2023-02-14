@@ -87,10 +87,10 @@ void TargetForest::Layer::pathForestToTargetForest(
     }
     auto targets = it->second;
     ref<TargetsVector> targetsVec = TargetsVector::create(targets);
-    auto forestIt = self->find(targetsVec);
+    auto forestIt = self->forest.find(targetsVec);
     ref<TargetForest::Layer> next = new TargetForest::Layer();
 
-    if (forestIt != self->end()) {
+    if (forestIt != self->forest.end()) {
       next = forestIt->second;
     } else {
       self->insert(targetsVec, next);
@@ -212,12 +212,10 @@ bool TargetForest::Layer::deepFindIn(ref<Target> child, ref<Target> target) cons
   if (res == targets2Vector.end()) {
     return false;
   }
-<<<<<<< HEAD
+
   if (child == target) {
     return true;
   }
-  return res->second->deepFind(target);
-=======
 
   for (auto& targetsVec : res->second) {
     auto it = forest.find(targetsVec);
@@ -228,7 +226,6 @@ bool TargetForest::Layer::deepFindIn(ref<Target> child, ref<Target> target) cons
   }
 
   return false;
->>>>>>> 8685c480... Refactor forest
 }
 
 TargetForest::Layer *TargetForest::Layer::removeChild(ref<Target> child) const {
@@ -447,7 +444,7 @@ void TargetForest::stepTo(ref<Target> loc) {
   if (forest->empty())
     return;
   auto res = forest->find(loc);
-  if (res == forest->targets2VectorEnd()) {
+  if (res == forest->end()) {
     return;
   }
   if (loc->shouldFailOnThisTarget()) {
@@ -463,14 +460,14 @@ void TargetForest::stepTo(ref<Target> loc) {
 }
 
 void TargetForest::add(ref<Target> target) {
-  if (forest->find(target) == forest->targets2VectorEnd()) {
+  if (forest->find(target) == forest->end()) {
     return;
   }
   forest = forest->addChild(target);
 }
 
 void TargetForest::remove(ref<Target> target) {
-  if (forest->find(target) == forest->targets2VectorEnd()) {
+  if (forest->find(target) == forest->end()) {
     return;
   }
   forest = forest->removeChild(target);
@@ -488,10 +485,6 @@ void TargetForest::dump() const {
   history->dump();
   llvm::errs() << "Forest:\n";
   forest->dump(1);
-}
-
-void TargetForest::debugStepToRandomLoc() {
-  forest = forest->begin()->second;
 }
 
 bool TargetForest::allNodesRefCountOne() const {
@@ -531,8 +524,8 @@ void TargetForest::Layer::subtract_confidences_from(ref<Layer> other, confidence
   for (auto &targetAndForest : forest) {
     auto targetsVec = targetAndForest.first;
     auto &layer = targetAndForest.second;
-    auto other_layer_it = other->find(targetsVec);
-    if (other_layer_it == other->end())
+    auto other_layer_it = other->forest.find(targetsVec);
+    if (other_layer_it == other->forest.end())
       layer->subtract_confidences_from(other, layer->getConfidence(parentConfidence));
     else {
       layer->confidence = layer->getConfidence(parentConfidence) - other_layer_it->second->confidence;
