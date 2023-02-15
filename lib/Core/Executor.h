@@ -283,7 +283,7 @@ private:
                             KCallable *callable,
                             std::vector<ref<Expr>> &arguments);
 
-  void mockExternalFunctionStraightforwardMode(ExecutionState &state,
+  void mockExternalFunctionNaiveMode(ExecutionState &state,
                                                KInstruction *target,
                                                KFunction *kf,
                                                std::vector<ref<Expr>> &arguments);

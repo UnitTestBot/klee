@@ -259,10 +259,10 @@ cl::opt<bool> AllExternalWarnings(
     cl::cat(ExtCallsCat));
 
 enum class MockStrategy {
-  None,            // No mocks are generated
-  Straightforward, // For each function call new symbolic value is generated
-  Deterministic,   // Each function is treated as uninterpreted function in SMT.
-                   // Compatible with Z3 solver only
+  None,          // No mocks are generated
+  Naive,         // For each function call new symbolic value is generated
+  Deterministic, // Each function is treated as uninterpreted function in SMT.
+                 // Compatible with Z3 solver only
 };
 
 cl::opt<MockStrategy> MockStrategy(
@@ -271,7 +271,7 @@ cl::opt<MockStrategy> MockStrategy(
     cl::values(
         clEnumValN(MockStrategy::None, "none",
                    "External calls are not mocked (default)"),
-        clEnumValN(MockStrategy::Straightforward, "straightforward",
+        clEnumValN(MockStrategy::Naive, "naive",
                    "Every time external function is called, new symbolic value "
                    "is generated for its return value"),
         clEnumValN(
@@ -4436,7 +4436,7 @@ static std::set<std::string> okExternals(okExternalsList,
                                          okExternalsList + 
                                          (sizeof(okExternalsList)/sizeof(okExternalsList[0])));
 
-void Executor::mockExternalFunctionStraightforwardMode(
+void Executor::mockExternalFunctionNaiveMode(
     ExecutionState &state, KInstruction *target, KFunction *kf,
     std::vector<ref<Expr>> &arguments) {
   static int id = 0;
@@ -4475,21 +4475,18 @@ void Executor::mockExternalFunctionDeterministicMode(
 void Executor::mockExternalFunction(ExecutionState &state, KInstruction *target,
                                     KCallable *callable,
                                     std::vector<ref<Expr>> &arguments) {
-  if (MockStrategy == MockStrategy::None) {
+  if (MockStrategy == MockStrategy::None || !isa<KFunction>(callable)) {
     terminateStateOnError(state, "failed external call: " + callable->getName(),
                           StateTerminationType::External);
-  }
-  if (!isa<KFunction>(callable)) {
-    terminateStateOnError(state, "failed external call: " + callable->getName(),
-                          StateTerminationType::External);
+    return;
   }
   auto kf = cast<KFunction>(callable);
   if (!target->inst->getType()->isSized()) {
     return;
   }
   switch (MockStrategy) {
-  case MockStrategy::Straightforward:
-    mockExternalFunctionStraightforwardMode(state, target, kf, arguments);
+  case MockStrategy::Naive:
+    mockExternalFunctionNaiveMode(state, target, kf, arguments);
     break;
   case MockStrategy::Deterministic:
     mockExternalFunctionDeterministicMode(state, target, kf, arguments);
