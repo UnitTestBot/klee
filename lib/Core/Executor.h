@@ -280,8 +280,18 @@ private:
 
   void mockExternalFunction(ExecutionState &state,
                             KInstruction *target,
-                            KFunction *kf,
-                            std::vector< ref<Expr> > &arguments);
+                            KCallable *callable,
+                            std::vector<ref<Expr>> &arguments);
+
+  void mockExternalFunctionStraightforwardMode(ExecutionState &state,
+                                               KInstruction *target,
+                                               KFunction *kf,
+                                               std::vector<ref<Expr>> &arguments);
+
+  void mockExternalFunctionDeterministicMode(ExecutionState &state,
+                                             KInstruction *target,
+                                             KFunction *kf,
+                                             std::vector<ref<Expr>> &arguments);
 
   ObjectState *bindObjectInState(ExecutionState &state, const MemoryObject *mo,
                                  KType *dynamicType, bool IsAlloca,
@@ -590,7 +600,6 @@ public:
   void prepareSymbolicArgs(ExecutionState &state, KFunction *kf);
 
   ref<Expr> makeSymbolicValue(llvm::Value *value, ExecutionState &state,
-                              uint64_t size, Expr::Width width,
                               const std::string &name);
 
   void runFunctionAsMain(llvm::Function *f, int argc, char **argv,

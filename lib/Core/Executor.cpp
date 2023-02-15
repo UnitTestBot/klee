@@ -258,13 +258,29 @@ cl::opt<bool> AllExternalWarnings(
              "as opposed to once per function (default=false)"),
     cl::cat(ExtCallsCat));
 
-cl::opt<bool> MockExternalCalls(
-    "mock-external-calls",
-    cl::init(false),
-    cl::desc("If true, all external calls are mocked. Allowed only if solver is Z3."
-             "If false, fails on external calls."),
-    cl::cat(ExtCallsCat));
+enum class MockStrategy {
+  None,            // No mocks are generated
+  Straightforward, // For each function call new symbolic value is generated
+  Deterministic,   // Each function is treated as uninterpreted function in SMT.
+                   // Compatible with Z3 solver only
+};
 
+cl::opt<MockStrategy> MockStrategy(
+    "mock-strategy", cl::init(MockStrategy::None),
+    cl::desc("Specify strategy for mocking external calls"),
+    cl::values(
+        clEnumValN(MockStrategy::None, "none",
+                   "External calls are not mocked (default)"),
+        clEnumValN(MockStrategy::Straightforward, "straightforward",
+                   "Every time external function is called, new symbolic value "
+                   "is generated for its return value"),
+        clEnumValN(
+            MockStrategy::Deterministic, "deterministic",
+            "NOTE: this option is compatible with Z3 solver only. Each "
+            "external function is treated as a deterministic "
+            "function. Therefore, when function is called many times "
+            "with equal arguments, every time equal values will be returned.")),
+    cl::init(MockStrategy::None), cl::cat(ExtCallsCat));
 
 /*** Seeding options ***/
 
@@ -541,8 +557,9 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
   coreSolverTimeout = time::Span{MaxCoreSolverTime};
   if (coreSolverTimeout) UseForkedCoreSolver = true;
   Solver *coreSolver = klee::createCoreSolver(CoreSolverToUse);
-  if (CoreSolverToUse != Z3_SOLVER && MockExternalCalls) {
-    klee_error("External calls can be mocked only with Z3 solver enabled");
+  if (CoreSolverToUse != Z3_SOLVER &&
+      MockStrategy == MockStrategy::Deterministic) {
+    klee_error("Deterministic mocks can be generated with Z3 solver only.\n");
   }
   if (!coreSolver) {
     klee_error("Failed to create core solver\n");
@@ -4419,20 +4436,25 @@ static std::set<std::string> okExternals(okExternalsList,
                                          okExternalsList + 
                                          (sizeof(okExternalsList)/sizeof(okExternalsList[0])));
 
-void Executor::mockExternalFunction(ExecutionState &state, KInstruction *target,
-                                    KFunction *kf,
-                                    std::vector<ref<Expr>> &arguments) {
-  if (!target->inst->getType()->isSized())
-    return;
+void Executor::mockExternalFunctionStraightforwardMode(
+    ExecutionState &state, KInstruction *target, KFunction *kf,
+    std::vector<ref<Expr>> &arguments) {
+  static int id = 0;
+  id++;
+  auto e = makeSymbolicValue(target->inst, state,
+                             kf->getName().str() + "_" + std::to_string(id));
+  bindLocal(target, state, e);
+}
 
+void Executor::mockExternalFunctionDeterministicMode(
+    ExecutionState &state, KInstruction *target, KFunction *kf,
+    std::vector<ref<Expr>> &arguments) {
   static int id = 0;
   id++;
   for (size_t i = 0; i < kf->numArgs; i++) {
     auto arg = kf->function->getArg(i);
-    uint64_t size = kmodule->targetData->getTypeStoreSize(arg->getType());
-    uint64_t width = kmodule->targetData->getTypeSizeInBits(arg->getType());
     ref<Expr> argExpr =
-        makeSymbolicValue(arg, state, size, width,
+        makeSymbolicValue(arg, state,
                           kf->getName().str() + "_" + std::to_string(id) +
                               "_arg_" + std::to_string(i));
     bindLocal(target, state, argExpr);
@@ -4440,15 +4462,42 @@ void Executor::mockExternalFunction(ExecutionState &state, KInstruction *target,
   }
 
   Instruction *allocSite = target->inst;
-  uint64_t size = kmodule->targetData->getTypeStoreSize(allocSite->getType());
-  uint64_t width = kmodule->targetData->getTypeSizeInBits(allocSite->getType());
-  ref<Expr> result =
-      makeSymbolicValue(allocSite, state, size, width,
-                        kf->getName().str() + "_" + std::to_string(id));
+  ref<Expr> result = makeSymbolicValue(
+      allocSite, state, kf->getName().str() + "_" + std::to_string(id));
   bindLocal(target, state, result);
+  Expr::Width width =
+      kmodule->targetData->getTypeSizeInBits(allocSite->getType());
   ref<Expr> fun =
       ApplyFunctionExpr::create(kf->getName().str(), arguments, width);
   addConstraint(state, EqExpr::create(fun, result));
+}
+
+void Executor::mockExternalFunction(ExecutionState &state, KInstruction *target,
+                                    KCallable *callable,
+                                    std::vector<ref<Expr>> &arguments) {
+  if (MockStrategy == MockStrategy::None) {
+    terminateStateOnError(state, "failed external call: " + callable->getName(),
+                          StateTerminationType::External);
+  }
+  if (!isa<KFunction>(callable)) {
+    terminateStateOnError(state, "failed external call: " + callable->getName(),
+                          StateTerminationType::External);
+  }
+  auto kf = cast<KFunction>(callable);
+  if (!target->inst->getType()->isSized()) {
+    return;
+  }
+  switch (MockStrategy) {
+  case MockStrategy::Straightforward:
+    mockExternalFunctionStraightforwardMode(state, target, kf, arguments);
+    break;
+  case MockStrategy::Deterministic:
+    mockExternalFunctionDeterministicMode(state, target, kf, arguments);
+    break;
+  default:
+    klee_error("Unimplemented mock strategy");
+    break;
+  }
 }
 
 void Executor::callExternalFunction(ExecutionState &state,
@@ -4588,17 +4637,18 @@ void Executor::callExternalFunction(ExecutionState &state,
   bool success = externalDispatcher->executeCall(callable, target->inst, args, roundingMode);
 
   if (!success) {
-    if (MockExternalCalls) {
-      if (!isa<KFunction>(callable)) {
-        return;
-      }
-      mockExternalFunction(state, target, cast<KFunction>(callable),
-                           arguments);
-    } else {
-      terminateStateOnError(state,
-                            "failed external call: " + callable->getName(),
-                            StateTerminationType::External);
-    }
+    mockExternalFunction(state, target, callable, arguments);
+//    if (MockExternalCalls) {
+//      if (!isa<KFunction>(callable)) {
+//        return;
+//      }
+//      mockExternalFunction(state, target, cast<KFunction>(callable),
+//                           arguments);
+//    } else {
+//      terminateStateOnError(state,
+//                            "failed external call: " + callable->getName(),
+//                            StateTerminationType::External);
+//    }
     return;
   }
 
@@ -5364,9 +5414,7 @@ void Executor::clearGlobal() {
 
 void Executor:: prepareSymbolicValue(ExecutionState &state, KInstruction *target) {
   Instruction *allocSite = target->inst;
-  uint64_t size = kmodule->targetData->getTypeStoreSize(allocSite->getType());
-  uint64_t width = kmodule->targetData->getTypeSizeInBits(allocSite->getType());
-  ref<Expr> result = makeSymbolicValue(allocSite, state, size, width, "symbolic_value");
+  ref<Expr> result = makeSymbolicValue(allocSite, state, "symbolic_value");
   bindLocal(target, state, result);
   if (isa<AllocaInst>(allocSite)) {
       AllocaInst *ai = cast<AllocaInst>(allocSite);
@@ -5392,14 +5440,14 @@ void Executor:: prepareSymbolicRegister(ExecutionState &state, StackFrame &sf, u
 void Executor::prepareSymbolicArgs(ExecutionState &state, KFunction *kf) {
   for (auto ai = kf->function->arg_begin(), ae = kf->function->arg_end(); ai != ae; ai++) {
     Argument *arg = *&ai;
-    uint64_t size = kmodule->targetData->getTypeStoreSize(arg->getType());
-    uint64_t width = kmodule->targetData->getTypeSizeInBits(arg->getType());
-    ref<Expr> result = makeSymbolicValue(arg, state, size, width, "symbolic_arg");
+    ref<Expr> result = makeSymbolicValue(arg, state, "symbolic_arg");
     bindArgument(state.stack.back().kf, arg->getArgNo(), state, result);
   }
 }
 
-ref<Expr> Executor::makeSymbolicValue(Value *value, ExecutionState &state, uint64_t size, Expr::Width width, const std::string &name) {
+ref<Expr> Executor::makeSymbolicValue(Value *value, ExecutionState &state, const std::string &name) {
+  uint64_t size = kmodule->targetData->getTypeStoreSize(value->getType());
+  Expr::Width width = kmodule->targetData->getTypeSizeInBits(value->getType());
   MemoryObject *mo = 
     memory->allocate(size, true, /*isGlobal=*/false,
                      value, /*allocationAlignment=*/8);
