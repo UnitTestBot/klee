@@ -574,18 +574,20 @@ TargetForest::Layer *TargetForest::Layer::divideConfidenceBy(std::multiset<ref<T
     return this;
   auto result = new Layer(this);
   for (auto &targetAndForest : forest) {
-    auto target = targetAndForest.first;
+    auto targetsVec = targetAndForest.first;
     auto layer = targetAndForest.second;
-    // auto count = reachableStatesOfTarget.count(target);
-    auto count = 0;
+    size_t count = 0;
+    for (auto& target : targetsVec->getTargets()) {
+      count += reachableStatesOfTarget.count(target);
+    }
     if (count) {
       if (count == 1)
         continue;
       auto next = new Layer(layer);
-      result->forest[target] = next;
+      result->forest[targetsVec] = next;
       next->confidence /= count;
     } else
-      result->forest[target] = layer->divideConfidenceBy(reachableStatesOfTarget);
+      result->forest[targetsVec] = layer->divideConfidenceBy(reachableStatesOfTarget);
   }
   return result;
 }
@@ -596,15 +598,19 @@ void TargetForest::Layer::collectHowManyEventsInTracesWereReached(
   unsigned total) const {
   total++;
   for (const auto &p : forest) {
+    auto targetsVec = p.first;
     auto child = p.second;
-    child->collectHowManyEventsInTracesWereReached(trace2eventCount, reached, total);
-  }
-
-  for (const auto &p : targets2Vector) {
-    auto target = p.first;
-    auto reachedCurrent = target->isReported ? reached + 1 : reached;
+    bool isReported = false;
+    for (auto& target : targetsVec->getTargets()) {
+      if (target->isReported) {
+        isReported = true;
+      }
+    }
+    auto reachedCurrent = isReported ? reached + 1 : reached;
+    auto target = *targetsVec->getTargets().begin();
     if (target->shouldFailOnThisTarget()) {
       trace2eventCount[target->getId()] = std::make_pair(reachedCurrent, total);
     }
+    child->collectHowManyEventsInTracesWereReached(trace2eventCount, reachedCurrent, total);
   }
 }
