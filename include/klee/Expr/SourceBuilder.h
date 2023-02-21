@@ -31,8 +31,10 @@ public:
                                          int _index, KModule *km);
   static ref<SymbolicSource> value(const llvm::Value &_allocSite, int _index,
                                    KModule *km);
-  static ref<SymbolicSource> irreproducible(const std::string &name);
   static ref<SymbolicSource> alpha(int _index);
+  static ref<SymbolicSource> global(const llvm::GlobalVariable &name);
+  static ref<SymbolicSource> irreproducible(const std::string &name,
+                                            unsigned version);
 };
 
 }; // namespace klee
