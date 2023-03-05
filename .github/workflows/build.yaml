@@ -181,3 +181,10 @@ jobs:
         run: scripts/build/build.sh klee --docker --create-final-image
       - name: Run tests
         run: scripts/build/run-tests.sh --coverage --upload-coverage --run-docker --debug
+  clang-format:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout KLEE Code
+        uses: actions/checkout@v2
+      - name: clang-format KLEE Code
+        uses: jidicula/clang-format-action@v4.10.2
