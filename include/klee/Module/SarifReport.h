@@ -191,7 +191,11 @@ struct Location {
 
   bool isInside(const FunctionInfo &info) const;
 
-  bool isInside(KBlock *block) const;
+  using Instructions = std::unordered_map<
+      unsigned int,
+      std::unordered_map<unsigned int, std::unordered_set<unsigned int>>>;
+
+  bool isInside(KBlock *block, const Instructions &origInsts) const;
 
   std::string toString() const;
 

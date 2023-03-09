@@ -60,14 +60,19 @@ public:
 };
 
 TargetedExecutionManager::LocationToBlocks
-TargetedExecutionManager::prepareAllLocations(KModule *kmodule,
-                                              Locations &locations) const {
+TargetedExecutionManager::prepareAllLocations(
+    KModule *kmodule, Locations &locations,
+    const Instructions &origInsts) const {
   LocationToBlocks locToBlocks;
   LocatedEventManager lem;
   const auto &infos = kmodule->infos;
   for (const auto &kfunc : kmodule->functions) {
     const auto &fi = infos->getFunctionInfo(*kfunc->function);
     lem.prefetchFindFilename(fi.file);
+    if (origInsts.count(fi.file) == 0) {
+      continue;
+    }
+    const auto &origInstsInFile = origInsts.at(fi.file);
     for (auto it = locations.begin(); it != locations.end();) {
       auto loc = *it;
       if (locToBlocks.count(loc) != 0) {
@@ -82,7 +87,7 @@ TargetedExecutionManager::prepareAllLocations(KModule *kmodule,
       Blocks blocks = Blocks();
       for (const auto &kblock : kfunc->blocks) {
         auto b = kblock.get();
-        if (!loc->isInside(b)) {
+        if (!loc->isInside(b, origInstsInFile)) {
           continue;
         }
         blocks.insert(b);
@@ -112,6 +117,27 @@ TargetedExecutionManager::collectAllLocations(const SarifReport &paths) const {
   return locations;
 }
 
+TargetedExecutionManager::Instructions
+TargetedExecutionManager::getOriginalInstructions(KModule *kmodule) const {
+  Instructions instructions;
+
+  const auto &infos = kmodule->infos;
+
+  for (const auto &kfunc : kmodule->functions) {
+    const auto &fi = infos->getFunctionInfo(*kfunc->function);
+    auto &instructionsInFile = instructions[fi.file];
+    for (const auto &kblock : kfunc->blocks) {
+      for (size_t i = 0; i < kblock->numInstructions; ++i) {
+        auto kinst = kblock->instructions[i];
+        instructionsInFile[kinst->info->line][kinst->info->column].insert(
+            kinst->inst->getOpcode());
+      }
+    }
+  }
+
+  return instructions;
+}
+
 bool TargetedExecutionManager::tryResolveLocations(
     const Result &result, LocationToBlocks &locToBlocks) const {
   for (const auto &location : result.locations) {
@@ -132,7 +158,9 @@ std::unordered_map<KFunction *, ref<TargetForest>>
 TargetedExecutionManager::prepareTargets(KModule *origModule, KModule *kmodule,
                                          SarifReport paths) {
   Locations locations = collectAllLocations(paths);
-  LocationToBlocks locToBlocks = prepareAllLocations(kmodule, locations);
+  Instructions origInsts = getOriginalInstructions(origModule);
+  LocationToBlocks locToBlocks =
+      prepareAllLocations(kmodule, locations, origInsts);
 
   std::unordered_map<KFunction *, ref<TargetForest>> whitelists;
 

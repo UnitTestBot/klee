@@ -58,4 +58,4 @@ void call_func(int num)
 // RUN: %klee --output-dir=%t.klee-out --write-kqueries --max-cycles=0 --execution-mode=error-guided --check-out-of-memory --mock-external-calls --skip-not-lazy-and-symbolic-pointers --analysis-reproduce=%s.json %t1.bc
 // RUN: FileCheck -input-file=%t.klee-out/warnings.txt %s
 
-// CHECK: KLEE: WARNING: 100.00% Reachable Reachable at trace 22
+// CHECK: KLEE: WARNING: 100.00% Reachable Reachable at trace 1

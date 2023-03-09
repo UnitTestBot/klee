@@ -52,13 +52,20 @@ private:
                                               RefLocationHash, RefLocationCmp>;
   using Locations =
       std::unordered_set<ref<Location>, RefLocationHash, RefLocationCmp>;
+
+  using Instructions = std::unordered_map<
+      std::string,
+      std::unordered_map<
+          unsigned int,
+          std::unordered_map<unsigned int, std::unordered_set<unsigned int>>>>;
   std::unordered_set<unsigned> broken_traces;
 
   bool tryResolveLocations(const Result &locations,
                            LocationToBlocks &locToBlocks) const;
-  LocationToBlocks prepareAllLocations(KModule *kmodule,
-                                       Locations &locations) const;
+  LocationToBlocks prepareAllLocations(KModule *kmodule, Locations &locations,
+                                       const Instructions &origInsts) const;
   Locations collectAllLocations(const SarifReport &paths) const;
+  Instructions getOriginalInstructions(KModule *kmodule) const;
 
 public:
   std::unordered_map<KFunction *, ref<TargetForest>>

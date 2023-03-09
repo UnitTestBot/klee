@@ -181,7 +181,7 @@ bool Location::isInside(const FunctionInfo &info) const {
                                      : (m == -1 && isOSSeparator(filename[n])));
 }
 
-bool Location::isInside(KBlock *block) const {
+bool Location::isInside(KBlock *block, const Instructions &origInsts) const {
   auto first = block->getFirstInstruction()->info;
   auto last = block->getLastInstruction()->info;
   if (!startColumn.has_value()) {
@@ -189,11 +189,13 @@ bool Location::isInside(KBlock *block) const {
       return false;
     return startLine <= last->line; // and `first <= line` from above
   } else {
-    for (size_t i = 0; i < std::max(1u, block->numInstructions - 1); ++i) {
+    for (size_t i = 0; i < block->numInstructions; ++i) {
       auto inst = block->instructions[i]->info;
+      auto opCode = block->instructions[i]->inst->getOpcode();
       if (!isa<DbgInfoIntrinsic>(block->instructions[i]->inst) &&
           inst->line <= endLine && inst->line >= startLine &&
-          inst->column <= *endColumn && inst->column >= *startColumn) {
+          inst->column <= *endColumn && inst->column >= *startColumn &&
+          origInsts.at(inst->line).at(inst->column).count(opCode) != 0) {
         return true;
       }
     }
