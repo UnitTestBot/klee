@@ -1,52 +1,78 @@
 {
-  "errors": [
-    {
-      "category": "Indicator_of_Poor_Code_Quality",
-      "id": 49,
-      "trace": [
+    "runs": [
         {
-          "location": {
-            "file": "/mnt/d/dev/klee-test/klee_verifier_scripts/tests/secb_suit/src/SecB_UseAfterFree/BadCase/Free_Not_Set_Null_BadCase02.cpp",
-            "reportLine": 60,
-            "function": "_Z11test_bad_02i",
-            "instructionOffset": 10,
-            "column": 18,
-            "instructionOpcode": 56
-          },
-          "event": {
-            "kind": "NoOp"
-          }
-        },
-        {
-          "location": {
-            "file": "/mnt/d/dev/klee-test/klee_verifier_scripts/tests/secb_suit/src/SecB_UseAfterFree/BadCase/Free_Not_Set_Null_BadCase02.cpp",
-            "reportLine": 65,
-            "function": "_Z11test_bad_02i",
-            "instructionOffset": 19,
-            "column": 9,
-            "instructionOpcode": 56
-          },
-          "event": {
-            "kind": "NoOp"
-          }
-        },
-        {
-          "location": {
-            "file": "/mnt/d/dev/klee-test/klee_verifier_scripts/tests/secb_suit/src/SecB_UseAfterFree/BadCase/Free_Not_Set_Null_BadCase02.cpp",
-            "reportLine": 67,
-            "function": "_Z11test_bad_02i",
-            "instructionOffset": 21,
-            "column": 13,
-            "instructionOpcode": 33
-          },
-          "event": {
-            "kind": "Error",
-            "error": {
-              "sort": "UseAfterFree"
-            }
-          }
+            "tool": {
+                "driver": {
+                    "name": "huawei"
+                }
+            },
+            "results": [
+                {
+                    "codeFlows": [
+                        {
+                            "threadFlows": [
+                                {
+                                    "locations": [
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/dev/klee-test/klee_verifier_scripts/tests/secb_suit/src/SecB_UseAfterFree/BadCase/Free_Not_Set_Null_BadCase02.cpp"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 60,
+                                                        "startColumn": 18
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/dev/klee-test/klee_verifier_scripts/tests/secb_suit/src/SecB_UseAfterFree/BadCase/Free_Not_Set_Null_BadCase02.cpp"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 65,
+                                                        "startColumn": 9
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/dev/klee-test/klee_verifier_scripts/tests/secb_suit/src/SecB_UseAfterFree/BadCase/Free_Not_Set_Null_BadCase02.cpp"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 67,
+                                                        "startColumn": 13
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ],
+                    "ruleId": "UseAfterFree",
+                    "locations": [
+                        {
+                            "physicalLocation": {
+                                "artifactLocation": {
+                                    "uri": "/mnt/d/dev/klee-test/klee_verifier_scripts/tests/secb_suit/src/SecB_UseAfterFree/BadCase/Free_Not_Set_Null_BadCase02.cpp"
+                                },
+                                "region": {
+                                    "startLine": 67,
+                                    "startColumn": 13
+                                }
+                            }
+                        }
+                    ]
+                }
+            ]
         }
-      ]
-    }
-  ]
+    ]
 }

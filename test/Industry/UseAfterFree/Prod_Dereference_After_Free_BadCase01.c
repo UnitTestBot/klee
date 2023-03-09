@@ -29,7 +29,7 @@ void UseAfterFree()
     }
     free(msg);
     /* uaf */
-    *msg = 1; // CHECK: KLEE: WARNING: 100.00% UseAfterFree True Positive at trace 51
+    *msg = 1; // CHECK: KLEE: WARNING: 100.00% UseAfterFree True Positive at trace 1
     return;
 }
 

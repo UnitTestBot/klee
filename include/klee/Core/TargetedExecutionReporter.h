@@ -10,7 +10,7 @@
 #ifndef KLEE_TARGETEDEXECUTIONREPORTER_H
 #define KLEE_TARGETEDEXECUTIONREPORTER_H
 
-#include "klee/Module/Locations.h"
+#include "klee/Module/SarifReport.h"
 
 namespace klee {
 
@@ -29,7 +29,8 @@ namespace confidence {
 
 void reportFalsePositive(
   confidence::ty confidence,
-  LocatedEvent &event,
+  ReachWithError error,
+  unsigned id,
   std::string whatToIncrease);
 
 }

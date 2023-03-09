@@ -37,7 +37,7 @@ void TestBad2()
         printf("malloc fail");
     }
     /* POTENTIAL FLAW: var_deref_model - 在该函数中对可能为null的指针进行解引用 */
-    strcpy(errMsg, "No errors yet."); // CHECK: KLEE: WARNING: 100.00% NullPointerException True Positive at trace 10
+    strcpy(errMsg, "No errors yet."); // CHECK: KLEE: WARNING: 100.00% NullPointerException True Positive at trace 1
     free(errMsg);
 }
 

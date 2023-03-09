@@ -19,11 +19,11 @@
 #include "klee/ADT/Ref.h"
 #include "klee/Expr/Expr.h"
 #include "klee/Module/KModule.h"
-#include "klee/Module/Locations.h"
 #include "klee/Core/TargetedExecutionReporter.h"
 
 #include <unordered_map>
 #include <vector>
+#include <sstream>
 
 namespace klee {
 struct RefTargetHash;
@@ -54,7 +54,13 @@ public:
 
     const std::vector<ref<Target>>& getTargets() const { return targetsVec; }
 
-    std::string toString() const { return ""; }
+    std::string toString() const {
+      std::stringstream ss;
+      for (const auto& target : getTargets()) {
+        ss << target->toString() << '\n';
+      }
+      return ss.str();
+    }
 
     /// @brief Required by klee::ref-managed objects
     class ReferenceCounter _refCount;
@@ -108,12 +114,6 @@ private:
       return confidence::min(parentConfidence, confidence);
     }
 
-    static void pathForestToTargetForest(
-      Layer *self,
-      PathForest *pathForest,
-      std::unordered_map<LocatedEvent *, TargetsSet *> &loc2Targets,
-      std::unordered_set<unsigned> &broken_traces);
-
     void collectHowManyEventsInTracesWereReached(
       std::unordered_map<unsigned, std::pair<unsigned, unsigned>> &trace2eventCount,
       unsigned reached,
@@ -126,7 +126,6 @@ private:
     class ReferenceCounter _refCount;
 
     explicit Layer() : confidence(confidence::MaxConfidence) {}
-    Layer(PathForest *pathForest, std::unordered_map<LocatedEvent *, TargetsSet *> &loc2Targets, std::unordered_set<unsigned> &broken_traces);
 
     iterator find(ref<Target> b) const { return targets2Vector.find(b); }
     iterator begin() const { return targets2Vector.begin(); }
@@ -159,6 +158,8 @@ private:
     void collectHowManyEventsInTracesWereReached(std::unordered_map<unsigned, std::pair<unsigned, unsigned>> &trace2eventCount) const {
       collectHowManyEventsInTracesWereReached(trace2eventCount, 0, 0);
     }
+
+    void addTrace(const Result& result, const std::unordered_map<ref<Location>, std::unordered_set<KBlock *>, RefLocationHash, RefLocationCmp>& locToBlocks);
   };
 
   ref<Layer> forest;
@@ -225,13 +226,11 @@ public:
   unsigned getDebugReferenceCount() { return forest->_refCount.getCount(); }
   KFunction *getEntryFunction() { return entryFunction; }
 
+  void addTrace(const Result& result, const std::unordered_map<ref<Location>, std::unordered_set<KBlock *>, RefLocationHash, RefLocationCmp>& locToBlocks) { forest->addTrace(result, locToBlocks); }
+
   TargetForest(ref<Layer> layer, KFunction *entryFunction) : forest(layer), history(History::create()), entryFunction(entryFunction) {}
   TargetForest() : TargetForest(new Layer(), nullptr) {}
-  TargetForest(
-    PathForest *pathForest,
-    std::unordered_map<LocatedEvent *, TargetsSet *> &loc2Targets,
-    std::unordered_set<unsigned> &broken_traces,
-    KFunction *entryFunction);
+  TargetForest(KFunction *entryFunction) : TargetForest(new Layer(), entryFunction) {}
 
   bool empty() const { return forest.isNull() || forest->empty(); }
   Layer::iterator begin() const { return forest->begin(); }

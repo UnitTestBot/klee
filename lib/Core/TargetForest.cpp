@@ -73,50 +73,36 @@ TargetForest::TargetsVector::~TargetsVector() {
   }
 }
 
-void TargetForest::Layer::pathForestToTargetForest(
-  TargetForest::Layer *self,
-  PathForest *pathForest,
-  std::unordered_map<LocatedEvent *, TargetsSet *> &loc2Targets,
-  std::unordered_set<unsigned> &broken_traces) {
-  if (pathForest == nullptr)
-    return;
-  for (auto &p : pathForest->layer) {
-    auto it = loc2Targets.find(p.first);
-    if (it == loc2Targets.end()) {
-      continue;
-    }
-    auto targets = it->second;
-    ref<TargetsVector> targetsVec = TargetsVector::create(targets);
-    auto forestIt = self->forest.find(targetsVec);
-    ref<TargetForest::Layer> next = new TargetForest::Layer();
-
-    if (forestIt != self->forest.end()) {
-      next = forestIt->second;
-    } else {
-      self->insert(targetsVec, next);
+void TargetForest::Layer::addTrace(const Result& result, const std::unordered_map<ref<Location>, std::unordered_set<KBlock *>, RefLocationHash, RefLocationCmp>& locToBlocks) {
+  auto forest = this;
+  for (size_t i = 0; i < result.locations.size(); ++i) {
+    const auto& loc = result.locations[i];
+    auto it = locToBlocks.find(loc);
+    assert(it != locToBlocks.end());
+    TargetsSet targets;
+    for (auto block : it->second) {
+      ref<Target> target = nullptr;
+      if (i == result.locations.size() - 1) {
+        target = Target::create(result.error, result.id, loc->startLine, block);
+      } else {
+        target = Target::create(block);
+      }
+      targets.insert(target);
     }
 
-    for (auto &target : targetsVec->getTargets()) {
-      if (broken_traces.count(target->getId()))
-        continue;
-      self->insertTargets2Vec(target, targetsVec);
+    ref<TargetsVector> targetsVec = TargetsVector::create(&targets);
+    if (forest->forest.count(targetsVec) == 0) {
+      ref<TargetForest::Layer> next = new TargetForest::Layer();
+      forest->insert(targetsVec, next);
     }
-    pathForestToTargetForest(next.get(), p.second, loc2Targets, broken_traces);
+
+    for (auto& target : targetsVec->getTargets()) {
+      forest->insertTargets2Vec(target, targetsVec);
+    }
+
+    forest = forest->forest[targetsVec].get();
   }
 }
-
-TargetForest::Layer::Layer(PathForest *pathForest, std::unordered_map<LocatedEvent *, TargetsSet *> &loc2Targets, std::unordered_set<unsigned> &broken_traces)
-  : Layer() {
-  pathForestToTargetForest(this, pathForest, loc2Targets, broken_traces);
-}
-
-TargetForest::TargetForest(
-    PathForest *pathForest,
-    std::unordered_map<LocatedEvent *, TargetsSet *> &loc2Targets,
-    std::unordered_set<unsigned> &broken_traces, KFunction *entryFunction)
-    : TargetForest(
-          new TargetForest::Layer(pathForest, loc2Targets, broken_traces),
-          entryFunction) {}
 
 void TargetForest::Layer::propagateConfidenceToChildren() {
   auto parent_confidence = getConfidence();

@@ -33,7 +33,7 @@ void DoubleFreeBad01()
     free(p);
     
     /* double free */
-    free(p); // CHECK: KLEE: WARNING: 100.00% DoubleFree True Positive at trace 41
+    free(p); // CHECK: KLEE: WARNING: 100.00% DoubleFree True Positive at trace 1
 }
 
 // RUN: %clang %s -emit-llvm -c -g -O0 -Xclang -disable-O0-optnone -o %t1.bc

@@ -16,11 +16,12 @@ using namespace klee;
 
 void klee::reportFalsePositive(
   confidence::ty confidence,
-  LocatedEvent &event,
+  ReachWithError error,
+  unsigned id,
   std::string whatToIncrease)
 {
   std::ostringstream out;
-  out << event.getErrorString() << " False Positive at trace " << event.getId();
+  out << getErrorString(error) << " False Positive at trace " << id;
   if (!confidence::isConfident(confidence)) {
     out << ". Advice: " << "increase --" << whatToIncrease << " command line parameter value";
   }

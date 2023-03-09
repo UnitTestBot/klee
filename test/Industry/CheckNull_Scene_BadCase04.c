@@ -47,7 +47,7 @@ void TestBad12(int cond1, int cond2)
 		if((cond1+cond2) > 0){
 			if(buf2 == NULL) {
 				/* POTENTIAL FLAW: var_deref_model - 在该函数中对可能为null的指针进行解引用 */
-				strcpy(buf2, "0"); // CHECK-DAG: KLEE: WARNING: 100.00% NullPointerException True Positive at trace 12
+				strcpy(buf2, "0"); // CHECK-DAG: KLEE: WARNING: 100.00% NullPointerException True Positive at trace 1
 				free(buf2);
 			}
 			return;			

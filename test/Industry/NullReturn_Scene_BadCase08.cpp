@@ -34,11 +34,11 @@ void TestBad9()
     // 中间事件，alias_transfer - 变量被赋予可能为 null 的指针
     int* p = new (std::nothrow) int[16];
     /* POTENTIAL FLAW: var_deref_op - null 指针解引用运算，new nothrow的返回值没有判空 */
-	printf("the current integer is: %d", *p); // CHECK: KLEE: WARNING: 100.00% NullPointerException True Positive at trace 27
+	printf("the current integer is: %d", *p); // CHECK: KLEE: WARNING: 100.00% NullPointerException True Positive at trace 1
 }
 
 // RUN: %clangxx %s -emit-llvm %O0opt -c -g -o %t1.bc
 // RUN: rm -rf %t.klee-out
 // RUN: %klee --output-dir=%t.klee-out --write-kqueries --execution-mode=error-guided --location-accuracy --mock-external-calls --check-out-of-memory --libc=klee --skip-not-lazy-and-symbolic-pointers --analysis-reproduce=%s.json %t1.bc
 // RUN: FileCheck -input-file=%t.klee-out/warnings.txt %s
-// CHECK: KLEE: WARNING: 100.00% NullPointerException False Positive at trace 28
+// CHECK: KLEE: WARNING: 100.00% NullPointerException True Positive at trace 2

@@ -543,7 +543,7 @@ private:
 
   ExecutionState *prepareStateForPOSIX(KInstIterator &caller, ExecutionState *state);
 
-  void runThroughLocationsInternal(ExecutionState *state, PathForest *paths);
+  void runThroughLocationsInternal(ExecutionState *state, SarifReport paths);
 
   void prepareTargetedExecution(ExecutionState *initialState, ref<TargetForest> whitelist);
 
@@ -655,7 +655,7 @@ public:
 
   void runThroughLocations(llvm::Function *f, int argc, char **argv,
                            char **envp,
-                           PathForest *paths) override;
+                           SarifReport paths) override;
 
   void runMainAsGuided(llvm::Function *f, int argc, char **argv,
                        char **envp) override;

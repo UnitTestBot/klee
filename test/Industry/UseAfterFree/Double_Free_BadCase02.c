@@ -35,7 +35,7 @@ void DoubleFreeBad02(int flag)
     if(flag == 0)
     {
         /* double free */
-        free(p); // CHECK: KLEE: WARNING: 100.00% DoubleFree True Positive at trace 42
+        free(p); // CHECK: KLEE: WARNING: 100.00% DoubleFree True Positive at trace 1
     }
 }
 

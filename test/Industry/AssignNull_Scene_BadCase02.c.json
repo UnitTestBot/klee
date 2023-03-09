@@ -1,74 +1,115 @@
 {
-    "errors": [
+    "runs": [
         {
-            "category": "NULL pointer deference",
-            "id": 1,
-            "trace": [
-                {
-                    "location": {
-                        "file": "/mnt/d/dev/klee-test/src-bc-reports/sources/secbrella/SecB_ForwardNull/BadCase/AssignNull_Scene_BadCase02.c",
-                        "reportLine": 45,
-                        "function": "TestBad5",
-                        "instructionOffset": 14,
-                        "column": 17,
-                        "instructionOpcode": 33
-                    },
-                    "event": {
-                        "kind": "AssignZero"
-                    }
-                },
-                {
-                    "location": {
-                        "file": "/mnt/d/dev/klee-test/src-bc-reports/sources/secbrella/SecB_ForwardNull/BadCase/AssignNull_Scene_BadCase02.c",
-                        "reportLine": 47,
-                        "function": "TestBad5",
-                        "instructionOffset": 15,
-                        "column": 16,
-                        "instructionOpcode": 32
-                    },
-                    "event": {
-                        "kind": "Error",
-                        "error": {
-                            "sort": "NullDereference",
-                            "target": "stu"
-                        }
-                    }
+            "tool": {
+                "driver": {
+                    "name": "huawei"
                 }
-            ]
-        },
-        {
-            "category": "NULL pointer deference",
-            "id": 2,
-            "trace": [
+            },
+            "results": [
                 {
-                    "location": {
-                        "file": "/mnt/d/dev/klee-test/src-bc-reports/sources/secbrella/SecB_ForwardNull/BadCase/AssignNull_Scene_BadCase02.c",
-                        "reportLine": 45,
-                        "function": "TestBad5",
-                        "instructionOffset": 14,
-                        "column": 17,
-                        "instructionOpcode": 33
-                    },
-                    "event": {
-                        "kind": "AssignZero"
-                    }
+                    "codeFlows": [
+                        {
+                            "threadFlows": [
+                                {
+                                    "locations": [
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/dev/klee-test/src-bc-reports/sources/secbrella/SecB_ForwardNull/BadCase/AssignNull_Scene_BadCase02.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 45,
+                                                        "startColumn": 17
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/dev/klee-test/src-bc-reports/sources/secbrella/SecB_ForwardNull/BadCase/AssignNull_Scene_BadCase02.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 47,
+                                                        "startColumn": 16
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ],
+                    "ruleId": "NullDereference",
+                    "locations": [
+                        {
+                            "physicalLocation": {
+                                "artifactLocation": {
+                                    "uri": "/mnt/d/dev/klee-test/src-bc-reports/sources/secbrella/SecB_ForwardNull/BadCase/AssignNull_Scene_BadCase02.c"
+                                },
+                                "region": {
+                                    "startLine": 47,
+                                    "startColumn": 16
+                                }
+                            }
+                        }
+                    ]
                 },
                 {
-                    "location": {
-                        "file": "/mnt/d/dev/klee-test/src-bc-reports/sources/secbrella/SecB_ForwardNull/BadCase/AssignNull_Scene_BadCase02.c",
-                        "reportLine": 47,
-                        "function": "TestBad5",
-                        "instructionOffset": 15,
-                        "column": 11,
-                        "instructionOpcode": 32
-                    },
-                    "event": {
-                        "kind": "Error",
-                        "error": {
-                            "sort": "NullDereference",
-                            "target": "stu"
+                    "codeFlows": [
+                        {
+                            "threadFlows": [
+                                {
+                                    "locations": [
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/dev/klee-test/src-bc-reports/sources/secbrella/SecB_ForwardNull/BadCase/AssignNull_Scene_BadCase02.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 45,
+                                                        "startColumn": 17
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/dev/klee-test/src-bc-reports/sources/secbrella/SecB_ForwardNull/BadCase/AssignNull_Scene_BadCase02.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 47,
+                                                        "startColumn": 11
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
                         }
-                    }
+                    ],
+                    "ruleId": "NullDereference",
+                    "locations": [
+                        {
+                            "physicalLocation": {
+                                "artifactLocation": {
+                                    "uri": "/mnt/d/dev/klee-test/src-bc-reports/sources/secbrella/SecB_ForwardNull/BadCase/AssignNull_Scene_BadCase02.c"
+                                },
+                                "region": {
+                                    "startLine": 47,
+                                    "startColumn": 11
+                                }
+                            }
+                        }
+                    ]
                 }
             ]
         }

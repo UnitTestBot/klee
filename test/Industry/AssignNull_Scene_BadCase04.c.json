@@ -1,52 +1,76 @@
 {
-    "errors": [
+    "runs": [
         {
-            "category": "NULL pointer deference",
-            "id": 4,
-            "trace": [
+            "tool": {
+                "driver": {
+                    "name": "huawei"
+                }
+            },
+            "results": [
                 {
-                    "location": {
-                        "file": "/mnt/d/dev/klee-test/src-bc-reports/sources/secbrella/SecB_ForwardNull/BadCase/AssignNull_Scene_BadCase04.c",
-                        "reportLine": 31,
-                        "function": "HelpTestBad7",
-                        "instructionOffset": 17,
-                        "column": 13,
-                        "instructionOpcode": 33
-                    },
-                    "event": {
-                        "kind": "AssignZero"
-                    }
-                },
-                {
-                    "location": {
-                        "file": "/mnt/d/dev/klee-test/src-bc-reports/sources/secbrella/SecB_ForwardNull/BadCase/AssignNull_Scene_BadCase04.c",
-                        "reportLine": 47,
-                        "function": "TestBad7",
-                        "instructionOffset": 12,
-                        "column": 11,
-                        "instructionOpcode": 56
-                    },
-                    "event": {
-                        "kind": "ExitCall",
-                        "function": "HelpTestBad7"
-                    }
-                },
-                {
-                    "location": {
-                        "file": "/mnt/d/dev/klee-test/src-bc-reports/sources/secbrella/SecB_ForwardNull/BadCase/AssignNull_Scene_BadCase04.c",
-                        "reportLine": 49,
-                        "function": "TestBad7",
-                        "instructionOffset": 16,
-                        "column": 12,
-                        "instructionOpcode": 33
-                    },
-                    "event": {
-                        "kind": "Error",
-                        "error": {
-                            "sort": "NullDereference",
-                            "target": "dev"
+                    "codeFlows": [
+                        {
+                            "threadFlows": [
+                                {
+                                    "locations": [
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/dev/klee-test/src-bc-reports/sources/secbrella/SecB_ForwardNull/BadCase/AssignNull_Scene_BadCase04.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 47,
+                                                        "startColumn": 11
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/dev/klee-test/src-bc-reports/sources/secbrella/SecB_ForwardNull/BadCase/AssignNull_Scene_BadCase04.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 31,
+                                                        "startColumn": 13
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/dev/klee-test/src-bc-reports/sources/secbrella/SecB_ForwardNull/BadCase/AssignNull_Scene_BadCase04.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 49,
+                                                        "startColumn": 12
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
                         }
-                    }
+                    ],
+                    "ruleId": "NullDereference",
+                    "locations": [
+                        {
+                            "physicalLocation": {
+                                "artifactLocation": {
+                                    "uri": "/mnt/d/dev/klee-test/src-bc-reports/sources/secbrella/SecB_ForwardNull/BadCase/AssignNull_Scene_BadCase04.c"
+                                },
+                                "region": {
+                                    "startLine": 49,
+                                    "startColumn": 12
+                                }
+                            }
+                        }
+                    ]
                 }
             ]
         }

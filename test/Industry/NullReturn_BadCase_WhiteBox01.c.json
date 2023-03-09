@@ -1,122 +1,167 @@
 {
-    "errors": [
+    "runs": [
         {
-            "category": "NULL pointer deference",
-            "id": 1,
-            "trace": [
-                {
-                    "location": {
-                        "file": "/mnt/d/wsl-ubuntu/test2/null_returns/NullReturn_BadCase_WhiteBox01.c",
-                        "reportLine": 45,
-                        "function": "GetResult",
-                        "column": 9,
-                        "instructionOpcode": 33
-                    },
-                    "event": {
-                        "kind": "AssignZero"
-                    }
-                },
-                {
-                    "location": {
-                        "file": "/mnt/d/wsl-ubuntu/test2/null_returns/NullReturn_BadCase_WhiteBox01.c",
-                        "reportLine": 66,
-                        "function": "NullReturn_BadCase_WhiteBox01",
-                        "column": 34,
-                        "instructionOpcode": 56
-                    },
-                    "event": {
-                        "kind": "ExitCall",
-                        "function": "GetResult"
-                    }
-                },
-                {
-                    "location": {
-                        "file": "/mnt/d/wsl-ubuntu/test2/null_returns/NullReturn_BadCase_WhiteBox01.c",
-                        "reportLine": 68,
-                        "function": "NullReturn_BadCase_WhiteBox01",
-                        "column": 9,
-                        "instructionOpcode": 56
-                    },
-                    "event": {
-                        "kind": "EnterCall",
-                        "function": "SendMsg"
-                    }
-                },
-                {
-                    "location": {
-                        "file": "/mnt/d/wsl-ubuntu/test2/null_returns/NullReturn_BadCase_WhiteBox01.c",
-                        "reportLine": 56,
-                        "function": "SendMsg",
-                        "column": 30,
-                        "instructionOpcode": 33
-                    },
-                    "event": {
-                        "kind": "Error",
-                        "error": {
-                            "sort": "NullDereference",
-                            "target": "resultInfo"
-                        }
-                    }
+            "tool": {
+                "driver": {
+                    "name": "huawei"
                 }
-            ]
-        },
-        {
-            "category": "NULL pointer deference",
-            "id": 2,
-            "trace": [
+            },
+            "results": [
                 {
-                    "location": {
-                        "file": "/mnt/d/wsl-ubuntu/test2/null_returns/NullReturn_BadCase_WhiteBox01.c",
-                        "reportLine": 45,
-                        "function": "GetResult",
-                        "column": 9,
-                        "instructionOpcode": 33
-                    },
-                    "event": {
-                        "kind": "AssignZero"
-                    }
-                },
-                {
-                    "location": {
-                        "file": "/mnt/d/wsl-ubuntu/test2/null_returns/NullReturn_BadCase_WhiteBox01.c",
-                        "reportLine": 66,
-                        "function": "NullReturn_BadCase_WhiteBox01",
-                        "column": 34,
-                        "instructionOpcode": 56
-                    },
-                    "event": {
-                        "kind": "ExitCall",
-                        "function": "GetResult"
-                    }
-                },
-                {
-                    "location": {
-                        "file": "/mnt/d/wsl-ubuntu/test2/null_returns/NullReturn_BadCase_WhiteBox01.c",
-                        "reportLine": 68,
-                        "function": "NullReturn_BadCase_WhiteBox01",
-                        "column": 9,
-                        "instructionOpcode": 56
-                    },
-                    "event": {
-                        "kind": "EnterCall",
-                        "function": "SendMsg"
-                    }
-                },
-                {
-                    "location": {
-                        "file": "/mnt/d/wsl-ubuntu/test2/null_returns/NullReturn_BadCase_WhiteBox01.c",
-                        "reportLine": 54,
-                        "function": "SendMsg",
-                        "column": 30,
-                        "instructionOpcode": 33
-                    },
-                    "event": {
-                        "kind": "Error",
-                        "error": {
-                            "sort": "NullDereference",
-                            "target": "resultInfo"
+                    "codeFlows": [
+                        {
+                            "threadFlows": [
+                                {
+                                    "locations": [
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/wsl-ubuntu/test2/null_returns/NullReturn_BadCase_WhiteBox01.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 66,
+                                                        "startColumn": 34
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/wsl-ubuntu/test2/null_returns/NullReturn_BadCase_WhiteBox01.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 45,
+                                                        "startColumn": 9
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/wsl-ubuntu/test2/null_returns/NullReturn_BadCase_WhiteBox01.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 68,
+                                                        "startColumn": 9
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/wsl-ubuntu/test2/null_returns/NullReturn_BadCase_WhiteBox01.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 56,
+                                                        "startColumn": 30
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
                         }
-                    }
+                    ],
+                    "ruleId": "NullDereference",
+                    "locations": [
+                        {
+                            "physicalLocation": {
+                                "artifactLocation": {
+                                    "uri": "/mnt/d/wsl-ubuntu/test2/null_returns/NullReturn_BadCase_WhiteBox01.c"
+                                },
+                                "region": {
+                                    "startLine": 56,
+                                    "startColumn": 30
+                                }
+                            }
+                        }
+                    ]
+                },
+                {
+                    "codeFlows": [
+                        {
+                            "threadFlows": [
+                                {
+                                    "locations": [
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/wsl-ubuntu/test2/null_returns/NullReturn_BadCase_WhiteBox01.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 66,
+                                                        "startColumn": 34
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/wsl-ubuntu/test2/null_returns/NullReturn_BadCase_WhiteBox01.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 45,
+                                                        "startColumn": 9
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/wsl-ubuntu/test2/null_returns/NullReturn_BadCase_WhiteBox01.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 68,
+                                                        "startColumn": 9
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/wsl-ubuntu/test2/null_returns/NullReturn_BadCase_WhiteBox01.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 54,
+                                                        "startColumn": 30
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ],
+                    "ruleId": "NullDereference",
+                    "locations": [
+                        {
+                            "physicalLocation": {
+                                "artifactLocation": {
+                                    "uri": "/mnt/d/wsl-ubuntu/test2/null_returns/NullReturn_BadCase_WhiteBox01.c"
+                                },
+                                "region": {
+                                    "startLine": 54,
+                                    "startColumn": 30
+                                }
+                            }
+                        }
+                    ]
                 }
             ]
         }

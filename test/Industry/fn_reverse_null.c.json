@@ -1,104 +1,167 @@
 {
-    "errors": [
+    "runs": [
         {
-            "category": "NULL pointer deference",
-            "id": 1,
-            "trace": [
-                {
-                    "location": {
-                        "file": "/mnt/d/wsl-ubuntu/test2/reverse_null/fn_reverse_null.c",
-                        "reportLine": 22,
-                        "function": "TestErr2",
-                        "column": 26,
-                        "instructionOpcode": 32
-                    },
-                    "event": {
-                        "kind": "NoOp"
-                    }
-                },
-                {
-                    "location": {
-                        "file": "/mnt/d/wsl-ubuntu/test2/reverse_null/fn_reverse_null.c",
-                        "reportLine": 25,
-                        "function": "TestErr2",
-                        "column": 30,
-                        "instructionOpcode": 53
-                    },
-                    "event": {
-                        "kind": "Error",
-                        "error": {
-                            "sort": "CheckAfterDeref",
-                            "target": "stru"
-                        }
-                    }
+            "tool": {
+                "driver": {
+                    "name": "huawei"
                 }
-            ]
-        },
-        {
-            "category": "NULL pointer deference",
-            "id": 2,
-            "trace": [
+            },
+            "results": [
                 {
-                    "location": {
-                        "file": "/mnt/d/wsl-ubuntu/test2/reverse_null/fn_reverse_null.c",
-                        "reportLine": 36,
-                        "function": "TestErr3",
-                        "column": 9,
-                        "instructionOpcode": 32
-                    },
-                    "event": {
-                        "kind": "NoOp"
-                    }
+                    "codeFlows": [
+                        {
+                            "threadFlows": [
+                                {
+                                    "locations": [
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/wsl-ubuntu/test2/reverse_null/fn_reverse_null.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 22,
+                                                        "startColumn": 26
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/wsl-ubuntu/test2/reverse_null/fn_reverse_null.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 25,
+                                                        "startColumn": 30
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ],
+                    "ruleId": "CheckAfterDeref",
+                    "locations": [
+                        {
+                            "physicalLocation": {
+                                "artifactLocation": {
+                                    "uri": "/mnt/d/wsl-ubuntu/test2/reverse_null/fn_reverse_null.c"
+                                },
+                                "region": {
+                                    "startLine": 25,
+                                    "startColumn": 30
+                                }
+                            }
+                        }
+                    ]
                 },
                 {
-                    "location": {
-                        "file": "/mnt/d/wsl-ubuntu/test2/reverse_null/fn_reverse_null.c",
-                        "reportLine": 36,
-                        "function": "TestErr3",
-                        "column": 28,
-                        "instructionOpcode": 53
-                    },
-                    "event": {
-                        "kind": "Error",
-                        "error": {
-                            "sort": "CheckAfterDeref",
-                            "target": "arr"
+                    "codeFlows": [
+                        {
+                            "threadFlows": [
+                                {
+                                    "locations": [
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/wsl-ubuntu/test2/reverse_null/fn_reverse_null.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 36,
+                                                        "startColumn": 9
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/wsl-ubuntu/test2/reverse_null/fn_reverse_null.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 36,
+                                                        "startColumn": 28
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
                         }
-                    }
-                }
-            ]
-        },
-        {
-            "category": "NULL pointer deference",
-            "id": 3,
-            "trace": [
-                {
-                    "location": {
-                        "file": "/mnt/d/wsl-ubuntu/test2/reverse_null/fn_reverse_null.c",
-                        "reportLine": 14,
-                        "function": "TestErr1",
-                        "column": 17,
-                        "instructionOpcode": 33
-                    },
-                    "event": {
-                        "kind": "NoOp"
-                    }
+                    ],
+                    "ruleId": "CheckAfterDeref",
+                    "locations": [
+                        {
+                            "physicalLocation": {
+                                "artifactLocation": {
+                                    "uri": "/mnt/d/wsl-ubuntu/test2/reverse_null/fn_reverse_null.c"
+                                },
+                                "region": {
+                                    "startLine": 36,
+                                    "startColumn": 28
+                                }
+                            }
+                        }
+                    ]
                 },
                 {
-                    "location": {
-                        "file": "/mnt/d/wsl-ubuntu/test2/reverse_null/fn_reverse_null.c",
-                        "reportLine": 15,
-                        "function": "TestErr1",
-                        "column": 14,
-                        "instructionOpcode": 53
-                    },
-                    "event": {
-                        "kind": "Error",
-                        "error": {
-                            "sort": "CheckAfterDeref",
-                            "target": "stru"
+                    "codeFlows": [
+                        {
+                            "threadFlows": [
+                                {
+                                    "locations": [
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/wsl-ubuntu/test2/reverse_null/fn_reverse_null.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 14,
+                                                        "startColumn": 17
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/wsl-ubuntu/test2/reverse_null/fn_reverse_null.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 15,
+                                                        "startColumn": 14
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
                         }
-                    }
+                    ],
+                    "ruleId": "CheckAfterDeref",
+                    "locations": [
+                        {
+                            "physicalLocation": {
+                                "artifactLocation": {
+                                    "uri": "/mnt/d/wsl-ubuntu/test2/reverse_null/fn_reverse_null.c"
+                                },
+                                "region": {
+                                    "startLine": 15,
+                                    "startColumn": 14
+                                }
+                            }
+                        }
+                    ]
                 }
             ]
         }

@@ -1,128 +1,167 @@
 {
-    "errors": [
+    "runs": [
         {
-            "category": "NULL pointer deference",
-            "id": 1,
-            "trace": [
-                {
-                    "location": {
-                        "file": "/mnt/d/dev/klee-test/klee_verifier_scripts/NullReturn_Scene_BadCase04.c",
-                        "reportLine": 42,
-                        "function": "TestBad4",
-                        "instructionOffset": 2,
-                        "column": 25,
-                        "instructionOpcode": 56
-                    },
-                    "event": {
-                        "kind": "NoOp"
-                    }
-                },
-                {
-                    "location": {
-                        "file": "/mnt/d/dev/klee-test/klee_verifier_scripts/NullReturn_Scene_BadCase04.c",
-                        "reportLine": 43,
-                        "function": "TestBad4",
-                        "instructionOffset": 4,
-                        "column": 18,
-                        "instructionOpcode": 32
-                    },
-                    "event": {
-                        "kind": "EnterCall",
-                        "function": "HelpTestBad4"
-                    }
-                },
-                {
-                    "location": {
-                        "file": "/mnt/d/dev/klee-test/klee_verifier_scripts/NullReturn_Scene_BadCase04.c",
-                        "reportLine": 32,
-                        "function": "HelpTestBad4",
-                        "instructionOffset": 3,
-                        "column": 12,
-                        "instructionOpcode": 32
-                    },
-                    "event": {
-                        "kind": "NoOp"
-                    }
-                },
-                {
-                    "location": {
-                        "file": "/mnt/d/dev/klee-test/klee_verifier_scripts/NullReturn_Scene_BadCase04.c",
-                        "reportLine": 32,
-                        "function": "HelpTestBad4",
-                        "instructionOffset": 3,
-                        "column": 12,
-                        "instructionOpcode": 32
-                    },
-                    "event": {
-                        "kind": "Error",
-                        "error": {
-                            "sort": "NullDereference",
-                            "target": "buf"
-                        }
-                    }
+            "tool": {
+                "driver": {
+                    "name": "huawei"
                 }
-            ]
-        },
-        {
-            "category": "NULL pointer deference",
-            "id": 2,
-            "trace": [
+            },
+            "results": [
                 {
-                    "location": {
-                        "file": "/mnt/d/dev/klee-test/klee_verifier_scripts/NullReturn_Scene_BadCase04.c",
-                        "reportLine": 42,
-                        "function": "TestBad4",
-                        "instructionOffset": 2,
-                        "column": 25,
-                        "instructionOpcode": 56
-                    },
-                    "event": {
-                        "kind": "NoOp"
-                    }
-                },
-                {
-                    "location": {
-                        "file": "/mnt/d/dev/klee-test/klee_verifier_scripts/NullReturn_Scene_BadCase04.c",
-                        "reportLine": 43,
-                        "function": "TestBad4",
-                        "instructionOffset": 4,
-                        "column": 18,
-                        "instructionOpcode": 32
-                    },
-                    "event": {
-                        "kind": "EnterCall",
-                        "function": "HelpTestBad4"
-                    }
-                },
-                {
-                    "location": {
-                        "file": "/mnt/d/dev/klee-test/klee_verifier_scripts/NullReturn_Scene_BadCase04.c",
-                        "reportLine": 32,
-                        "function": "HelpTestBad4",
-                        "instructionOffset": 3,
-                        "column": 12,
-                        "instructionOpcode": 32
-                    },
-                    "event": {
-                        "kind": "NoOp"
-                    }
-                },
-                {
-                    "location": {
-                        "file": "/mnt/d/dev/klee-test/klee_verifier_scripts/NullReturn_Scene_BadCase04.c",
-                        "reportLine": 32,
-                        "function": "HelpTestBad4",
-                        "instructionOffset": 3,
-                        "column": 5,
-                        "instructionOpcode": 56
-                    },
-                    "event": {
-                        "kind": "Error",
-                        "error": {
-                            "sort": "NullDereference",
-                            "target": "buf"
+                    "codeFlows": [
+                        {
+                            "threadFlows": [
+                                {
+                                    "locations": [
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/dev/klee-test/klee_verifier_scripts/NullReturn_Scene_BadCase04.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 42,
+                                                        "startColumn": 25
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/dev/klee-test/klee_verifier_scripts/NullReturn_Scene_BadCase04.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 43,
+                                                        "startColumn": 18
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/dev/klee-test/klee_verifier_scripts/NullReturn_Scene_BadCase04.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 32,
+                                                        "startColumn": 12
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/dev/klee-test/klee_verifier_scripts/NullReturn_Scene_BadCase04.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 32,
+                                                        "startColumn": 12
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
                         }
-                    }
+                    ],
+                    "ruleId": "NullDereference",
+                    "locations": [
+                        {
+                            "physicalLocation": {
+                                "artifactLocation": {
+                                    "uri": "/mnt/d/dev/klee-test/klee_verifier_scripts/NullReturn_Scene_BadCase04.c"
+                                },
+                                "region": {
+                                    "startLine": 32,
+                                    "startColumn": 12
+                                }
+                            }
+                        }
+                    ]
+                },
+                {
+                    "codeFlows": [
+                        {
+                            "threadFlows": [
+                                {
+                                    "locations": [
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/dev/klee-test/klee_verifier_scripts/NullReturn_Scene_BadCase04.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 42,
+                                                        "startColumn": 25
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/dev/klee-test/klee_verifier_scripts/NullReturn_Scene_BadCase04.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 43,
+                                                        "startColumn": 18
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/dev/klee-test/klee_verifier_scripts/NullReturn_Scene_BadCase04.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 32,
+                                                        "startColumn": 12
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/dev/klee-test/klee_verifier_scripts/NullReturn_Scene_BadCase04.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 32,
+                                                        "startColumn": 5
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ],
+                    "ruleId": "NullDereference",
+                    "locations": [
+                        {
+                            "physicalLocation": {
+                                "artifactLocation": {
+                                    "uri": "/mnt/d/dev/klee-test/klee_verifier_scripts/NullReturn_Scene_BadCase04.c"
+                                },
+                                "region": {
+                                    "startLine": 32,
+                                    "startColumn": 5
+                                }
+                            }
+                        }
+                    ]
                 }
             ]
         }

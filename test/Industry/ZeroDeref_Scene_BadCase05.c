@@ -66,5 +66,5 @@ void TestBad18(struct STU *stu)
 // RUN: rm -rf %t.klee-out
 // RUN: %klee --output-dir=%t.klee-out --execution-mode=error-guided --check-out-of-memory --mock-external-calls --libc=klee --external-calls=all --skip-not-lazy-and-symbolic-pointers --analysis-reproduce=%s.json %t1.bc
 // RUN: FileCheck -input-file=%t.klee-out/warnings.txt %s
-// CHECK: KLEE: WARNING: JSON inconsistency in trace 19: trace event has function HelpBadTest1 but should have function TestBad18. Skipping trace 19
-// CHECK: KLEE: WARNING: JSON inconsistency in trace 20: trace event has function HelpBadTest1 but should have function TestBad18. Skipping trace 20
+// CHECK: KLEE: WARNING: 100.00% NullPointerException True Positive at trace 2
+// CHECK: KLEE: WARNING: 100.00% NullPointerException False Positive at trace 1

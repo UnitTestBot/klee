@@ -30,7 +30,7 @@ def convert_error(error):
         location = {
             "physicalLocation": physicalLocation
         }
-        locations.append(location)
+        locations.append({"location": location})
         if trace["event"]["kind"] == "Error":
             converted_error["ruleId"] = trace["event"]["error"]["sort"]
             converted_error["locations"] = [location] 

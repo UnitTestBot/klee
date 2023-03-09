@@ -16,7 +16,6 @@ set(KLEE_MODULE_COMPONENT_SRCS
   IntrinsicCleaner.cpp
   KInstruction.cpp
   KModule.cpp
-  Locations.cpp
   KType.cpp
   LowerSwitch.cpp
   ModuleUtil.cpp
@@ -25,6 +24,7 @@ set(KLEE_MODULE_COMPONENT_SRCS
   PhiCleaner.cpp
   RaiseAsm.cpp
   ReturnSplitter.cpp
+  SarifReport.cpp
 )
 
 if (USE_WORKAROUND_LLVM_PR39177)

@@ -35,7 +35,7 @@ void TestBad2()
     // var_assigned: Assigning: "info" = "NULL" return value from "localtime"
     struct tm *info = localtime(&rawtime);
     /* POTENTIAL FLAW: dereference: Dereferencing "info", which is known to be "NULL" */
-    printf("The second is %d", info->tm_sec); // CHECK: KLEE: WARNING: 100.00% NullPointerException True Positive at trace 22
+    printf("The second is %d", info->tm_sec); // CHECK: KLEE: WARNING: 100.00% NullPointerException True Positive at trace 1
 }
 
 // RUN: %clang %s -emit-llvm -c -g -O0 -Xclang -disable-O0-optnone -o %t1.bc

@@ -80,4 +80,4 @@ int main()
 // RUN: %klee --output-dir=%t.klee-out --execution-mode=error-guided --mock-external-calls --libc=klee --skip-not-lazy-and-symbolic-pointers --analysis-reproduce=%s.json %t1.bc
 // RUN: FileCheck -input-file=%t.klee-out/warnings.txt %s
 
-// CHECK: KLEE: WARNING: 100.00% UseAfterFree False Positive at trace 49
+// CHECK: KLEE: WARNING: 100.00% UseAfterFree False Positive at trace 1

@@ -64,20 +64,27 @@ ref<Target> Target::getFromCacheOrReturn(Target *target) {
   return target;
 }
 
-ref<Target> Target::create(LocatedEvent *_le, KBlock *_block) {
-  Target *target = new Target(_le, _block);
+ref<Target> Target::create(ReachWithError _error, unsigned _id, unsigned int _line, KBlock *_block) {
+  Target *target = new Target(_error, _id, _line, _block);
   return getFromCacheOrReturn(target);
 }
 
 ref<Target> Target::create(KBlock *_block) {
-  return create(nullptr, _block);
+  return create(ReachWithError::None, 0, 0, _block);
 }
 
 int Target::compare(const Target &other) const {
   if (block != other.block) {
     return block < other.block ? -1 : 1;
   }
-  return this->LocatedEvent::compare(other);
+  if (error != other.error) {
+    return error < other.error ? -1 : 1;
+  }
+  if (id != other.id) {
+    return id < other.id ? -1 : 1;
+  }
+
+  return 0;
 }
 
 bool Target::equals(const Target &other) const {

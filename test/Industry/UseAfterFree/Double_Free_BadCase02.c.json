@@ -1,65 +1,91 @@
 {
-  "errors": [
-    {
-      "category": "Indicator_of_Poor_Code_Quality",
-      "id": 42,
-      "trace": [
+    "runs": [
         {
-          "location": {
-            "file": "/mnt/d/dev/klee-test/klee_verifier_scripts/tests/secb_suit/src/SecB_UseAfterFree/BadCase/Double_Free_BadCase02.c",
-            "reportLine": 26,
-            "function": "DoubleFreeBad02",
-            "instructionOffset": 5,
-            "column": 23,
-            "instructionOpcode": 56
-          },
-          "event": {
-            "kind": "NoOp"
-          }
-        },
-        {
-          "location": {
-            "file": "/mnt/d/dev/klee-test/klee_verifier_scripts/tests/secb_suit/src/SecB_UseAfterFree/BadCase/Double_Free_BadCase02.c",
-            "reportLine": 33,
-            "function": "DoubleFreeBad02",
-            "instructionOffset": 12,
-            "column": 5,
-            "instructionOpcode": 56
-          },
-          "event": {
-            "kind": "NoOp"
-          }
-        },
-        {
-          "location": {
-            "file": "/mnt/d/dev/klee-test/klee_verifier_scripts/tests/secb_suit/src/SecB_UseAfterFree/BadCase/Double_Free_BadCase02.c",
-            "reportLine": 35,
-            "function": "DoubleFreeBad02",
-            "instructionOffset": 15,
-            "column": 8,
-            "instructionOpcode": 2
-          },
-          "event": {
-            "kind": "NoOp"
-          }
-        },
-        {
-          "location": {
-            "file": "/mnt/d/dev/klee-test/klee_verifier_scripts/tests/secb_suit/src/SecB_UseAfterFree/BadCase/Double_Free_BadCase02.c",
-            "reportLine": 38,
-            "function": "DoubleFreeBad02",
-            "instructionOffset": 17,
-            "column": 9,
-            "instructionOpcode": 56
-          },
-          "event": {
-            "kind": "Error",
-            "error": {
-              "sort": "DoubleFree"
-            }
-          }
+            "tool": {
+                "driver": {
+                    "name": "huawei"
+                }
+            },
+            "results": [
+                {
+                    "codeFlows": [
+                        {
+                            "threadFlows": [
+                                {
+                                    "locations": [
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/dev/klee-test/klee_verifier_scripts/tests/secb_suit/src/SecB_UseAfterFree/BadCase/Double_Free_BadCase02.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 26,
+                                                        "startColumn": 23
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/dev/klee-test/klee_verifier_scripts/tests/secb_suit/src/SecB_UseAfterFree/BadCase/Double_Free_BadCase02.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 33,
+                                                        "startColumn": 5
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/dev/klee-test/klee_verifier_scripts/tests/secb_suit/src/SecB_UseAfterFree/BadCase/Double_Free_BadCase02.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 35,
+                                                        "startColumn": 8
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/dev/klee-test/klee_verifier_scripts/tests/secb_suit/src/SecB_UseAfterFree/BadCase/Double_Free_BadCase02.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 38,
+                                                        "startColumn": 9
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ],
+                    "ruleId": "DoubleFree",
+                    "locations": [
+                        {
+                            "physicalLocation": {
+                                "artifactLocation": {
+                                    "uri": "/mnt/d/dev/klee-test/klee_verifier_scripts/tests/secb_suit/src/SecB_UseAfterFree/BadCase/Double_Free_BadCase02.c"
+                                },
+                                "region": {
+                                    "startLine": 38,
+                                    "startColumn": 9
+                                }
+                            }
+                        }
+                    ]
+                }
+            ]
         }
-      ]
-    }
-  ]
+    ]
 }

@@ -15,7 +15,7 @@
 #include "klee/Config/Version.h"
 #include "klee/Core/Interpreter.h"
 #include "klee/Core/TargetedExecutionReporter.h"
-#include "klee/Module/Locations.h"
+#include "klee/Module/SarifReport.h"
 #include "klee/ADT/KTest.h"
 #include "klee/Support/OptionCategories.h"
 #include "klee/Statistics/Statistics.h"
@@ -1149,7 +1149,7 @@ void externalsAndGlobalsCheck(const llvm::Module *m) {
 }
 
 static Interpreter *theInterpreter = 0;
-static PathForest *pathForest = 0;
+static nonstd::optional<SarifReport> pathTree = nonstd::nullopt;
 
 static std::atomic_bool interrupted{false};
 
@@ -1170,24 +1170,9 @@ static void interrupt_handle() {
     halt_execution();
     sys::SetInterruptFunction(interrupt_handle);
   } else {
-    if (pathForest && (!theInterpreter || !theInterpreter->hasTargetForest())) {
-      std::vector<PathForest *> q;
-      q.push_back(pathForest);
-      while (!q.empty()) {
-        auto tree = q.back();
-        q.pop_back();
-        for (const auto &p : tree->layer) {
-          auto event = p.first;
-          auto nextTree = p.second;
-          if (nextTree->empty()) {
-            if (event->shouldFailOnThisTarget()) {
-              reportFalsePositive(confidence::MinConfidence, *event,
-                                  "max-time");
-            }
-          } else {
-            q.push_back(nextTree);
-          }
-        }
+    if (pathTree && (!theInterpreter || !theInterpreter->hasTargetForest())) {
+      for (const auto& res : pathTree->results) {
+        reportFalsePositive(confidence::MinConfidence, res.error, res.id, "max-time");
       }
     }
     llvm::errs() << "KLEE: ctrl-c detected, exiting.\n";
@@ -1341,21 +1326,10 @@ linkWithUclibc(StringRef libDir, std::string opt_suffix,
 }
 #endif
 
-static PathForest *parseStaticAnalysisInput() {
-  if (AnalysisReproduce != "")
-    return parseInputPathTree(AnalysisReproduce);
-  if (AnalysisFile == "" || AnalysisSink == 0)
-    klee_error("--analysis-reproduce JSON file with error paths to be checked "
-               "is not provided in error-guidance mode");
-  auto sinkLoc = new LocatedEvent(new Location(AnalysisFile, AnalysisSink),
-                                  ReachWithError::NullPointerException);
-  auto sink = new PathForest();
-  sink->addLeaf(sinkLoc);
-  unsigned sourceLine = AnalysisSource == 0 ? AnalysisSink : AnalysisSource;
-  auto sourceLoc = new LocatedEvent(new Location(AnalysisFile, sourceLine));
-  auto source = new PathForest();
-  source->addSubTree(sourceLoc, sink);
-  return source;
+static nonstd::optional<SarifReport> parseStaticAnalysisInput() {
+    if (AnalysisReproduce != "")
+      return parseInputPathTree(AnalysisReproduce);
+    return nonstd::nullopt;
 }
 
 static int run_klee_on_function(
@@ -1434,8 +1408,7 @@ static int run_klee_on_function(
         interpreter->runMainAsGuided(mainFn, out->numArgs, out->args, pEnvp);
         break;
       case Interpreter::GuidanceKind::ErrorGuidance:
-        interpreter->runThroughLocations(mainFn, out->numArgs, out->args, pEnvp,
-                                         pathForest);
+        interpreter->runThroughLocations(mainFn, out->numArgs, out->args, pEnvp, std::move(*pathTree));
         break;
       }
       if (interrupted)
@@ -1496,7 +1469,7 @@ static int run_klee_on_function(
       interpreter->runMainAsGuided(mainFn, pArgc, pArgv, pEnvp);
       break;
     case Interpreter::GuidanceKind::ErrorGuidance:
-      interpreter->runThroughLocations(mainFn, pArgc, pArgv, pEnvp, pathForest);
+      interpreter->runThroughLocations(mainFn, pArgc, pArgv, pEnvp, std::move(*pathTree));
       break;
     }
 
@@ -1505,8 +1478,6 @@ static int run_klee_on_function(
       seeds.pop_back();
     }
   }
-
-  delete pathForest;
 
   auto endTime = std::time(nullptr);
   { // output end and elapsed time

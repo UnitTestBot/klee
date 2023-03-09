@@ -290,7 +290,7 @@ TargetedSearcher::tryGetWeight(ExecutionState *es, weight_type &weight) {
   }
 
   if (target->shouldFailOnThisTarget() &&
-      target->getLocation()->isTheSameAsIn(es->prevPC) &&
+      target->isTheSameAsIn(es->prevPC) &&
       es->error == target->getError()) {
     return Done;
   }
@@ -306,7 +306,7 @@ TargetedSearcher::tryGetWeight(ExecutionState *es, weight_type &weight) {
       callWeight *= 2;
       if (callWeight == 0 && target->shouldFailOnThisTarget()) {
         weight = 0;
-        return target->getLocation()->isTheSameAsIn(
+        return target->isTheSameAsIn(
                    kb->getFirstInstruction()) &&
                        es->error == target->getError()
                    ? Done

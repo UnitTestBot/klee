@@ -35,7 +35,7 @@ void TestBad1()
     char *buf = (char *)malloc(BUFFERSIZE);
 
     /* POTENTIAL FLAW: dereference: Dereferencing a pointer that might be "NULL" "buf" when calling "strcpy" */
-    strcpy(buf, "0"); // CHECK-DAG: KLEE: WARNING: 100.00% NullPointerException True Positive at trace 21
+    strcpy(buf, "0"); // CHECK-DAG: KLEE: WARNING: 100.00% NullPointerException True Positive at trace 1
     free(buf);
 }
 

@@ -1,9 +1,9 @@
 #ifndef KLEE_RUN_KLEE_H
 #define KLEE_RUN_KLEE_H
 
-#include "klee/Module/Locations.h"
+#include "klee/Module/SarifReport.h"
 
-klee::PathForest *parseInputPathTree(const std::string &inputPathTreePath);
+klee::SarifReport parseInputPathTree(const std::string &inputPathTreePath);
 
 int run_klee(int argc, char **argv, char **envp);
 

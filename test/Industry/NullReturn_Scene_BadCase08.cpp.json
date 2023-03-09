@@ -1,74 +1,115 @@
 {
-    "errors": [
+    "runs": [
         {
-            "category": "NULL pointer deference",
-            "id": 27,
-            "trace": [
-                {
-                    "location": {
-                        "file": "/mnt/d/dev/klee-test/src-bc-reports/sources/secbrella/SecB_NullReturns/BadCase/NullReturn_Scene_BadCase08.cpp",
-                        "reportLine": 35,
-                        "function": "_Z8TestBad9v",
-                        "instructionOffset": 2,
-                        "column": 14,
-                        "instructionOpcode": 56
-                    },
-                    "event": {
-                        "kind": "NoOp"
-                    }
-                },
-                {
-                    "location": {
-                        "file": "/mnt/d/dev/klee-test/src-bc-reports/sources/secbrella/SecB_NullReturns/BadCase/NullReturn_Scene_BadCase08.cpp",
-                        "reportLine": 37,
-                        "function": "_Z8TestBad9v",
-                        "instructionOffset": 5,
-                        "column": 39,
-                        "instructionOpcode": 32
-                    },
-                    "event": {
-                        "kind": "Error",
-                        "error": {
-                            "sort": "NullDereference",
-                            "target": "p"
-                        }
-                    }
+            "tool": {
+                "driver": {
+                    "name": "huawei"
                 }
-            ]
-        },
-        {
-            "category": "NULL pointer deference",
-            "id": 28,
-            "trace": [
+            },
+            "results": [
                 {
-                    "location": {
-                        "file": "/mnt/d/dev/klee-test/src-bc-reports/sources/secbrella/SecB_NullReturns/BadCase/NullReturn_Scene_BadCase08.cpp",
-                        "reportLine": 35,
-                        "function": "_Z8TestBad9v",
-                        "instructionOffset": 2,
-                        "column": 14,
-                        "instructionOpcode": 56
-                    },
-                    "event": {
-                        "kind": "NoOp"
-                    }
+                    "codeFlows": [
+                        {
+                            "threadFlows": [
+                                {
+                                    "locations": [
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/dev/klee-test/src-bc-reports/sources/secbrella/SecB_NullReturns/BadCase/NullReturn_Scene_BadCase08.cpp"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 35,
+                                                        "startColumn": 14
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/dev/klee-test/src-bc-reports/sources/secbrella/SecB_NullReturns/BadCase/NullReturn_Scene_BadCase08.cpp"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 37,
+                                                        "startColumn": 39
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ],
+                    "ruleId": "NullDereference",
+                    "locations": [
+                        {
+                            "physicalLocation": {
+                                "artifactLocation": {
+                                    "uri": "/mnt/d/dev/klee-test/src-bc-reports/sources/secbrella/SecB_NullReturns/BadCase/NullReturn_Scene_BadCase08.cpp"
+                                },
+                                "region": {
+                                    "startLine": 37,
+                                    "startColumn": 39
+                                }
+                            }
+                        }
+                    ]
                 },
                 {
-                    "location": {
-                        "file": "/mnt/d/dev/klee-test/src-bc-reports/sources/secbrella/SecB_NullReturns/BadCase/NullReturn_Scene_BadCase08.cpp",
-                        "reportLine": 37,
-                        "function": "_Z8TestBad9v",
-                        "instructionOffset": 5,
-                        "column": 40,
-                        "instructionOpcode": 32
-                    },
-                    "event": {
-                        "kind": "Error",
-                        "error": {
-                            "sort": "NullDereference",
-                            "target": "p"
+                    "codeFlows": [
+                        {
+                            "threadFlows": [
+                                {
+                                    "locations": [
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/dev/klee-test/src-bc-reports/sources/secbrella/SecB_NullReturns/BadCase/NullReturn_Scene_BadCase08.cpp"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 35,
+                                                        "startColumn": 14
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/dev/klee-test/src-bc-reports/sources/secbrella/SecB_NullReturns/BadCase/NullReturn_Scene_BadCase08.cpp"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 37,
+                                                        "startColumn": 40
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
                         }
-                    }
+                    ],
+                    "ruleId": "NullDereference",
+                    "locations": [
+                        {
+                            "physicalLocation": {
+                                "artifactLocation": {
+                                    "uri": "/mnt/d/dev/klee-test/src-bc-reports/sources/secbrella/SecB_NullReturns/BadCase/NullReturn_Scene_BadCase08.cpp"
+                                },
+                                "region": {
+                                    "startLine": 37,
+                                    "startColumn": 40
+                                }
+                            }
+                        }
+                    ]
                 }
             ]
         }

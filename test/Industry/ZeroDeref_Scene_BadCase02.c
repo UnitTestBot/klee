@@ -35,7 +35,7 @@ void TestBad9()
 {
     char *p = NULL;
     /* POTENTIAL FLAW: var_deref_model - 在该函数中对可能为null的指针进行解引用 */
-    memcpy(pDest, p, BUFFERSIZE); // CHECK-DAG: KLEE: WARNING: 100.00% NullPointerException True Positive at trace 17
+    memcpy(pDest, p, BUFFERSIZE); // CHECK-DAG: KLEE: WARNING: 100.00% NullPointerException True Positive at trace 1
 }
 
 // RUN: %clang %s -emit-llvm -c -g -O0 -Xclang -disable-O0-optnone -o %t1.bc

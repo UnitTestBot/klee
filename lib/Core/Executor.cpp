@@ -648,7 +648,7 @@ void TargetedHaltsOnTraces::reportFalsePositives(bool canReachSomeTarget) {
       confidence = confidence::VeryConfident;
       reason = HaltExecution::MaxTime;
     }
-    reportFalsePositive(confidence, *target, getAdviseWhatToIncreaseConfidenceRate(reason));
+    reportFalsePositive(confidence, target->getError(), target->getId(), getAdviseWhatToIncreaseConfidenceRate(reason));
     target->isReported = true;
   }
 }
@@ -2474,9 +2474,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       state.prevPC->inst->isTerminator()) {
     for (auto kvp : state.targetForest) {
       auto target = kvp.first;
-      auto expectedLocation = target->getLocation();
       if (target->getError() == ReachWithError::Reachable &&
-          expectedLocation->isTheSameAsIn(ki)) {
+          target->isTheSameAsIn(ki)) {
         terminateStateOnTargetError(state, ReachWithError::Reachable);
         return;
       }
@@ -6066,7 +6065,7 @@ void Executor::prepareTargetedExecution(ExecutionState *initialState, ref<Target
   initialState->targetForest = *whitelist->deep_copy();
 }
 
-void Executor::runThroughLocationsInternal(ExecutionState *state, PathForest *paths) {
+void Executor::runThroughLocationsInternal(ExecutionState *state, SarifReport paths) {
   KInstIterator caller;
   if (kmodule->WithPOSIXRuntime()) {
     state = prepareStateForPOSIX(caller, state);
@@ -6074,9 +6073,9 @@ void Executor::runThroughLocationsInternal(ExecutionState *state, PathForest *pa
     state->popFrame();
   }
 
-  auto prepTargets = targetedExecutionManager.prepareTargets(kmoduleOrig.get(), kmodule.get(), paths);
+  auto prepTargets = targetedExecutionManager.prepareTargets(kmoduleOrig.get(), kmodule.get(), std::move(paths));
   if (prepTargets.empty()) {
-    klee_warning("No targets found in --error-guided mode");
+    klee_warning("No targets found in --error-guided mode after prepare targets");
     return;
   }
 
@@ -6100,8 +6099,8 @@ void Executor::runThroughLocationsInternal(ExecutionState *state, PathForest *pa
 }
 
 void Executor::runThroughLocations(llvm::Function *f, int argc, char **argv,
-                                   char **envp, PathForest *paths) {
-  if (paths->empty()) {
+                                   char **envp, SarifReport paths) {
+  if (paths.empty()) {
     klee_warning("No targets found in --error-guided mode");
     return;
   }
@@ -6113,7 +6112,7 @@ void Executor::runThroughLocations(llvm::Function *f, int argc, char **argv,
   ExecutionState *state = formState(f, argc, argv, envp);
   bindModuleConstants(llvm::APFloat::rmNearestTiesToEven);
 
-  runThroughLocationsInternal(state, paths);
+  runThroughLocationsInternal(state, std::move(paths));
 
   clearMemory();
   clearGlobal();

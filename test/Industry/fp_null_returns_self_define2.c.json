@@ -1,60 +1,91 @@
 {
-  "errors": [
-      {
-          "category": "NULL pointer deference",
-          "id": 1,
-          "trace": [
-              {
-                  "location": {
-                      "file": "/root/test/fp_null_returns_self_define2.c",
-                      "reportLine": 8,
-                      "instructionOffset": 8,
-                      "function": "MyValue"
-                  },
-                  "event": {
-                      "kind": "AssignZero"
-                  }
-              },
-              {
-                  "location": {
-                      "file": "/root/test/fp_null_returns_self_define2.c",
-                      "reportLine": 25,
-                      "instructionOffset": 11,
-                      "function": "TEST_NullReturns004"
-                  },
-                  "event": {
-                      "kind": "ExitCall",
-                      "function": "MyValue"
-                  }
-              },
-              {
-                  "location": {
-                      "file": "/root/test/fp_null_returns_self_define2.c",
-                      "reportLine": 26,
-                      "instructionOffset": 13,
-                      "function": "TEST_NullReturns004"
-                  },
-                  "event": {
-                      "kind": "EnterCall",
-                      "function": "sink"
-                  }
-              },
-              {
-                  "location": {
-                      "file": "/root/test/fp_null_returns_self_define2.c",
-                      "reportLine": 15,
-                      "instructionOffset": 3,
-                      "function": "sink"
-                  },
-                  "event": {
-                      "kind": "Error",
-                      "error": {
-                          "sort": "NullDereference",
-                          "target": "arg"
-                      }
-                  }
-              }
-          ]
-      }
-  ]
+    "runs": [
+        {
+            "tool": {
+                "driver": {
+                    "name": "huawei"
+                }
+            },
+            "results": [
+                {
+                    "codeFlows": [
+                        {
+                            "threadFlows": [
+                                {
+                                    "locations": [
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/root/test/fp_null_returns_self_define2.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 8,
+                                                        "startColumn": null
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/root/test/fp_null_returns_self_define2.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 25,
+                                                        "startColumn": null
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/root/test/fp_null_returns_self_define2.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 26,
+                                                        "startColumn": null
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/root/test/fp_null_returns_self_define2.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 15,
+                                                        "startColumn": null
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ],
+                    "ruleId": "NullDereference",
+                    "locations": [
+                        {
+                            "physicalLocation": {
+                                "artifactLocation": {
+                                    "uri": "/root/test/fp_null_returns_self_define2.c"
+                                },
+                                "region": {
+                                    "startLine": 15,
+                                    "startColumn": null
+                                }
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
 }

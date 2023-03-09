@@ -12,7 +12,7 @@
 
 #include "klee/ADT/RNG.h"
 #include "klee/Module/KModule.h"
-#include "klee/Module/Locations.h"
+#include "klee/Module/SarifReport.h"
 #include "klee/System/Time.h"
 
 #include "klee/Support/OptionCategories.h"
@@ -36,7 +36,7 @@ struct TargetCmp;
 
 enum TargetCalculateBy { Default, Blocks, Transitions };
 
-struct Target : LocatedEvent {
+struct Target {
 private:
   typedef std::unordered_set<Target *, TargetHash, EquivTargetCmp>
       EquivTargetHashSet;
@@ -44,9 +44,12 @@ private:
   static EquivTargetHashSet cachedTargets;
   static TargetHashSet targets;
   KBlock *block;
+  ReachWithError error; // None - if it is not terminated in error trace
+  unsigned id; // 0 - if it is not terminated in error trace
+  unsigned int line; // TODO(): only for check in reportTruePositive
 
-  explicit Target(LocatedEvent *_le, KBlock *_block)
-      : LocatedEvent(_le ? *_le : LocatedEvent()), block(_block) {}
+  explicit Target(ReachWithError _error, unsigned _id, unsigned int _line, KBlock *_block)
+      : block(_block), error(_error), id(_id), line(_line) {}
 
   static ref<Target> getFromCacheOrReturn(Target *target);
 
@@ -55,7 +58,7 @@ public:
   /// @brief Required by klee::ref-managed objects
   class ReferenceCounter _refCount;
 
-  static ref<Target> create(LocatedEvent *_le, KBlock *_block);
+  static ref<Target> create(ReachWithError _error, unsigned _id, unsigned int _line, KBlock *_block);
   static ref<Target> create(KBlock *_block);
 
   int compare(const Target &other) const;
@@ -78,6 +81,14 @@ public:
 
   std::string toString() const;
   ~Target();
+
+  unsigned getId() const { return id; }
+
+  ReachWithError getError() const { return error; }
+  bool shouldFailOnThisTarget() const { return error != ReachWithError::None; }
+  bool isTheSameAsIn(KInstruction *instr) const {
+    return instr->info->line == line;
+  }
 };
 
 typedef std::pair<llvm::BasicBlock *, llvm::BasicBlock *> Transition;

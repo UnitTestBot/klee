@@ -46,7 +46,7 @@ int TestBad7(char *arg, unsigned int count)
     // 中间事件，identity_transfer - 函数的返回值为 NULL，因为函数的其中一个参数可能为 null 并且未经修改即返回。
     dev = HelpTestBad7(dev, count);
     /* POTENTIAL FLAW: 结束事件，var_deref_op - null 指针解引用运算，使用数组访问方式 */
-    dev[0] = arg;  // 当前SecBrella漏报 // CHECK: KLEE: WARNING: 100.00% NullPointerException True Positive at trace 4
+    dev[0] = arg;  // 当前SecBrella漏报 // CHECK: KLEE: WARNING: 100.00% NullPointerException True Positive at trace 1
     return 1;
 }
 

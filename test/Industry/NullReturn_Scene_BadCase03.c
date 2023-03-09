@@ -36,7 +36,7 @@ void TestBad3()
     // alias: Assigning: "bufNew" = "buf". Both pointer are now "NULL"
     char *bufNew = buf;
     /* POTENTIAL FLAW: dereference: Dereferencing a pointer that might be "NULL" "buf" when calling "strcpy" */
-    strcpy(bufNew, "0"); // CHECK-DAG: KLEE: WARNING: 100.00% NullPointerException True Positive at trace 23
+    strcpy(bufNew, "0"); // CHECK-DAG: KLEE: WARNING: 100.00% NullPointerException True Positive at trace 1
     free(buf);
 }
 

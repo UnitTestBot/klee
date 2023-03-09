@@ -1,52 +1,78 @@
 {
-  "errors": [
-    {
-      "category": "Indicator_of_Poor_Code_Quality",
-      "id": 41,
-      "trace": [
+    "runs": [
         {
-          "location": {
-            "file": "/mnt/d/dev/klee-test/klee_verifier_scripts/tests/secb_suit/src/SecB_UseAfterFree/BadCase/Double_Free_BadCase01.c",
-            "reportLine": 26,
-            "function": "DoubleFreeBad01",
-            "instructionOffset": 2,
-            "column": 23,
-            "instructionOpcode": 56
-          },
-          "event": {
-            "kind": "NoOp"
-          }
-        },
-        {
-          "location": {
-            "file": "/mnt/d/dev/klee-test/klee_verifier_scripts/tests/secb_suit/src/SecB_UseAfterFree/BadCase/Double_Free_BadCase01.c",
-            "reportLine": 33,
-            "function": "DoubleFreeBad01",
-            "instructionOffset": 9,
-            "column": 5,
-            "instructionOpcode": 56
-          },
-          "event": {
-            "kind": "NoOp"
-          }
-        },
-        {
-          "location": {
-            "file": "/mnt/d/dev/klee-test/klee_verifier_scripts/tests/secb_suit/src/SecB_UseAfterFree/BadCase/Double_Free_BadCase01.c",
-            "reportLine": 36,
-            "function": "DoubleFreeBad01",
-            "instructionOffset": 11,
-            "column": 5,
-            "instructionOpcode": 56
-          },
-          "event": {
-            "kind": "Error",
-            "error": {
-              "sort": "DoubleFree"
-            }
-          }
+            "tool": {
+                "driver": {
+                    "name": "huawei"
+                }
+            },
+            "results": [
+                {
+                    "codeFlows": [
+                        {
+                            "threadFlows": [
+                                {
+                                    "locations": [
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/dev/klee-test/klee_verifier_scripts/tests/secb_suit/src/SecB_UseAfterFree/BadCase/Double_Free_BadCase01.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 26,
+                                                        "startColumn": 23
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/dev/klee-test/klee_verifier_scripts/tests/secb_suit/src/SecB_UseAfterFree/BadCase/Double_Free_BadCase01.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 33,
+                                                        "startColumn": 5
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "/mnt/d/dev/klee-test/klee_verifier_scripts/tests/secb_suit/src/SecB_UseAfterFree/BadCase/Double_Free_BadCase01.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 36,
+                                                        "startColumn": 5
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ],
+                    "ruleId": "DoubleFree",
+                    "locations": [
+                        {
+                            "physicalLocation": {
+                                "artifactLocation": {
+                                    "uri": "/mnt/d/dev/klee-test/klee_verifier_scripts/tests/secb_suit/src/SecB_UseAfterFree/BadCase/Double_Free_BadCase01.c"
+                                },
+                                "region": {
+                                    "startLine": 36,
+                                    "startColumn": 5
+                                }
+                            }
+                        }
+                    ]
+                }
+            ]
         }
-      ]
-    }
-  ]
+    ]
 }
