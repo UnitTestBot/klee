@@ -62,14 +62,12 @@ private:
 
   bool tryResolveLocations(const Result &locations,
                            LocationToBlocks &locToBlocks) const;
-  LocationToBlocks prepareAllLocations(KModule *kmodule, Locations &locations,
-                                       const Instructions &origInsts) const;
+  LocationToBlocks prepareAllLocations(KModule *kmodule, Locations &locations) const;
   Locations collectAllLocations(const SarifReport &paths) const;
-  Instructions getOriginalInstructions(KModule *kmodule) const;
 
 public:
   std::unordered_map<KFunction *, ref<TargetForest>>
-  prepareTargets(KModule *origModule, KModule *kmodule, SarifReport paths);
+  prepareTargets(KModule *kmodule, SarifReport paths);
 
   void reportFalseNegative(ExecutionState &state, ReachWithError error);
 

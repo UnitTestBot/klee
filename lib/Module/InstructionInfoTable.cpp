@@ -161,7 +161,7 @@ public:
   }
 };
 
-InstructionInfoTable::InstructionInfoTable(const llvm::Module &m) {
+InstructionInfoTable::InstructionInfoTable(const llvm::Module &m, bool withInstructions) {
   // Generate all debug instruction information
   DebugInfoExtractor DI(internedStrings, m);
   for (const auto &Func : m) {
@@ -172,7 +172,11 @@ InstructionInfoTable::InstructionInfoTable(const llvm::Module &m) {
     for (auto it = llvm::inst_begin(Func), ie = llvm::inst_end(Func); it != ie;
          ++it) {
       auto instr = &*it;
-      infos.insert(std::make_pair(instr, DI.getInstructionInfo(*instr, FR)));
+      auto instInfo = DI.getInstructionInfo(*instr, FR);
+      if (withInstructions) {
+        insts[instInfo->file][instInfo->line][instInfo->column].insert(instr->getOpcode());
+      }
+      infos.insert(std::make_pair(instr, std::move(instInfo)));
     }
   }
 
@@ -205,4 +209,8 @@ InstructionInfoTable::getFunctionInfo(const llvm::Function &f) const {
                              "initial module!");
 
   return *found->second.get();
+}
+
+InstructionInfoTable::Instructions InstructionInfoTable::getInstructions() {
+  return std::move(insts);
 }

@@ -1665,25 +1665,17 @@ int run_klee(int argc, char **argv, char **envp) {
                errorMsg.c_str());
   }
 
-  std::unique_ptr<llvm::Module> OM(klee::linkModules(
-      originalLoadedModules, "" /* link all modules together */, errorMsg));
-  if (!OM) {
-    klee_error("error loading program '%s': %s", InputFile.c_str(),
-               errorMsg.c_str());
-  }
-
   llvm::Module *mainModule = M.get();
+  std::unique_ptr<InstructionInfoTable> origInfos;
 
-  std::vector<std::string> mainModuleFunctions;
   if (ExecutionMode == Interpreter::GuidanceKind::ErrorGuidance) {
     std::vector<llvm::Type *> args;
+    origInfos = std::make_unique<InstructionInfoTable>(*mainModule, true);
     args.push_back(llvm::Type::getInt32Ty(ctx)); // argc
-    args.push_back(llvm::PointerType::get(
-        Type::getInt8PtrTy(ctx),
-        mainModule->getDataLayout().getAllocaAddrSpace())); // argv
-    args.push_back(llvm::PointerType::get(
-        Type::getInt8PtrTy(ctx),
-        mainModule->getDataLayout().getAllocaAddrSpace())); // envp
+    args.push_back(llvm::PointerType::get(Type::getInt8PtrTy(ctx),
+                  mainModule->getDataLayout().getAllocaAddrSpace())); // argv
+    args.push_back(llvm::PointerType::get(Type::getInt8PtrTy(ctx),
+                  mainModule->getDataLayout().getAllocaAddrSpace())); // envp
     std::string stubEntryPoint = "__klee_entry_point_main";
     Function *stub = Function::Create(
         llvm::FunctionType::get(llvm::Type::getInt32Ty(ctx), args, false),
@@ -1911,8 +1903,7 @@ int run_klee(int argc, char **argv, char **envp) {
   // Get the desired main function.  klee_main initializes uClibc
   // locale and other data and then calls main.
 
-  auto finalModule =
-      interpreter->setModule(std::move(OM), loadedModules, Opts, mainModuleFunctions);
+    auto finalModule = interpreter->setModule(loadedModules, Opts, mainModuleFunctions, std::move(origInfos));
 
   if (InteractiveMode) {
     klee_message("KLEE finish preprocessing.");

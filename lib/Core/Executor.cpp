@@ -752,16 +752,14 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
 }
 
 llvm::Module *
-Executor::setModule(std::unique_ptr<llvm::Module> mainModule,
-                    std::vector<std::unique_ptr<llvm::Module>> &modules,
+Executor::setModule(std::vector<std::unique_ptr<llvm::Module>> &modules,
                     const ModuleOptions &opts,
-                    const std::vector<std::string> &mainModuleFunctions) {
+                    const std::vector<std::string> &mainModuleFunctions,
+                    std::unique_ptr<InstructionInfoTable> origInfos) {
   assert(!kmodule && !modules.empty() &&
          "can only register one module"); // XXX gross
 
   kmodule = std::unique_ptr<KModule>(new KModule());
-  kmoduleOrig = std::unique_ptr<KModule>(new KModule());
-
   // Preparing the final module happens in multiple stages
 
   // Link with KLEE intrinsics library before running any optimizations
@@ -773,12 +771,6 @@ Executor::setModule(std::unique_ptr<llvm::Module> mainModule,
                       error)) {
     klee_error("Could not load KLEE intrinsic file %s", LibPath.c_str());
   }
-
-  std::vector<std::unique_ptr<llvm::Module>> mainModuleVector;
-  mainModuleVector.push_back(std::move(mainModule));
-  kmoduleOrig->link(mainModuleVector, ""); //TODO: [Aleksandr Misonizhnik], should "" be replaced with sth?
-  std::vector<Function *> declarations;
-  kmoduleOrig->manifestFunctions(declarations);
 
   // 1.) Link the modules together
   while (kmodule->link(modules, opts.EntryPoint)) {
@@ -809,6 +801,10 @@ Executor::setModule(std::unique_ptr<llvm::Module> mainModule,
   kmodule->mainModuleFunctions.insert(kmodule->mainModuleFunctions.end(),
                                       mainModuleFunctions.begin(),
                                       mainModuleFunctions.end());
+
+  if (origInfos) {
+    kmodule->origInfos = origInfos->getInstructions();
+  }
 
   specialFunctionHandler->bind();
 
@@ -6073,7 +6069,7 @@ void Executor::runThroughLocationsInternal(ExecutionState *state, SarifReport pa
     state->popFrame();
   }
 
-  auto prepTargets = targetedExecutionManager.prepareTargets(kmoduleOrig.get(), kmodule.get(), std::move(paths));
+  auto prepTargets = targetedExecutionManager.prepareTargets(kmodule.get(), std::move(paths));
   if (prepTargets.empty()) {
     klee_warning("No targets found in --error-guided mode after prepare targets");
     return;

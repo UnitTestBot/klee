@@ -13,6 +13,7 @@
 #include "klee/Config/Version.h"
 #include "klee/Core/Interpreter.h"
 #include "klee/Module/KCallable.h"
+#include "klee/Module/InstructionInfoTable.h"
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/IR/CFG.h"
@@ -45,7 +46,6 @@ namespace klee {
   class Executor;
   class Expr;
   class InterpreterHandler;
-  class InstructionInfoTable;
   struct KInstruction;
   class KModule;
   struct KFunction;
@@ -197,6 +197,8 @@ namespace klee {
     std::set<llvm::Function*> escapingFunctions;
 
     std::vector<std::string> mainModuleFunctions;
+
+    InstructionInfoTable::Instructions origInfos;
 
     std::unique_ptr<InstructionInfoTable> infos;
 

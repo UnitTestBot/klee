@@ -130,7 +130,6 @@ private:
   static const std::unordered_set <llvm::Intrinsic::ID> modelledFPIntrinsics;
 
   std::unique_ptr<KModule> kmodule;
-  std::unique_ptr<KModule> kmoduleOrig;
   InterpreterHandler *interpreterHandler;
   Searcher *searcher;
 
@@ -613,10 +612,10 @@ public:
   }
 
   llvm::Module *
-  setModule(std::unique_ptr<llvm::Module> mainModule,
-            std::vector<std::unique_ptr<llvm::Module>> &modules,
+  setModule(std::vector<std::unique_ptr<llvm::Module>> &modules,
             const ModuleOptions &opts,
-            const std::vector<std::string> &mainModuleFunctions) override;
+            const std::vector<std::string> &mainModuleFunctions,
+            std::unique_ptr<InstructionInfoTable> origInfos) override;
 
   void useSeeds(const std::vector<struct KTest *> *seeds) override {
     usingSeeds = seeds;

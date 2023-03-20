@@ -35,6 +35,7 @@ struct SarifReport;
 class Interpreter;
 class TreeStreamWriter;
 struct LocatedEvent;
+class InstructionInfoTable;
 
 class InterpreterHandler {
 public:
@@ -128,10 +129,10 @@ public:
   /// \return The final module after it has been optimized, checks
   /// inserted, and modified for interpretation.
   virtual llvm::Module *
-  setModule(std::unique_ptr<llvm::Module> mainModule,
-            std::vector<std::unique_ptr<llvm::Module>> &modules,
+  setModule(std::vector<std::unique_ptr<llvm::Module>> &modules,
             const ModuleOptions &opts,
-            const std::vector<std::string> &mainFunctions) = 0;
+            const std::vector<std::string> &mainFunctions,
+            std::unique_ptr<InstructionInfoTable> origInfos) = 0;
 
   // supply a tree stream writer which the interpreter will use
   // to record the concrete path (as a stream of '0' and '1' bytes).
