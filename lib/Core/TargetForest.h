@@ -41,14 +41,14 @@ class TargetForest {
 public:
   using TargetsSet = std::unordered_set<ref<Target>, RefTargetHash, RefTargetCmp>;
 
-  class TargetsVector {
+  class UnorderedTargetsSet {
   public:
-    static ref<TargetsVector> create(const ref<Target>& target);
-    static ref<TargetsVector> create(const TargetsSet* targets);
+    static ref<UnorderedTargetsSet> create(const ref<Target>& target);
+    static ref<UnorderedTargetsSet> create(const TargetsSet& targets);
 
-    ~TargetsVector();
+    ~UnorderedTargetsSet();
     std::size_t hash() const { return hashValue; }
-    bool operator==(const TargetsVector& other) const {
+    bool operator==(const UnorderedTargetsSet& other) const {
       return targetsVec == other.targetsVec;
     }
 
@@ -65,12 +65,12 @@ public:
     /// @brief Required by klee::ref-managed objects
     class ReferenceCounter _refCount;
   private:
-    explicit TargetsVector(const ref<Target>& target);
-    explicit TargetsVector(const TargetsSet* targets);
-    static ref<TargetsVector> create(TargetsVector* vec);
+    explicit UnorderedTargetsSet(const ref<Target>& target);
+    explicit UnorderedTargetsSet(const TargetsSet& targets);
+    static ref<UnorderedTargetsSet> create(UnorderedTargetsSet* vec);
 
-    typedef std::unordered_set<TargetsVector *, TargetsVectorHash, EquivTargetsVectorCmp> EquivTargetsVectorHashSet;
-    typedef std::unordered_set<TargetsVector *, TargetsVectorHash, TargetsVectorCmp> TargetsVectorHashSet;
+    typedef std::unordered_set<UnorderedTargetsSet *, TargetsVectorHash, EquivTargetsVectorCmp> EquivTargetsVectorHashSet;
+    typedef std::unordered_set<UnorderedTargetsSet *, TargetsVectorHash, TargetsVectorCmp> TargetsVectorHashSet;
 
     static EquivTargetsVectorHashSet cachedVectors;
     static TargetsVectorHashSet vectors;
@@ -81,66 +81,66 @@ public:
   };
 
   struct RefTargetsVectorHash {
-    unsigned operator()(const ref<TargetForest::TargetsVector> &t) const {
+    unsigned operator()(const ref<TargetForest::UnorderedTargetsSet> &t) const {
       return t->hash();
     }
   };
 
   struct RefTargetsVectorCmp {
-    bool operator()(const ref<TargetForest::TargetsVector> &a,
-                    const ref<TargetForest::TargetsVector> &b) const {
+    bool operator()(const ref<TargetForest::UnorderedTargetsSet> &a,
+                    const ref<TargetForest::UnorderedTargetsSet> &b) const {
       return a.get() == b.get();
     }
   };
 private:
   class Layer {
-    using InternalLayer = std::unordered_map<ref<TargetsVector>, ref<Layer>, RefTargetsVectorHash, RefTargetsVectorCmp>;
+    using InternalLayer = std::unordered_map<ref<UnorderedTargetsSet>, ref<Layer>, RefTargetsVectorHash, RefTargetsVectorCmp>;
     InternalLayer forest;
-    using Targets2Vector = std::unordered_map<ref<Target>, std::unordered_set<ref<TargetsVector>, RefTargetsVectorHash, RefTargetsVectorCmp>, RefTargetHash, RefTargetCmp>;
-    Targets2Vector targets2Vector;
+    using TargetsToVector = std::unordered_map<ref<Target>, std::unordered_set<ref<UnorderedTargetsSet>, RefTargetsVectorHash, RefTargetsVectorCmp>, RefTargetHash, RefTargetCmp>;
+    TargetsToVector targetsToVector;
 
     /// @brief Confidence in % that this layer (i.e., parent target node) can be reached
     confidence::ty confidence;
 
-    Layer(const InternalLayer &forest, const Targets2Vector &targets2Vector, confidence::ty confidence) : forest(forest), targets2Vector(targets2Vector), confidence(confidence) {}
-    explicit Layer(const Layer *layer) : Layer(layer->forest, layer->targets2Vector, layer->confidence) {}
+    Layer(const InternalLayer &forest, const TargetsToVector &targetsToVector, confidence::ty confidence) : forest(forest), targetsToVector(targetsToVector), confidence(confidence) {}
+    explicit Layer(const Layer *layer) : Layer(layer->forest, layer->targetsToVector, layer->confidence) {}
     explicit Layer(const ref<Layer> layer) : Layer(layer.get()) {}
     void unionWith(Layer *other);
     void block(ref<Target> target);
     void removeTarget(ref<Target> target);
-    Layer *removeChild(ref<TargetsVector> child) const;
+    Layer *removeChild(ref<UnorderedTargetsSet> child) const;
 
     confidence::ty getConfidence(confidence::ty parentConfidence) const {
       return confidence::min(parentConfidence, confidence);
     }
 
     void collectHowManyEventsInTracesWereReached(
-      std::unordered_map<unsigned, std::pair<unsigned, unsigned>> &trace2eventCount,
+      std::unordered_map<unsigned, std::pair<unsigned, unsigned>> &traceToEventCount,
       unsigned reached,
       unsigned total) const;
 
   public:
-    using iterator = Targets2Vector::const_iterator;
+    using iterator = TargetsToVector::const_iterator;
 
     /// @brief Required by klee::ref-managed objects
     class ReferenceCounter _refCount;
 
     explicit Layer() : confidence(confidence::MaxConfidence) {}
 
-    iterator find(ref<Target> b) const { return targets2Vector.find(b); }
-    iterator begin() const { return targets2Vector.begin(); }
-    iterator end() const { return targets2Vector.end(); }
-    void insert(ref<TargetsVector> loc, ref<Layer> nextLayer) { forest[loc] = nextLayer; }
-    void insertTargets2Vec(ref<Target> target, ref<TargetsVector> targetsVec) { targets2Vector[target].insert(targetsVec); }
+    iterator find(ref<Target> b) const { return targetsToVector.find(b); }
+    iterator begin() const { return targetsToVector.begin(); }
+    iterator end() const { return targetsToVector.end(); }
+    void insert(ref<UnorderedTargetsSet> loc, ref<Layer> nextLayer) { forest[loc] = nextLayer; }
+    void insertTargetsToVec(ref<Target> target, ref<UnorderedTargetsSet> targetsVec) { targetsToVector[target].insert(targetsVec); }
     bool empty() const { return forest.empty(); }
     bool deepFind(ref<Target> target) const;
     bool deepFindIn(ref<Target> child, ref<Target> target) const;
     size_t size() const { return forest.size(); }
-    Layer *replaceChildWith(ref<Target> child, const std::unordered_set<ref<TargetsVector>, RefTargetsVectorHash, RefTargetsVectorCmp> &other) const;
-    Layer *replaceChildWith(ref<TargetsVector> child, Layer *other) const;
+    Layer *replaceChildWith(ref<Target> child, const std::unordered_set<ref<UnorderedTargetsSet>, RefTargetsVectorHash, RefTargetsVectorCmp> &other) const;
+    Layer *replaceChildWith(ref<UnorderedTargetsSet> child, Layer *other) const;
     Layer *removeChild(ref<Target> child) const;
     Layer *addChild(ref<Target> child) const;
-    Layer *blockLeafInChild(ref<TargetsVector> child, ref<Target> leaf) const;
+    Layer *blockLeafInChild(ref<UnorderedTargetsSet> child, ref<Target> leaf) const;
     Layer *blockLeafInChild(ref<Target> child, ref<Target> leaf) const;
     Layer *blockLeaf(ref<Target> leaf) const;
     bool allNodesRefCountOne() const;
@@ -155,8 +155,8 @@ private:
     void divideConfidenceBy(unsigned factor);
     Layer *divideConfidenceBy(std::multiset<ref<Target> > &reachableStatesOfTarget);
     confidence::ty getConfidence() const { return getConfidence(confidence::MaxConfidence); }
-    void collectHowManyEventsInTracesWereReached(std::unordered_map<unsigned, std::pair<unsigned, unsigned>> &trace2eventCount) const {
-      collectHowManyEventsInTracesWereReached(trace2eventCount, 0, 0);
+    void collectHowManyEventsInTracesWereReached(std::unordered_map<unsigned, std::pair<unsigned, unsigned>> &traceToEventCount) const {
+      collectHowManyEventsInTracesWereReached(traceToEventCount, 0, 0);
     }
 
     void addTrace(const Result& result, const std::unordered_map<ref<Location>, std::unordered_set<KBlock *>, RefLocationHash, RefLocationCmp>& locToBlocks);
@@ -258,8 +258,8 @@ public:
   void divideConfidenceBy(std::multiset<ref<Target> > &reachableStatesOfTarget) {
     forest = forest->divideConfidenceBy(reachableStatesOfTarget);
   }
-  void collectHowManyEventsInTracesWereReached(std::unordered_map<unsigned, std::pair<unsigned, unsigned>> &trace2eventCount) const {
-    forest->collectHowManyEventsInTracesWereReached(trace2eventCount);
+  void collectHowManyEventsInTracesWereReached(std::unordered_map<unsigned, std::pair<unsigned, unsigned>> &traceToEventCount) const {
+    forest->collectHowManyEventsInTracesWereReached(traceToEventCount);
   }
 };
 
@@ -299,21 +299,21 @@ struct RefTargetsHistoryCmp {
 };
 
 struct TargetsVectorHash {
-  std::size_t operator()(const TargetForest::TargetsVector* t) const {
+  std::size_t operator()(const TargetForest::UnorderedTargetsSet* t) const {
     return t->hash();
   }
 };
 
 struct TargetsVectorCmp {
-  bool operator()(const TargetForest::TargetsVector* a,
-                  const TargetForest::TargetsVector* b) const {
+  bool operator()(const TargetForest::UnorderedTargetsSet* a,
+                  const TargetForest::UnorderedTargetsSet* b) const {
     return a == b;
   }
 };
 
 struct EquivTargetsVectorCmp {
-  bool operator()(const TargetForest::TargetsVector* a,
-                  const TargetForest::TargetsVector* b) const {
+  bool operator()(const TargetForest::UnorderedTargetsSet* a,
+                  const TargetForest::UnorderedTargetsSet* b) const {
     if (a == NULL || b == NULL)
       return false;
     return *a == *b;

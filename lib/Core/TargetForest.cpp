@@ -16,23 +16,23 @@
 using namespace klee;
 using namespace llvm;
 
-TargetForest::TargetsVector::EquivTargetsVectorHashSet
-    TargetForest::TargetsVector::cachedVectors;
-TargetForest::TargetsVector::TargetsVectorHashSet TargetForest::TargetsVector::vectors;
+TargetForest::UnorderedTargetsSet::EquivTargetsVectorHashSet
+    TargetForest::UnorderedTargetsSet::cachedVectors;
+TargetForest::UnorderedTargetsSet::TargetsVectorHashSet TargetForest::UnorderedTargetsSet::vectors;
 
-TargetForest::TargetsVector::TargetsVector(const ref<Target>& target) {
+TargetForest::UnorderedTargetsSet::UnorderedTargetsSet(const ref<Target>& target) {
   targetsVec.push_back(target);
   sortAndComputeHash();
 }
 
-TargetForest::TargetsVector::TargetsVector(const TargetsSet* targets) {
-  for (const auto& p : *targets) {
+TargetForest::UnorderedTargetsSet::UnorderedTargetsSet(const TargetsSet& targets) {
+  for (const auto& p : targets) {
     targetsVec.push_back(p);
   }
   sortAndComputeHash();
 }
 
-void TargetForest::TargetsVector::sortAndComputeHash() {
+void TargetForest::UnorderedTargetsSet::sortAndComputeHash() {
   std::sort(targetsVec.begin(), targetsVec.end(), RefTargetLess{});
   RefTargetHash hasher;
   std::size_t seed = targetsVec.size();
@@ -42,17 +42,17 @@ void TargetForest::TargetsVector::sortAndComputeHash() {
   hashValue = seed;
 }
 
-ref<TargetForest::TargetsVector> TargetForest::TargetsVector::create(const ref<Target>& target) {
-  TargetsVector *vec = new TargetsVector(target);
+ref<TargetForest::UnorderedTargetsSet> TargetForest::UnorderedTargetsSet::create(const ref<Target>& target) {
+  UnorderedTargetsSet *vec = new UnorderedTargetsSet(target);
   return create(vec);
 }
 
-ref<TargetForest::TargetsVector> TargetForest::TargetsVector::create(const TargetsSet* targets) {
-  TargetsVector *vec = new TargetsVector(targets);
+ref<TargetForest::UnorderedTargetsSet> TargetForest::UnorderedTargetsSet::create(const TargetsSet& targets) {
+  UnorderedTargetsSet *vec = new UnorderedTargetsSet(targets);
   return create(vec);
 }
 
-ref<TargetForest::TargetsVector> TargetForest::TargetsVector::create(TargetsVector* vec) {
+ref<TargetForest::UnorderedTargetsSet> TargetForest::UnorderedTargetsSet::create(UnorderedTargetsSet* vec) {
  std::pair<EquivTargetsVectorHashSet::const_iterator, bool> success =
       cachedVectors.insert(vec);
   if (success.second) {
@@ -66,7 +66,7 @@ ref<TargetForest::TargetsVector> TargetForest::TargetsVector::create(TargetsVect
   return vec;
 }
 
-TargetForest::TargetsVector::~TargetsVector() {
+TargetForest::UnorderedTargetsSet::~UnorderedTargetsSet() {
   if (vectors.find(this) != vectors.end()) {
     vectors.erase(this);
     cachedVectors.erase(this);
@@ -90,14 +90,14 @@ void TargetForest::Layer::addTrace(const Result& result, const std::unordered_ma
       targets.insert(target);
     }
 
-    ref<TargetsVector> targetsVec = TargetsVector::create(&targets);
+    ref<UnorderedTargetsSet> targetsVec = UnorderedTargetsSet::create(targets);
     if (forest->forest.count(targetsVec) == 0) {
       ref<TargetForest::Layer> next = new TargetForest::Layer();
       forest->insert(targetsVec, next);
     }
 
     for (auto& target : targetsVec->getTargets()) {
-      forest->insertTargets2Vec(target, targetsVec);
+      forest->insertTargetsToVec(target, targetsVec);
     }
 
     forest = forest->forest[targetsVec].get();
@@ -126,10 +126,10 @@ void TargetForest::Layer::unionWith(TargetForest::Layer *other) {
     it->second = layer;
   }
 
-  for (const auto &kv : other->targets2Vector) {
-    auto it = targets2Vector.find(kv.first);
-    if (it == targets2Vector.end()) {
-      targets2Vector.insert(std::make_pair(kv.first, kv.second));
+  for (const auto &kv : other->targetsToVector) {
+    auto it = targetsToVector.find(kv.first);
+    if (it == targetsToVector.end()) {
+      targetsToVector.insert(std::make_pair(kv.first, kv.second));
       continue;
     }
     it->second.insert(kv.second.begin(), kv.second.end());
@@ -154,21 +154,21 @@ void TargetForest::Layer::block(ref<Target> target) {
 }
 
 void TargetForest::Layer::removeTarget(ref<Target> target) {
-  auto it = targets2Vector.find(target);
+  auto it = targetsToVector.find(target);
 
-  if (it == targets2Vector.end()) {
+  if (it == targetsToVector.end()) {
     return;
   }
 
   auto targetsVectors = std::move(it->second);
 
-  targets2Vector.erase(it);
+  targetsToVector.erase(it);
 
   for (auto& targetsVec : targetsVectors) {
     bool shouldDelete = true;
 
     for (auto& target_i : targetsVec->getTargets()) {
-      if (targets2Vector.count(target_i) != 0) {
+      if (targetsToVector.count(target_i) != 0) {
         shouldDelete = false;
       }
     }
@@ -182,8 +182,8 @@ void TargetForest::Layer::removeTarget(ref<Target> target) {
 bool TargetForest::Layer::deepFind(ref<Target> target) const {
   if (empty())
     return false;
-  auto res = targets2Vector.find(target);
-  if (res != targets2Vector.end()) {
+  auto res = targetsToVector.find(target);
+  if (res != targetsToVector.end()) {
     return true;
   }
   for (auto &f : forest) {
@@ -194,8 +194,8 @@ bool TargetForest::Layer::deepFind(ref<Target> target) const {
 }
 
 bool TargetForest::Layer::deepFindIn(ref<Target> child, ref<Target> target) const {
-  auto res = targets2Vector.find(child);
-  if (res == targets2Vector.end()) {
+  auto res = targetsToVector.find(child);
+  if (res == targetsToVector.end()) {
     return false;
   }
 
@@ -220,18 +220,18 @@ TargetForest::Layer *TargetForest::Layer::removeChild(ref<Target> child) const {
   return result;
 }
 
-TargetForest::Layer *TargetForest::Layer::removeChild(ref<TargetsVector> child) const {
+TargetForest::Layer *TargetForest::Layer::removeChild(ref<UnorderedTargetsSet> child) const {
   auto result = new Layer(this);
   result->forest.erase(child);
   for (auto& target : child->getTargets()) {
-    auto it = result->targets2Vector.find(target);
-    if (it == result->targets2Vector.end()) {
+    auto it = result->targetsToVector.find(target);
+    if (it == result->targetsToVector.end()) {
       continue;
     }
 
     it->second.erase(child);
     if (it->second.empty()) {
-      result->targets2Vector.erase(it);
+      result->targetsToVector.erase(it);
     }
   }
 
@@ -240,22 +240,22 @@ TargetForest::Layer *TargetForest::Layer::removeChild(ref<TargetsVector> child) 
 
 TargetForest::Layer *TargetForest::Layer::addChild(ref<Target> child) const {
   auto result = new Layer(this);
-  auto targetsVec = TargetsVector::create(child);
+  auto targetsVec = UnorderedTargetsSet::create(child);
   result->forest.insert({targetsVec, new Layer()});
 
-  result->targets2Vector[child].insert(targetsVec);
+  result->targetsToVector[child].insert(targetsVec);
 
   return result;
 }
 
 TargetForest::Layer *
-TargetForest::Layer::blockLeafInChild(ref<TargetsVector> child,
-                                      ref<Target> leaf) const { // TODO()
+TargetForest::Layer::blockLeafInChild(ref<UnorderedTargetsSet> child,
+                                      ref<Target> leaf) const {
   auto subtree = forest.find(child);
   assert(subtree != forest.end());
   if (subtree->second->forest.empty()) {
-    auto targetsVectors = targets2Vector.find(leaf);
-    if (targetsVectors == targets2Vector.end() || targetsVectors->second.count(subtree->first) == 0) {
+    auto targetsVectors = targetsToVector.find(leaf);
+    if (targetsVectors == targetsToVector.end() || targetsVectors->second.count(subtree->first) == 0) {
       return new Layer(this);
     } else {
       return removeChild(leaf);
@@ -269,11 +269,11 @@ TargetForest::Layer::blockLeafInChild(ref<TargetsVector> child,
   } else {
     InternalLayer subforest;
     subforest[child] = sublayer;
-    Targets2Vector subTargets2Vector;
+    TargetsToVector subTargetsToVector;
     for (auto& target : child->getTargets()) {
-      subTargets2Vector[target].insert(child);
+      subTargetsToVector[target].insert(child);
     }
-    sublayer = new Layer(subforest, subTargets2Vector, confidence);
+    sublayer = new Layer(subforest, subTargetsToVector, confidence);
     auto result = replaceChildWith(child, sublayer.get());
     return result;
   }
@@ -281,8 +281,8 @@ TargetForest::Layer::blockLeafInChild(ref<TargetsVector> child,
 
 TargetForest::Layer *TargetForest::Layer::blockLeafInChild(ref<Target> child, ref<Target> leaf) const {
   TargetForest::Layer *res = nullptr;
-  auto it = targets2Vector.find(child);
-  if (it == targets2Vector.end()) {
+  auto it = targetsToVector.find(child);
+  if (it == targetsToVector.end()) {
     return res;
   }
   for (auto& targetsVec : it->second) {
@@ -307,13 +307,13 @@ TargetForest::Layer *TargetForest::Layer::blockLeaf(ref<Target> leaf) const {
   return result;
 }
 
-TargetForest::Layer *TargetForest::Layer::replaceChildWith(ref<TargetForest::TargetsVector> const child, TargetForest::Layer *other) const { // TODO()
+TargetForest::Layer *TargetForest::Layer::replaceChildWith(ref<TargetForest::UnorderedTargetsSet> const child, TargetForest::Layer *other) const {
   auto result = removeChild(child);
   result->unionWith(other);
   return result;
 }
 
-TargetForest::Layer *TargetForest::Layer::replaceChildWith(ref<Target> child, const std::unordered_set<ref<TargetsVector>, RefTargetsVectorHash, RefTargetsVectorCmp>& other) const {
+TargetForest::Layer *TargetForest::Layer::replaceChildWith(ref<Target> child, const std::unordered_set<ref<UnorderedTargetsSet>, RefTargetsVectorHash, RefTargetsVectorCmp>& other) const {
   std::vector<Layer *> layers;
   for (auto& targetsVec : other) {
     auto it = forest.find(targetsVec);
@@ -323,11 +323,11 @@ TargetForest::Layer *TargetForest::Layer::replaceChildWith(ref<Target> child, co
   auto result = new Layer(this);
   for (auto& targetsVec : other) {
     for (auto& target : targetsVec->getTargets()) {
-      auto it = result->targets2Vector.find(target);
-      if (it != result->targets2Vector.end()) {
+      auto it = result->targetsToVector.find(target);
+      if (it != result->targetsToVector.end()) {
         it->second.erase(targetsVec);
         if (it->second.empty()) {
-          result->targets2Vector.erase(it);
+          result->targetsToVector.erase(it);
         }
       }
     }
@@ -579,7 +579,7 @@ TargetForest::Layer *TargetForest::Layer::divideConfidenceBy(std::multiset<ref<T
 }
 
 void TargetForest::Layer::collectHowManyEventsInTracesWereReached(
-  std::unordered_map<unsigned, std::pair<unsigned, unsigned>> &trace2eventCount,
+  std::unordered_map<unsigned, std::pair<unsigned, unsigned>> &traceToEventCount,
   unsigned reached,
   unsigned total) const {
   total++;
@@ -595,8 +595,8 @@ void TargetForest::Layer::collectHowManyEventsInTracesWereReached(
     auto reachedCurrent = isReported ? reached + 1 : reached;
     auto target = *targetsVec->getTargets().begin();
     if (target->shouldFailOnThisTarget()) {
-      trace2eventCount[target->getId()] = std::make_pair(reachedCurrent, total);
+      traceToEventCount[target->getId()] = std::make_pair(reachedCurrent, total);
     }
-    child->collectHowManyEventsInTracesWereReached(trace2eventCount, reachedCurrent, total);
+    child->collectHowManyEventsInTracesWereReached(traceToEventCount, reachedCurrent, total);
   }
 }
