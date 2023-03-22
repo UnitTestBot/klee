@@ -46,6 +46,7 @@ Function *getTargetFunction(Value *calledVal);
 
 namespace klee {
 struct Cell;
+class CodeGraphInfo;
 class Executor;
 class Expr;
 class InterpreterHandler;
@@ -87,6 +88,52 @@ public:
 };
 
 typedef std::function<bool(KBlock *)> KBlockPredicate;
+
+bool FalsePredicate(KBlock *);
+bool RegularFunctionPredicate(KBlock *);
+
+struct InitializerPredicate {
+  virtual bool operator()(KBlock *block) = 0;
+  virtual bool isInterestingCallBlock(KBlock *kb) = 0;
+  virtual ~InitializerPredicate() {}
+};
+
+struct JointBlockPredicate : public InitializerPredicate {
+  bool operator()(KBlock *block) override;
+  bool isInterestingCallBlock(KBlock *kb) override;
+  ~JointBlockPredicate() override {}
+};
+
+struct TraceVerifyPredicate : public InitializerPredicate {
+  explicit TraceVerifyPredicate(std::set<KBlock *> specialPoints,
+                                CodeGraphInfo &cgd)
+      : specialPoints(specialPoints), cgd(cgd){};
+
+  bool operator()(KBlock *block) override;
+
+  bool isInterestingCallBlock(KBlock *kb) override;
+
+  ~TraceVerifyPredicate() override {}
+
+private:
+  std::set<KBlock *> specialPoints;
+  std::set<KFunction *> interestingFns;
+  std::set<KFunction *> uninsterestingFns;
+
+  CodeGraphInfo &cgd;
+
+  bool isInterestingFn(KFunction *kf);
+};
+
+struct PredicateAdapter {
+
+  bool operator()(KBlock *block);
+
+  PredicateAdapter(InitializerPredicate &predicate) : predicate(predicate) {}
+
+private:
+  InitializerPredicate &predicate;
+};
 
 struct KCallBlock : KBlock {
   KInstruction *kcallInstruction;
@@ -139,6 +186,7 @@ public:
   std::unordered_map<const llvm::BasicBlock *, KBlock *> blockMap;
   KBlock *entryKBlock;
   std::vector<KBlock *> returnKBlocks;
+  std::set<KBlock *> finalKBlocks;
   std::vector<KCallBlock *> kCallBlocks;
 
   /// count of instructions in function
@@ -199,7 +247,7 @@ struct KBlockCompare {
 
 struct KFunctionCompare {
   bool operator()(const KFunction *a, const KFunction *b) const {
-    return a->id < b->id;
+    return a->getGlobalIndex() < b->getGlobalIndex();
   }
 };
 
@@ -318,6 +366,16 @@ public:
   unsigned getGlobalIndex(const llvm::Function *func) const;
   unsigned getGlobalIndex(const llvm::Instruction *inst) const;
 };
+
+struct KBlockLess {
+  bool operator()(const KBlock *a, const KBlock *b) const {
+    if (a->parent->getGlobalIndex() != b->parent->getGlobalIndex()) {
+      return a->parent->getGlobalIndex() < b->parent->getGlobalIndex();
+    }
+    return a->getId() < b->getId();
+  }
+};
+
 } // namespace klee
 
 #endif /* KLEE_KMODULE_H */

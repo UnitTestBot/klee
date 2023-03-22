@@ -36,7 +36,7 @@ private:
 
   explicit TargetsHistory(ref<Target> _target,
                           ref<TargetsHistory> _visitedTargets)
-      : target(_target), visitedTargets(_visitedTargets) {
+      : target(_target), next(_visitedTargets) {
     computeHash();
     computeSize();
   }
@@ -46,8 +46,8 @@ private:
     if (target) {
       res = target->hash() * Expr::MAGIC_HASH_CONSTANT;
     }
-    if (visitedTargets) {
-      res ^= visitedTargets->hash() * Expr::MAGIC_HASH_CONSTANT;
+    if (next) {
+      res ^= next->hash() * Expr::MAGIC_HASH_CONSTANT;
     }
     hashValue = res;
   }
@@ -57,8 +57,8 @@ private:
     if (target) {
       ++res;
     }
-    if (visitedTargets) {
-      res += visitedTargets->size();
+    if (next) {
+      res += next->size();
     }
     sizeValue = res;
   }
@@ -101,7 +101,7 @@ protected:
 
 public:
   const ref<Target> target;
-  const ref<TargetsHistory> visitedTargets;
+  const ref<TargetsHistory> next;
 
   static ref<TargetsHistory> create(ref<Target> _target,
                                     ref<TargetsHistory> _visitedTargets);
@@ -226,6 +226,7 @@ private:
                            UnorderedTargetsSetCmp>,
         TargetHash, TargetCmp>;
     TargetsToVector targetsToVector;
+    TargetHashSet targets;
 
     /// @brief Confidence in % that this layer (i.e., parent target node) can be
     /// reached
@@ -234,7 +235,11 @@ private:
     Layer(const InternalLayer &forest, const TargetsToVector &targetsToVector,
           confidence::ty confidence)
         : forest(forest), targetsToVector(targetsToVector),
-          confidence(confidence) {}
+          confidence(confidence) {
+      for (auto &targetVect : targetsToVector) {
+        targets.insert(targetVect.first);
+      }
+    }
 
     explicit Layer(const Layer *layer)
         : Layer(layer->forest, layer->targetsToVector, layer->confidence) {}
@@ -265,6 +270,7 @@ private:
     void insertTargetsToVec(ref<Target> target,
                             ref<UnorderedTargetsSet> targetsVec) {
       targetsToVector[target].insert(targetsVec);
+      targets.insert(target);
     }
     bool empty() const { return forest.empty(); }
     bool deepFind(ref<Target> target) const;
@@ -284,13 +290,7 @@ private:
                             ref<Target> leaf) const;
     Layer *blockLeafInChild(ref<Target> child, ref<Target> leaf) const;
     Layer *blockLeaf(ref<Target> leaf) const;
-    TargetHashSet getTargets() const {
-      TargetHashSet targets;
-      for (auto &targetVect : targetsToVector) {
-        targets.insert(targetVect.first);
-      }
-      return targets;
-    }
+    const TargetHashSet &getTargets() const { return targets; }
 
     void dump(unsigned n) const;
     void addLeafs(
@@ -307,9 +307,12 @@ private:
     }
 
     void addTrace(
-        const Result &result,
+        const Result &result, KFunction *entryKF,
         const std::unordered_map<ref<Location>, std::unordered_set<KBlock *>,
-                                 RefLocationHash, RefLocationCmp> &locToBlocks);
+                                 RefLocationHash, RefLocationCmp> &locToBlocks,
+        bool reversed);
+
+    void addTrace(const KBlockTrace &trace, bool reversed);
   };
 
   ref<Layer> forest;
@@ -324,10 +327,15 @@ public:
   KFunction *getEntryFunction() { return entryFunction; }
 
   void addTrace(
-      const Result &result,
+      const Result &result, KFunction *entryKF,
       const std::unordered_map<ref<Location>, std::unordered_set<KBlock *>,
-                               RefLocationHash, RefLocationCmp> &locToBlocks) {
-    forest->addTrace(result, locToBlocks);
+                               RefLocationHash, RefLocationCmp> &locToBlocks,
+      bool reversed) {
+    forest->addTrace(result, entryKF, locToBlocks, reversed);
+  }
+
+  void addTrace(const KBlockTrace &trace, bool reversed) {
+    forest->addTrace(trace, reversed);
   }
 
   TargetForest(ref<Layer> layer, KFunction *entryFunction)
@@ -354,7 +362,7 @@ public:
   void block(const ref<Target> &);
   const ref<TargetsHistory> getHistory() { return history; };
   const ref<Layer> getTopLayer() { return forest; };
-  const TargetHashSet getTargets() const { return forest->getTargets(); }
+  const TargetHashSet &getTargets() const { return forest->getTargets(); }
   void dump() const;
   std::vector<std::pair<ref<UnorderedTargetsSet>, confidence::ty>>
   leafs() const;
