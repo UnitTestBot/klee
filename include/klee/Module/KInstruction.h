@@ -11,7 +11,9 @@
 #define KLEE_KINSTRUCTION_H
 
 #include "KModule.h"
+
 #include "klee/Config/Version.h"
+#include "klee/Module/KInstIterator.h"
 #include "klee/Support/CompilerWarning.h"
 #include "llvm/IR/Argument.h"
 DISABLE_WARNING_PUSH
@@ -121,6 +123,10 @@ public:
   }
 
   unsigned hash() const { return getID().hash(); }
+
+  [[nodiscard]] inline KInstIterator getIterator() const {
+    return (parent->instructions + getIndex());
+  }
 };
 
 struct KGEPInstruction : KInstruction {
@@ -144,6 +150,37 @@ public:
   KGEPInstruction() = delete;
   explicit KGEPInstruction(const KGEPInstruction &ki) = delete;
 };
+
+struct CallStackFrame {
+  KInstruction *caller;
+  KFunction *kf;
+
+  CallStackFrame(KInstruction *caller_, KFunction *kf_)
+      : caller(caller_), kf(kf_) {}
+  ~CallStackFrame() = default;
+
+  bool equals(const CallStackFrame &other) const;
+
+  bool operator==(const CallStackFrame &other) const { return equals(other); }
+
+  bool operator!=(const CallStackFrame &other) const { return !equals(other); }
+
+  static void subtractFrames(std::vector<CallStackFrame> &minued,
+                             std::vector<CallStackFrame> subtrahend) {
+    while (!subtrahend.empty() && !minued.empty()) {
+      if (subtrahend.size() == 1) {
+        assert(subtrahend.back().caller == nullptr);
+        break;
+      }
+      auto forwardF = subtrahend.back();
+      auto backwardF = minued.back();
+      assert(forwardF == backwardF);
+      minued.pop_back();
+      subtrahend.pop_back();
+    }
+  }
+};
+
 } // namespace klee
 
 #endif /* KLEE_KINSTRUCTION_H */
