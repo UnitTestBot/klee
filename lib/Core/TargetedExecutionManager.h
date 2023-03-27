@@ -60,7 +60,7 @@ private:
           std::unordered_map<unsigned int, std::unordered_set<unsigned int>>>>;
   std::unordered_set<unsigned> broken_traces;
 
-  bool tryResolveLocations(const Result &locations,
+  bool tryResolveLocations(Result &locations,
                            LocationToBlocks &locToBlocks) const;
   LocationToBlocks prepareAllLocations(KModule *kmodule, Locations &locations) const;
   Locations collectAllLocations(const SarifReport &paths) const;

@@ -117,17 +117,24 @@ TargetedExecutionManager::collectAllLocations(const SarifReport &paths) const {
 }
 
 bool TargetedExecutionManager::tryResolveLocations(
-    const Result &result, LocationToBlocks &locToBlocks) const {
+    Result &result, LocationToBlocks &locToBlocks) const {
+  std::vector<ref<Location>> resolvedLocations;
+  size_t index = 0;
   for (const auto &location : result.locations) {
     auto it = locToBlocks.find(location);
-    if (it == locToBlocks.end()) {
+    if (it != locToBlocks.end()) {
+      resolvedLocations.push_back(location);
+    } else if (index == result.locations.size() - 1) {
       klee_warning(
           "Trace %u is malformed! %s at location %s, so skipping this trace.",
           result.id, getErrorString(result.error),
           location->toString().c_str());
       return false;
     }
+    ++index;
   }
+
+  result.locations = std::move(resolvedLocations);
 
   return true;
 }
@@ -141,7 +148,7 @@ TargetedExecutionManager::prepareTargets(KModule *kmodule,
 
   std::unordered_map<KFunction *, ref<TargetForest>> whitelists;
 
-  for (const auto &result : paths.results) {
+  for (auto &result : paths.results) {
     bool isFullyResolved = tryResolveLocations(result, locToBlocks);
     if (!isFullyResolved) {
       broken_traces.insert(result.id);
@@ -152,7 +159,6 @@ TargetedExecutionManager::prepareTargets(KModule *kmodule,
         whitelists[kf] = whitelist;
       }
       whitelists[kf]->addTrace(result, locToBlocks);
-      whitelists[kf]->dump();
     }
   }
 

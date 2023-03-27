@@ -56,6 +56,11 @@ optional<ReachWithError> tryConvertRuleJson(const std::string &ruleId,
       return ReachWithError::UseAfterFree;
     else
       return nonstd::nullopt;
+  } else if (toolName == "clang") {
+    if ("core.NullDereference" == ruleId)
+      return ReachWithError::NullPointerException;
+    else
+      return nonstd::nullopt;
   } else {
     return nonstd::nullopt;
   }
