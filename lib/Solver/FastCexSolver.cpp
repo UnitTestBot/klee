@@ -783,6 +783,9 @@ public:
     case Expr::Sge:
       assert(0 && "invalid expressions (uncanonicalized");
 
+    case Expr::ApplyFunction:
+      break;
+
     default:
       break;
     }
@@ -922,6 +925,9 @@ public:
     case Expr::Sgt:
     case Expr::Sge:
       assert(0 && "invalid expressions (uncanonicalized");
+
+    case Expr::ApplyFunction:
+      break;
 
     default:
       break;

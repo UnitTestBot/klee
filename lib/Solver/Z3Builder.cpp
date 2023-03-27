@@ -39,6 +39,11 @@ template <> unsigned Z3NodeHandle<Z3_ast>::hash() {
   return Z3_get_ast_hash(context, as_ast());
 }
 
+template <> void Z3NodeHandle<Z3_func_decl>::dump() {
+  llvm::errs() << "Z3FuncDeclHandle:\n"
+               << ::Z3_func_decl_to_string(context, node) << "\n";
+}
+
 void custom_z3_error_handler(Z3_context ctx, Z3_error_code ec) {
   ::Z3_string errorMsg =
 #ifdef HAVE_Z3_GET_ERROR_MSG_NEEDS_CONTEXT

@@ -265,6 +265,19 @@ private:
                             KCallable *callable,
                             std::vector< ref<Expr> > &arguments);
 
+  void mockExternalFunction(ExecutionState &state,
+                            KInstruction *target,
+                            KCallable *callable,
+                            std::vector<ref<Expr>> &arguments);
+
+  ref<Expr> makeSymbolicReturnValue(ExecutionState &state, KInstruction *target,
+                                    KFunction *kf);
+
+  ref<Expr>
+  mockExternalFunctionDeterministicMode(ExecutionState &state,
+                                        KInstruction *target, KFunction *kf,
+                                        std::vector<ref<Expr>> &arguments);
+
   ObjectState *bindObjectInState(ExecutionState &state, const MemoryObject *mo,
                                  KType *dynamicType, bool IsAlloca,
                                  const Array *array = 0);
@@ -374,7 +387,7 @@ private:
   // Used for testing.
   ref<Expr> replaceReadWithSymbolic(ExecutionState &state, ref<Expr> e);
 
-  const Cell& eval(KInstruction *ki, unsigned index, 
+  const Cell& eval(KInstruction *ki, unsigned index,
                    ExecutionState &state) const;
 
   Cell& getArgumentCell(ExecutionState &state,

@@ -493,7 +493,6 @@ void GuidedSearcher::innerUpdate(
   }
 
   for (const auto state : targetlessStates) {
-    KInstruction *prevKI = state->prevPC;
     if (isStuck(*state)) {
       Target target(stateHistory.calculate(*state));
       if (target) {

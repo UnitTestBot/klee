@@ -18,7 +18,8 @@ public:
     Constant,
     MakeSymbolic,
     LazyInitializationSymbolic,
-    SymbolicAddress
+    SymbolicAddress,
+    Mock
   };
 
 public:
@@ -73,6 +74,17 @@ public:
     return S->getKind() == Kind::LazyInitializationSymbolic;
   }
   static bool classof(const LazyInitializationSymbolicSource *) { return true; }
+};
+
+class MockSource : public SymbolicSource {
+public:
+  Kind getKind() const override { return Kind::Mock; }
+  virtual std::string getName() const override { return "mock"; }
+
+  static bool classof(const SymbolicSource *S) {
+    return S->getKind() == Kind::Mock;
+  }
+  static bool classof(const MockSource *) { return true; }
 };
 
 }  // End klee namespace

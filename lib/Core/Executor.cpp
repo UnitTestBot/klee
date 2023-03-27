@@ -241,6 +241,12 @@ cl::opt<ExternalCallPolicy> ExternalCalls(
     cl::init(ExternalCallPolicy::Concrete),
     cl::cat(ExtCallsCat));
 
+cl::opt<bool> ExternalObjects(
+    "external-objects",
+    cl::desc("Mock external objects with symbolic values"),
+    cl::init(false),
+    cl::cat(ExtCallsCat));
+
 cl::opt<bool> SuppressExternalWarnings(
     "suppress-external-warnings",
     cl::init(false),
@@ -254,6 +260,29 @@ cl::opt<bool> AllExternalWarnings(
              "as opposed to once per function (default=false)"),
     cl::cat(ExtCallsCat));
 
+enum class MockStrategy {
+  None,          // No mocks are generated
+  Naive,         // For each function call new symbolic value is generated
+  Deterministic, // Each function is treated as uninterpreted function in SMT.
+                 // Compatible with Z3 solver only
+};
+
+cl::opt<MockStrategy> MockStrategy(
+    "mock-strategy", cl::init(MockStrategy::None),
+    cl::desc("Specify strategy for mocking external calls"),
+    cl::values(
+        clEnumValN(MockStrategy::None, "none",
+                   "External calls are not mocked (default)"),
+        clEnumValN(MockStrategy::Naive, "naive",
+                   "Every time external function is called, new symbolic value "
+                   "is generated for its return value"),
+        clEnumValN(
+            MockStrategy::Deterministic, "deterministic",
+            "NOTE: this option is compatible with Z3 solver only. Each "
+            "external function is treated as a deterministic "
+            "function. Therefore, when function is called many times "
+            "with equal arguments, every time equal values will be returned.")),
+    cl::init(MockStrategy::None), cl::cat(ExtCallsCat));
 
 /*** Seeding options ***/
 
@@ -526,6 +555,10 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
   coreSolverTimeout = time::Span{MaxCoreSolverTime};
   if (coreSolverTimeout) UseForkedCoreSolver = true;
   Solver *coreSolver = klee::createCoreSolver(CoreSolverToUse);
+  if (CoreSolverToUse != Z3_SOLVER &&
+      MockStrategy == MockStrategy::Deterministic) {
+    klee_error("Deterministic mocks can be generated with Z3 solver only.\n");
+  }
   if (!coreSolver) {
     klee_error("Failed to create core solver\n");
   }
@@ -913,8 +946,8 @@ void Executor::initializeGlobalObjects(ExecutionState &state) {
   std::vector<ObjectState *> constantObjects;
   for (const GlobalVariable &v : m->globals()) {
     MemoryObject *mo = globalObjects.find(&v)->second;
-    ObjectState *os = bindObjectInState(
-        state, mo, typeSystemManager->getWrappedType(v.getType()), false);
+    ObjectState *os;
+    auto type = typeSystemManager->getWrappedType(v.getType());
 
     if (v.isDeclaration() && mo->size) {
       // Program already running -> object already initialized.
@@ -926,18 +959,30 @@ void Executor::initializeGlobalObjects(ExecutionState &state) {
         addr = externalDispatcher->resolveSymbol(v.getName().str());
       }
       if (!addr) {
-        klee_error("Unable to load symbol(%.*s) while initializing globals",
-                   static_cast<int>(v.getName().size()), v.getName().data());
+        if (!ExternalObjects) {
+          klee_error("Unable to load symbol(%.*s) while initializing globals",
+                     static_cast<int>(v.getName().size()), v.getName().data());
+        }
+        const Array *array =
+            makeArray(state, mo->size, v.getName().str(), SourceBuilder::mock());
+        mo->setName("@obj_" + v.getName().str());
+        os = bindObjectInState(state, mo, type, false, array);
+        state.addSymbolic(mo, array, type);
+      } else {
+        os = bindObjectInState(state, mo, type, false);
+        for (unsigned offset = 0; offset < mo->size; offset++) {
+          os->write8(offset, static_cast<unsigned char *>(addr)[offset]);
+        }
       }
-      for (unsigned offset = 0; offset < mo->size; offset++) {
-        os->write8(offset, static_cast<unsigned char *>(addr)[offset]);
-      }
-    } else if (v.hasInitializer()) {
-      initializeGlobalObject(state, os, v.getInitializer(), 0);
-      if (v.isConstant())
-        constantObjects.emplace_back(os);
     } else {
-      os->initializeToRandom();
+      os = bindObjectInState(state, mo, type, false);
+      if (v.hasInitializer()) {
+        initializeGlobalObject(state, os, v.getInitializer(), 0);
+        if (v.isConstant())
+          constantObjects.emplace_back(os);
+      } else {
+        os->initializeToRandom();
+      }
     }
   }
 
@@ -4213,6 +4258,76 @@ static std::set<std::string> okExternals(okExternalsList,
                                          okExternalsList + 
                                          (sizeof(okExternalsList)/sizeof(okExternalsList[0])));
 
+ref<Expr> Executor::makeSymbolicReturnValue(ExecutionState &state,
+                                            KInstruction *target,
+                                            KFunction *kf) {
+  std::string name = "@call_" + kf->getName().str();
+  llvm::Value *value = target->inst;
+  uint64_t size = kmodule->targetData->getTypeStoreSize(value->getType());
+  uint64_t width = kmodule->targetData->getTypeSizeInBits(value->getType());
+  MemoryObject *mo = memory->allocate(size, true, false, value, 8);
+  mo->setName(name);
+  KType *type = typeSystemManager->getWrappedType(value->getType());
+  executeMakeSymbolic(state, mo, type, name, SourceBuilder::mock(), true);
+  const ObjectState *os = state.addressSpace.findObject(mo->id).second;
+  auto result = os->read(0, width);
+  bindLocal(target, state, result);
+  return result;
+}
+
+ref<Expr> Executor::mockExternalFunctionDeterministicMode(
+    ExecutionState &state, KInstruction *target, KFunction *kf,
+    std::vector<ref<Expr>> &arguments) {
+  Instruction *allocSite = target->inst;
+  uint64_t width = kmodule->targetData->getTypeSizeInBits(allocSite->getType());
+  ref<Expr> result = makeSymbolicReturnValue(state, target, kf);
+  ref<Expr> fun =
+      ApplyFunctionExpr::create(kf->getName().str(), arguments, width);
+  addConstraint(state, EqExpr::create(fun, result));
+  return result;
+}
+
+void Executor::mockExternalFunction(ExecutionState &state, KInstruction *target,
+                                    KCallable *callable,
+                                    std::vector<ref<Expr>> &arguments) {
+  std::string TmpStr;
+  llvm::raw_string_ostream os(TmpStr);
+  os << "calling external: " << callable->getName().str() << "(";
+  for (unsigned i = 0; i < arguments.size(); i++) {
+    os << arguments[i];
+    if (i != arguments.size() - 1)
+      os << ", ";
+  }
+  os << ") at " << state.pc->getSourceLocation();
+
+  if (AllExternalWarnings)
+    klee_warning("%s", os.str().c_str());
+  else if (!SuppressExternalWarnings)
+    klee_warning_once(callable->getValue(), "%s", os.str().c_str());
+
+  if (MockStrategy == MockStrategy::None || !isa<KFunction>(callable)) {
+    terminateStateOnError(state, "failed external call: " + callable->getName(),
+                          StateTerminationType::External);
+    return;
+  }
+
+  auto kf = cast<KFunction>(callable);
+  if (!target->inst->getType()->isSized()) {
+    return;
+  }
+  switch (MockStrategy) {
+  case MockStrategy::Naive:
+    makeSymbolicReturnValue(state, target, kf);
+    break;
+  case MockStrategy::Deterministic:
+    mockExternalFunctionDeterministicMode(state, target, kf, arguments);
+    break;
+  default:
+    klee_error("Unimplemented mock strategy");
+    break;
+  }
+}
+
 void Executor::callExternalFunction(ExecutionState &state,
                                     KInstruction *target,
                                     KCallable *callable,
@@ -4228,6 +4343,11 @@ void Executor::callExternalFunction(ExecutionState &state,
     klee_warning("Disallowed call to external function: %s\n",
                callable->getName().str().c_str());
     terminateStateOnUserError(state, "external calls disallowed");
+    return;
+  }
+
+  if (ExternalCalls == ExternalCallPolicy::All && MockStrategy != MockStrategy::None) {
+    mockExternalFunction(state, target, callable, arguments);
     return;
   }
 

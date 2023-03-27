@@ -241,7 +241,10 @@ public:
     BinaryKindFirst = Add,
     BinaryKindLast = FOGe,
     CmpKindFirst = Eq,
-    CmpKindLast = FOGe
+    CmpKindLast = FOGe,
+
+    // Uninterpreted function application
+    ApplyFunction,
   };
 
   /// @brief Required by klee::ref-managed objects
@@ -1343,6 +1346,33 @@ public:
 
 private:
   FNegExpr(const ref<Expr> &e) : expr(e) {}
+};
+
+class ApplyFunctionExpr : public NonConstantExpr {
+public:
+  static ref<Expr> create(std::string name, std::vector<ref<Expr>> args, Width returnTypeWidth) {
+    return ref<Expr>(new ApplyFunctionExpr(std::move(name), std::move(args), returnTypeWidth));
+  }
+  virtual Kind getKind() const { return ApplyFunction; }
+  virtual unsigned getNumKids() const { return args.size(); }
+  virtual ref<Expr> getKid(unsigned i) const { return args.at(i); }
+  virtual Width getWidth() const { return returnTypeWidth; }
+  virtual ref<Expr> rebuild(ref<Expr> kids[]) const {
+    std::vector<ref<Expr>> newKids(kids, kids + getNumKids());
+    return create(name, newKids, returnTypeWidth);
+  }
+  std::string name;
+
+protected:
+  virtual int compareContents(const Expr &b) const {
+    return 0;
+  }
+
+private:
+  std::vector<ref<Expr>> args;
+  Width returnTypeWidth;
+  ApplyFunctionExpr(const std::string &name, std::vector<ref<Expr>> args, Width returnTypeWidth)
+      : name(name), args(std::move(args)), returnTypeWidth(returnTypeWidth) {}
 };
 
 // Terminal Exprs

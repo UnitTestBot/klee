@@ -214,6 +214,9 @@ protected:
   /// Contains the arrays found during scans
   std::set<const Array *> usedArrays;
 
+  /// Contains the functions found during scans
+  std::map<std::string, const ApplyFunctionExpr *> usedFunctions;
+
   /// Set of expressions seen during scan.
   std::set<ref<Expr> > seenExprs;
 
@@ -258,6 +261,9 @@ protected:
 
   // Print SMTLIBv2 assertions for constant arrays
   void printArrayDeclarations();
+
+  // Print SMTLIBv2 for the function declarations
+  void printFunctionDeclarations();
 
   // Print SMTLIBv2 for the query optimised for human readability
   void printHumanReadableQuery();

@@ -87,6 +87,7 @@ public:
                                         // Although order doesn't matter, we use a vector to match
                                         // the ConstraintManager constructor that will eventually
                                         // be invoked.
+  std::set<std::string> uninterpretedFunctions;
 
   IndependentElementSet();
   IndependentElementSet(ref<Expr> e);

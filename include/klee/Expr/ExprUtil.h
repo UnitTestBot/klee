@@ -48,6 +48,8 @@ namespace klee {
 
   void findObjects(ref<Expr> e, std::vector<const Array *> &results);
 
+  void findUninterpretedFunctions(ref<Expr> e, std::set<std::string> &results);
+
   bool isReadFromSymbolicArray(ref<Expr> e);
 
   class ConstantArrayFinder : public ExprVisitor {

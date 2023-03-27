@@ -468,6 +468,11 @@ const char *ExprSMTLIBPrinter::getSMTLIBKeyword(const ref<Expr> &e) {
   case Expr::Sge:
     return "bvsge";
 
+  case Expr::ApplyFunction: {
+    ApplyFunctionExpr *applyFunctionExpr = cast<ApplyFunctionExpr>(e);
+    return applyFunctionExpr->name.c_str();
+  }
+
   default:
     llvm_unreachable("Conversion from Expr to SMTLIB keyword failed");
   }
@@ -526,6 +531,7 @@ void ExprSMTLIBPrinter::generateOutput() {
   printOptions();
   printSetLogic();
   printArrayDeclarations();
+  printFunctionDeclarations();
 
   if (humanReadable)
     printHumanReadableQuery();
@@ -620,6 +626,20 @@ void ExprSMTLIBPrinter::printArrayDeclarations() {
   }
 }
 
+void ExprSMTLIBPrinter::printFunctionDeclarations() {
+  if (humanReadable)
+    *o << "; Function declarations\n";
+
+  for (const auto &func : usedFunctions) {
+    *o << "(declare-fun " << func.first << " (";
+    for (size_t i = 0; i < func.second->getNumKids(); i++) {
+      auto arg = func.second->getKid(i);
+      *o << "(_ BitVec " << arg->getWidth() << ") ";
+    }
+    *o << ") (_ BitVec " << func.second->getWidth() << ") )\n";
+  }
+}
+
 void ExprSMTLIBPrinter::printHumanReadableQuery() {
   assert(humanReadable && "method must be called in humanReadable mode");
   *o << "; Constraints\n";
@@ -710,6 +730,11 @@ void ExprSMTLIBPrinter::scan(const ref<Expr> &e) {
         // scan the update list
         scanUpdates(re->updates.head.get());
       }
+    }
+
+    if (e->getKind() == Expr::ApplyFunction) {
+      ApplyFunctionExpr *applyFunctionExpr = cast<ApplyFunctionExpr>(e);
+      usedFunctions[applyFunctionExpr->name] = applyFunctionExpr;
     }
 
     // recurse into the children

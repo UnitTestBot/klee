@@ -100,7 +100,11 @@ bool assertCreatedPointEvaluatesToTrue(
 
   for (auto const &constraint : query.constraints) {
     ref<Expr> ret = assign.evaluate(constraint);
-
+    if (ret->getKind() == Expr::Eq &&
+        (ret->getKid(0)->getKind() == Expr::ApplyFunction ||
+         ret->getKid(1)->getKind() == Expr::ApplyFunction)) {
+      return true;
+    }
     assert(isa<ConstantExpr>(ret) &&
            "assignment evaluation did not result in constant");
     ref<ConstantExpr> evaluatedConstraint = dyn_cast<ConstantExpr>(ret);

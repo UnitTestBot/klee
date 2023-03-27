@@ -20,6 +20,7 @@
 #include "klee/Support/ErrorHandling.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/CommandLine.h"
+#include <numeric>
 
 using namespace klee;
 
@@ -884,6 +885,31 @@ Z3ASTHandle Z3BitvectorBuilder::constructActual(ref<Expr> e, int *width_out) {
     Z3ASTHandle arg = castToFloat(construct(fnegExpr->expr, width_out));
     assert(*width_out != 1 && "uncanonicalized FNeg");
     return Z3ASTHandle(Z3_mk_fpa_neg(ctx, arg), ctx);
+  }
+
+  case Expr::ApplyFunction: {
+    ApplyFunctionExpr *applyFunctionExpr = cast<ApplyFunctionExpr>(e);
+
+    std::vector<Z3ASTHandle> argsHandled(e->getNumKids());
+    std::vector<Z3SortHandle> argsSortHandled(e->getNumKids());
+    std::vector<Z3_ast> args(e->getNumKids());
+    std::vector<Z3_sort> argsSort(e->getNumKids());
+    for (size_t i = 0; i < e->getNumKids(); i++) {
+      ref<Expr> kid = e->getKid(i);
+      int kidWidth = kid->getWidth();
+      argsHandled[i] = construct(kid, &kidWidth);
+      args[i] = argsHandled[i];
+      argsSortHandled[i] = Z3SortHandle(Z3_get_sort(ctx, args[i]), ctx);
+      argsSort[i] = argsSortHandled[i];
+    }
+    Z3FuncDeclHandle func;
+    func = Z3FuncDeclHandle(
+        Z3_mk_func_decl(
+            ctx, Z3_mk_string_symbol(ctx, applyFunctionExpr->name.c_str()),
+            e->getNumKids(), argsSort.data(),
+            Z3SortHandle(Z3_mk_bv_sort(ctx, e->getWidth()), ctx)),
+        ctx);
+    return Z3ASTHandle(Z3_mk_app(ctx, func, e->getNumKids(), args.data()), ctx);
   }
 
 // unused due to canonicalization

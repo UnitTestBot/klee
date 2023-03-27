@@ -155,6 +155,15 @@ void klee::findObjects(ref<Expr> e, std::vector<const Array *> &results) {
   findObjects(&e, &e + 1, results);
 }
 
+void klee::findUninterpretedFunctions(ref<Expr> e, std::set<std::string> &results) {
+  if (e->getKind() == Expr::ApplyFunction) {
+    results.insert(cast<ApplyFunctionExpr>(e)->name);
+  }
+  for (size_t i = 0; i < e->getNumKids(); i++) {
+    findUninterpretedFunctions(e->getKid(i), results);
+  }
+}
+
 typedef std::vector< ref<Expr> >::iterator A;
 template void klee::findSymbolicObjects<A>(A, A, std::vector<const Array*> &);
 

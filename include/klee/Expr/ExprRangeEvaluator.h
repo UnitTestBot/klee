@@ -273,6 +273,9 @@ T ExprRangeEvaluator<T>::evaluate(const ref<Expr> &e) {
   case Expr::Sge:
     assert(0 && "invalid expressions (uncanonicalized)");
 
+  case Expr::ApplyFunction:
+    break;
+
   default:
     break;
   }

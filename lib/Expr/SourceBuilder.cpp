@@ -12,6 +12,8 @@ ref<SymbolicSource> SourceBuilder::symbolicAddressSource =
     ref<SymbolicSource>(new SymbolicAddressSource());
 ref<SymbolicSource> SourceBuilder::lazyInitializationSymbolicSource =
     ref<SymbolicSource>(new LazyInitializationSymbolicSource());
+ref<SymbolicSource> SourceBuilder::mockSource =
+    ref<MockSource>(new MockSource());
 
 ref<SymbolicSource> SourceBuilder::constant() {
   return SourceBuilder::constantSource;
@@ -27,4 +29,8 @@ ref<SymbolicSource> SourceBuilder::symbolicAddress() {
 
 ref<SymbolicSource> SourceBuilder::lazyInitializationMakeSymbolic() {
   return SourceBuilder::lazyInitializationSymbolicSource;
+}
+
+ref<SymbolicSource> SourceBuilder::mock() {
+  return SourceBuilder::mockSource;
 }

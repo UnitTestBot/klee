@@ -46,10 +46,13 @@ IndependentElementSet::IndependentElementSet(ref<Expr> e) {
       }
     }
   }
+
+  findUninterpretedFunctions(e, uninterpretedFunctions);
 }
 
 IndependentElementSet::IndependentElementSet(const IndependentElementSet &ies)
-    : elements(ies.elements), wholeObjects(ies.wholeObjects), exprs(ies.exprs) {
+    : elements(ies.elements), wholeObjects(ies.wholeObjects), exprs(ies.exprs),
+      uninterpretedFunctions(ies.uninterpretedFunctions) {
 }
 
 IndependentElementSet &
@@ -57,6 +60,7 @@ IndependentElementSet::operator=(const IndependentElementSet &ies) {
   elements = ies.elements;
   wholeObjects = ies.wholeObjects;
   exprs = ies.exprs;
+  uninterpretedFunctions = ies.uninterpretedFunctions;
   return *this;
 }
 
@@ -116,6 +120,12 @@ bool IndependentElementSet::intersects(const IndependentElementSet &b) {
         return true;
     }
   }
+
+  for (const auto &f : uninterpretedFunctions) {
+    if (b.uninterpretedFunctions.find(f) != b.uninterpretedFunctions.end()) {
+      return true;
+    }
+  }
   return false;
 }
 
@@ -159,6 +169,14 @@ bool IndependentElementSet::add(const IndependentElementSet &b) {
       }
     }
   }
+
+  for (const auto &f : b.uninterpretedFunctions) {
+    if (uninterpretedFunctions.find(f) == uninterpretedFunctions.end()) {
+      uninterpretedFunctions.insert(f);
+      modified = true;
+    }
+  }
+
   return modified;
 }
 

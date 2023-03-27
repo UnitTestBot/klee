@@ -13,6 +13,7 @@ private:
   static ref<SymbolicSource> makeSymbolicSource;
   static ref<SymbolicSource> symbolicAddressSource;
   static ref<SymbolicSource> lazyInitializationSymbolicSource;
+  static ref<SymbolicSource> mockSource;
 
 public:
   SourceBuilder() = delete;
@@ -21,6 +22,7 @@ public:
   static ref<SymbolicSource> makeSymbolic();
   static ref<SymbolicSource> symbolicAddress();
   static ref<SymbolicSource> lazyInitializationMakeSymbolic();
+  static ref<SymbolicSource> mock();
 };
 
 };

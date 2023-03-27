@@ -14,6 +14,7 @@
 #include "klee/ADT/TreeStream.h"
 #include "klee/Config/Version.h"
 #include "klee/Core/Interpreter.h"
+#include "klee/Core/MockRunTestBuilder.h"
 #include "klee/ADT/KTest.h"
 #include "klee/Support/OptionCategories.h"
 #include "klee/Statistics/Statistics.h"
@@ -40,6 +41,7 @@
 #include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Transforms/Utils/Cloning.h"
 
 #include "../Core/Context.h"
 #include "llvm/Support/Signals.h"
@@ -280,6 +282,16 @@ namespace {
                  cl::desc("Specify a path file to replay"),
                  cl::value_desc("path file"),
                  cl::cat(ReplayCat));
+
+
+
+  cl::OptionCategory RunTestCat("Replaying with runtest library");
+
+  cl::opt<bool> RunTestMocks(
+      "replay-mocks", cl::init(false),
+      cl::desc("Creates bitcode with all external functions' declarations based "
+               "on generated mocks (default=false)"),
+      cl::cat(RunTestCat));
 
 
 
@@ -1024,7 +1036,7 @@ static const char *unsafeExternals[] = {
 };
 
 #define NELEMS(array) (sizeof(array)/sizeof(array[0]))
-void externalsAndGlobalsCheck(const llvm::Module *m) {
+void externalsAndGlobalsCheck(const llvm::Module *m, KleeHandler *handler) {
   std::map<std::string, bool> externals;
   std::set<std::string> modelled(modelledExternals,
                                  modelledExternals+NELEMS(modelledExternals));
@@ -1070,6 +1082,9 @@ void externalsAndGlobalsCheck(const llvm::Module *m) {
       externals.erase(it2);
   }
 
+  std::set<std::string> undefinedVariables;
+  std::set<std::string> undefinedFunctions;
+
   std::map<std::string, bool> foundUnsafe;
   for (std::map<std::string, bool>::iterator
          it = externals.begin(), ie = externals.end();
@@ -1078,6 +1093,11 @@ void externalsAndGlobalsCheck(const llvm::Module *m) {
     if (!modelled.count(ext) && (WarnAllExternals ||
                                  !dontCare.count(ext))) {
       if (ext.compare(0, 5, "llvm.") != 0) { // not an LLVM reserved name
+        if (it->second) {
+          undefinedVariables.insert(ext);
+        } else {
+          undefinedFunctions.insert(ext);
+        }
         if (unsafe.count(ext)) {
           foundUnsafe.insert(*it);
         } else {
@@ -1096,6 +1116,18 @@ void externalsAndGlobalsCheck(const llvm::Module *m) {
     klee_warning("undefined reference to %s: %s (UNSAFE)!",
                  it->second ? "variable" : "function",
                  ext.c_str());
+  }
+
+  if (RunTestMocks) {
+    MockRunTestBuilder builder(m, EntryPoint, undefinedVariables, undefinedFunctions);
+    llvm::Module *mockModule = builder.build();
+    if (!mockModule) {
+      klee_warning("Unable to generate replay.ll for entrypoint %s",
+                   EntryPoint.c_str());
+    } else {
+      auto os = handler->openOutputFile("replay.ll");
+      *os << *mockModule;
+    }
   }
 }
 
@@ -1281,7 +1313,7 @@ static int run_klee_on_function(
     klee_error("Entry function '%s' not found in module.", EntryPoint.c_str());
   }
 
-  externalsAndGlobalsCheck(finalModule);
+  externalsAndGlobalsCheck(finalModule, handler);
 
   if (ReplayPathFile != "") {
     interpreter->setReplayPath(&replayPath);
