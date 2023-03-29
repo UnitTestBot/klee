@@ -48,9 +48,8 @@ ExprVisitor::Action ExprEvaluator::visitExpr(const Expr &e) {
     if (!isa<ConstantExpr>(e.getKid(i)))
       return Action::doChildren();
 
-  ref<Expr> Kids[3];
+  ref<Expr> Kids[N];
   for (unsigned i = 0; i != N; ++i) {
-    assert(i < 3);
     Kids[i] = e.getKid(i);
   }
 
