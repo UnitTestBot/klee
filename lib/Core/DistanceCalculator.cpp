@@ -44,18 +44,33 @@ unsigned DistanceCalculator::SpeculativeState::computeHash() {
   unsigned res =
       (reinterpret_cast<uintptr_t>(kb) * SymbolicSource::MAGIC_HASH_CONSTANT) +
       kind;
+  res = res * SymbolicSource::MAGIC_HASH_CONSTANT + reversed;
   hashValue = res;
   return hashValue;
 }
 
 DistanceResult DistanceCalculator::getDistance(const ExecutionState &state,
                                                KBlock *target) {
-  return getDistance(state.prevPC, state.pc, state.stack.callStack(), target);
+  assert(state.getPC());
+  // In "br" inst of call block
+  if (isa<KCallBlock>(state.getPCBlock()) && state.getPC()->getIndex() == 1) {
+    auto nextBB =
+        state.getPC()->parent->basicBlock->getTerminator()->getSuccessor(0);
+    auto nextKB = state.getPC()->parent->parent->blockMap.at(nextBB);
+    return getDistance(nextKB, state.stack.callStack(), target, false);
+  }
+  return getDistance(state.getPC()->parent, state.stack.callStack(), target,
+                     false);
+}
+
+DistanceResult DistanceCalculator::getDistance(const ProofObligation &pob,
+                                               KBlock *target) {
+  return getDistance(pob.location->getBlock(), pob.stack, target, true);
 }
 
 DistanceResult DistanceCalculator::getDistance(KBlock *kb, TargetKind kind,
-                                               KBlock *target) {
-  SpeculativeState specState(kb, kind);
+                                               KBlock *target, bool reversed) {
+  SpeculativeState specState(kb, kind, reversed);
   auto it1 = distanceResultCache.find(target);
   if (it1 == distanceResultCache.end()) {
     SpeculativeStateToDistanceResultMap m;
@@ -64,7 +79,7 @@ DistanceResult DistanceCalculator::getDistance(KBlock *kb, TargetKind kind,
   auto &m = it1->second;
   auto it2 = m.find(specState);
   if (it2 == m.end()) {
-    auto result = computeDistance(kb, kind, target);
+    auto result = computeDistance(kb, kind, target, reversed);
     m.emplace(specState, result);
     return result;
   }
@@ -72,13 +87,13 @@ DistanceResult DistanceCalculator::getDistance(KBlock *kb, TargetKind kind,
 }
 
 DistanceResult DistanceCalculator::computeDistance(KBlock *kb, TargetKind kind,
-                                                   KBlock *target) const {
+                                                   KBlock *target, bool reversed) const {
   weight_type weight = 0;
   WeightResult res = Miss;
   bool isInsideFunction = true;
   switch (kind) {
   case LocalTarget:
-    res = tryGetTargetWeight(kb, weight, target);
+    res = tryGetTargetWeight(kb, weight, target, reversed);
     break;
 
   case PreTarget:
@@ -87,7 +102,7 @@ DistanceResult DistanceCalculator::computeDistance(KBlock *kb, TargetKind kind,
     break;
 
   case PostTarget:
-    res = tryGetPostTargetWeight(kb, weight, target);
+    res = tryGetPostTargetWeight(kb, weight, target, reversed);
     isInsideFunction = false;
     break;
 
@@ -97,12 +112,14 @@ DistanceResult DistanceCalculator::computeDistance(KBlock *kb, TargetKind kind,
   return DistanceResult(res, weight, isInsideFunction);
 }
 
-DistanceResult DistanceCalculator::getDistance(
-    const KInstruction *prevPC, const KInstruction *pc,
-    const ExecutionStack::call_stack_ty &frames, KBlock *target) {
-  KBlock *kb = pc->parent;
+DistanceResult
+DistanceCalculator::getDistance(KBlock *pcBlock,
+                                const ExecutionStack::call_stack_ty &frames,
+                                KBlock *target, bool reversed) {
+  KBlock *kb = pcBlock;
   const auto &distanceToTargetFunction =
-      codeGraphInfo.getBackwardDistance(target->parent);
+      reversed ? codeGraphInfo.getDistance(target->parent)
+               : codeGraphInfo.getBackwardDistance(target->parent);
   unsigned int minCallWeight = UINT_MAX, minSfNum = UINT_MAX, sfNum = 0;
   auto sfi = frames.rbegin(), sfe = frames.rend();
   bool strictlyAfterKB =
@@ -124,6 +141,16 @@ DistanceResult DistanceCalculator::getDistance(
       kb = sfi->caller->parent;
   }
 
+  if (minCallWeight == UINT_MAX && reversed) {
+    if (distanceToTargetFunction.count(pcBlock->parent->function)) {
+      minCallWeight = 2 * distanceToTargetFunction.at(pcBlock->parent->function) + sfNum;
+      minSfNum = sfNum;
+      if (minSfNum == 0) {
+        minSfNum = 1;
+      }
+    }
+  }
+
   TargetKind kind = NoneTarget;
   if (minCallWeight == 0) {
     kind = LocalTarget;
@@ -133,7 +160,7 @@ DistanceResult DistanceCalculator::getDistance(
     kind = PostTarget;
   }
 
-  return getDistance(pc->parent, kind, target);
+  return getDistance(pcBlock, kind, target, reversed);
 }
 
 bool DistanceCalculator::distanceInCallGraph(
@@ -206,20 +233,21 @@ WeightResult DistanceCalculator::tryGetPreTargetWeight(KBlock *kb,
 
 WeightResult DistanceCalculator::tryGetPostTargetWeight(KBlock *kb,
                                                         weight_type &weight,
-                                                        KBlock *target) const {
+                                                        KBlock *target,
+                                                        bool reversed) const {
   KFunction *currentKF = kb->parent;
-  std::vector<KBlock *> &localTargets = currentKF->returnKBlocks;
 
-  if (localTargets.empty())
+  if (!reversed && currentKF->returnKBlocks.empty())
     return Miss;
 
-  WeightResult res = tryGetLocalWeight(kb, weight, localTargets);
+  WeightResult res = tryGetLocalWeight(kb, weight, currentKF->returnKBlocks);
   return res == Done ? Continue : res;
 }
 
 WeightResult DistanceCalculator::tryGetTargetWeight(KBlock *kb,
                                                     weight_type &weight,
-                                                    KBlock *target) const {
+                                                    KBlock *target,
+                                                    bool reversed) const {
   std::vector<KBlock *> localTargets = {target};
   WeightResult res = tryGetLocalWeight(kb, weight, localTargets);
   return res;
