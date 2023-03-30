@@ -4265,12 +4265,8 @@ ref<Expr> Executor::makeSymbolicReturnValue(ExecutionState &state,
   llvm::Value *value = target->inst;
   uint64_t size = kmodule->targetData->getTypeStoreSize(value->getType());
   uint64_t width = kmodule->targetData->getTypeSizeInBits(value->getType());
-  MemoryObject *mo = memory->allocate(size, true, false, value, 8);
-  mo->setName(name);
-  KType *type = typeSystemManager->getWrappedType(value->getType());
-  executeMakeSymbolic(state, mo, type, name, SourceBuilder::mock(), true);
-  const ObjectState *os = state.addressSpace.findObject(mo->id).second;
-  auto result = os->read(0, width);
+  const Array *array = makeArray(state, size, name, SourceBuilder::mock());
+  ref<Expr> result = Expr::createTempRead(array, width, 0);
   bindLocal(target, state, result);
   return result;
 }
