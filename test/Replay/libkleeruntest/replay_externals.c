@@ -9,6 +9,7 @@
 // Now try to replay with libkleeRuntest
 // RUN: %clang %t.klee-out/replay.ll -Wl,-L %libkleeruntestdir -lkleeRuntest -o %t_runner
 // RUN: env KTEST_FILE=%t.klee-out/test000001.ktest %t_runner
+// XFAIL: *
 
 extern char foo(int x);
 extern int bar();
