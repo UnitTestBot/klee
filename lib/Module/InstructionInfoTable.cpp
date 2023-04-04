@@ -25,6 +25,7 @@
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
+#include <llvm/ADT/Optional.h>
 
 #include <cstdint>
 #include <map>
@@ -47,10 +48,10 @@ public:
   }
 };
 
-static std::map<uintptr_t, uint64_t>
+static std::unordered_map<uintptr_t, uint64_t>
 buildInstructionToLineMap(const llvm::Module &m) {
 
-  std::map<uintptr_t, uint64_t> mapping;
+  std::unordered_map<uintptr_t, uint64_t> mapping;
   InstructionToLineAnnotator a;
   std::string str;
 
@@ -83,16 +84,20 @@ buildInstructionToLineMap(const llvm::Module &m) {
 
 class DebugInfoExtractor {
   std::vector<std::unique_ptr<std::string>> &internedStrings;
-  std::map<uintptr_t, uint64_t> lineTable;
+  std::unordered_map<uintptr_t, uint64_t> lineTable;
 
   const llvm::Module &module;
+  bool withAsm;
 
 public:
   DebugInfoExtractor(
       std::vector<std::unique_ptr<std::string>> &_internedStrings,
-      const llvm::Module &_module)
-      : internedStrings(_internedStrings), module(_module) {
-    lineTable = buildInstructionToLineMap(module);
+      const llvm::Module &_module,
+      bool withAsm)
+      : internedStrings(_internedStrings), module(_module), withAsm(withAsm) {
+    if(withAsm) {
+      lineTable = buildInstructionToLineMap(module);
+    }
   }
 
   std::string &getInternedString(const std::string &s) {
@@ -111,7 +116,10 @@ public:
   }
 
   std::unique_ptr<FunctionInfo> getFunctionInfo(const llvm::Function &Func) {
-    auto asmLine = lineTable.at(reinterpret_cast<std::uintptr_t>(&Func));
+    llvm::Optional<uint64_t> asmLine;
+    if(withAsm) {
+      asmLine = lineTable.at(reinterpret_cast<std::uintptr_t>(&Func));
+    }
     auto dsub = Func.getSubprogram();
 
     if (dsub != nullptr) {
@@ -127,7 +135,10 @@ public:
 
   std::unique_ptr<InstructionInfo>
   getInstructionInfo(const llvm::Instruction &Inst, const FunctionInfo *f) {
-    auto asmLine = lineTable.at(reinterpret_cast<std::uintptr_t>(&Inst));
+    llvm::Optional<uint64_t> asmLine;
+    if(withAsm) {
+      asmLine = lineTable.at(reinterpret_cast<std::uintptr_t>(&Inst));
+    }
 
     // Retrieve debug information associated with instruction
     auto dl = Inst.getDebugLoc();
@@ -161,18 +172,22 @@ public:
   }
 };
 
-InstructionInfoTable::InstructionInfoTable(const llvm::Module &m) {
+InstructionInfoTable::InstructionInfoTable(const llvm::Module &m, bool withAsm) {
   // Generate all debug instruction information
-  DebugInfoExtractor DI(internedStrings, m);
+  DebugInfoExtractor DI(internedStrings, m, withAsm);
+
+  functionInfos.reserve(m.size());
+  infos.reserve(const_cast<llvm::Module*>(&m)->getInstructionCount());
+
   for (const auto &Func : m) {
     auto F = DI.getFunctionInfo(Func);
     auto FR = F.get();
-    functionInfos.insert(std::make_pair(&Func, std::move(F)));
+    functionInfos.emplace(&Func, std::move(F));
 
     for (auto it = llvm::inst_begin(Func), ie = llvm::inst_end(Func); it != ie;
          ++it) {
       auto instr = &*it;
-      infos.insert(std::make_pair(instr, DI.getInstructionInfo(*instr, FR)));
+      infos.emplace(instr, DI.getInstructionInfo(*instr, FR));
     }
   }
 

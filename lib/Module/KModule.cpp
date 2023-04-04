@@ -49,6 +49,7 @@
 #include "llvm/Transforms/Utils.h"
 #endif
 
+#include <memory>
 #include <sstream>
 
 using namespace llvm;
@@ -364,12 +365,12 @@ void KModule::manifest(InterpreterHandler *ih, bool forceSourceOutput) {
 
   /* Build shadow structures */
 
-  infos = std::unique_ptr<InstructionInfoTable>(
-      new InstructionInfoTable(*module.get()));
+  infos = std::make_unique<InstructionInfoTable>(*module,
+                                                 OutputSource || forceSourceOutput);
 
   std::vector<Function *> declarations;
 
-  for (auto &Function : *module) {
+  for (auto &Function : module->functions()) {
     if (Function.isDeclaration()) {
       declarations.push_back(&Function);
     }
