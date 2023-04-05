@@ -63,19 +63,6 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const MemoryMap &mm);
 
 extern llvm::cl::opt<unsigned long long> MaxCyclesBeforeStuck;
 
-struct CallStackFrame {
-  KInstIterator caller;
-  KFunction *kf;
-
-  CallStackFrame(KInstIterator caller_, KFunction *kf_)
-      : caller(caller_), kf(kf_) {}
-  ~CallStackFrame() = default;
-
-  bool equals(const CallStackFrame &other) const;
-
-  bool operator==(const CallStackFrame &other) const { return equals(other); }
-};
-
 struct StackFrame {
   KFunction *kf;
   std::vector<IDType> allocas;
@@ -96,7 +83,7 @@ struct StackFrame {
 struct InfoStackFrame {
   KFunction *kf;
   CallPathNode *callPathNode = nullptr;
-  PersistentMap<llvm::BasicBlock *, unsigned long long> multilevel;
+  PersistentMap<KBlock *, unsigned long long> multilevel;
 
   /// Minimum distance to an uncovered instruction once the function
   /// returns. This is not a good place for this but is used to
@@ -121,12 +108,14 @@ private:
   info_stack_ty infoStack_;
   call_stack_ty uniqueFrames_;
   size_t stackSize = 0;
-  unsigned stackBalance = 0;
+  int stackBalance_ = 0;
 
 public:
   PersistentMap<KFunction *, unsigned long long> multilevel;
   void pushFrame(KInstIterator caller, KFunction *kf);
   void popFrame();
+  int stackBalance() const { return stackBalance_; }
+  void SETSTACKBALANCETOZERO() { stackBalance_ = 0; }
   inline value_stack_ty &valueStack() { return valueStack_; }
   inline const value_stack_ty &valueStack() const { return valueStack_; }
   inline const call_stack_ty &callStack() const { return callStack_; }
@@ -250,8 +239,6 @@ struct MemorySubobjectCompare {
   }
 };
 
-typedef std::pair<llvm::BasicBlock *, llvm::BasicBlock *> Transition;
-
 /// @brief ExecutionState representing a path under exploration
 class ExecutionState {
 #ifdef KLEE_UNITTEST
@@ -263,8 +250,6 @@ private:
   ExecutionState(const ExecutionState &state);
 
 public:
-  using stack_ty = ExecutionStack;
-
   // Execution - Control Flow specific
 
   /// @brief Pointer to initial instruction
@@ -278,9 +263,7 @@ public:
   KInstIterator prevPC;
 
   /// @brief Execution stack representing the current instruction stream
-  stack_ty stack;
-
-  int stackBalance = 0;
+  ExecutionStack stack;
 
   /// @brief Remember from which Basic Block control flow arrived
   /// (i.e. to select the right phi values)
@@ -293,7 +276,7 @@ public:
   std::uint32_t depth = 0;
 
   /// @brief Exploration level, i.e., number of times KLEE cycled for this state
-  std::set<KBlock *, KBlockCompare> level;
+  std::set<KBlock *, KBlockLess> level;
 
   /// @brief Address space used by this state (e.g. Global and Heap)
   AddressSpace addressSpace;
@@ -375,12 +358,20 @@ public:
   /// @brief Disables forking for this state. Set by user code
   bool forkDisabled = false;
 
+  bool isolated = false;
+  bool finalComposing = false;
+
   /// Needed for composition
   ref<Expr> returnValue;
 
   ExprHashMap<std::pair<ref<Expr>, llvm::Type *>> gepExprBases;
 
   mutable ReachWithError error = ReachWithError::None;
+  ref<Expr> nullPointerExpr = nullptr;
+  bool someExecutionHappened = false;
+
+  ExprHashSet assumptions;
+
   std::atomic<HaltExecution::Reason> terminationReasonType{
       HaltExecution::NotHalt};
 
@@ -448,9 +439,21 @@ public:
     id = nextID++;
     queryMetaData.id = id;
   };
-  llvm::BasicBlock *getInitPCBlock() const;
-  llvm::BasicBlock *getPrevPCBlock() const;
-  llvm::BasicBlock *getPCBlock() const;
+
+  KBlock *getInitPCBlock() const { return initPC->parent; }
+
+  KBlock *getPrevPCBlock() const {
+    return prevPC ? prevPC->parent : getInitPCBlock();
+  }
+
+  KBlock *getPCBlock() const { return pc ? pc->parent : getPrevPCBlock(); }
+
+  KInstruction *getInitPC() const { return initPC; }
+
+  KInstruction *getPrevPC() const { return prevPC ? prevPC : getInitPC(); }
+
+  KInstruction *getPC() const { return pc ? pc : getPrevPC(); }
+
   void increaseLevel();
 
   inline bool isTransfered() const { return getPrevPCBlock() != getPCBlock(); }
@@ -492,8 +495,8 @@ public:
     areTargetsChanged_ = true;
   }
 
-  bool reachedTarget(ref<ReachBlockTarget> target) const;
   static std::uint32_t getLastID() { return nextID - 1; };
+  ref<Target> getLocationTarget() const;
 
   inline bool isCycled(unsigned long long bound) const {
     if (bound == 0)
