@@ -32,6 +32,12 @@ llvm::cl::opt<TargetCalculateBy> TargetCalculatorMode(
                    "Looks for the closest uncovered block by state transitions "
                    "history.")),
     cl::init(TargetCalculateBy::Default), cl::cat(ExecCat));
+
+
+llvm::cl::opt<bool> LocationAccuracy(
+    "location-accuracy", cl::init(false),
+    cl::desc(
+        "Check location with line and column accuracy (default=false)"));
 } // namespace klee
 
 std::string Target::toString() const {
@@ -64,13 +70,22 @@ ref<Target> Target::getFromCacheOrReturn(Target *target) {
   return target;
 }
 
-ref<Target> Target::create(ReachWithError _error, unsigned _id, unsigned int _line, KBlock *_block) {
-  Target *target = new Target(_error, _id, _line, _block);
+ref<Target> Target::create(ReachWithError _error, unsigned _id, optional<ErrorLocation> _loc, KBlock *_block) {
+  Target *target = new Target(_error, _id, _loc, _block);
   return getFromCacheOrReturn(target);
 }
 
 ref<Target> Target::create(KBlock *_block) {
-  return create(ReachWithError::None, 0, 0, _block);
+  return create(ReachWithError::None, 0, nonstd::nullopt, _block);
+}
+
+bool Target::isTheSameAsIn(KInstruction *instr) const {
+  if (!loc.has_value()) {
+    return false;
+  }
+  const auto& errLoc = *loc;
+  return instr->info->line >= errLoc.startLine && instr->info->line <= errLoc.endLine &&
+         (!LocationAccuracy || !errLoc.startColumn.has_value() || (instr->info->column >= *errLoc.startColumn && instr->info->column <= *errLoc.endColumn));
 }
 
 int Target::compare(const Target &other) const {

@@ -36,6 +36,15 @@ struct TargetCmp;
 
 enum TargetCalculateBy { Default, Blocks, Transitions };
 
+using nonstd::optional;
+
+struct ErrorLocation {
+  unsigned int startLine;
+  unsigned int endLine;
+  optional<unsigned int> startColumn;
+  optional<unsigned int> endColumn;
+};
+
 struct Target {
 private:
   typedef std::unordered_set<Target *, TargetHash, EquivTargetCmp>
@@ -46,10 +55,10 @@ private:
   KBlock *block;
   ReachWithError error; // None - if it is not terminated in error trace
   unsigned id; // 0 - if it is not terminated in error trace
-  unsigned int line; // TODO(): only for check in reportTruePositive
+  optional<ErrorLocation> loc; // TODO(): only for check in reportTruePositive
 
-  explicit Target(ReachWithError _error, unsigned _id, unsigned int _line, KBlock *_block)
-      : block(_block), error(_error), id(_id), line(_line) {}
+  explicit Target(ReachWithError _error, unsigned _id, optional<ErrorLocation> _loc, KBlock *_block)
+      : block(_block), error(_error), id(_id), loc(_loc) {}
 
   static ref<Target> getFromCacheOrReturn(Target *target);
 
@@ -58,7 +67,7 @@ public:
   /// @brief Required by klee::ref-managed objects
   class ReferenceCounter _refCount;
 
-  static ref<Target> create(ReachWithError _error, unsigned _id, unsigned int _line, KBlock *_block);
+  static ref<Target> create(ReachWithError _error, unsigned _id, optional<ErrorLocation> _loc, KBlock *_block);
   static ref<Target> create(KBlock *_block);
 
   int compare(const Target &other) const;
@@ -86,9 +95,7 @@ public:
 
   ReachWithError getError() const { return error; }
   bool shouldFailOnThisTarget() const { return error != ReachWithError::None; }
-  bool isTheSameAsIn(KInstruction *instr) const {
-    return instr->info->line == line;
-  }
+  bool isTheSameAsIn(KInstruction *instr) const;
 };
 
 typedef std::pair<llvm::BasicBlock *, llvm::BasicBlock *> Transition;

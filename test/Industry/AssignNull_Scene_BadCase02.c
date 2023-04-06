@@ -53,4 +53,4 @@ void TestBad5(struct STU *pdev, const char *buf, unsigned int count)
 // RUN: rm -rf %t.klee-out
 // RUN: %klee --output-dir=%t.klee-out --execution-mode=error-guided --location-accuracy --mock-external-calls --libc=klee --skip-not-lazy-and-symbolic-pointers --analysis-reproduce=%s.json %t1.bc
 // RUN: FileCheck -input-file=%t.klee-out/warnings.txt %s
-// CHECK: KLEE: WARNING: 100.00% NullPointerException True Positive at trace 2
+// CHECK: KLEE: WARNING: 100.00% NullPointerException False Positive at trace 2

@@ -1097,11 +1097,11 @@ void externalsAndGlobalsCheck(const llvm::Module *m) {
   if (WithPOSIXRuntime)
     dontCare.insert("syscall");
 
-    for (Module::const_iterator fnIt = m->begin(), fn_ie = m->end();
-         fnIt != fn_ie; ++fnIt) {
-        if (fnIt->isDeclaration() && !fnIt->use_empty())
-            externals.insert(std::make_pair(fnIt->getName(), false));
-    }
+  for (Module::const_iterator fnIt = m->begin(), fn_ie = m->end();
+       fnIt != fn_ie; ++fnIt) {
+      if (fnIt->isDeclaration() && !fnIt->use_empty())
+          externals.insert(std::make_pair(fnIt->getName(), false));
+  }
 
   for (Module::const_global_iterator
          it = m->global_begin(), ie = m->global_end();
@@ -1149,7 +1149,7 @@ void externalsAndGlobalsCheck(const llvm::Module *m) {
 }
 
 static Interpreter *theInterpreter = 0;
-static nonstd::optional<SarifReport> pathTree = nonstd::nullopt;
+static nonstd::optional<SarifReport> pathForest = nonstd::nullopt;
 
 static std::atomic_bool interrupted{false};
 
@@ -1170,8 +1170,8 @@ static void interrupt_handle() {
     halt_execution();
     sys::SetInterruptFunction(interrupt_handle);
   } else {
-    if (pathTree && (!theInterpreter || !theInterpreter->hasTargetForest())) {
-      for (const auto& res : pathTree->results) {
+    if (pathForest && (!theInterpreter || !theInterpreter->hasTargetForest())) {
+      for (const auto& res : pathForest->results) {
         reportFalsePositive(confidence::MinConfidence, res.error, res.id, "max-time");
       }
     }
@@ -1408,7 +1408,7 @@ static int run_klee_on_function(
         interpreter->runMainAsGuided(mainFn, out->numArgs, out->args, pEnvp);
         break;
       case Interpreter::GuidanceKind::ErrorGuidance:
-        interpreter->runThroughLocations(mainFn, out->numArgs, out->args, pEnvp, std::move(*pathTree));
+        interpreter->runThroughLocations(mainFn, out->numArgs, out->args, pEnvp, std::move(*pathForest));
         break;
       }
       if (interrupted)
@@ -1469,7 +1469,7 @@ static int run_klee_on_function(
       interpreter->runMainAsGuided(mainFn, pArgc, pArgv, pEnvp);
       break;
     case Interpreter::GuidanceKind::ErrorGuidance:
-      interpreter->runThroughLocations(mainFn, pArgc, pArgv, pEnvp, std::move(*pathTree));
+      interpreter->runThroughLocations(mainFn, pArgc, pArgv, pEnvp, std::move(*pathForest));
       break;
     }
 
@@ -1668,6 +1668,7 @@ int run_klee(int argc, char **argv, char **envp) {
   llvm::Module *mainModule = M.get();
   std::unique_ptr<InstructionInfoTable> origInfos;
 
+  std::vector<std::string> mainModuleFunctions;
   if (ExecutionMode == Interpreter::GuidanceKind::ErrorGuidance) {
     std::vector<llvm::Type *> args;
     origInfos = std::make_unique<InstructionInfoTable>(*mainModule, true);

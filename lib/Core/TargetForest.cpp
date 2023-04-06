@@ -83,7 +83,7 @@ void TargetForest::Layer::addTrace(const Result& result, const std::unordered_ma
     for (auto block : it->second) {
       ref<Target> target = nullptr;
       if (i == result.locations.size() - 1) {
-        target = Target::create(result.error, result.id, loc->startLine, block);
+        target = Target::create(result.error, result.id, ErrorLocation{loc->startLine, loc->endLine, loc->startColumn, loc->endColumn}, block);
       } else {
         target = Target::create(block);
       }
