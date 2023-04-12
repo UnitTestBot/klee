@@ -32,6 +32,7 @@
 #include "klee/Config/config.h"
 #include "klee/Config/Version.h"
 #include "klee/Core/Interpreter.h"
+#include "klee/Core/MockRunTestBuilder.h"
 #include "klee/Expr/ArrayExprOptimizer.h"
 #include "klee/Expr/Assignment.h"
 #include "klee/Expr/Constraints.h"
@@ -67,6 +68,7 @@
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
 #include <llvm/Support/Casting.h>
+#include "llvm/Bitcode/BitcodeWriter.h"
 #if LLVM_VERSION_CODE < LLVM_VERSION(8, 0)
 #include "llvm/IR/CallSite.h"
 #endif
@@ -239,12 +241,6 @@ cl::opt<ExternalCallPolicy> ExternalCalls(
                    "All external function calls are allowed.  This concretizes "
                    "any symbolic arguments in calls to external functions.")),
     cl::init(ExternalCallPolicy::Concrete),
-    cl::cat(ExtCallsCat));
-
-cl::opt<bool> ExternalObjects(
-    "external-objects",
-    cl::desc("Mock external objects with symbolic values"),
-    cl::init(false),
     cl::cat(ExtCallsCat));
 
 cl::opt<bool> SuppressExternalWarnings(
@@ -555,10 +551,10 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
   coreSolverTimeout = time::Span{MaxCoreSolverTime};
   if (coreSolverTimeout) UseForkedCoreSolver = true;
   Solver *coreSolver = klee::createCoreSolver(CoreSolverToUse);
-  if (CoreSolverToUse != Z3_SOLVER &&
-      MockStrategy == MockStrategy::Deterministic) {
-    klee_error("Deterministic mocks can be generated with Z3 solver only.\n");
-  }
+//  if (CoreSolverToUse != Z3_SOLVER &&
+//      MockStrategy == MockStrategy::Deterministic) {
+//    klee_error("Deterministic mocks can be generated with Z3 solver only.\n");
+//  }
   if (!coreSolver) {
     klee_error("Failed to create core solver\n");
   }
@@ -608,7 +604,8 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
 llvm::Module *
 Executor::setModule(std::vector<std::unique_ptr<llvm::Module>> &modules,
                     const ModuleOptions &opts,
-                    const std::vector<std::string> &mainModuleFunctions) {
+                    const std::vector<std::string> &mainModuleFunctions,
+                    const std::set<std::string> &ignoredExternals) {
   assert(!kmodule && !modules.empty() &&
          "can only register one module"); // XXX gross
 
@@ -630,6 +627,63 @@ Executor::setModule(std::vector<std::unique_ptr<llvm::Module>> &modules,
   while (kmodule->link(modules, opts.EntryPoint)) {
     // 2.) Apply different instrumentation
     kmodule->instrument(opts);
+  }
+
+  if (MockStrategy != MockStrategy::None) {
+    std::map<std::string, llvm::Type *> externals;
+    for (Module::const_iterator fnIt = kmodule->module->begin(),
+                                fn_ie = kmodule->module->end();
+         fnIt != fn_ie; ++fnIt) {
+      if (fnIt->isDeclaration() && !fnIt->use_empty() && !ignoredExternals.count(fnIt->getName().str()))
+        externals.insert(
+            std::make_pair(fnIt->getName(), fnIt->getFunctionType()));
+    }
+
+    for (Module::const_global_iterator it = kmodule->module->global_begin(),
+                                       ie = kmodule->module->global_end();
+         it != ie; ++it)
+      if (it->isDeclaration() && !ignoredExternals.count(it->getName().str()))
+        externals.insert(std::make_pair(it->getName(), it->getValueType()));
+
+    for (Module::const_alias_iterator it = kmodule->module->alias_begin(),
+                                      ie = kmodule->module->alias_end();
+         it != ie; ++it) {
+      std::map<std::string, llvm::Type *>::iterator it2 =
+          externals.find(it->getName().str());
+      if (it2 != externals.end())
+        externals.erase(it2);
+    }
+
+    llvm::Function *mainFn = kmodule->module->getFunction(opts.EntryPoint);
+    if (!mainFn) {
+      klee_error("Entry function '%s' not found in module.",
+                 opts.EntryPoint.c_str());
+    }
+    mainFn->setName("__klee_wrapped_main");
+    MockRunTestBuilder builder(kmodule->module.get(), opts.EntryPoint,
+                               mainFn->getName().str(), externals);
+    std::unique_ptr<llvm::Module> mockModule = builder.build();
+
+    if (!mockModule) {
+      klee_error("Unable to generate mocks");
+    }
+
+    std::unique_ptr<llvm::raw_fd_ostream> f(interpreterHandler->openOutputFile("externals.ll"));
+    *f << *mockModule;
+
+    std::vector<std::unique_ptr<llvm::Module>> mockModules;
+    mockModules.push_back(std::move(mockModule));
+    kmodule->link(mockModules, "");
+
+    for (auto & global : kmodule->module->globals()) {
+      if (global.isDeclaration()) {
+        llvm::Constant *zeroInitializer = llvm::Constant::getNullValue(global.getValueType());
+        if (!zeroInitializer) {
+          klee_error("Unable to get zero initializer for '%s'", global.getName());
+        }
+        global.setInitializer(zeroInitializer);
+      }
+    }
   }
 
   // 3.) Optimise and prepare for KLEE
@@ -946,8 +1000,8 @@ void Executor::initializeGlobalObjects(ExecutionState &state) {
   std::vector<ObjectState *> constantObjects;
   for (const GlobalVariable &v : m->globals()) {
     MemoryObject *mo = globalObjects.find(&v)->second;
-    ObjectState *os;
-    auto type = typeSystemManager->getWrappedType(v.getType());
+    ObjectState *os = bindObjectInState(
+        state, mo, typeSystemManager->getWrappedType(v.getType()), false);
 
     if (v.isDeclaration() && mo->size) {
       // Program already running -> object already initialized.
@@ -959,30 +1013,18 @@ void Executor::initializeGlobalObjects(ExecutionState &state) {
         addr = externalDispatcher->resolveSymbol(v.getName().str());
       }
       if (!addr) {
-        if (!ExternalObjects) {
-          klee_error("Unable to load symbol(%.*s) while initializing globals",
-                     static_cast<int>(v.getName().size()), v.getName().data());
-        }
-        const Array *array =
-            makeArray(state, mo->size, v.getName().str(), SourceBuilder::mock());
-        mo->setName("@obj_" + v.getName().str());
-        os = bindObjectInState(state, mo, type, false, array);
-        state.addSymbolic(mo, array, type);
-      } else {
-        os = bindObjectInState(state, mo, type, false);
-        for (unsigned offset = 0; offset < mo->size; offset++) {
-          os->write8(offset, static_cast<unsigned char *>(addr)[offset]);
-        }
+        klee_error("Unable to load symbol(%.*s) while initializing globals",
+                   static_cast<int>(v.getName().size()), v.getName().data());
       }
+      for (unsigned offset = 0; offset < mo->size; offset++) {
+        os->write8(offset, static_cast<unsigned char *>(addr)[offset]);
+      }
+    } else if (v.hasInitializer()) {
+      initializeGlobalObject(state, os, v.getInitializer(), 0);
+      if (v.isConstant())
+        constantObjects.emplace_back(os);
     } else {
-      os = bindObjectInState(state, mo, type, false);
-      if (v.hasInitializer()) {
-        initializeGlobalObject(state, os, v.getInitializer(), 0);
-        if (v.isConstant())
-          constantObjects.emplace_back(os);
-      } else {
-        os->initializeToRandom();
-      }
+      os->initializeToRandom();
     }
   }
 
@@ -4258,71 +4300,80 @@ static std::set<std::string> okExternals(okExternalsList,
                                          okExternalsList + 
                                          (sizeof(okExternalsList)/sizeof(okExternalsList[0])));
 
-ref<Expr> Executor::makeSymbolicReturnValue(ExecutionState &state,
-                                            KInstruction *target,
-                                            KFunction *kf) {
+void Executor::executeMakeMock(ExecutionState &state, KInstruction *target,
+                               std::vector<ref<Expr>> &arguments) {
+  llvm::Function *kf = target->inst->getParent()->getParent();
   std::string name = "@call_" + kf->getName().str();
   llvm::Value *value = target->inst;
-  uint64_t size = kmodule->targetData->getTypeStoreSize(value->getType());
-  uint64_t width = kmodule->targetData->getTypeSizeInBits(value->getType());
-  const Array *array = makeArray(state, size, name, SourceBuilder::mock());
-  ref<Expr> result = Expr::createTempRead(array, width, 0);
+  uint64_t size = kmodule->targetData->getTypeStoreSize(kf->getReturnType());
+  uint64_t width = kmodule->targetData->getTypeSizeInBits(kf->getReturnType());
+  KType *type = typeSystemManager->getWrappedType(llvm::PointerType::get(
+      kf->getReturnType(), kmodule->targetData->getAllocaAddrSpace()));
+
+  IDType moID;
+  bool success = state.addressSpace.resolveOne(cast<ConstantExpr>(arguments[0]),
+                                               type, moID);
+  const MemoryObject *mo = state.addressSpace.findObject(moID).first;
+  assert(mo && "memory object for mock should be allocated");
+  mo->setName(name);
+  executeMakeSymbolic(state, mo, type, name, SourceBuilder::mock(), true);
+  const ObjectState *os = state.addressSpace.findObject(mo->id).second;
+  auto result = os->read(0, width);
   bindLocal(target, state, result);
-  return result;
 }
 
-ref<Expr> Executor::mockExternalFunctionDeterministicMode(
-    ExecutionState &state, KInstruction *target, KFunction *kf,
-    std::vector<ref<Expr>> &arguments) {
-  Instruction *allocSite = target->inst;
-  uint64_t width = kmodule->targetData->getTypeSizeInBits(allocSite->getType());
-  ref<Expr> result = makeSymbolicReturnValue(state, target, kf);
-  ref<Expr> fun =
-      ApplyFunctionExpr::create(kf->getName().str(), arguments, width);
-  addConstraint(state, EqExpr::create(fun, result));
-  return result;
-}
-
-void Executor::mockExternalFunction(ExecutionState &state, KInstruction *target,
-                                    KCallable *callable,
-                                    std::vector<ref<Expr>> &arguments) {
-  std::string TmpStr;
-  llvm::raw_string_ostream os(TmpStr);
-  os << "calling external: " << callable->getName().str() << "(";
-  for (unsigned i = 0; i < arguments.size(); i++) {
-    os << arguments[i];
-    if (i != arguments.size() - 1)
-      os << ", ";
-  }
-  os << ") at " << state.pc->getSourceLocation();
-
-  if (AllExternalWarnings)
-    klee_warning("%s", os.str().c_str());
-  else if (!SuppressExternalWarnings)
-    klee_warning_once(callable->getValue(), "%s", os.str().c_str());
-
-  if (MockStrategy == MockStrategy::None || !isa<KFunction>(callable)) {
-    terminateStateOnError(state, "failed external call: " + callable->getName(),
-                          StateTerminationType::External);
-    return;
-  }
-
-  auto kf = cast<KFunction>(callable);
-  if (!target->inst->getType()->isSized()) {
-    return;
-  }
-  switch (MockStrategy) {
-  case MockStrategy::Naive:
-    makeSymbolicReturnValue(state, target, kf);
-    break;
-  case MockStrategy::Deterministic:
-    mockExternalFunctionDeterministicMode(state, target, kf, arguments);
-    break;
-  default:
-    klee_error("Unimplemented mock strategy");
-    break;
-  }
-}
+//ref<Expr> Executor::mockExternalFunctionDeterministicMode(
+//    ExecutionState &state, KInstruction *target, KFunction *kf,
+//    std::vector<ref<Expr>> &arguments) {
+//  Instruction *allocSite = target->inst;
+//  uint64_t width = kmodule->targetData->getTypeSizeInBits(allocSite->getType());
+//  ref<Expr> result = makeSymbolicReturnValue(state, target, kf);
+//  ref<Expr> fun =
+//      ApplyFunctionExpr::create(kf->getName().str(), arguments, width);
+//  addConstraint(state, EqExpr::create(fun, result));
+//  return result;
+//}
+//
+//void Executor::mockExternalFunction(ExecutionState &state, KInstruction *target,
+//                                    KCallable *callable,
+//                                    std::vector<ref<Expr>> &arguments) {
+//  std::string TmpStr;
+//  llvm::raw_string_ostream os(TmpStr);
+//  os << "calling external: " << callable->getName().str() << "(";
+//  for (unsigned i = 0; i < arguments.size(); i++) {
+//    os << arguments[i];
+//    if (i != arguments.size() - 1)
+//      os << ", ";
+//  }
+//  os << ") at " << state.pc->getSourceLocation();
+//
+//  if (AllExternalWarnings)
+//    klee_warning("%s", os.str().c_str());
+//  else if (!SuppressExternalWarnings)
+//    klee_warning_once(callable->getValue(), "%s", os.str().c_str());
+//
+//  if (MockStrategy == MockStrategy::None || !isa<KFunction>(callable)) {
+//    terminateStateOnError(state, "failed external call: " + callable->getName(),
+//                          StateTerminationType::External);
+//    return;
+//  }
+//
+//  auto kf = cast<KFunction>(callable);
+//  if (!target->inst->getType()->isSized()) {
+//    return;
+//  }
+//  switch (MockStrategy) {
+//  case MockStrategy::Naive:
+//    makeSymbolicReturnValue(state, target, kf);
+//    break;
+//  case MockStrategy::Deterministic:
+//    mockExternalFunctionDeterministicMode(state, target, kf, arguments);
+//    break;
+//  default:
+//    klee_error("Unimplemented mock strategy");
+//    break;
+//  }
+//}
 
 void Executor::callExternalFunction(ExecutionState &state,
                                     KInstruction *target,
@@ -4339,11 +4390,6 @@ void Executor::callExternalFunction(ExecutionState &state,
     klee_warning("Disallowed call to external function: %s\n",
                callable->getName().str().c_str());
     terminateStateOnUserError(state, "external calls disallowed");
-    return;
-  }
-
-  if (ExternalCalls == ExternalCallPolicy::All && MockStrategy != MockStrategy::None) {
-    mockExternalFunction(state, target, callable, arguments);
     return;
   }
 

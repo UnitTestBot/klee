@@ -38,8 +38,8 @@ protected:
   std::unordered_map<llvm::Type *, KType *> typesMap;
 
   /**
-   * Make specified post initialization in initModule(). Note, that
-   * it is intentionally separated from initModule, as initModule
+   * Make specified post initialization in userModule(). Note, that
+   * it is intentionally separated from userModule, as userModule
    * order of function calls in it important. By default do nothing.
    */
   virtual void onFinishInitModule();

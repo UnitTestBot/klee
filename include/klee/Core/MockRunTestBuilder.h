@@ -11,25 +11,22 @@ namespace klee {
 
 class MockRunTestBuilder {
 private:
+  const llvm::Module *userModule;
   std::unique_ptr<llvm::Module> mockModule;
   std::unique_ptr<llvm::IRBuilder<>> builder;
-  llvm::Function *kleeMakeSymbolicFunction;
+  std::map<std::string, llvm::Type *> externals;
 
-  const std::string &entrypoint;
-  const std::set<std::string> &undefinedVariables;
-  const std::set<std::string> &undefinedFunctions;
+  const std::string mockEntrypoint, userEntrypoint;
 
   void buildGlobalsDefinition();
   void buildFunctionsDefinition();
-  void buildKleeMakeSymbolicCall(llvm::Value *value, llvm::Type *type, const std::string &name);
 
 public:
-  explicit MockRunTestBuilder(const llvm::Module *m,
-                              const std::string &entrypoint,
-                              const std::set<std::string> &undefinedVariables,
-                              const std::set<std::string> &undefinedFunctions);
+  MockRunTestBuilder(const llvm::Module *initModule, std::string mockEntrypoint,
+                     std::string userEntrypoint,
+                     std::map<std::string, llvm::Type *> externals);
 
-  llvm::Module *build();
+  std::unique_ptr<llvm::Module> build();
 };
 
 } // namespace klee

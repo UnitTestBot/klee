@@ -74,7 +74,7 @@ void recursively_allocate(KTestObject *obj, size_t index, void *addr,
   return;
 }
 
-void klee_make_symbolic(void *array, size_t nbytes, const char *name) {
+static void klee_make_symbol(void *array, size_t nbytes, const char *name) {
 
   if (!name)
     name = "unnamed";
@@ -159,6 +159,14 @@ void klee_make_symbolic(void *array, size_t nbytes, const char *name) {
       break;
     }
   }
+}
+
+void klee_make_symbolic(void *array, size_t nbytes, const char *name) {
+  klee_make_symbol(array, nbytes, name);
+}
+
+void klee_make_mock(void *return_array, size_t return_nbytes, const char *name) {
+  klee_make_symbol(return_array, return_nbytes, name);
 }
 
 void klee_silent_exit(int x) { exit(x); }

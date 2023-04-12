@@ -13,12 +13,12 @@
 
 namespace klee {
 
-void Assignment::dump() {
+void Assignment::dump() const {
   if (bindings.size() == 0) {
     llvm::errs() << "No bindings\n";
     return;
   }
-  for (bindings_ty::iterator i = bindings.begin(), e = bindings.end(); i != e;
+  for (bindings_ty::const_iterator i = bindings.cbegin(), e = bindings.cend(); i != e;
        ++i) {
     llvm::errs() << (*i).first->name << "\n[";
     for (int j = 0, k = (*i).second.size(); j < k; ++j)

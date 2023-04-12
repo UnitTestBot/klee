@@ -265,18 +265,18 @@ private:
                             KCallable *callable,
                             std::vector< ref<Expr> > &arguments);
 
-  void mockExternalFunction(ExecutionState &state,
-                            KInstruction *target,
-                            KCallable *callable,
-                            std::vector<ref<Expr>> &arguments);
-
-  ref<Expr> makeSymbolicReturnValue(ExecutionState &state, KInstruction *target,
-                                    KFunction *kf);
-
-  ref<Expr>
-  mockExternalFunctionDeterministicMode(ExecutionState &state,
-                                        KInstruction *target, KFunction *kf,
-                                        std::vector<ref<Expr>> &arguments);
+//  void mockExternalFunction(ExecutionState &state,
+//                            KInstruction *target,
+//                            KCallable *callable,
+//                            std::vector<ref<Expr>> &arguments);
+//
+//  ref<Expr> makeSymbolicReturnValue(ExecutionState &state, KInstruction *target,
+//                                    KFunction *kf);
+//
+//  ref<Expr>
+//  mockExternalFunctionDeterministicMode(ExecutionState &state,
+//                                        KInstruction *target, KFunction *kf,
+//                                        std::vector<ref<Expr>> &arguments);
 
   ObjectState *bindObjectInState(ExecutionState &state, const MemoryObject *mo,
                                  KType *dynamicType, bool IsAlloca,
@@ -359,6 +359,10 @@ private:
                            KType *type,
                            const std::string &name,
                            const ref<SymbolicSource> source, bool isLocal);
+
+  void executeMakeMock(ExecutionState &state,
+                       KInstruction *target,
+                       std::vector<ref<Expr>> &arguments);
 
   /// Create a new state where each input condition has been added as
   /// a constraint and return the results. The input state is included
@@ -563,7 +567,8 @@ public:
   llvm::Module *
   setModule(std::vector<std::unique_ptr<llvm::Module>> &modules,
             const ModuleOptions &opts,
-            const std::vector<std::string> &mainModuleFunctions) override;
+            const std::vector<std::string> &mainModuleFunctions,
+            const std::set<std::string> &ignoredExternals) override;
 
   void useSeeds(const std::vector<struct KTest *> *seeds) override {
     usingSeeds = seeds;

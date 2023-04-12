@@ -857,6 +857,7 @@ static const char *modelledExternals[] = {
   "klee_get_obj_size",
   "klee_is_symbolic",
   "klee_make_symbolic",
+  "klee_make_mock",
   "klee_mark_global",
   "klee_open_merge",
   "klee_close_merge",
@@ -876,6 +877,7 @@ static const char *modelledExternals[] = {
 #endif
   "llvm.dbg.declare",
   "llvm.dbg.value",
+  "llvm.dbg.label",
   "llvm.va_start",
   "llvm.va_end",
   "malloc",
@@ -1036,7 +1038,8 @@ static const char *unsafeExternals[] = {
 };
 
 #define NELEMS(array) (sizeof(array)/sizeof(array[0]))
-void externalsAndGlobalsCheck(const llvm::Module *m, KleeHandler *handler) {
+
+void externalsAndGlobalsCheck(const llvm::Module *m) {
   std::map<std::string, bool> externals;
   std::set<std::string> modelled(modelledExternals,
                                  modelledExternals+NELEMS(modelledExternals));
@@ -1060,11 +1063,11 @@ void externalsAndGlobalsCheck(const llvm::Module *m, KleeHandler *handler) {
   if (WithPOSIXRuntime)
     dontCare.insert("syscall");
 
-    for (Module::const_iterator fnIt = m->begin(), fn_ie = m->end();
-         fnIt != fn_ie; ++fnIt) {
-        if (fnIt->isDeclaration() && !fnIt->use_empty())
-            externals.insert(std::make_pair(fnIt->getName(), false));
-    }
+  for (Module::const_iterator fnIt = m->begin(), fn_ie = m->end();
+       fnIt != fn_ie; ++fnIt) {
+    if (fnIt->isDeclaration() && !fnIt->use_empty())
+      externals.insert(std::make_pair(fnIt->getName(), false));
+  }
 
   for (Module::const_global_iterator
          it = m->global_begin(), ie = m->global_end();
@@ -1116,18 +1119,6 @@ void externalsAndGlobalsCheck(const llvm::Module *m, KleeHandler *handler) {
     klee_warning("undefined reference to %s: %s (UNSAFE)!",
                  it->second ? "variable" : "function",
                  ext.c_str());
-  }
-
-  if (RunTestMocks) {
-    MockRunTestBuilder builder(m, EntryPoint, undefinedVariables, undefinedFunctions);
-    llvm::Module *mockModule = builder.build();
-    if (!mockModule) {
-      klee_warning("Unable to generate replay.ll for entrypoint %s",
-                   EntryPoint.c_str());
-    } else {
-      auto os = handler->openOutputFile("replay.ll");
-      *os << *mockModule;
-    }
   }
 }
 
@@ -1313,7 +1304,7 @@ static int run_klee_on_function(
     klee_error("Entry function '%s' not found in module.", EntryPoint.c_str());
   }
 
-  externalsAndGlobalsCheck(finalModule, handler);
+  externalsAndGlobalsCheck(finalModule);
 
   if (ReplayPathFile != "") {
     interpreter->setReplayPath(&replayPath);
@@ -1801,8 +1792,30 @@ int run_klee(int argc, char **argv, char **envp) {
   // Get the desired main function.  klee_main initializes uClibc
   // locale and other data and then calls main.
 
+
+  std::set<std::string> ignoredExternals;
+  ignoredExternals.insert(modelledExternals, modelledExternals+NELEMS(modelledExternals));
+  ignoredExternals.insert(dontCareExternals, dontCareExternals+NELEMS(dontCareExternals));
+  ignoredExternals.insert(unsafeExternals, unsafeExternals+NELEMS(unsafeExternals));
+
+  switch (Libc) {
+  case LibcType::KleeLibc:
+    ignoredExternals.insert(dontCareKlee, dontCareKlee+NELEMS(dontCareKlee));
+    break;
+  case LibcType::UcLibc:
+    ignoredExternals.insert(dontCareUclibc,
+                    dontCareUclibc+NELEMS(dontCareUclibc));
+    break;
+  case LibcType::FreestandingLibc: /* silence compiler warning */
+    break;
+  }
+
+  if (WithPOSIXRuntime) {
+    ignoredExternals.insert("syscall");
+  }
+
   auto finalModule =
-      interpreter->setModule(loadedModules, Opts, mainModuleFunctions);
+      interpreter->setModule(loadedModules, Opts, mainModuleFunctions, ignoredExternals);
 
   if (InteractiveMode) {
     klee_message("KLEE finish preprocessing.");
