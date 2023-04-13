@@ -15,7 +15,9 @@
 #ifndef KLEE_EXECUTOR_H
 #define KLEE_EXECUTOR_H
 
+#include "BidirectionalSearcher.h"
 #include "ExecutionState.h"
+#include "SeedMap.h"
 #include "TargetedExecutionManager.h"
 #include "UserSearcher.h"
 
@@ -26,6 +28,7 @@
 #include "klee/Expr/ArrayCache.h"
 #include "klee/Expr/ArrayExprOptimizer.h"
 #include "klee/Expr/Constraints.h"
+#include "klee/Expr/Lemma.h"
 #include "klee/Expr/SourceBuilder.h"
 #include "klee/Expr/SymbolicSource.h"
 #include "klee/Module/Cell.h"
@@ -98,8 +101,6 @@ class StatsTracker;
 class TimingSolver;
 class TreeStreamWriter;
 class TypeManager;
-class MergeHandler;
-class MergingSearcher;
 template <class T> class ref;
 
 /// \todo Add a context object to keep track of data only live
@@ -107,12 +108,20 @@ template <class T> class ref;
 /// removedStates, and haltExecution, among others.
 
 class Executor : public Interpreter {
+  friend struct ComposeHelper;
   friend class OwningSearcher;
   friend class WeightedRandomSearcher;
   friend class SpecialFunctionHandler;
   friend class StatsTracker;
-  friend klee::Searcher *
-  klee::constructUserSearcher(Executor &executor, bool stopAfterReachingTarget);
+  friend klee::Searcher *klee::constructUserSearcher(Executor &executor,
+                                                     bool branchSearcher);
+
+  struct ComposeResult {
+    bool success;
+    PathConstraints composed;
+    Conflict conflict;
+    ref<Expr> nullPointerExpr;
+  };
 
 public:
   typedef std::pair<ExecutionState *, ExecutionState *> StatePair;
@@ -134,7 +143,7 @@ private:
 
   std::unique_ptr<KModule> kmodule;
   InterpreterHandler *interpreterHandler;
-  Searcher *searcher;
+  std::unique_ptr<IBidirectionalSearcher> searcher;
 
   ExternalDispatcher *externalDispatcher;
   std::unique_ptr<TimingSolver> solver;
@@ -142,8 +151,8 @@ private:
   std::unique_ptr<MemoryManager> memory;
   TypeManager *typeSystemManager;
 
-  SetOfStates states;
-  SetOfStates pausedStates;
+  std::unique_ptr<ObjectManager> objectManager;
+  Summary summary;
   StatsTracker *statsTracker;
   TreeStreamWriter *pathWriter, *symPathWriter;
   SpecialFunctionHandler *specialFunctionHandler;
@@ -155,17 +164,6 @@ private:
   std::unique_ptr<TargetCalculator> targetCalculator;
   std::unique_ptr<TargetManager> targetManager;
 
-  /// Used to track states that have been added during the current
-  /// instructions step.
-  /// \invariant \ref addedStates is a subset of \ref states.
-  /// \invariant \ref addedStates and \ref removedStates are disjoint.
-  std::vector<ExecutionState *> addedStates;
-  /// Used to track states that have been removed during the current
-  /// instructions step.
-  /// \invariant \ref removedStates is a subset of \ref states.
-  /// \invariant \ref addedStates and \ref removedStates are disjoint.
-  std::vector<ExecutionState *> removedStates;
-
   /// When non-empty the Executor is running in "seed" mode. The
   /// states in this map will be executed in an arbitrary order
   /// (outside the normal search interface) until they terminate. When
@@ -173,7 +171,7 @@ private:
   /// satisfies one or more seeds will be added to this map. What
   /// happens with other states (that don't satisfy the seeds) depends
   /// on as-yet-to-be-determined flags.
-  std::map<ExecutionState *, std::vector<SeedInfo>> seedMap;
+  std::unique_ptr<SeedMap> seedMap;
 
   /// Map of globals to their representative memory object.
   std::map<const llvm::GlobalValue *, MemoryObject *> globalObjects;
@@ -244,10 +242,17 @@ private:
   /// Optimizes expressions
   ExprOptimizer optimizer;
 
-  std::unordered_map<KFunction *, TargetedHaltsOnTraces> targets;
+  std::unordered_map<KFunction *, TargetedHaltsOnTraces> targetedHalts;
 
   /// Typeids used during exception handling
   std::vector<ref<Expr>> eh_typeids;
+
+  // For statistics
+  std::set<KBlock *> summarized;
+
+  std::unordered_set<llvm::BasicBlock *> verifingTransitionsTo;
+  std::unordered_set<llvm::BasicBlock *> successTransitionsTo;
+  std::unordered_map<llvm::BasicBlock *, unsigned> failedTransitionsTo;
 
   bool hasStateWhichCanReachSomeTarget = false;
 
@@ -258,12 +263,13 @@ private:
 
   void executeInstruction(ExecutionState &state, KInstruction *ki);
 
-  void targetedRun(ExecutionState &initialState, KBlock *target,
-                   ExecutionState **resultState = nullptr);
+  // void targetedRun(ExecutionState &initialState, KBlock *target,
+  //                  ExecutionState **resultState = nullptr);
 
   void seed(ExecutionState &initialState);
-  void run(std::vector<ExecutionState *> initialStates);
-  void runWithTarget(ExecutionState &state, KFunction *kf, KBlock *target);
+  void run(std::vector<ExecutionState *> initialStates,
+           TargetedExecutionManager::Data &data);
+  // void runWithTarget(ExecutionState &state, KFunction *kf, KBlock *target);
 
   void initializeTypeManager();
 
@@ -281,7 +287,6 @@ private:
   void initializeGlobalObjects(ExecutionState &state);
 
   void stepInstruction(ExecutionState &state);
-  void updateStates(ExecutionState *current);
   void transferToBasicBlock(llvm::BasicBlock *dst, llvm::BasicBlock *src,
                             ExecutionState &state);
   void transferToBasicBlock(KBlock *dst, llvm::BasicBlock *src,
@@ -399,6 +404,13 @@ private:
                               std::vector<Assignment> &resolveConcretizations,
                               bool &mayBeInBounds);
 
+  void
+  collectObjectStates(ExecutionState &state, ref<Expr> address,
+                      Expr::Width type, unsigned bytes,
+                      const std::vector<IDType> &resolvedMemoryObjects,
+                      const std::vector<Assignment> &resolveConcretizations,
+                      std::vector<ref<ObjectState>> &results);
+
   void collectReads(ExecutionState &state, ref<Expr> address, KType *targetType,
                     Expr::Width type, unsigned bytes,
                     const std::vector<IDType> &resolvedMemoryObjects,
@@ -414,8 +426,8 @@ private:
 
   bool lazyInitializeObject(ExecutionState &state, ref<Expr> address,
                             const KInstruction *target, KType *targetType,
-                            uint64_t size, bool isLocal, IDType &id,
-                            bool isConstant = true);
+                            uint64_t concreteSize, ref<Expr> size, bool isLocal,
+                            IDType &id, bool isConstant = true);
 
   IDType lazyInitializeLocalObject(ExecutionState &state, StackFrame &sf,
                                    ref<Expr> address,
@@ -434,6 +446,9 @@ private:
   /// Assume that `current` state stepped to `block`.
   /// Can we reach at least one target of `current` from there?
   bool canReachSomeTargetFromBlock(ExecutionState &current, KBlock *block);
+
+  bool canReachSomeTargetThroughState(ProofObligation &pob,
+                                      ExecutionState &state);
 
   /// Create a new state where each input condition has been added as
   /// a constraint and return the results. The input state is included
@@ -653,16 +668,18 @@ private:
 
   const Array *makeArray(ref<Expr> size, const ref<SymbolicSource> source);
 
-  ExecutionState *prepareStateForPOSIX(KInstIterator &caller,
-                                       ExecutionState *state);
+  // ExecutionState *prepareStateForPOSIX(KInstIterator &caller,
+  //                                      ExecutionState *state);
 
   void prepareTargetedExecution(ExecutionState &initialState,
                                 ref<TargetForest> whitelist);
 
   void increaseProgressVelocity(ExecutionState &state, KBlock *block);
 
+  void updateConfidenceRates();
+
   void decreaseConfidenceFromStoppedStates(
-      SetOfStates &leftStates,
+      const SetOfStates &leftStates,
       HaltExecution::Reason reason = HaltExecution::NotHalt);
 
   void checkNullCheckAfterDeref(ref<Expr> cond, ExecutionState &state,
@@ -692,11 +709,52 @@ private:
   bool branchingPermitted(ExecutionState &state, unsigned N);
 
   void printDebugInstructions(ExecutionState &state);
-  void doDumpStates();
+  void doDumpObjects();
 
   /// Only for debug purposes; enable via debugger or klee-control
   void dumpStates();
   void dumpPForest();
+
+  ref<Expr> fillValue(ExecutionState &state, ref<ValueSource> valueSource,
+                      ref<Expr> size);
+
+  ref<ObjectState> fillGlobal(ExecutionState &state,
+                              ref<GlobalSource> globalSource);
+
+  ref<ObjectState> fillMakeSymbolic(ExecutionState &state,
+                                    ref<MakeSymbolicSource> makeSymbolicSource,
+                                    ref<Expr> size, unsigned concreteSize);
+
+  ref<ObjectState>
+  fillIrreproducible(ExecutionState &state,
+                     ref<IrreproducibleSource> makeSymbolicSource,
+                     ref<Expr> size, unsigned concreteSize);
+
+  ref<ObjectState> fillConstant(ExecutionState &state,
+                                ref<ConstantSource> constanSource,
+                                ref<Expr> size);
+
+  ref<Expr> fillSymbolicSizeConstantAddress(
+      ExecutionState &state,
+      ref<SymbolicSizeConstantAddressSource> symbolicSizeConstantAddressSource,
+      ref<Expr> size, Expr::Width width);
+  std::pair<ref<Expr>, ref<Expr>> getSymbolicSizeConstantSizeAddressPair(
+      ExecutionState &state,
+      ref<SymbolicSizeConstantAddressSource> symbolicSizeConstantAddressSource,
+      ref<Expr> size, Expr::Width width);
+  ref<Expr> fillSizeAddressSymcretes(ExecutionState &state,
+                                     ref<Expr> oldAddress, ref<Expr> newAddress,
+                                     ref<Expr> size);
+  ComposeResult compose(const ExecutionState &state, const PathConstraints &pob,
+                        ref<Expr> nullPointerExpr);
+
+  void executeAction(ref<BidirectionalAction> action);
+
+  void goForward(ref<ForwardAction> action);
+  void goBackward(ref<BackwardAction> action);
+  void initializeIsolated(ref<InitializeAction> action);
+
+  void closeProofObligation(ProofObligation *pob);
 
   const KInstruction *getKInst(const llvm::Instruction *ints) const;
   const KBlock *getKBlock(const llvm::BasicBlock *bb) const;
@@ -711,7 +769,7 @@ public:
 
   void setPathWriter(TreeStreamWriter *tsw) override { pathWriter = tsw; }
 
-  bool hasTargetForest() const override { return !targets.empty(); }
+  bool hasTargetForest() const override { return !targetedHalts.empty(); }
 
   void setSymbolicPathWriter(TreeStreamWriter *tsw) override {
     symPathWriter = tsw;
@@ -818,8 +876,6 @@ public:
 
   /// Returns the errno location in memory of the state
   int *getErrnoLocation(const ExecutionState &state) const;
-
-  void executeStep(ExecutionState &state);
 };
 
 } // namespace klee
