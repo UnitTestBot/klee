@@ -73,6 +73,11 @@ void MemoryObject::getAllocInfo(std::string &result) const {
 
 /***/
 
+ObjectState::ObjectState(const Array *array, KType *dt)
+    : copyOnWriteOwner(0), object(nullptr), knownSymbolics(nullptr),
+      unflushedMask(false), updates(array, nullptr), lastUpdate(nullptr),
+      size(array->size), dynamicType(dt), readOnly(false) {}
+
 ObjectState::ObjectState(const MemoryObject *mo, const Array *array, KType *dt)
     : copyOnWriteOwner(0), object(mo), knownSymbolics(nullptr),
       unflushedMask(false), updates(array, nullptr), lastUpdate(nullptr),
