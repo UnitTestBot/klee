@@ -10,6 +10,8 @@
 #ifndef KLEE_TARGETCALCULATOR_H
 #define KLEE_TARGETCALCULATOR_H
 
+#include "ObjectManager.h"
+
 #include "klee/ADT/RNG.h"
 #include "klee/Module/KModule.h"
 #include "klee/Module/Target.h"
@@ -37,9 +39,7 @@ class ExecutionState;
 
 enum class TrackCoverageBy { None, Blocks, Branches, All };
 
-typedef std::pair<llvm::BasicBlock *, unsigned> Branch;
-
-class TargetCalculator {
+class TargetCalculator : public Subscriber {
   using StatesSet = std::unordered_set<ExecutionState *>;
 
   typedef std::unordered_set<KBlock *> VisitedBlocks;
@@ -54,14 +54,15 @@ class TargetCalculator {
   typedef std::unordered_set<KFunction *> CoveredFunctionsBranches;
 
   void update(const ExecutionState &state);
+  void update(ExecutionState *current,
+              const std::vector<ExecutionState *> &addedStates,
+              const std::vector<ExecutionState *> &removedStates);
 
 public:
   TargetCalculator(CodeGraphInfo &codeGraphInfo)
       : codeGraphInfo(codeGraphInfo) {}
 
-  void update(ExecutionState *current,
-              const std::vector<ExecutionState *> &addedStates,
-              const std::vector<ExecutionState *> &removedStates);
+  void update(ref<ObjectManager::Event> e) override;
 
   TargetHashSet calculate(ExecutionState &state);
 
@@ -79,6 +80,7 @@ private:
 
   bool uncoveredBlockPredicate(ExecutionState *state, KBlock *kblock);
 };
+
 } // namespace klee
 
 #endif /* KLEE_TARGETCALCULATOR_H */
