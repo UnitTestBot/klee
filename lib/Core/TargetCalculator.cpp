@@ -10,6 +10,7 @@
 #include "TargetCalculator.h"
 
 #include "ExecutionState.h"
+#include "ObjectManager.h"
 
 #include "klee/Module/CodeGraphInfo.h"
 #include "klee/Module/KInstruction.h"
@@ -33,29 +34,27 @@ llvm::cl::opt<TrackCoverageBy> TrackCoverage(
     cl::init(TrackCoverageBy::None), cl::cat(ExecCat));
 
 void TargetCalculator::update(const ExecutionState &state) {
-  Function *initialFunction = state.getInitPCBlock()->getParent();
+  if (state.getPrevPC() == state.getPrevPC()->parent->getLastInstruction() &&
+      !fullyCoveredFunctions.count(state.getPrevPC()->parent->parent)) {
+    auto &fBranches = getCoverageTargets(state.getPrevPC()->parent->parent);
 
-  if (state.prevPC == state.prevPC->parent->getLastInstruction() &&
-      !fullyCoveredFunctions.count(state.prevPC->parent->parent)) {
-    auto &fBranches = getCoverageTargets(state.prevPC->parent->parent);
-
-    if (!coveredFunctionsInBranches.count(state.prevPC->parent->parent)) {
-      if (fBranches.count(state.prevPC->parent) != 0) {
-        if (!coveredBranches[state.prevPC->parent->parent].count(
-                state.prevPC->parent)) {
+    if (!coveredFunctionsInBranches.count(state.getPrevPC()->parent->parent)) {
+      if (fBranches.count(state.getPrevPC()->parent) != 0) {
+        if (!coveredBranches[state.getPrevPC()->parent->parent].count(
+                state.getPrevPC()->parent)) {
           state.coverNew();
-          coveredBranches[state.prevPC->parent->parent][state.prevPC->parent];
+          coveredBranches[state.getPrevPC()->parent->parent][state.getPrevPC()->parent];
         }
-        if (!fBranches.at(state.prevPC->parent).empty()) {
+        if (!fBranches.at(state.getPrevPC()->parent).empty()) {
           unsigned index = 0;
-          for (auto succ : successors(state.getPrevPCBlock())) {
-            if (succ == state.getPCBlock()) {
-              if (!coveredBranches[state.prevPC->parent->parent]
-                                  [state.prevPC->parent]
+          for (auto succ : successors(state.getPrevPCBlock()->basicBlock)) {
+            if (succ == state.getPCBlock()->basicBlock) {
+              if (!coveredBranches[state.getPrevPC()->parent->parent]
+                                  [state.getPrevPC()->parent]
                                       .count(index)) {
                 state.coverNew();
-                coveredBranches[state.prevPC->parent->parent]
-                               [state.prevPC->parent]
+                coveredBranches[state.getPrevPC()->parent->parent]
+                               [state.getPrevPC()->parent]
                                    .insert(index);
               }
               break;
@@ -64,17 +63,17 @@ void TargetCalculator::update(const ExecutionState &state) {
           }
         }
       }
-      if (getCoverageTargets(state.prevPC->parent->parent) ==
-          coveredBranches[state.prevPC->parent->parent]) {
-        coveredFunctionsInBranches.insert(state.prevPC->parent->parent);
+      if (getCoverageTargets(state.getPrevPC()->parent->parent) ==
+          coveredBranches[state.getPrevPC()->parent->parent]) {
+        coveredFunctionsInBranches.insert(state.getPrevPC()->parent->parent);
       }
     }
-    if (!fullyCoveredFunctions.count(state.prevPC->parent->parent) &&
-        coveredFunctionsInBranches.count(state.prevPC->parent->parent)) {
+    if (!fullyCoveredFunctions.count(state.getPrevPC()->parent->parent) &&
+        coveredFunctionsInBranches.count(state.getPrevPC()->parent->parent)) {
       bool covered = true;
       std::set<KFunction *> fnsTaken;
       std::deque<KFunction *> fns;
-      fns.push_back(state.prevPC->parent->parent);
+      fns.push_back(state.getPrevPC()->parent->parent);
 
       while (!fns.empty() && covered) {
         KFunction *currKF = fns.front();
@@ -82,8 +81,9 @@ void TargetCalculator::update(const ExecutionState &state) {
         for (auto &kcallBlock : currKF->kCallBlocks) {
           if (kcallBlock->calledFunctions.size() == 1) {
             auto calledFunction = *kcallBlock->calledFunctions.begin();
-            KFunction *calledKFunction = state.prevPC->parent->parent->parent
-                                             ->functionMap[calledFunction];
+            KFunction *calledKFunction =
+                state.getPrevPC()
+                    ->parent->parent->parent->functionMap[calledFunction];
             if (calledKFunction->numInstructions != 0 &&
                 coveredFunctionsInBranches.count(calledKFunction) == 0 &&
                 !getCoverageTargets(calledKFunction).empty()) {
@@ -101,7 +101,7 @@ void TargetCalculator::update(const ExecutionState &state) {
       }
 
       if (covered) {
-        fullyCoveredFunctions.insert(state.prevPC->parent->parent);
+        fullyCoveredFunctions.insert(state.getPrevPC()->parent->parent);
       }
     }
   }
@@ -121,14 +121,20 @@ void TargetCalculator::update(
     localStates.insert(state);
   }
   for (auto state : localStates) {
-    KFunction *kf = state->prevPC->parent->parent;
+    KFunction *kf = state->getPrevPCBlock()->parent;
     KModule *km = kf->parent;
-    if (state->prevPC->inst->isTerminator() &&
+    if (state->getPrevPC()->inst->isTerminator() &&
         km->inMainModule(*kf->function)) {
       update(*state);
     }
   }
   localStates.clear();
+}
+
+void TargetCalculator::update(ref<ObjectManager::Event> e) {
+  if (auto statesEvent = dyn_cast<ObjectManager::States>(e)) {
+    update(statesEvent->modified, statesEvent->added, statesEvent->removed);
+  }
 }
 
 const std::map<KBlock *, std::set<unsigned>> &
@@ -149,7 +155,6 @@ TargetCalculator::getCoverageTargets(KFunction *kf) {
 
 bool TargetCalculator::uncoveredBlockPredicate(ExecutionState *state,
                                                KBlock *kblock) {
-  Function *initialFunction = state->getInitPCBlock()->getParent();
   bool result = false;
 
   auto &fBranches = getCoverageTargets(kblock->parent);
@@ -179,24 +184,20 @@ bool TargetCalculator::uncoveredBlockPredicate(ExecutionState *state,
 }
 
 TargetHashSet TargetCalculator::calculate(ExecutionState &state) {
-  BasicBlock *bb = state.getPCBlock();
-  const KModule &module = *state.pc->parent->parent->parent;
-  KFunction *kf = module.functionMap.at(bb->getParent());
-  KBlock *kb = kf->blockMap[bb];
-  kb = !isa<KCallBlock>(kb) || (kb->getLastInstruction() != state.pc)
+  KBlock *kb = state.getPCBlock();
+  KFunction *kf = kb->parent;
+  kb = !isa<KCallBlock>(kb) || (kb->getLastInstruction() != state.getPC())
            ? kb
-           : kf->blockMap[state.pc->parent->basicBlock->getTerminator()
+           : kf->blockMap[state.getPC()->parent->basicBlock->getTerminator()
                               ->getSuccessor(0)];
   for (auto sfi = state.stack.callStack().rbegin(),
             sfe = state.stack.callStack().rend();
        sfi != sfe; sfi++) {
-    kf = sfi->kf;
 
-    std::set<KBlock *> blocks;
     using std::placeholders::_1;
     KBlockPredicate func =
         std::bind(&TargetCalculator::uncoveredBlockPredicate, this, &state, _1);
-    codeGraphInfo.getNearestPredicateSatisfying(kb, func, blocks);
+    auto blocks = codeGraphInfo.getNearestPredicateSatisfying(kb, func, true);
 
     if (!blocks.empty()) {
       TargetHashSet targets;
