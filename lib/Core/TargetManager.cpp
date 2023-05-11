@@ -12,6 +12,7 @@
 #include "TargetCalculator.h"
 
 #include "klee/Module/KInstruction.h"
+#include "klee/Module/SarifReport.h"
 
 #include <cassert>
 
@@ -24,6 +25,11 @@ void TargetManager::updateMiss(ExecutionState &state, ref<Target> target) {
   auto &stateTargetForest = targetForest(state);
   stateTargetForest.remove(target);
   setTargets(state, stateTargetForest.getTargets());
+
+  if (state.isolated) {
+    return;
+  }
+
   if (guidance == Interpreter::GuidanceKind::CoverageGuidance) {
     if (targets(state).size() == 0) {
       state.setTargeted(false);
@@ -31,7 +37,14 @@ void TargetManager::updateMiss(ExecutionState &state, ref<Target> target) {
   }
 }
 
+void TargetManager::updateMiss(ProofObligation &pob, ref<Target> target) {
+  auto &stateTargetForest = targetForest(pob);
+  stateTargetForest.remove(target);
+}
+
 void TargetManager::updateContinue(ExecutionState &state, ref<Target> target) {}
+
+void TargetManager::updateContinue(ProofObligation &pob, ref<Target> target) {}
 
 void TargetManager::updateDone(ExecutionState &state, ref<Target> target) {
   auto &stateTargetForest = targetForest(state);
@@ -39,6 +52,11 @@ void TargetManager::updateDone(ExecutionState &state, ref<Target> target) {
   stateTargetForest.stepTo(target);
   setTargets(state, stateTargetForest.getTargets());
   setHistory(state, stateTargetForest.getHistory());
+
+  if (state.isolated) {
+    return;
+  }
+
   if (guidance == Interpreter::GuidanceKind::CoverageGuidance ||
       target->shouldFailOnThisTarget()) {
     if (target->shouldFailOnThisTarget() ||
@@ -47,7 +65,7 @@ void TargetManager::updateDone(ExecutionState &state, ref<Target> target) {
     }
 
     for (auto es : states) {
-      if (isTargeted(*es)) {
+      if (isTargeted(*es) && !es->isolated) {
         auto &esTargetForest = targetForest(*es);
         esTargetForest.block(target);
         setTargets(*es, esTargetForest.getTargets());
@@ -66,6 +84,11 @@ void TargetManager::updateDone(ExecutionState &state, ref<Target> target) {
   }
 }
 
+void TargetManager::updateDone(ProofObligation &pob, ref<Target> target) {
+  auto &stateTargetForest = targetForest(pob);
+  stateTargetForest.stepTo(target);
+}
+
 void TargetManager::collect(ExecutionState &state) {
   if (!state.areTargetsChanged()) {
     assert(state.targets() == state.prevTargets());
@@ -81,10 +104,12 @@ void TargetManager::collect(ExecutionState &state) {
     for (auto target : prevTargets) {
       removedTStates[{prevHistory, target}].push_back(&state);
       addedTStates[{prevHistory, target}];
+      // targetToStates[target].erase(&state);
     }
     for (auto target : targets) {
       addedTStates[{history, target}].push_back(&state);
       removedTStates[{history, target}];
+      // targetToStates[target].insert(&state);
     }
   } else {
     addedTargets.insert(targets.begin(), targets.end());
@@ -96,10 +121,12 @@ void TargetManager::collect(ExecutionState &state) {
     for (auto target : removedTargets) {
       removedTStates[{history, target}].push_back(&state);
       addedTStates[{history, target}];
+      // targetToStates[target].erase(&state);
     }
     for (auto target : addedTargets) {
       addedTStates[{history, target}].push_back(&state);
       removedTStates[{history, target}];
+      // targetToStates[target].insert(&state);
     }
     removedTargets.clear();
     addedTargets.clear();
@@ -107,20 +134,26 @@ void TargetManager::collect(ExecutionState &state) {
 }
 
 void TargetManager::updateReached(ExecutionState &state) {
-  auto prevKI = state.prevPC;
+  if (state.isolated) {
+    return;
+  }
+
+  auto prevKI = state.prevPC ? state.prevPC : state.pc;
   auto kf = prevKI->parent->parent;
   auto kmodule = kf->parent;
 
   if (prevKI->inst->isTerminator() && kmodule->inMainModule(*kf->function)) {
     ref<Target> target;
 
-    if (state.getPrevPCBlock()->getTerminator()->getNumSuccessors() == 0) {
-      target = ReachBlockTarget::create(state.prevPC->parent, true);
-    } else if (!isa<KCallBlock>(state.prevPC->parent)) {
+    if (state.getPrevPCBlock()
+            ->basicBlock->getTerminator()
+            ->getNumSuccessors() == 0) {
+      target = ReachBlockTarget::create(state.getPrevPCBlock(), true);
+    } else if (!isa<KCallBlock>(state.getPrevPCBlock())) {
       unsigned index = 0;
-      for (auto succ : successors(state.getPrevPCBlock())) {
-        if (succ == state.getPCBlock()) {
-          target = CoverBranchTarget::create(state.prevPC->parent, index);
+      for (auto succ : successors(state.getPrevPCBlock()->basicBlock)) {
+        if (succ == state.getPCBlock()->basicBlock) {
+          target = CoverBranchTarget::create(state.getPrevPCBlock(), index);
           break;
         }
         ++index;
@@ -134,7 +167,7 @@ void TargetManager::updateReached(ExecutionState &state) {
 }
 
 void TargetManager::updateTargets(ExecutionState &state) {
-  if (guidance == Interpreter::GuidanceKind::CoverageGuidance) {
+  if (!state.isolated && guidance == Interpreter::GuidanceKind::CoverageGuidance) {
     if (targets(state).empty() && state.isStuck(MaxCyclesBeforeStuck)) {
       state.setTargeted(true);
     }
@@ -177,10 +210,81 @@ void TargetManager::updateTargets(ExecutionState &state) {
   }
 }
 
+void TargetManager::updateTargets(ProofObligation &pob) {
+  if (!isTargeted(pob)) {
+    return;
+  }
+
+  auto pobTargets = targets(pob);
+  auto &pobTargetForest = targetForest(pob);
+
+  for (auto target : pobTargets) {
+    if (!pobTargetForest.contains(target)) {
+      continue;
+    }
+
+    DistanceResult pobDistance = distance(pob, target);
+    switch (pobDistance.result) {
+    case WeightResult::Continue:
+      updateContinue(pob, target);
+      break;
+    case WeightResult::Miss:
+      updateMiss(pob, target);
+      break;
+    case WeightResult::Done:
+      updateDone(pob, target);
+      break;
+    default:
+      assert(0 && "unreachable");
+    }
+  }
+}
+
+void TargetManager::update(ref<ObjectManager::Event> e) {
+  switch (e->getKind()) {
+  case ObjectManager::Event::Kind::States: {
+    auto statesEvent = cast<ObjectManager::States>(e);
+    update(statesEvent->modified, statesEvent->added, statesEvent->removed,
+           statesEvent->isolated);
+    break;
+  }
+
+  case ObjectManager::Event::Kind::ProofObligations: {
+    auto pobsEvent = cast<ObjectManager::ProofObligations>(e);
+    update(pobsEvent->context, pobsEvent->added, pobsEvent->removed);
+    break;
+  }
+
+  default:
+    break;
+  }
+}
+
+void TargetManager::update(ExecutionState *context, const pobs_ty &addedPobs,
+                           const pobs_ty &removedPobs) {
+  if (!context) {
+    return;
+  }
+
+  for (auto pob : addedPobs) {
+    auto pobTargets = targets(*pob);
+    auto &pobTargetForest = targetForest(*pob);
+
+    auto history = context->history();
+    while (history && history->target) {
+      if (pobTargetForest.contains(history->target)) {
+        updateDone(*pob, history->target);
+      }
+      history = history->next;
+    }
+    updateTargets(*pob);
+  }
+}
+
 void TargetManager::update(ExecutionState *current,
                            const std::vector<ExecutionState *> &addedStates,
-                           const std::vector<ExecutionState *> &removedStates) {
-
+                           const std::vector<ExecutionState *> &removedStates,
+                           bool isolated) {
   states.insert(addedStates.begin(), addedStates.end());
 
   if (current && (std::find(removedStates.begin(), removedStates.end(),
@@ -189,6 +293,11 @@ void TargetManager::update(ExecutionState *current,
   }
   for (const auto state : addedStates) {
     localStates.insert(state);
+    for (auto target : state->targets()) {
+      if (state->isolated) {
+        targetToStates[target].insert(state);
+      }
+    }
   }
   for (const auto state : removedStates) {
     localStates.insert(state);
@@ -203,6 +312,7 @@ void TargetManager::update(ExecutionState *current,
   }
 
   for (auto state : changedStates) {
+    assert(state->isolated == isolated);
     if (std::find(addedStates.begin(), addedStates.end(), state) ==
         addedStates.end()) {
       collect(*state);
@@ -211,12 +321,20 @@ void TargetManager::update(ExecutionState *current,
   }
 
   for (const auto state : removedStates) {
+    for (auto target : state->targets()) {
+      if (state->isolated) {
+        targetToStates[target].erase(state);
+      }
+    }
     states.erase(state);
     distances.erase(state);
   }
 
-  for (auto subscriber : subscribers) {
-    subscriber->update(addedTStates, removedTStates);
+  if (isolated && branchSearcher) {
+    branchSearcher->update(addedTStates, removedTStates);
+  }
+  if (!isolated && searcher) {
+    searcher->update(addedTStates, removedTStates);
   }
 
   for (auto &pair : addedTStates) {
@@ -241,7 +359,8 @@ bool TargetManager::isReachedTarget(const ExecutionState &state,
 
 bool TargetManager::isReachedTarget(const ExecutionState &state,
                                     ref<Target> target, WeightResult &result) {
-  if (state.constraints.path().KBlockSize() == 0) {
+
+  if (state.constraints.path().empty() && state.error == None) {
     return false;
   }
 
@@ -249,11 +368,17 @@ bool TargetManager::isReachedTarget(const ExecutionState &state,
     if (cast<ReachBlockTarget>(target)->isAtEnd()) {
       if (state.prevPC->parent == target->getBlock() ||
           state.pc->parent == target->getBlock()) {
-        if (state.prevPC == target->getBlock()->getLastInstruction()) {
+        if (state.constraints.path().getLastInstruction() ==
+            target->getBlock()->getLastInstruction()) {
           result = Done;
         } else {
           result = Continue;
         }
+        return true;
+      }
+    } else {
+      if (state.pc == target->getBlock()->getFirstInstruction()) {
+        result = Done;
         return true;
       }
     }
@@ -275,7 +400,7 @@ bool TargetManager::isReachedTarget(const ExecutionState &state,
 
   if (target->shouldFailOnThisTarget()) {
     bool found = true;
-    auto possibleInstruction = state.prevPC;
+    auto possibleInstruction = &*state.prevPC;
     int i = state.stack.size() - 1;
 
     while (!cast<ReproduceErrorTarget>(target)->isTheSameAsIn(
