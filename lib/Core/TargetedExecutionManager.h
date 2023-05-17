@@ -14,6 +14,7 @@
 #ifndef KLEE_TARGETEDEXECUTIONMANAGER_H
 #define KLEE_TARGETEDEXECUTIONMANAGER_H
 
+#include "ObjectManager.h"
 #include "klee/Core/TargetedExecutionReporter.h"
 #include "klee/Module/KModule.h"
 #include "klee/Module/Target.h"
@@ -86,7 +87,7 @@ public:
   void reportFalsePositives(bool canReachSomeTarget);
 };
 
-class TargetedExecutionManager {
+class TargetedExecutionManager final : public Subscriber {
 private:
   using Blocks = std::unordered_set<KBlock *>;
   using LocationToBlocks = std::unordered_map<ref<Location>, Blocks,
@@ -99,13 +100,14 @@ private:
   std::unordered_set<std::string> brokenTraces;
   std::unordered_set<std::string> reportedTraces;
 
-  bool tryResolveLocations(Result &result, LocationToBlocks &locToBlocks) const;
+  bool tryResolveLocations(Result &result,
+                           const LocationToBlocks &locToBlocks) const;
   LocationToBlocks prepareAllLocations(KModule *kmodule,
                                        Locations &locations) const;
   Locations collectAllLocations(const SarifReport &paths) const;
 
   bool canReach(const ref<Location> &from, const ref<Location> &to,
-                LocationToBlocks &locToBlocks) const;
+                const LocationToBlocks &locToBlocks) const;
 
   KFunction *tryResolveEntryFunction(const Result &result,
                                      LocationToBlocks &locToBlocks) const;
@@ -115,12 +117,21 @@ private:
   StatesSet localStates;
 
 public:
+  struct Data {
+    std::map<KFunction *, ref<TargetForest>, KFunctionCompare> forwardWhitelists;
+    std::map<std::string, ref<TargetForest>> backwardWhitelists;
+    std::set<KFunction *> functionsToDismantle;
+    std::set<KBlock *> specialPoints;
+  };
+
   explicit TargetedExecutionManager(CodeGraphInfo &codeGraphInfo_,
                                     TargetManager &targetManager_)
       : codeGraphInfo(codeGraphInfo_), targetManager(targetManager_) {}
   ~TargetedExecutionManager() = default;
-  std::map<KFunction *, ref<TargetForest>, KFunctionCompare>
-  prepareTargets(KModule *kmodule, SarifReport paths);
+
+  Data prepareTargets(KModule *kmodule, SarifReport paths);
+
+  Data prepareTargets(KModule *kmodule, std::vector<KBlockTrace> paths);
 
   void reportFalseNegative(ExecutionState &state, ReachWithError error);
 
@@ -130,6 +141,8 @@ public:
   void update(ExecutionState *current,
               const std::vector<ExecutionState *> &addedStates,
               const std::vector<ExecutionState *> &removedStates);
+
+  void update(ref<ObjectManager::Event> e) override;
 };
 
 } // namespace klee
