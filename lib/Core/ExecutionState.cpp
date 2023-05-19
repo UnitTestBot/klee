@@ -98,7 +98,7 @@ ExecutionState::ExecutionState(const ExecutionState &state)
                                ? state.unwindingInformation->clone()
                                : nullptr),
       coveredNew(state.coveredNew), forkDisabled(state.forkDisabled),
-      symbolicCounter(state.symbolicCounter),
+      isolated(state.isolated), symbolicCounter(state.symbolicCounter),
       returnValue(state.returnValue), targets(state.targets),
       gepExprBases(state.gepExprBases), backwardStepsLeftCounter(0),
       failedBackwardStepsCounter(0) {}

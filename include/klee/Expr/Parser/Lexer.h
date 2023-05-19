@@ -31,6 +31,7 @@ struct Token {
     KWArray,    ///< 'array'
     KWFalse,    ///< 'false'
     KWQuery,    ///< 'query'
+    KWLemma,    ///< 'lemma'
     KWPath,     ///< 'path'
     KWReserved, ///< fp[0-9]+([.].*)?, i[0-9]+
     KWSymbolic, ///< 'symbolic'

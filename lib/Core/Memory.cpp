@@ -91,6 +91,15 @@ ObjectState::ObjectState(const MemoryObject *mo, KType *dt)
   memset(concreteStore, 0, size);
 }
 
+ObjectState::ObjectState(unsigned size, const Array *array, KType *dt)
+    : copyOnWriteOwner(0), object(nullptr), concreteStore(new uint8_t[size]),
+      concreteMask(nullptr), knownSymbolics(nullptr), unflushedMask(nullptr),
+      updates(array, nullptr), lastUpdate(nullptr), dynamicType(dt), size(size),
+      readOnly(false) {
+  makeSymbolic();
+  memset(concreteStore, 0, size);
+}
+
 ObjectState::ObjectState(const MemoryObject *mo, const Array *array, KType *dt)
     : copyOnWriteOwner(0), object(mo), concreteStore(new uint8_t[mo->size]),
       concreteMask(nullptr), knownSymbolics(nullptr), unflushedMask(nullptr),

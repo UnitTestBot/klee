@@ -7,11 +7,13 @@ SeedMap::SeedMap() {}
 
 void SeedMap::update(ref<ObjectManager::Event> e) {
   if (auto statesEvent = dyn_cast<ObjectManager::States>(e)) {
-    for (const auto state : statesEvent->removed) {
-      std::map<ExecutionState *, std::vector<SeedInfo>>::iterator it =
-          seedMap.find(state);
-      if (it != seedMap.end()) {
-        seedMap.erase(it);
+    if (!statesEvent->isolated) {
+      for (const auto state : statesEvent->removed) {
+        std::map<ExecutionState *, std::vector<SeedInfo>>::iterator it =
+            seedMap.find(state);
+        if (it != seedMap.end()) {
+          seedMap.erase(it);
+        }
       }
     }
   }

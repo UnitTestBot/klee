@@ -48,6 +48,8 @@ const char *Token::getKindName() const {
     return "KWFalse";
   case KWQuery:
     return "KWQuery";
+  case KWLemma:
+    return "KWLemma";
   case KWPath:
     return "KWPath";
   case KWReserved:
@@ -185,6 +187,8 @@ Token &Lexer::SetIdentifierTokenKind(Token &Result) {
       return SetTokenKind(Result, Token::KWFalse);
     if (memcmp("query", Result.start, 5) == 0)
       return SetTokenKind(Result, Token::KWQuery);
+    if (memcmp("lemma", Result.start, 5) == 0)
+      return SetTokenKind(Result, Token::KWLemma);
     break;
 
   case 6:

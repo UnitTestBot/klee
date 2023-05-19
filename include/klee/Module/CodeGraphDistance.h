@@ -65,6 +65,12 @@ public:
   getSortedDistance(KFunction *kf);
   const std::vector<std::pair<KFunction *, unsigned int>> &
   getSortedBackwardDistance(KFunction *kf);
+
+  KBlock *getNearestJoinBlock(KBlock *kb);
+  KBlock *getNearestJoinOrCallBlock(KBlock *kb);
+
+  std::vector<std::pair<KBlock *, KBlock *>>
+  dismantle(KBlock *from, std::vector<KBlock *> to);
 };
 
 } // namespace klee

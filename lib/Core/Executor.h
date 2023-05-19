@@ -18,6 +18,7 @@
 #include "BidirectionalSearcher.h"
 #include "ExecutionState.h"
 #include "ObjectManager.h"
+#include "ProofObligation.h"
 #include "SearcherUtil.h"
 #include "SeedMap.h"
 #include "UserSearcher.h"
@@ -29,6 +30,7 @@
 #include "klee/Expr/ArrayCache.h"
 #include "klee/Expr/ArrayExprOptimizer.h"
 #include "klee/Expr/Constraints.h"
+#include "klee/Expr/Lemma.h"
 #include "klee/Expr/SourceBuilder.h"
 #include "klee/Expr/SymbolicSource.h"
 #include "klee/Module/Cell.h"
@@ -103,6 +105,7 @@ template <class T> class ref;
 /// removedStates, and haltExecution, among others.
 
 class Executor : public Interpreter {
+  friend struct ComposeHelper;
   friend class OwningSearcher;
   friend class WeightedRandomSearcher;
   friend class SpecialFunctionHandler;
@@ -139,6 +142,7 @@ private:
   TypeManager *typeSystemManager;
 
   ObjectManager objectManager;
+  Summary summary;
 
   StatsTracker *statsTracker;
   TreeStreamWriter *pathWriter, *symPathWriter;
@@ -223,6 +227,13 @@ private:
 
   /// Typeids used during exception handling
   std::vector<ref<Expr>> eh_typeids;
+
+  // For statistics
+  std::set<KBlock *> summarized;
+
+  std::unordered_set<llvm::BasicBlock *> verifingTransitionsTo;
+  std::unordered_set<llvm::BasicBlock *> successTransitionsTo;
+  std::unordered_map<llvm::BasicBlock *, unsigned> failedTransitionsTo;
 
   /// Return the typeid corresponding to a certain `type_info`
   ref<ConstantExpr> getEhTypeidFor(ref<Expr> type_info);
@@ -363,6 +374,13 @@ private:
                     const std::vector<IDType> &resolvedMemoryObjects,
                     const std::vector<Assignment> &resolveConcretizations,
                     std::vector<ref<Expr>> &results);
+
+  void
+  collectObjectStates(ExecutionState &state, ref<Expr> address,
+                      Expr::Width type, unsigned bytes,
+                      const std::vector<IDType> &resolvedMemoryObjects,
+                      const std::vector<Assignment> &resolveConcretizations,
+                      std::vector<ref<ObjectState>> &results);
 
   // do address resolution / object binding / out of bounds checking
   // and perform the operation
@@ -594,9 +612,39 @@ private:
   void dumpStates();
   void dumpPForest();
 
+  ref<Expr> fillValue(ExecutionState &state, ref<ValueSource> valueSource,
+                      ref<Expr> size, Expr::Width width);
+  ref<ObjectState> fillMakeSymbolic(ExecutionState &state,
+                                    ref<MakeSymbolicSource> makeSymbolicSource,
+                                    ref<Expr> size, unsigned concreteSize);
+  ref<ObjectState> fillConstant(ExecutionState &state,
+                                ref<ConstantSource> constanSource,
+                                ref<Expr> size);
+  ref<ObjectState> fillSymbolicSizeConstant(
+      ExecutionState &state,
+      ref<SymbolicSizeConstantSource> symbolicSizeConstantSource,
+      ref<Expr> size, unsigned concreteSize);
+  ref<Expr> fillSymbolicSizeConstantAddress(
+      ExecutionState &state,
+      ref<SymbolicSizeConstantAddressSource> symbolicSizeConstantAddressSource,
+      ref<Expr> size, Expr::Width width);
+  std::pair<ref<Expr>, ref<Expr>> getSymbolicSizeConstantSizeAddressPair(
+      ExecutionState &state,
+      ref<SymbolicSizeConstantAddressSource> symbolicSizeConstantAddressSource,
+      ref<Expr> size, Expr::Width width);
+  ref<Expr> fillSizeAddressSymcretes(ExecutionState &state,
+                                     ref<Expr> oldAddress, ref<Expr> newAddress,
+                                     ref<Expr> size);
+  ComposeResult compose(const ExecutionState &state,
+                        const PathConstraints &pob);
+
   void executeAction(ref<BidirectionalAction> action);
 
   void goForward(ref<ForwardAction> action);
+  void goBackward(ref<BackwardAction> action);
+  void initializeIsolated(ref<InitializeAction> action);
+
+  void closeProofObligation(ProofObligation *pob);
 
   const KInstruction *getKInst(const llvm::Instruction *ints) const;
   const KBlock *getKBlock(const llvm::BasicBlock *bb) const;

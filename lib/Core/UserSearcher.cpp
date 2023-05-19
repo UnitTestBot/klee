@@ -9,6 +9,7 @@
 
 #include "UserSearcher.h"
 
+#include "BackwardSearcher.h"
 #include "Executor.h"
 #include "Searcher.h"
 
@@ -199,4 +200,8 @@ Searcher *klee::constructUserSearcher(Executor &executor,
   os << "END searcher description\n";
 
   return searcher;
+}
+
+BackwardSearcher *klee::constructUserBackwardSearcher() {
+  return new RecencyRankedSearcher(MaxCycles - 1);
 }

@@ -416,8 +416,11 @@ void StatsTracker::stepInstruction(ExecutionState &es) {
         es.coveredLines[&ii.file].insert(ii.line);
         es.coveredNew = true;
         es.instsSinceCovNew = 1;
-        ++stats::coveredInstructions;
-        stats::uncoveredInstructions += (uint64_t)-1;
+
+        if (!es.isolated) {
+          ++stats::coveredInstructions;
+          stats::uncoveredInstructions += (uint64_t)-1;
+        }
       }
     }
   }

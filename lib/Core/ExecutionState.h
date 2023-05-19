@@ -303,6 +303,8 @@ public:
   /// @brief Disables forking for this state. Set by user code
   bool forkDisabled = false;
 
+  bool isolated = false;
+
   /// @brief Index of current symbolic in case of pre-loaded symbolics.
   size_t symbolicCounter;
 

@@ -39,6 +39,7 @@
 #include <algorithm>
 #include <fstream>
 #include <map>
+#include <queue>
 #include <set>
 #include <sstream>
 #include <string>
