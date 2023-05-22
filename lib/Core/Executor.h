@@ -69,6 +69,7 @@ class AddressManager;
 class Array;
 struct Cell;
 class CodeGraphDistance;
+class DistanceCalculator;
 class ExecutionState;
 class ExternalDispatcher;
 class Expr;
@@ -141,6 +142,7 @@ private:
   std::unique_ptr<ConcretizationManager> concretizationManager;
   std::unique_ptr<PForest> processForest;
   std::unique_ptr<CodeGraphDistance> codeGraphDistance;
+  std::unique_ptr<DistanceCalculator> distanceCalculator;
   std::unique_ptr<TargetCalculator> targetCalculator;
 
   /// Used to track states that have been added during the current

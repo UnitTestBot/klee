@@ -20,7 +20,6 @@
 #include "klee/ADT/DiscretePDF.h"
 #include "klee/ADT/RNG.h"
 #include "klee/ADT/WeightedQueue.h"
-#include "klee/Module/CodeGraphDistance.h"
 #include "klee/Module/InstructionInfoTable.h"
 #include "klee/Module/KInstruction.h"
 #include "klee/Module/KModule.h"
@@ -151,118 +150,15 @@ static unsigned int ulog2(unsigned int val) {
 ///
 
 TargetedSearcher::TargetedSearcher(ref<Target> target,
-                                   CodeGraphDistance &_distance)
+                                   DistanceCalculator &distanceCalculator_)
     : states(std::make_unique<
              WeightedQueue<ExecutionState *, ExecutionStateIDCompare>>()),
-      target(target), codeGraphDistance(_distance),
-      distanceToTargetFunction(
-          codeGraphDistance.getBackwardDistance(target->getBlock()->parent)) {}
+      target(target), distanceCalculator(distanceCalculator_) {}
 
 ExecutionState &TargetedSearcher::selectState() { return *states->choose(0); }
 
-bool TargetedSearcher::distanceInCallGraph(KFunction *kf, KBlock *kb,
-                                           unsigned int &distance) {
-  distance = UINT_MAX;
-  const std::unordered_map<KBlock *, unsigned> &dist =
-      codeGraphDistance.getDistance(kb);
-  KBlock *targetBB = target->getBlock();
-  KFunction *targetF = targetBB->parent;
-
-  if (kf == targetF && dist.count(targetBB) != 0) {
-    distance = 0;
-    return true;
-  }
-
-  for (auto &kCallBlock : kf->kCallBlocks) {
-    if (dist.count(kCallBlock) != 0) {
-      for (auto &calledFunction : kCallBlock->calledFunctions) {
-        KFunction *calledKFunction = kf->parent->functionMap[calledFunction];
-        if (distanceToTargetFunction.count(calledKFunction) != 0 &&
-            distance > distanceToTargetFunction.at(calledKFunction) + 1) {
-          distance = distanceToTargetFunction.at(calledKFunction) + 1;
-        }
-      }
-    }
-  }
-  return distance != UINT_MAX;
-}
-
-TargetedSearcher::WeightResult
-TargetedSearcher::tryGetLocalWeight(ExecutionState *es, weight_type &weight,
-                                    const std::vector<KBlock *> &localTargets) {
-  unsigned int intWeight = es->steppedMemoryInstructions;
-  KFunction *currentKF = es->pc->parent->parent;
-  KBlock *initKB = es->initPC->parent;
-  KBlock *currentKB = currentKF->blockMap[es->getPCBlock()];
-  KBlock *prevKB = currentKF->blockMap[es->getPrevPCBlock()];
-  const std::unordered_map<KBlock *, unsigned> &dist =
-      codeGraphDistance.getDistance(currentKB);
-  unsigned int localWeight = UINT_MAX;
-  for (auto &end : localTargets) {
-    if (dist.count(end) > 0) {
-      unsigned int w = dist.at(end);
-      localWeight = std::min(w, localWeight);
-    }
-  }
-
-  if (localWeight == UINT_MAX)
-    return Miss;
-  if (localWeight == 0 && (initKB == currentKB || prevKB != currentKB ||
-                           target->shouldFailOnThisTarget())) {
-    return Done;
-  }
-
-  intWeight += localWeight;
-  weight = ulog2(intWeight); // number on [0,32)-discrete-interval
-  return Continue;
-}
-
-TargetedSearcher::WeightResult
-TargetedSearcher::tryGetPreTargetWeight(ExecutionState *es,
-                                        weight_type &weight) {
-  KFunction *currentKF = es->pc->parent->parent;
-  std::vector<KBlock *> localTargets;
-  for (auto &kCallBlock : currentKF->kCallBlocks) {
-    for (auto &calledFunction : kCallBlock->calledFunctions) {
-      KFunction *calledKFunction =
-          currentKF->parent->functionMap[calledFunction];
-      if (distanceToTargetFunction.count(calledKFunction) > 0) {
-        localTargets.push_back(kCallBlock);
-      }
-    }
-  }
-
-  if (localTargets.empty())
-    return Miss;
-
-  WeightResult res = tryGetLocalWeight(es, weight, localTargets);
-  weight = weight + 32; // number on [32,64)-discrete-interval
-  return res == Done ? Continue : res;
-}
-
-TargetedSearcher::WeightResult
-TargetedSearcher::tryGetPostTargetWeight(ExecutionState *es,
-                                         weight_type &weight) {
-  KFunction *currentKF = es->pc->parent->parent;
-  std::vector<KBlock *> &localTargets = currentKF->returnKBlocks;
-
-  if (localTargets.empty())
-    return Miss;
-
-  WeightResult res = tryGetLocalWeight(es, weight, localTargets);
-  weight = weight + 32; // number on [32,64)-discrete-interval
-  return res == Done ? Continue : res;
-}
-
-TargetedSearcher::WeightResult
-TargetedSearcher::tryGetTargetWeight(ExecutionState *es, weight_type &weight) {
-  std::vector<KBlock *> localTargets = {target->getBlock()};
-  WeightResult res = tryGetLocalWeight(es, weight, localTargets);
-  return res;
-}
-
-TargetedSearcher::WeightResult
-TargetedSearcher::tryGetWeight(ExecutionState *es, weight_type &weight) {
+WeightResult TargetedSearcher::tryGetWeight(ExecutionState *es,
+                                            weight_type &weight) {
   if (target->atReturn() && !target->shouldFailOnThisTarget()) {
     if (es->prevPC->parent == target->getBlock() &&
         es->prevPC == target->getBlock()->getLastInstruction()) {
@@ -286,51 +182,14 @@ TargetedSearcher::tryGetWeight(ExecutionState *es, weight_type &weight) {
       states->tryGetWeight(es, weight)) {
     return Continue;
   }
-  unsigned int minCallWeight = UINT_MAX, minSfNum = UINT_MAX, sfNum = 0;
-  for (auto sfi = es->stack.rbegin(), sfe = es->stack.rend(); sfi != sfe;
-       sfi++) {
-    unsigned callWeight;
-    if (distanceInCallGraph(sfi->kf, kb, callWeight)) {
-      callWeight *= 2;
-      if (callWeight == 0 && target->shouldFailOnThisTarget()) {
-        weight = 0;
-        return target->isTheSameAsIn(kb->getFirstInstruction()) &&
-                       target->isThatError(es->error)
-                   ? Done
-                   : Continue;
-      } else {
-        callWeight += sfNum;
-      }
 
-      if (callWeight < minCallWeight) {
-        minCallWeight = callWeight;
-        minSfNum = sfNum;
-      }
-    }
-
-    if (sfi->caller) {
-      kb = sfi->caller->parent;
-      bb = kb->basicBlock;
-    }
-    sfNum++;
-
-    if (minCallWeight < sfNum)
-      break;
+  auto distRes = distanceCalculator.getDistance(es, target.get());
+  weight = ulog2(distRes.weight + es->steppedMemoryInstructions); // [0, 32]
+  if (!distRes.isInsideFunction) {
+    weight += 32; // [32, 64]
   }
 
-  WeightResult res = Miss;
-  if (minCallWeight == 0)
-    res = tryGetTargetWeight(es, weight);
-  else if (minSfNum == 0)
-    res = tryGetPreTargetWeight(es, weight);
-  else if (minSfNum != UINT_MAX)
-    res = tryGetPostTargetWeight(es, weight);
-  if (Done == res && target->shouldFailOnThisTarget()) {
-    if (!target->isThatError(es->error)) {
-      res = Continue;
-    }
-  }
-  return res;
+  return distRes.result;
 }
 
 void TargetedSearcher::update(
@@ -437,20 +296,20 @@ void TargetedSearcher::removeReached() {
 ///
 
 GuidedSearcher::GuidedSearcher(
-    Searcher *baseSearcher, CodeGraphDistance &codeGraphDistance,
+    Searcher *baseSearcher, DistanceCalculator &distanceCalculator_,
     TargetCalculator &stateHistory,
     std::set<ExecutionState *, ExecutionStateIDCompare> &pausedStates,
     std::size_t bound, RNG &rng)
     : guidance(CoverageGuidance), baseSearcher(baseSearcher),
-      codeGraphDistance(codeGraphDistance), stateHistory(&stateHistory),
+      distanceCalculator(distanceCalculator_), stateHistory(&stateHistory),
       pausedStates(pausedStates), bound(bound), theRNG(rng) {}
 
 GuidedSearcher::GuidedSearcher(
-    CodeGraphDistance &codeGraphDistance,
+    DistanceCalculator &distanceCalculator_,
     std::set<ExecutionState *, ExecutionStateIDCompare> &pausedStates,
     std::size_t bound, RNG &rng)
     : guidance(ErrorGuidance), baseSearcher(nullptr),
-      codeGraphDistance(codeGraphDistance), stateHistory(nullptr),
+      distanceCalculator(distanceCalculator_), stateHistory(nullptr),
       pausedStates(pausedStates), bound(bound), theRNG(rng) {}
 
 ExecutionState &GuidedSearcher::selectState() {
@@ -841,7 +700,7 @@ bool GuidedSearcher::tryAddTarget(ref<TargetForest::History> history,
   assert(targetedSearchers.count(history) == 0 ||
          targetedSearchers.at(history).count(target) == 0);
   targetedSearchers[history][target] =
-      std::make_unique<TargetedSearcher>(target, codeGraphDistance);
+      std::make_unique<TargetedSearcher>(target, distanceCalculator);
   auto it = std::find_if(
       historiesAndTargets.begin(), historiesAndTargets.end(),
       [&history, &target](
