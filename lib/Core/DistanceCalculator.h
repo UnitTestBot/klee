@@ -1,5 +1,4 @@
-//===-- DistanceCalculator.h ----------------------------------------------*-
-//C++ -*-===//
+//===-- DistanceCalculator.h ------------------------------------*- C++ -*-===//
 //
 //                     The KLEE Symbolic Virtual Machine
 //

@@ -1,5 +1,4 @@
-//===-- DistanceCalculator.cpp
-//------------------------------------------------------===//
+//===-- DistanceCalculator.cpp --------------------------------------------===//
 //
 //                     The KLEE Symbolic Virtual Machine
 //
