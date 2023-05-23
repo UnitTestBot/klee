@@ -27,6 +27,7 @@
 #include "SpecialFunctionHandler.h"
 #include "StatsTracker.h"
 #include "TargetCalculator.h"
+#include "TargetReachability.h"
 #include "TargetedExecutionManager.h"
 #include "TimingSolver.h"
 #include "TypeManager.h"
@@ -427,6 +428,7 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
       concretizationManager(new ConcretizationManager(EqualitySubstitution)),
       codeGraphDistance(new CodeGraphDistance()),
       distanceCalculator(new DistanceCalculator(*codeGraphDistance)),
+      targetReachability(new TargetReachability(*distanceCalculator)),
       targetedExecutionManager(*codeGraphDistance), replayKTest(0),
       replayPath(0), usingSeeds(0), atMemoryLimit(false), inhibitForking(false),
       haltExecution(HaltExecution::NotHalt), ivcEnabled(false),

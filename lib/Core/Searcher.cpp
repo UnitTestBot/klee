@@ -16,6 +16,7 @@
 #include "PTree.h"
 #include "StatsTracker.h"
 #include "TargetCalculator.h"
+#include "TargetReachability.h"
 
 #include "klee/ADT/DiscretePDF.h"
 #include "klee/ADT/RNG.h"
@@ -297,20 +298,23 @@ void TargetedSearcher::removeReached() {
 
 GuidedSearcher::GuidedSearcher(
     Searcher *baseSearcher, DistanceCalculator &distanceCalculator_,
-    TargetCalculator &stateHistory,
+    TargetCalculator &stateHistory, TargetReachability &targetReachability_,
     std::set<ExecutionState *, ExecutionStateIDCompare> &pausedStates,
     std::size_t bound, RNG &rng)
     : guidance(CoverageGuidance), baseSearcher(baseSearcher),
       distanceCalculator(distanceCalculator_), stateHistory(&stateHistory),
-      pausedStates(pausedStates), bound(bound), theRNG(rng) {}
+      targetReachability(targetReachability_), pausedStates(pausedStates),
+      bound(bound), theRNG(rng) {}
 
 GuidedSearcher::GuidedSearcher(
     DistanceCalculator &distanceCalculator_,
+    TargetReachability &targetReachability_,
     std::set<ExecutionState *, ExecutionStateIDCompare> &pausedStates,
     std::size_t bound, RNG &rng)
     : guidance(ErrorGuidance), baseSearcher(nullptr),
       distanceCalculator(distanceCalculator_), stateHistory(nullptr),
-      pausedStates(pausedStates), bound(bound), theRNG(rng) {}
+      targetReachability(targetReachability_), pausedStates(pausedStates),
+      bound(bound), theRNG(rng) {}
 
 ExecutionState &GuidedSearcher::selectState() {
   unsigned size = historiesAndTargets.size();
@@ -394,13 +398,6 @@ bool GuidedSearcher::updateTargetedSearcher(
   return canReach;
 }
 
-static void updateConfidences(ExecutionState *current,
-                              const GuidedSearcher::TargetToStateUnorderedSetMap
-                                  &reachableStatesOfTarget) {
-  if (current)
-    current->targetForest.divideConfidenceBy(reachableStatesOfTarget);
-}
-
 void GuidedSearcher::updateTargetedSearcherForStates(
     std::vector<ExecutionState *> &states,
     std::vector<ExecutionState *> &tmpAddedStates,
@@ -429,7 +426,7 @@ void GuidedSearcher::updateTargetedSearcherForStates(
           canReach = updateTargetedSearcher(history, target, nullptr,
                                             tmpAddedStates, tmpRemovedStates);
         if (canReach)
-          reachableStatesOfTarget[target].insert(state);
+          targetReachability.addReachableStateForTarget(state, target);
       }
       tmpAddedStates.clear();
       tmpRemovedStates.clear();
@@ -555,7 +552,7 @@ void GuidedSearcher::innerUpdate(
                                           tmpAddedStates, tmpRemovedStates);
       }
       if (canReach)
-        reachableStatesOfTarget[target].insert(current);
+        targetReachability.addReachableStateForTarget(current, target);
       tmpAddedStates.clear();
       tmpRemovedStates.clear();
     }
@@ -577,11 +574,12 @@ void GuidedSearcher::innerUpdate(
     baseSearcher->update(current, baseAddedStates, baseRemovedStates);
   }
 
-  updateConfidences(current, reachableStatesOfTarget);
+  targetReachability.updateConfidencesInState(current);
   for (auto state : baseAddedStates)
-    updateConfidences(state, reachableStatesOfTarget);
+    targetReachability.updateConfidencesInState(state);
   for (auto state : addedStuckStates)
-    updateConfidences(state, reachableStatesOfTarget);
+    targetReachability.updateConfidencesInState(state);
+  targetReachability.clear();
   baseAddedStates.clear();
   baseRemovedStates.clear();
 }

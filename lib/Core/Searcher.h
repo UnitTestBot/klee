@@ -42,6 +42,7 @@ class ExecutionState;
 class Executor;
 class TargetCalculator;
 class TargetForest;
+class TargetReachability;
 
 /// A Searcher implements an exploration strategy for the Executor by selecting
 /// states for further exploration using different strategies or heuristics.
@@ -204,6 +205,7 @@ private:
   TargetForestHistoryToSearcherMap targetedSearchers;
   DistanceCalculator &distanceCalculator;
   TargetCalculator *stateHistory;
+  TargetReachability &targetReachability;
   TargetHashSet reachedTargets;
   std::set<ExecutionState *, ExecutionStateIDCompare> &pausedStates;
   std::size_t bound;
@@ -241,11 +243,12 @@ private:
 public:
   GuidedSearcher(
       Searcher *baseSearcher, DistanceCalculator &distanceCalculator_,
-      TargetCalculator &stateHistory,
+      TargetCalculator &stateHistory, TargetReachability &targetReachability_,
       std::set<ExecutionState *, ExecutionStateIDCompare> &pausedStates,
       std::size_t bound, RNG &rng);
   GuidedSearcher(
-      DistanceCalculator &DistanceCalculator_,
+      DistanceCalculator &distanceCalculator_,
+      TargetReachability &targetReachability_,
       std::set<ExecutionState *, ExecutionStateIDCompare> &pausedStates,
       std::size_t bound, RNG &rng);
   ~GuidedSearcher() override = default;

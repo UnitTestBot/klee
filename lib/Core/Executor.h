@@ -90,6 +90,7 @@ class SpecialFunctionHandler;
 struct StackFrame;
 class SymbolicSource;
 class TargetCalculator;
+class TargetReachability;
 class StatsTracker;
 class TimingSolver;
 class TreeStreamWriter;
@@ -144,6 +145,7 @@ private:
   std::unique_ptr<CodeGraphDistance> codeGraphDistance;
   std::unique_ptr<DistanceCalculator> distanceCalculator;
   std::unique_ptr<TargetCalculator> targetCalculator;
+  std::unique_ptr<TargetReachability> targetReachability;
 
   /// Used to track states that have been added during the current
   /// instructions step.

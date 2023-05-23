@@ -18,8 +18,12 @@ using namespace klee;
 
 DistanceResult DistanceCalculator::getDistance(ExecutionState *es,
                                                Target *target) {
-  return getDistance(es->pc, es->prevPC, es->initPC, es->stack, es->error,
-                     es->getPCBlock(), es->getPrevPCBlock(), target);
+  if (es) {
+    return getDistance(es->pc, es->prevPC, es->initPC, es->stack, es->error,
+                       es->getPCBlock(), es->getPrevPCBlock(), target);
+  }
+
+  return DistanceResult(Miss);
 }
 
 DistanceResult DistanceCalculator::getDistance(

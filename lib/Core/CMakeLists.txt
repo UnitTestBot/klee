@@ -31,6 +31,7 @@ klee_add_component(kleeCore
   TargetCalculator.cpp
   TargetedExecutionReporter.cpp
   TargetedExecutionManager.cpp
+  TargetReachability.cpp
   TimingSolver.cpp
   TypeManager.cpp
   UserSearcher.cpp
