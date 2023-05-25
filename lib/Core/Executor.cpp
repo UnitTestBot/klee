@@ -2226,6 +2226,19 @@ void Executor::transferToBasicBlock(BasicBlock *dst, BasicBlock *src,
   transferToBasicBlock(kdst, src, state);
 }
 
+void Executor::updateReachabilityForPotentialState(ExecutionState *es,
+                                                   BasicBlock *bb) {
+  KFunction *kf = es->stack.back().kf;
+  auto kdst = kf->blockMap[bb];
+  KInstIterator pc = kdst->instructions;
+  for (const auto &target : *es->targetForest.getTargets()) {
+    targetReachability->updateReachabilityOfPotentialStateForTarget(
+        potentialStateId, pc, es->prevPC, es->initPC, es->stack, es->error,
+        pc->inst->getParent(), es->prevPC->inst->getParent(), target.first);
+  }
+  potentialStateId++;
+}
+
 void Executor::checkNullCheckAfterDeref(ref<Expr> cond, ExecutionState &state,
                                         ExecutionState *fstate,
                                         ExecutionState *sstate) {
@@ -2401,12 +2414,21 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       if (statsTracker && state.stack.back().kf->trackCoverage)
         statsTracker->markBranchVisited(branches.first, branches.second);
 
-      if (branches.first)
+      if (branches.first) {
         transferToBasicBlock(bi->getSuccessor(0), bi->getParent(),
                              *branches.first);
-      if (branches.second)
+      } else if (branches.second) {
+        updateReachabilityForPotentialState(branches.second,
+                                            bi->getSuccessor(0));
+      }
+
+      if (branches.second) {
         transferToBasicBlock(bi->getSuccessor(1), bi->getParent(),
                              *branches.second);
+      } else if (branches.first) {
+        updateReachabilityForPotentialState(branches.first,
+                                            bi->getSuccessor(1));
+      }
 
       if (guidanceKind == GuidanceKind::ErrorGuidance) {
         checkNullCheckAfterDeref(cond, state, branches.first, branches.second);
@@ -3773,6 +3795,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 void Executor::updateStates(ExecutionState *current) {
   if (searcher) {
     searcher->update(current, addedStates, removedStates);
+    potentialStateId = 0;
   }
 
   states.insert(addedStates.begin(), addedStates.end());
@@ -4483,6 +4506,8 @@ void Executor::terminateStateOnExecError(ExecutionState &state,
 void Executor::terminateStateOnSolverError(ExecutionState &state,
                                            const llvm::Twine &message) {
   terminateStateOnError(state, message, StateTerminationType::Solver, "");
+  SetOfStates states = {&state};
+  decreaseConfidenceFromStoppedStates(states, HaltExecution::MaxSolverTime);
 }
 
 // XXX shoot me

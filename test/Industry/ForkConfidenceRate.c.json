@@ -1,0 +1,52 @@
+{
+    "runs": [
+        {
+            "tool": {
+                "driver": {
+                    "name": "SecB"
+                }
+            },
+            "results": [
+                {
+                    "codeFlows": [
+                        {
+                            "threadFlows": [
+                                {
+                                    "locations": [
+                                        {
+                                            "location": {
+                                                "physicalLocation": {
+                                                    "artifactLocation": {
+                                                        "uri": "ForkConfidenceRate.c"
+                                                    },
+                                                    "region": {
+                                                        "startLine": 9,
+                                                        "startColumn": 3
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ],
+                    "ruleId": "NullDereference",
+                    "locations": [
+                        {
+                            "physicalLocation": {
+                                "artifactLocation": {
+                                    "uri": "ForkConfidenceRate.c"
+                                },
+                                "region": {
+                                    "startLine": 9,
+                                    "startColumn": 3
+                                }
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

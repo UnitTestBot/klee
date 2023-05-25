@@ -10,18 +10,20 @@
 #include "TargetReachability.h"
 #include "DistanceCalculator.h"
 #include "klee/Module/Target.h"
+#include "klee/Support/ErrorHandling.h"
 
 using namespace klee;
+using namespace llvm;
 
 void TargetReachability::addReachableStateForTarget(ExecutionState *es,
-                                                    ref<Target> target) {
+                                                    const ref<Target> &target) {
   if (es) {
     reachableStatesOfTarget[target].insert(es);
   }
 }
 
 void TargetReachability::updateReachibilityOfStateForTarget(
-    ExecutionState *es, ref<Target> target) {
+    ExecutionState *es, const ref<Target> &target) {
   if (es) {
     auto distRes = distanceCalculator.getDistance(es, target.get());
     if (distRes.result != Miss) {
@@ -34,7 +36,7 @@ void TargetReachability::updateReachabilityOfPotentialStateForTarget(
     unsigned stateId, KInstIterator pc, KInstIterator prevPC,
     KInstIterator initPC, const ExecutionState::stack_ty &stack,
     ReachWithError error, llvm::BasicBlock *pcBlock,
-    llvm::BasicBlock *prevPCBlock, ref<Target> target) {
+    llvm::BasicBlock *prevPCBlock, const ref<Target> &target) {
   auto distRes = distanceCalculator.getDistance(
       pc, prevPC, initPC, stack, error, pcBlock, prevPCBlock, target.get());
   if (distRes.result != Miss) {
@@ -44,7 +46,8 @@ void TargetReachability::updateReachabilityOfPotentialStateForTarget(
 
 void TargetReachability::updateConfidencesInState(ExecutionState *es) {
   if (es) {
-    es->targetForest.divideConfidenceBy(reachableStatesOfTarget);
+    es->targetForest.divideConfidenceBy(reachableStatesOfTarget,
+                                        reachablePotentialStatesOfTarget);
   }
 }
 

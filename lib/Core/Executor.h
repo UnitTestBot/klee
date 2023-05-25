@@ -146,6 +146,7 @@ private:
   std::unique_ptr<DistanceCalculator> distanceCalculator;
   std::unique_ptr<TargetCalculator> targetCalculator;
   std::unique_ptr<TargetReachability> targetReachability;
+  unsigned potentialStateId = 0;
 
   /// Used to track states that have been added during the current
   /// instructions step.
@@ -470,6 +471,11 @@ private:
 
   // unpause state
   void unpauseState(ExecutionState &state);
+
+  // Add information about reachability of targets for potential state after
+  // fork in branch instruction
+  void updateReachabilityForPotentialState(ExecutionState *es,
+                                           llvm::BasicBlock *bb);
 
   /// Call exit handler and terminate state normally
   /// (end of execution path)

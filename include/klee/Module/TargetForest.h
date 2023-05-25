@@ -103,6 +103,9 @@ private:
   using TargetToStateSetMap =
       std::unordered_map<ref<Target>, std::unordered_set<ExecutionState *>,
                          RefTargetHash, RefTargetCmp>;
+  using TargetToPotentialStateSetMap =
+      std::unordered_map<ref<Target>, std::unordered_set<unsigned>,
+                         RefTargetHash, RefTargetCmp>;
   class Layer {
     using InternalLayer =
         std::unordered_map<ref<UnorderedTargetsSet>, ref<Layer>,
@@ -185,8 +188,9 @@ private:
     ref<Layer> deepCopy();
     Layer *copy();
     void divideConfidenceBy(unsigned factor);
-    Layer *
-    divideConfidenceBy(const TargetToStateSetMap &reachableStatesOfTarget);
+    Layer *divideConfidenceBy(
+        const TargetToStateSetMap &reachableStatesOfTarget,
+        const TargetToPotentialStateSetMap &reachablePotentialStatesOfTarget);
     confidence::ty getConfidence() const {
       return getConfidence(confidence::MaxConfidence);
     }
@@ -310,8 +314,11 @@ public:
   void divideConfidenceBy(unsigned factor) {
     forest->divideConfidenceBy(factor);
   }
-  void divideConfidenceBy(const TargetToStateSetMap &reachableStatesOfTarget) {
-    forest = forest->divideConfidenceBy(reachableStatesOfTarget);
+  void divideConfidenceBy(
+      const TargetToStateSetMap &reachableStatesOfTarget,
+      const TargetToPotentialStateSetMap &reachablePotentialStatesOfTarget) {
+    forest = forest->divideConfidenceBy(reachableStatesOfTarget,
+                                        reachablePotentialStatesOfTarget);
   }
   void collectHowManyEventsInTracesWereReached(
       std::unordered_map<unsigned, std::pair<unsigned, unsigned>>

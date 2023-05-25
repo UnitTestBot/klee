@@ -32,14 +32,15 @@ public:
       std::unordered_map<ref<Target>, std::unordered_set<unsigned>,
                          RefTargetHash, RefTargetCmp>;
 
-  void addReachableStateForTarget(ExecutionState *es, ref<Target> target);
+  void addReachableStateForTarget(ExecutionState *es,
+                                  const ref<Target> &target);
   void updateReachibilityOfStateForTarget(ExecutionState *es,
-                                          ref<Target> target);
+                                          const ref<Target> &target);
   void updateReachabilityOfPotentialStateForTarget(
       unsigned stateId, KInstIterator pc, KInstIterator prevPC,
       KInstIterator initPC, const ExecutionState::stack_ty &stack,
       ReachWithError error, llvm::BasicBlock *pcBlock,
-      llvm::BasicBlock *prevPCBlock, ref<Target> target);
+      llvm::BasicBlock *prevPCBlock, const ref<Target> &target);
   void updateConfidencesInState(ExecutionState *es);
   void clear();
 

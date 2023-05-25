@@ -422,11 +422,16 @@ void GuidedSearcher::updateTargetedSearcherForStates(
 
         bool canReach = areStatesStuck; // overapproximation: assume that stuck
                                         // state can reach any target
-        if (!areStatesStuck)
+        if (!areStatesStuck) {
           canReach = updateTargetedSearcher(history, target, nullptr,
                                             tmpAddedStates, tmpRemovedStates);
-        if (canReach)
+        } else {
+          targetReachability.updateReachibilityOfStateForTarget(state, target);
+        }
+
+        if (canReach) {
           targetReachability.addReachableStateForTarget(state, target);
+        }
       }
       tmpAddedStates.clear();
       tmpRemovedStates.clear();

@@ -15,6 +15,8 @@
 #include "klee/Module/KModule.h"
 #include "klee/Module/TargetHash.h"
 
+#include "klee/Support/ErrorHandling.h"
+
 using namespace klee;
 using namespace llvm;
 
@@ -565,26 +567,35 @@ void TargetForest::Layer::divideConfidenceBy(unsigned factor) {
 }
 
 TargetForest::Layer *TargetForest::Layer::divideConfidenceBy(
-    const TargetForest::TargetToStateSetMap &reachableStatesOfTarget) {
-  if (forest.empty() || reachableStatesOfTarget.empty())
+    const TargetForest::TargetToStateSetMap &reachableStatesOfTarget,
+    const TargetToPotentialStateSetMap &reachablePotentialStatesOfTarget) {
+  if (forest.empty() || (reachableStatesOfTarget.empty() &&
+                         reachablePotentialStatesOfTarget.empty()))
     return this;
   auto result = new Layer(this);
   for (auto &targetAndForest : forest) {
     auto targetsVec = targetAndForest.first;
     auto layer = targetAndForest.second;
     std::unordered_set<ExecutionState *> reachableStatesForTargetsVec;
+    std::unordered_set<unsigned> reachablePotentialStatesForTargetsVec;
     for (const auto &target : targetsVec->getTargets()) {
       auto it = reachableStatesOfTarget.find(target);
-      if (it == reachableStatesOfTarget.end()) {
-        continue;
+      auto potentialIt = reachablePotentialStatesOfTarget.find(target);
+      if (it != reachableStatesOfTarget.end()) {
+        for (auto state : it->second) {
+          reachableStatesForTargetsVec.insert(state);
+        }
       }
 
-      for (auto state : it->second) {
-        reachableStatesForTargetsVec.insert(state);
+      if (potentialIt != reachablePotentialStatesOfTarget.end()) {
+        for (auto state : potentialIt->second) {
+          reachablePotentialStatesForTargetsVec.insert(state);
+        }
       }
     }
 
-    size_t count = reachableStatesForTargetsVec.size();
+    size_t count = reachableStatesForTargetsVec.size() +
+                   reachablePotentialStatesForTargetsVec.size();
     if (count) {
       if (count == 1)
         continue;
@@ -592,8 +603,8 @@ TargetForest::Layer *TargetForest::Layer::divideConfidenceBy(
       result->forest[targetsVec] = next;
       next->confidence /= count;
     } else
-      result->forest[targetsVec] =
-          layer->divideConfidenceBy(reachableStatesOfTarget);
+      result->forest[targetsVec] = layer->divideConfidenceBy(
+          reachableStatesOfTarget, reachablePotentialStatesOfTarget);
   }
   return result;
 }
