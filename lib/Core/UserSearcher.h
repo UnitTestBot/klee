@@ -17,6 +17,7 @@ DISABLE_WARNING_DEPRECATED_DECLARATIONS
 DISABLE_WARNING_POP
 
 namespace klee {
+class BackwardSearcher;
 class Executor;
 class Searcher;
 
@@ -26,7 +27,9 @@ bool userSearcherRequiresMD2U();
 void initializeSearchOptions();
 
 Searcher *constructUserSearcher(Executor &executor,
-                                bool stopAfterReachingTarget = true);
+                                bool branchSearcher = false);
+
+BackwardSearcher *constructUserBackwardSearcher(Executor &executor);
 } // namespace klee
 
 #endif /* KLEE_USERSEARCHER_H */

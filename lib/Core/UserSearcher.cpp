@@ -9,6 +9,7 @@
 
 #include "UserSearcher.h"
 
+#include "BackwardSearcher.h"
 #include "Executor.h"
 #include "Searcher.h"
 
@@ -86,6 +87,12 @@ cl::opt<std::string> BatchTime(
              "--use-batching-search.  Set to 0s to disable (default=5s)"),
     cl::init("5s"), cl::cat(SearchCat));
 
+cl::opt<unsigned long long>
+    MaxPropagations("max-propagations",
+                    cl::desc("propagate at most this amount of propagations "
+                             "with the same state (default=0 (no limit))."),
+                    cl::init(0), cl::cat(TerminationCat));
+
 } // namespace
 
 void klee::initializeSearchOptions() {
@@ -156,8 +163,7 @@ Searcher *getNewSearcher(Searcher::CoreSearchType type, RNG &rng,
   return searcher;
 }
 
-Searcher *klee::constructUserSearcher(Executor &executor,
-                                      bool stopAfterReachingTarget) {
+Searcher *klee::constructUserSearcher(Executor &executor, bool branchSearcher) {
 
   Searcher *searcher =
       getNewSearcher(CoreSearch[0], executor.theRNG, *executor.processForest);
@@ -191,8 +197,15 @@ Searcher *klee::constructUserSearcher(Executor &executor,
     tms = static_cast<IterativeDeepeningSearcher *>(searcher);
   }
 
-  if (tms)
-    executor.targetManager->subscribe(*tms);
+  if (tms) {
+    if (branchSearcher) {
+      executor.targetManager->subscribeBranchSearcher(
+          *static_cast<GuidedSearcher *>(searcher));
+    } else {
+      executor.targetManager->subscribeSearcher(
+          *static_cast<GuidedSearcher *>(searcher));
+    }
+  }
 
   llvm::raw_ostream &os = executor.getHandler().getInfoStream();
 
@@ -201,4 +214,11 @@ Searcher *klee::constructUserSearcher(Executor &executor,
   os << "END searcher description\n";
 
   return searcher;
+}
+
+BackwardSearcher *klee::constructUserBackwardSearcher(Executor &executor) {
+  std::vector<BackwardSearcher *> s;
+  s.push_back(new RecencyRankedSearcher(MaxPropagations - 1));
+  s.push_back(new RandomPathBackwardSearcher(executor.theRNG));
+  return new InterleavedBackwardSearcher(s);
 }
