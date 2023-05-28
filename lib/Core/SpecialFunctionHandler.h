@@ -124,8 +124,6 @@ public:
   HANDLER(handleMalloc);
   HANDLER(handleMemalign);
   HANDLER(handleMarkGlobal);
-  HANDLER(handleOpenMerge);
-  HANDLER(handleCloseMerge);
   HANDLER(handleNew);
   HANDLER(handleNewArray);
   HANDLER(handlePreferCex);

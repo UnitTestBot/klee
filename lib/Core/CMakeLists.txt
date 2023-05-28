@@ -9,7 +9,6 @@
 klee_add_component(kleeCore
   AddressManager.cpp  
   AddressSpace.cpp
-  MergeHandler.cpp
   CallPathManager.cpp
   Context.cpp
   CoreStats.cpp
@@ -21,6 +20,7 @@ klee_add_component(kleeCore
   ImpliedValue.cpp
   Memory.cpp
   MemoryManager.cpp
+  PForest.cpp
   PTree.cpp
   Searcher.cpp
   SeedInfo.cpp

@@ -10,8 +10,8 @@
 #ifndef KLEE_SOLVERIMPL_H
 #define KLEE_SOLVERIMPL_H
 
-#include "Solver.h"
 #include "klee/Expr/ExprUtil.h"
+#include "klee/Solver/SolverUtil.h"
 #include "klee/System/Time.h"
 
 #include <vector>
@@ -63,7 +63,8 @@ public:
   /// Solver::Unknown
   ///
   /// \return True on success
-  virtual bool computeValidity(const Query &query, Solver::Validity &result);
+  virtual bool computeValidity(const Query &query, PartialValidity &result);
+
   virtual bool computeValidity(const Query &query,
                                ref<SolverResponse> &queryResult,
                                ref<SolverResponse> &negatedQueryResult);

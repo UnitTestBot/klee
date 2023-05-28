@@ -31,7 +31,15 @@ private:
 public:
   explicit Target(KBlock *_block) : block(_block) {}
 
-  bool operator<(const Target &other) const { return block < other.block; }
+  bool operator<(const Target &other) const {
+    if (block == other.block) {
+      return false;
+    }
+    if (block->parent == other.block->parent) {
+      return block->id < other.block->id;
+    }
+    return block->parent->id < other.block->parent->id;
+  }
 
   bool operator==(const Target &other) const { return block == other.block; }
 

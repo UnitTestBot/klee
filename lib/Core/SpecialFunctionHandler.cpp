@@ -13,7 +13,6 @@
 #include "Executor.h"
 #include "Memory.h"
 #include "MemoryManager.h"
-#include "MergeHandler.h"
 #include "Searcher.h"
 #include "StatsTracker.h"
 #include "TimingSolver.h"
@@ -104,8 +103,6 @@ static SpecialFunctionHandler::HandlerInfo handlerInfo[] = {
     add("klee_is_symbolic", handleIsSymbolic, true),
     add("klee_make_symbolic", handleMakeSymbolic, false),
     add("klee_mark_global", handleMarkGlobal, false),
-    add("klee_open_merge", handleOpenMerge, false),
-    add("klee_close_merge", handleCloseMerge, false),
     add("klee_prefer_cex", handlePreferCex, false),
     add("klee_posix_prefer_cex", handlePosixPreferCex, false),
     add("klee_print_expr", handlePrintExpr, false),
@@ -295,8 +292,13 @@ void SpecialFunctionHandler::bind() {
     HandlerInfo &hi = handlerInfo[i];
     Function *f = executor.kmodule->module->getFunction(hi.name);
 
-    if (f && (!hi.doNotOverride || f->isDeclaration()))
+    if (f && (!hi.doNotOverride || f->isDeclaration())) {
       handlers[f] = std::make_pair(hi.handler, hi.hasReturnValue);
+
+      if (executor.kmodule->functionMap.count(f)) {
+        executor.kmodule->functionMap.at(f)->kleeHandled = true;
+      }
+    }
   }
 }
 
@@ -428,48 +430,6 @@ void SpecialFunctionHandler::handleReportError(
       readStringAtAddress(state, arguments[3]).c_str());
 }
 
-void SpecialFunctionHandler::handleOpenMerge(
-    ExecutionState &state, KInstruction *target,
-    std::vector<ref<Expr>> &arguments) {
-  if (!UseMerge) {
-    klee_warning_once(0, "klee_open_merge ignored, use '-use-merge'");
-    return;
-  }
-
-  state.openMergeStack.push_back(
-      ref<MergeHandler>(new MergeHandler(&executor, &state)));
-
-  if (DebugLogMerge)
-    llvm::errs() << "open merge: " << &state << "\n";
-}
-
-void SpecialFunctionHandler::handleCloseMerge(
-    ExecutionState &state, KInstruction *target,
-    std::vector<ref<Expr>> &arguments) {
-  if (!UseMerge) {
-    klee_warning_once(0, "klee_close_merge ignored, use '-use-merge'");
-    return;
-  }
-  Instruction *i = target->inst;
-
-  if (DebugLogMerge)
-    llvm::errs() << "close merge: " << &state << " at [" << *i << "]\n";
-
-  if (state.openMergeStack.empty()) {
-    std::ostringstream warning;
-    warning << &state << " ran into a close at " << i
-            << " without a preceding open";
-    klee_warning("%s", warning.str().c_str());
-  } else {
-    assert(executor.mergingSearcher->inCloseMerge.find(&state) ==
-               executor.mergingSearcher->inCloseMerge.end() &&
-           "State cannot run into close_merge while being closed");
-    executor.mergingSearcher->inCloseMerge.insert(&state);
-    state.openMergeStack.back()->addClosedState(&state, i);
-    state.openMergeStack.pop_back();
-  }
-}
-
 void SpecialFunctionHandler::handleNew(ExecutionState &state,
                                        KInstruction *target,
                                        std::vector<ref<Expr>> &arguments) {
@@ -527,7 +487,7 @@ void SpecialFunctionHandler::handleMemalign(ExecutionState &state,
   }
 
   std::pair<ref<Expr>, ref<Expr>> alignmentRangeExpr =
-      executor.solver->getRange(state.constraints, arguments[0],
+      executor.solver->getRange(state.constraints.cs(), arguments[0],
                                 state.queryMetaData);
   ref<Expr> alignmentExpr = alignmentRangeExpr.first;
   auto alignmentConstExpr = dyn_cast<ConstantExpr>(alignmentExpr);
@@ -602,7 +562,7 @@ void SpecialFunctionHandler::handleAssume(ExecutionState &state,
 
   bool res;
   bool success __attribute__((unused)) = executor.solver->mustBeFalse(
-      state.constraints, e, res, state.queryMetaData);
+      state.constraints.cs(), e, res, state.queryMetaData);
   assert(success && "FIXME: Unhandled solver failure");
   if (res) {
     if (SilentKleeAssume) {
@@ -713,10 +673,10 @@ void SpecialFunctionHandler::handlePrintRange(
     // FIXME: Pull into a unique value method?
     ref<ConstantExpr> value;
     bool success __attribute__((unused)) = executor.solver->getValue(
-        state.constraints, arguments[1], value, state.queryMetaData);
+        state.constraints.cs(), arguments[1], value, state.queryMetaData);
     assert(success && "FIXME: Unhandled solver failure");
     bool res;
-    success = executor.solver->mustBeTrue(state.constraints,
+    success = executor.solver->mustBeTrue(state.constraints.cs(),
                                           EqExpr::create(arguments[1], value),
                                           res, state.queryMetaData);
     assert(success && "FIXME: Unhandled solver failure");
@@ -725,7 +685,7 @@ void SpecialFunctionHandler::handlePrintRange(
     } else {
       llvm::errs() << " ~= " << value;
       std::pair<ref<Expr>, ref<Expr>> res = executor.solver->getRange(
-          state.constraints, arguments[1], state.queryMetaData);
+          state.constraints.cs(), arguments[1], state.queryMetaData);
       llvm::errs() << " (in [" << res.first << ", " << res.second << "])";
     }
   }
@@ -969,7 +929,7 @@ void SpecialFunctionHandler::handleMakeSymbolic(
     // FIXME: Type coercion should be done consistently somewhere.
     bool res;
     bool success __attribute__((unused)) = executor.solver->mustBeTrue(
-        s->constraints,
+        s->constraints.cs(),
         EqExpr::create(
             ZExtExpr::create(arguments[1], Context::get().getPointerWidth()),
             mo->getSizeExpr()),
@@ -977,8 +937,15 @@ void SpecialFunctionHandler::handleMakeSymbolic(
     assert(success && "FIXME: Unhandled solver failure");
 
     if (res) {
-      executor.executeMakeSymbolic(*s, mo, old->getDynamicType(), name,
-                                   SourceBuilder::makeSymbolic(), false);
+      uint64_t sid = 0;
+      if (state.arrayNames.count(name)) {
+        sid = state.arrayNames[name];
+      }
+      executor.executeMakeSymbolic(
+          *s, mo, old->getDynamicType(),
+          SourceBuilder::makeSymbolic(name,
+                                      executor.updateNameVersion(*s, name)),
+          false);
     } else {
       executor.terminateStateOnUserError(
           *s, "Wrong size given to klee_make_symbolic");

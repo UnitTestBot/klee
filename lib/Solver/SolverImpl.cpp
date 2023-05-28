@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "klee/Solver/SolverImpl.h"
+#include "klee/Expr/Constraints.h"
 #include "klee/Expr/Expr.h"
 #include "klee/Solver/Solver.h"
 #include "klee/Support/ErrorHandling.h"
@@ -16,16 +17,16 @@ using namespace klee;
 
 SolverImpl::~SolverImpl() {}
 
-bool SolverImpl::computeValidity(const Query &query, Solver::Validity &result) {
+bool SolverImpl::computeValidity(const Query &query, PartialValidity &result) {
   bool isTrue, isFalse;
   if (!computeTruth(query, isTrue))
     return false;
   if (isTrue) {
-    result = Solver::True;
+    result = PValidity::MustBeTrue;
   } else {
     if (!computeTruth(query.negateExpr(), isFalse))
       return false;
-    result = isFalse ? Solver::False : Solver::Unknown;
+    result = isFalse ? PValidity::MustBeFalse : PValidity::TrueOrFalse;
   }
   return true;
 }
@@ -42,7 +43,8 @@ bool SolverImpl::computeValidity(const Query &query,
 
 bool SolverImpl::check(const Query &query, ref<SolverResponse> &result) {
   ExprHashSet expressions;
-  expressions.insert(query.constraints.begin(), query.constraints.end());
+  expressions.insert(query.constraints.cs().begin(),
+                     query.constraints.cs().end());
   expressions.insert(query.expr);
 
   std::vector<const Array *> objects;
@@ -59,7 +61,8 @@ bool SolverImpl::check(const Query &query, ref<SolverResponse> &result) {
     result = new InvalidResponse(objects, values);
   } else {
     result = new ValidResponse(ValidityCore(
-        ExprHashSet(query.constraints.begin(), query.constraints.end()),
+        ValidityCore::constraints_typ(query.constraints.cs().begin(),
+                                      query.constraints.cs().end()),
         query.expr));
   }
   return true;
@@ -74,7 +77,8 @@ bool SolverImpl::computeValidityCore(const Query &query,
 
   if (isValid) {
     validityCore = ValidityCore(
-        ExprHashSet(query.constraints.begin(), query.constraints.end()),
+        ValidityCore::constraints_typ(query.constraints.cs().begin(),
+                                      query.constraints.cs().end()),
         query.expr);
   }
   return true;
@@ -85,15 +89,20 @@ bool SolverImpl::computeMinimalUnsignedValue(const Query &query,
   bool mustBeTrue;
 
   // Fast path check
-  if (!computeTruth(
-          query.withExpr(EqExpr::createIsZero(query.expr)).negateExpr(),
-          mustBeTrue)) {
-    return false;
-  }
-
-  if (!mustBeTrue) {
-    result = ConstantExpr::create(0, query.expr->getWidth());
-    return true;
+  auto fastexpr = EqExpr::createIsZero(query.expr);
+  if (auto ce = dyn_cast<ConstantExpr>(fastexpr)) {
+    if (ce->isTrue()) {
+      result = ConstantExpr::create(0, query.expr->getWidth());
+      return true;
+    }
+  } else {
+    if (!computeTruth(query.withExpr(fastexpr).negateExpr(), mustBeTrue)) {
+      return false;
+    }
+    if (!mustBeTrue) {
+      result = ConstantExpr::create(0, query.expr->getWidth());
+      return true;
+    }
   }
 
   // At least one value must satisfy constraints
@@ -137,12 +146,14 @@ bool SolverImpl::computeMinimalUnsignedValue(const Query &query,
       ref<ConstantExpr> middle =
           LShrExpr::create(AddExpr::create(left, right),
                            ConstantExpr::create(1, left->getWidth()));
-      ref<Expr> valueMustBeGreaterExpr = ConstraintManager::simplifyExpr(
-          query.constraints,
-          UgtExpr::create(
-              query.expr,
-              ShlExpr::create(ConstantExpr::create(1, middle->getWidth()),
-                              middle)));
+      ref<Expr> valueMustBeGreaterExpr =
+          Simplificator::simplifyExpr(
+              query.constraints,
+              UgtExpr::create(
+                  query.expr,
+                  ShlExpr::create(ConstantExpr::create(1, middle->getWidth()),
+                                  middle)))
+              .simplified;
 
       bool mustBeGreater;
       if (!computeTruth(query.withExpr(valueMustBeGreaterExpr),
@@ -177,8 +188,10 @@ bool SolverImpl::computeMinimalUnsignedValue(const Query &query,
         right = cast<ConstantExpr>(
             ShlExpr::create(right, ConstantExpr::create(1, right->getWidth())));
       }
-      ref<Expr> valueMustBeGreaterExpr = ConstraintManager::simplifyExpr(
-          query.constraints, UgtExpr::create(query.expr, right));
+      ref<Expr> valueMustBeGreaterExpr =
+          Simplificator::simplifyExpr(query.constraints,
+                                      UgtExpr::create(query.expr, right))
+              .simplified;
       if (!computeTruth(query.withExpr(valueMustBeGreaterExpr), mustBeTrue)) {
         return false;
       }
@@ -198,8 +211,10 @@ bool SolverImpl::computeMinimalUnsignedValue(const Query &query,
                             ZExtExpr::create(right, right->getWidth() + 1)),
             ConstantExpr::create(1, right->getWidth() + 1)),
         right->getWidth()));
-    ref<Expr> valueMustBeGreaterExpr = ConstraintManager::simplifyExpr(
-        query.constraints, UgtExpr::create(query.expr, middle));
+    ref<Expr> valueMustBeGreaterExpr =
+        Simplificator::simplifyExpr(query.constraints,
+                                    UgtExpr::create(query.expr, middle))
+            .simplified;
 
     bool mustBeGreater;
     if (!computeTruth(query.withExpr(valueMustBeGreaterExpr), mustBeGreater)) {

@@ -11,6 +11,7 @@
 #define KLEE_SEARCHER_H
 
 #include "ExecutionState.h"
+#include "PForest.h"
 #include "PTree.h"
 #include "klee/ADT/RNG.h"
 #include "klee/Module/KModule.h"
@@ -171,7 +172,7 @@ private:
   std::map<Target, std::unique_ptr<TargetedSearcher>> targetedSearchers;
   CodeGraphDistance &codeGraphDistance;
   TargetCalculator &stateHistory;
-  std::set<ExecutionState *, ExecutionStateIDCompare> &pausedStates;
+  std::set<ExecutionState *, ExecutionStateIDCompare> pausedStates;
   std::size_t bound;
   RNG &theRNG;
   unsigned index{1};
@@ -196,11 +197,9 @@ private:
       std::map<Target, std::unordered_set<ExecutionState *>> &reachedStates);
 
 public:
-  GuidedSearcher(
-      Searcher *baseSearcher, CodeGraphDistance &codeGraphDistance,
-      TargetCalculator &stateHistory,
-      std::set<ExecutionState *, ExecutionStateIDCompare> &pausedStates,
-      std::size_t bound, RNG &rng, bool stopAfterReachingTarget = true);
+  GuidedSearcher(Searcher *baseSearcher, CodeGraphDistance &codeGraphDistance,
+                 TargetCalculator &stateHistory, std::size_t bound, RNG &rng,
+                 bool stopAfterReachingTarget = true);
   ~GuidedSearcher() override = default;
   ExecutionState &selectState() override;
   void update(ExecutionState *current,
@@ -270,7 +269,7 @@ public:
 ///
 /// The ownership bits are maintained in the update method.
 class RandomPathSearcher final : public Searcher {
-  PTree &processTree;
+  PForest &processForest;
   RNG &theRNG;
 
   // Unique bitmask of this searcher
@@ -279,57 +278,13 @@ class RandomPathSearcher final : public Searcher {
 public:
   /// \param processTree The process tree.
   /// \param RNG A random number generator.
-  RandomPathSearcher(PTree &processTree, RNG &rng);
+  RandomPathSearcher(PForest &processForest, RNG &rng);
   ~RandomPathSearcher() override = default;
 
   ExecutionState &selectState() override;
   void update(ExecutionState *current,
               const std::vector<ExecutionState *> &addedStates,
               const std::vector<ExecutionState *> &removedStates) override;
-  bool empty() override;
-  void printName(llvm::raw_ostream &os) override;
-};
-
-extern llvm::cl::opt<bool> UseIncompleteMerge;
-class MergeHandler;
-class MergingSearcher final : public Searcher {
-  friend class MergeHandler;
-
-private:
-  std::unique_ptr<Searcher> baseSearcher;
-
-  /// States that have been paused by the 'pauseState' function
-  std::vector<ExecutionState *> pausedStates;
-
-public:
-  /// \param baseSearcher The underlying searcher (takes ownership).
-  explicit MergingSearcher(Searcher *baseSearcher);
-  ~MergingSearcher() override = default;
-
-  /// ExecutionStates currently paused from scheduling because they are
-  /// waiting to be merged in a klee_close_merge instruction
-  std::set<ExecutionState *> inCloseMerge;
-
-  /// Keeps track of all currently ongoing merges.
-  /// An ongoing merge is a set of states (stored in a MergeHandler object)
-  /// which branched from a single state which ran into a klee_open_merge(),
-  /// and not all states in the set have reached the corresponding
-  /// klee_close_merge() yet.
-  std::vector<MergeHandler *> mergeGroups;
-
-  /// Remove state from the searcher chain, while keeping it in the executor.
-  /// This is used here to 'freeze' a state while it is waiting for other
-  /// states in its merge group to reach the same instruction.
-  void pauseState(ExecutionState &state);
-
-  /// Continue a paused state
-  void continueState(ExecutionState &state);
-
-  ExecutionState &selectState() override;
-  void update(ExecutionState *current,
-              const std::vector<ExecutionState *> &addedStates,
-              const std::vector<ExecutionState *> &removedStates) override;
-
   bool empty() override;
   void printName(llvm::raw_ostream &os) override;
 };

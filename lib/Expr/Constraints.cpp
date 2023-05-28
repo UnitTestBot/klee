@@ -9,9 +9,14 @@
 
 #include "klee/Expr/Constraints.h"
 
+#include "klee/Expr/ArrayExprVisitor.h"
 #include "klee/Expr/Assignment.h"
+#include "klee/Expr/Expr.h"
+#include "klee/Expr/ExprHashMap.h"
 #include "klee/Expr/ExprUtil.h"
 #include "klee/Expr/ExprVisitor.h"
+#include "klee/Expr/Path.h"
+#include "klee/Expr/Symcrete.h"
 #include "klee/Module/KModule.h"
 #include "klee/Support/OptionCategories.h"
 
@@ -23,11 +28,17 @@
 using namespace klee;
 
 namespace {
-llvm::cl::opt<bool> RewriteEqualities(
+llvm::cl::opt<RewriteEqualitiesPolicy> RewriteEqualities(
     "rewrite-equalities",
     llvm::cl::desc("Rewrite existing constraints when an equality with a "
-                   "constant is added (default=true)"),
-    llvm::cl::init(true), llvm::cl::cat(SolvingCat));
+                   "constant is added (default=simple)"),
+    llvm::cl::values(clEnumValN(RewriteEqualitiesPolicy::None, "none",
+                                "Don't rewrite"),
+                     clEnumValN(RewriteEqualitiesPolicy::Simple, "simple",
+                                "lightweight visitor"),
+                     clEnumValN(RewriteEqualitiesPolicy::Full, "full",
+                                "more powerful visitor")),
+    llvm::cl::init(RewriteEqualitiesPolicy::Simple), llvm::cl::cat(SolvingCat));
 } // namespace
 
 class ExprReplaceVisitor : public ExprVisitor {
@@ -55,236 +66,532 @@ public:
 
 class ExprReplaceVisitor2 : public ExprVisitor {
 private:
-  ExprHashMap<ref<Expr>> &replacements;
-  ExprHashSet &conflictExpressions;
-  Expr::States &result;
+  std::vector<std::reference_wrapper<const ExprHashMap<ref<Expr>>>>
+      replacements;
+  const ExprHashMap<ref<Expr>> &replacementParents;
 
 public:
-  explicit ExprReplaceVisitor2(ExprHashMap<ref<Expr>> &_replacements,
-                               ExprHashSet &_conflictExpressions,
-                               Expr::States &_result)
+  explicit ExprReplaceVisitor2(const ExprHashMap<ref<Expr>> &_replacements,
+                               const ExprHashMap<ref<Expr>> &_parents)
+      : ExprVisitor(true), replacements({_replacements}),
+        replacementParents(_parents) {}
 
-      : ExprVisitor(true), replacements(_replacements),
-        conflictExpressions(_conflictExpressions), result(_result) {}
-
-  Action visitExprPost(const Expr &e) override {
-    auto it = replacements.find(ref<Expr>(const_cast<Expr *>(&e)));
-    if (it != replacements.end()) {
-      ref<Expr> equality = EqExpr::create(it->first, it->second);
-      conflictExpressions.insert(equality);
-      return Action::changeTo(it->second);
+  Action visitExpr(const Expr &e) override {
+    for (auto i = replacements.rbegin(); i != replacements.rend(); i++) {
+      if (i->get().count(ref<Expr>(const_cast<Expr *>(&e)))) {
+        auto replacement = i->get().at(ref<Expr>(const_cast<Expr *>(&e)));
+        if (replacementParents.count(const_cast<Expr *>(&e))) {
+          replacementDependency.insert(
+              replacementParents.at(const_cast<Expr *>(&e)));
+        }
+        return Action::changeTo(replacement);
+      }
     }
     return Action::doChildren();
   }
 
-  ref<Expr> findConflict(const ref<Expr> &e) {
-    ref<Expr> eSimplified = visit(e);
-    result = Expr::States::Undefined;
-    if (eSimplified->getWidth() != Expr::Bool ||
-        !isa<ConstantExpr>(*eSimplified)) {
-      conflictExpressions.clear();
-      return eSimplified;
+  Action visitExprPost(const Expr &e) override {
+    for (auto i = replacements.rbegin(); i != replacements.rend(); i++) {
+      if (i->get().count(ref<Expr>(const_cast<Expr *>(&e)))) {
+        auto replacement = i->get().at(ref<Expr>(const_cast<Expr *>(&e)));
+        if (replacementParents.count(const_cast<Expr *>(&e))) {
+          replacementDependency.insert(
+              replacementParents.at(const_cast<Expr *>(&e)));
+        }
+        return Action::changeTo(replacement);
+      }
     }
-
-    if (eSimplified->isTrue() == true) {
-      result = Expr::States::True;
-    }
-    if (eSimplified->isFalse() == true) {
-      result = Expr::States::False;
-    }
-
-    return eSimplified;
+    return Action::doChildren();
   }
+
+  std::pair<UpdateList, bool> processUpdateList(const UpdateList &updates) {
+    UpdateList newUpdates = UpdateList(updates.root, 0);
+    std::stack<ref<UpdateNode>> forward;
+
+    for (auto it = updates.head; !it.isNull(); it = it->next) {
+      forward.push(it);
+    }
+
+    bool changed = false;
+    while (!forward.empty()) {
+      ref<UpdateNode> UNode = forward.top();
+      forward.pop();
+      ref<Expr> newIndex = visit(UNode->index);
+      ref<Expr> newValue = visit(UNode->value);
+      if (newIndex != UNode->index || newValue != UNode->value) {
+        changed = true;
+      }
+      newUpdates.extend(newIndex, newValue);
+    }
+    return {newUpdates, changed};
+  }
+
+  Action visitRead(const ReadExpr &re) override {
+    auto updates = processUpdateList(re.updates);
+
+    ref<Expr> index = visit(re.index);
+    if (!updates.second && index == re.index) {
+      return Action::skipChildren();
+    } else {
+      ref<Expr> reres = ReadExpr::create(updates.first, index);
+      Action res = visitExprPost(*reres.get());
+      if (res.kind == Action::ChangeTo) {
+        reres = res.argument;
+      }
+      return Action::changeTo(reres);
+    }
+  }
+
+  Action visitSelect(const SelectExpr &sexpr) override {
+    auto cond = visit(sexpr.cond);
+    if (auto CE = dyn_cast<ConstantExpr>(cond)) {
+      return CE->isTrue() ? Action::changeTo(visit(sexpr.trueExpr))
+                          : Action::changeTo(visit(sexpr.falseExpr));
+    }
+
+    std::vector<ref<Expr>> splittedCond;
+    Expr::splitAnds(cond, splittedCond);
+
+    ExprHashMap<ref<Expr>> localReplacements;
+    for (auto scond : splittedCond) {
+      if (const EqExpr *ee = dyn_cast<EqExpr>(scond)) {
+        if (isa<ConstantExpr>(ee->left)) {
+          localReplacements.insert(std::make_pair(ee->right, ee->left));
+        } else {
+          localReplacements.insert(
+              std::make_pair(scond, ConstantExpr::alloc(1, Expr::Bool)));
+        }
+      } else {
+        localReplacements.insert(
+            std::make_pair(scond, ConstantExpr::alloc(1, Expr::Bool)));
+      }
+    }
+
+    replacements.push_back(localReplacements);
+    visited.pushFrame();
+    auto trueExpr = visit(sexpr.trueExpr);
+    visited.popFrame();
+    replacements.pop_back();
+
+    // Reuse for false branch replacements
+    localReplacements.clear();
+    localReplacements.insert(
+        std::make_pair(cond, ConstantExpr::alloc(0, Expr::Bool)));
+
+    replacements.push_back(localReplacements);
+    visited.pushFrame();
+    auto falseExpr = visit(sexpr.falseExpr);
+    visited.popFrame();
+    replacements.pop_back();
+
+    if (trueExpr != sexpr.trueExpr || falseExpr != sexpr.falseExpr) {
+      ref<Expr> seres = SelectExpr::create(cond, trueExpr, falseExpr);
+
+      auto res = visitExprPost(*seres.get());
+      if (res.kind == Action::ChangeTo) {
+        seres = res.argument;
+      }
+      return Action::changeTo(seres);
+    } else {
+      return Action::skipChildren();
+    }
+  }
+
+public:
+  ExprHashSet replacementDependency;
 };
 
-bool ConstraintManager::rewriteConstraints(ExprVisitor &visitor) {
-  ConstraintSet old;
-  Assignment concretization = constraints.getConcretization();
-  bool changed = false;
+class ExprReplaceVisitor3 : public ExprVisitor {
+private:
+  std::vector<std::reference_wrapper<const ExprHashMap<ref<Expr>>>>
+      replacements;
+  const ExprHashMap<ref<Expr>> &replacementParents;
 
-  std::swap(constraints, old);
-  for (auto &ce : old) {
-    ref<Expr> e = visitor.visit(ce);
+public:
+  explicit ExprReplaceVisitor3(const ExprHashMap<ref<Expr>> &_replacements,
+                               const ExprHashMap<ref<Expr>> &_parents)
+      : ExprVisitor(true), replacements({_replacements}),
+        replacementParents(_parents) {}
 
-    if (e != ce) {
-      addConstraintInternal(e); // enable further reductions
-      changed = true;
+  Action visitExpr(const Expr &e) override {
+    for (auto i = replacements.rbegin(); i != replacements.rend(); i++) {
+      if (i->get().count(ref<Expr>(const_cast<Expr *>(&e)))) {
+        auto replacement = i->get().at(ref<Expr>(const_cast<Expr *>(&e)));
+        if (replacementParents.count(const_cast<Expr *>(&e))) {
+          replacementDependency.insert(
+              replacementParents.at(const_cast<Expr *>(&e)));
+        }
+        return Action::changeTo(replacement);
+      }
+    }
+    return Action::doChildren();
+  }
+
+  Action visitExprPost(const Expr &e) override {
+    for (auto i = replacements.rbegin(); i != replacements.rend(); i++) {
+      if (i->get().count(ref<Expr>(const_cast<Expr *>(&e)))) {
+        auto replacement = i->get().at(ref<Expr>(const_cast<Expr *>(&e)));
+        if (replacementParents.count(const_cast<Expr *>(&e))) {
+          replacementDependency.insert(
+              replacementParents.at(const_cast<Expr *>(&e)));
+        }
+        return Action::changeTo(replacement);
+      }
+    }
+    return Action::doChildren();
+  }
+
+  ExprHashSet replacementDependency;
+};
+
+ConstraintSet::ConstraintSet(constraints_ty cs, symcretes_ty symcretes,
+                             Assignment concretization)
+    : _constraints(cs), _symcretes(symcretes), _concretization(concretization) {
+}
+
+ConstraintSet::ConstraintSet() : _concretization(Assignment(true)) {}
+
+void ConstraintSet::addConstraint(ref<Expr> e, const Assignment &delta) {
+  _constraints.insert(e);
+
+  // Update bindings
+  for (auto i : delta.bindings) {
+    _concretization.bindings[i.first] = i.second;
+  }
+}
+
+IDType Symcrete::idCounter = 0;
+
+void ConstraintSet::addSymcrete(ref<Symcrete> s,
+                                const Assignment &concretization) {
+  _symcretes.insert(s);
+  for (auto i : s->dependentArrays()) {
+    _concretization.bindings[i] = concretization.bindings.at(i);
+  }
+}
+
+bool ConstraintSet::isSymcretized(ref<Expr> expr) const {
+  for (auto symcrete : _symcretes) {
+    if (symcrete->symcretized == expr) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void ConstraintSet::rewriteConcretization(const Assignment &a) {
+  for (auto i : a.bindings) {
+    if (concretization().bindings.count(i.first)) {
+      _concretization.bindings[i.first] = i.second;
+    }
+  }
+}
+
+void ConstraintSet::print(llvm::raw_ostream &os) const {
+  os << "Constraints [\n";
+  for (const auto &constraint : _constraints) {
+    constraint->print(os);
+    os << "\n";
+  }
+
+  os << "]\n";
+  os << "Symcretes [\n";
+  for (const auto &symcrete : _symcretes) {
+    symcrete->symcretized->print(os);
+    os << "\n";
+  }
+  os << "]\n";
+}
+
+void ConstraintSet::dump() const { this->print(llvm::errs()); }
+
+void ConstraintSet::changeCS(constraints_ty &cs) { _constraints = cs; }
+
+const constraints_ty &ConstraintSet::cs() const { return _constraints; }
+
+const symcretes_ty &ConstraintSet::symcretes() const { return _symcretes; }
+
+const Path &PathConstraints::path() const { return _path; }
+
+const ExprHashMap<Path::PathIndex> &PathConstraints::indexes() const {
+  return pathIndexes;
+}
+
+const Assignment &ConstraintSet::concretization() const {
+  return _concretization;
+}
+
+const constraints_ty &PathConstraints::original() const { return _original; }
+
+const ExprHashMap<ExprHashSet> &PathConstraints::simplificationMap() const {
+  return _simplificationMap;
+}
+
+const ConstraintSet &PathConstraints::cs() const { return constraints; }
+
+const PathConstraints::ordered_constraints_ty &
+PathConstraints::orderedCS() const {
+  return orderedConstraints;
+}
+
+void PathConstraints::advancePath(KInstruction *ki) { _path.advance(ki); }
+
+void PathConstraints::advancePath(const Path &path) {
+  _path = Path::concat(_path, path);
+}
+
+ExprHashSet PathConstraints::addConstraint(ref<Expr> e, const Assignment &delta,
+                                           Path::PathIndex currIndex) {
+  auto expr = Simplificator::simplifyExpr(constraints, e);
+  if (auto ce = dyn_cast<ConstantExpr>(expr.simplified)) {
+    assert(ce->isTrue() && "Attempt to add invalid constraint");
+    return {};
+  }
+  ExprHashSet added;
+  std::vector<ref<Expr>> exprs;
+  Expr::splitAnds(expr.simplified, exprs);
+  for (auto expr : exprs) {
+    if (auto ce = dyn_cast<ConstantExpr>(expr)) {
+      assert(ce->isTrue() && "Expression simplified to false");
     } else {
-      constraints.push_back(ce);
+      _original.insert(expr);
+      added.insert(expr);
+      pathIndexes.insert({expr, currIndex});
+      _simplificationMap[expr].insert(expr);
+      orderedConstraints[currIndex].insert(expr);
+      constraints.addConstraint(expr, delta);
     }
   }
 
-  constraints.updateConcretization(concretization);
-  return changed;
+  if (RewriteEqualities != RewriteEqualitiesPolicy::None) {
+    auto simplified =
+        Simplificator::simplify(constraints.cs(), RewriteEqualities);
+    constraints.changeCS(simplified.simplified);
+
+    _simplificationMap = Simplificator::composeExprDependencies(
+        _simplificationMap, simplified.dependency);
+  }
+
+  return added;
 }
 
-ref<Expr> ConstraintManager::simplifyExpr(const ConstraintSet &constraints,
-                                          const ref<Expr> &e) {
-  ExprHashSet cE;
-  Expr::States r;
-  return simplifyExpr(constraints, e, cE, r);
+ExprHashSet PathConstraints::addConstraint(ref<Expr> e,
+                                           const Assignment &delta) {
+  return addConstraint(e, delta, _path.getCurrentIndex());
 }
 
-ref<Expr> ConstraintManager::simplifyExpr(const ConstraintSet &constraints,
-                                          const ref<Expr> &e,
-                                          ExprHashSet &conflictExpressions,
-                                          Expr::States &result) {
+bool PathConstraints::isSymcretized(ref<Expr> expr) const {
+  return constraints.isSymcretized(expr);
+}
 
-  if (isa<ConstantExpr>(e))
-    return e;
+void PathConstraints::addSymcrete(ref<Symcrete> s,
+                                  const Assignment &concretization) {
+  constraints.addSymcrete(s, concretization);
+}
+
+void PathConstraints::rewriteConcretization(const Assignment &a) {
+  constraints.rewriteConcretization(a);
+}
+
+PathConstraints PathConstraints::concat(const PathConstraints &l,
+                                        const PathConstraints &r) {
+  // TODO : How to handle symcretes and concretization?
+  PathConstraints path = l;
+  path._path = Path::concat(l._path, r._path);
+  auto offset = l._path.KBlockSize();
+  for (const auto &i : r._original) {
+    path._original.insert(i);
+    auto index = r.pathIndexes.at(i);
+    index.block += offset;
+    path.pathIndexes.insert({i, index});
+    path.orderedConstraints[index].insert(i);
+  }
+  for (const auto &i : r.constraints.cs()) {
+    path.constraints.addConstraint(i, {});
+    if (r._simplificationMap.count(i)) {
+      path._simplificationMap.insert({i, r._simplificationMap.at(i)});
+    }
+  }
+  // Run the simplificator on the newly constructed set?
+  return path;
+}
+
+Simplificator::ExprResult
+Simplificator::simplifyExpr(const constraints_ty &constraints,
+                            const ref<Expr> &expr) {
+  if (isa<ConstantExpr>(expr))
+    return {expr, {}};
 
   ExprHashMap<ref<Expr>> equalities;
+  ExprHashMap<ref<Expr>> equalitiesParents;
 
   for (auto &constraint : constraints) {
     if (const EqExpr *ee = dyn_cast<EqExpr>(constraint)) {
       if (isa<ConstantExpr>(ee->left)) {
         equalities.insert(std::make_pair(ee->right, ee->left));
+        equalitiesParents.insert({ee->right, constraint});
       } else {
         equalities.insert(
             std::make_pair(constraint, ConstantExpr::alloc(1, Expr::Bool)));
+        equalitiesParents.insert({constraint, constraint});
       }
     } else {
       equalities.insert(
           std::make_pair(constraint, ConstantExpr::alloc(1, Expr::Bool)));
+      equalitiesParents.insert({constraint, constraint});
     }
   }
 
-  return ExprReplaceVisitor2(equalities, conflictExpressions, result)
-      .findConflict(e);
+  ExprReplaceVisitor2 visitor(equalities, equalitiesParents);
+  auto visited = visitor.visit(expr);
+  return {visited, visitor.replacementDependency};
 }
 
-void ConstraintManager::addConstraintInternal(const ref<Expr> &e) {
-  // rewrite any known equalities and split Ands into different conjuncts
+Simplificator::ExprResult
+Simplificator::simplifyExpr(const ConstraintSet &constraints,
+                            const ref<Expr> &expr) {
+  return simplifyExpr(constraints.cs(), expr);
+}
 
-  switch (e->getKind()) {
-  case Expr::Constant:
-    assert(cast<ConstantExpr>(e)->isTrue() &&
-           "attempt to add invalid (false) constraint");
-    break;
-
-    // split to enable finer grained independence and other optimizations
-  case Expr::And: {
-    BinaryExpr *be = cast<BinaryExpr>(e);
-    addConstraintInternal(be->left);
-    addConstraintInternal(be->right);
-    break;
+Simplificator::SetResult
+Simplificator::simplify(const constraints_ty &constraints,
+                        RewriteEqualitiesPolicy policy) {
+  // Initialization
+  constraints_ty simplified;
+  ExprHashMap<ExprHashSet> dependencies;
+  for (auto constraint : constraints) {
+    simplified.insert(constraint);
+    dependencies.insert({constraint, {constraint}});
   }
 
-  case Expr::Eq: {
-    if (RewriteEqualities) {
-      // XXX: should profile the effects of this and the overhead.
-      // traversing the constraints looking for equalities is hardly the
-      // slowest thing we do, but it is probably nicer to have a
-      // ConstraintSet ADT which efficiently remembers obvious patterns
-      // (byte-constant comparison).
-      BinaryExpr *be = cast<BinaryExpr>(e);
-      if (isa<ConstantExpr>(be->left)) {
-        ExprReplaceVisitor visitor(be->right, be->left);
-        rewriteConstraints(visitor);
+  bool changed = true;
+  while (changed) {
+    changed = false;
+    Replacements replacements = gatherReplacements(simplified);
+    constraints_ty currentSimplified;
+    ExprHashMap<ExprHashSet> currentDependencies;
+
+    for (auto &constraint : simplified) {
+      removeReplacement(replacements, constraint);
+      ref<Expr> simplifiedConstraint;
+      ExprHashSet dependency;
+      if (policy == RewriteEqualitiesPolicy::Simple) {
+        auto visitor = ExprReplaceVisitor3(replacements.equalities,
+                                           replacements.equalitiesParents);
+        simplifiedConstraint = visitor.visit(constraint);
+        dependency = visitor.replacementDependency;
+      } else {
+        assert(policy != RewriteEqualitiesPolicy::None);
+        auto visitor = ExprReplaceVisitor2(replacements.equalities,
+                                           replacements.equalitiesParents);
+        simplifiedConstraint = visitor.visit(constraint);
+        dependency = visitor.replacementDependency;
+      }
+      addReplacement(replacements, constraint);
+      std::vector<ref<Expr>> andsSplit;
+      Expr::splitAnds(simplifiedConstraint, andsSplit);
+      for (auto part : andsSplit) {
+        currentSimplified.insert(part);
+        currentDependencies.insert({part, dependency});
+        currentDependencies[part].insert(constraint);
+      }
+      if (constraint != simplifiedConstraint || andsSplit.size() > 1) {
+        changed = true;
       }
     }
-    constraints.push_back(e);
-    break;
+
+    if (changed) {
+      simplified = currentSimplified;
+      dependencies = composeExprDependencies(dependencies, currentDependencies);
+    }
   }
 
-  default:
-    constraints.push_back(e);
-    break;
+  simplified.erase(ConstantExpr::createTrue());
+  dependencies.erase(ConstantExpr::createTrue());
+
+  return {simplified, dependencies};
+}
+
+Simplificator::Replacements
+Simplificator::gatherReplacements(constraints_ty constraints) {
+  Replacements result;
+  for (auto &constraint : constraints) {
+    if (const EqExpr *ee = dyn_cast<EqExpr>(constraint)) {
+      if (isa<ConstantExpr>(ee->left)) {
+        result.equalities.insert(std::make_pair(ee->right, ee->left));
+        result.equalitiesParents.insert({ee->right, constraint});
+      } else {
+        result.equalities.insert(
+            std::make_pair(constraint, ConstantExpr::alloc(1, Expr::Bool)));
+        result.equalitiesParents.insert({constraint, constraint});
+      }
+    } else {
+      result.equalities.insert(
+          std::make_pair(constraint, ConstantExpr::alloc(1, Expr::Bool)));
+      result.equalitiesParents.insert({constraint, constraint});
+    }
+  }
+  return result;
+}
+
+void Simplificator::addReplacement(Replacements &replacements, ref<Expr> expr) {
+  if (const EqExpr *ee = dyn_cast<EqExpr>(expr)) {
+    if (isa<ConstantExpr>(ee->left)) {
+      replacements.equalities.insert(std::make_pair(ee->right, ee->left));
+      replacements.equalitiesParents.insert({ee->right, expr});
+    } else {
+      replacements.equalities.insert(
+          std::make_pair(expr, ConstantExpr::alloc(1, Expr::Bool)));
+      replacements.equalitiesParents.insert({expr, expr});
+    }
+  } else {
+    replacements.equalities.insert(
+        std::make_pair(expr, ConstantExpr::alloc(1, Expr::Bool)));
+    replacements.equalitiesParents.insert({expr, expr});
   }
 }
 
-void ConstraintManager::addConstraint(const ref<Expr> &e) {
-  ref<Expr> simplified = simplifyExpr(constraints, e);
-  addConstraintInternal(simplified);
+void Simplificator::removeReplacement(Replacements &replacements,
+                                      ref<Expr> expr) {
+  if (const EqExpr *ee = dyn_cast<EqExpr>(expr)) {
+    if (isa<ConstantExpr>(ee->left)) {
+      replacements.equalities.erase(ee->right);
+      replacements.equalitiesParents.erase(ee->right);
+    } else {
+      replacements.equalities.erase(expr);
+      replacements.equalitiesParents.erase(expr);
+    }
+  } else {
+    replacements.equalities.erase(expr);
+    replacements.equalitiesParents.erase(expr);
+  }
 }
 
-void ConstraintManager::addConstraint(const ref<Expr> &e,
-                                      const Assignment &symcretes) {
-  addConstraint(e);
-  constraints.updateConcretization(symcretes);
-}
-
-ConstraintManager::ConstraintManager(ConstraintSet &_constraints)
-    : constraints(_constraints) {}
-
-bool ConstraintSet::empty() const { return constraints.empty(); }
-
-klee::ConstraintSet::constraint_iterator ConstraintSet::begin() const {
-  return constraints.begin();
-}
-
-klee::ConstraintSet::constraint_iterator ConstraintSet::end() const {
-  return constraints.end();
-}
-
-size_t ConstraintSet::size() const noexcept { return constraints.size(); }
-
-ConstraintSet::ConstraintSet(constraints_ty cs)
-    : constraints(std::move(cs)), concretization(Assignment(true)) {}
-
-ConstraintSet::ConstraintSet(ExprHashSet cs)
-    : constraints(), concretization(Assignment(true)) {
-  constraints.insert(constraints.end(), cs.begin(), cs.end());
-}
-
-ConstraintSet::ConstraintSet()
-    : constraints(), concretization(Assignment(true)) {}
-
-void ConstraintSet::push_back(const ref<Expr> &e) { constraints.push_back(e); }
-
-void ConstraintSet::updateConcretization(const Assignment &c) {
-  concretization = c;
-}
-
-/**
- * @brief Copies the current constraint set and adds expression e.
- *
- * Ideally, this function should accept variadic arguments pack
- * and unpack them with fold expressions, but this feature availible only
- * from C++17.
- *
- * @return copied and modified constraint set.
- */
-ConstraintSet ConstraintSet::withExpr(ref<Expr> e) const {
-  ConstraintSet newConstraintSet = *this;
-  newConstraintSet.push_back(e);
-  return newConstraintSet;
-}
-
-void ConstraintSet::dump() const {
-  llvm::errs() << "Constraints [\n";
-  for (const auto &constraint : constraints)
-    constraint->dump();
-
-  llvm::errs() << "]\n";
+ExprHashMap<ExprHashSet>
+Simplificator::composeExprDependencies(const ExprHashMap<ExprHashSet> &upper,
+                                       const ExprHashMap<ExprHashSet> &lower) {
+  ExprHashMap<ExprHashSet> result;
+  for (const auto &dependent : lower) {
+    for (const auto &dependency : dependent.second) {
+      for (const auto &upperDependency : upper.at(dependency)) {
+        result[dependent.first].insert(upperDependency);
+      }
+    }
+  }
+  return result;
 }
 
 std::vector<const Array *> ConstraintSet::gatherArrays() const {
   std::vector<const Array *> arrays;
-  findObjects(constraints.begin(), constraints.end(), arrays);
+  findObjects(_constraints.begin(), _constraints.end(), arrays);
   return arrays;
 }
 
-std::vector<const Array *> ConstraintSet::gatherSymcreteArrays() const {
+std::vector<const Array *> ConstraintSet::gatherSymcretizedArrays() const {
   std::unordered_set<const Array *> arrays;
-  // TODO: this can be replaced with LLVM library function llvm::copy_if
-  // from LLVM X (>6) version?
-  for (const Array *array : gatherArrays()) {
-    if (array->source->isSymcrete()) {
-      arrays.insert(array);
-    }
+  for (const ref<Symcrete> &symcrete : _symcretes) {
+    arrays.insert(symcrete->dependentArrays().begin(),
+                  symcrete->dependentArrays().end());
   }
   return std::vector<const Array *>(arrays.begin(), arrays.end());
-}
-
-std::set<ref<Expr>> ConstraintSet::asSet() const {
-  std::set<ref<Expr>> ret;
-  for (auto i : constraints) {
-    ret.insert(i);
-  }
-  return ret;
-}
-
-const Assignment &ConstraintSet::getConcretization() const {
-  return concretization;
 }

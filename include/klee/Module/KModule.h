@@ -62,6 +62,10 @@ struct KBlock {
   /// "coverable" for statistics and search heuristics.
   bool trackCoverage;
 
+  std::string label;
+
+  unsigned id;
+
 public:
   KBlock(KFunction *, llvm::BasicBlock *, KModule *,
          std::unordered_map<llvm::Instruction *, unsigned> &,
@@ -81,7 +85,8 @@ public:
   KInstruction *getLastInstruction() const noexcept {
     return instructions[numInstructions - 1];
   }
-  std::string getAssemblyLocation() const;
+  std::string getLabel() const;
+  std::string toString() const;
 };
 
 struct KCallBlock : KBlock {
@@ -100,6 +105,7 @@ public:
   KBlockType getKBlockType() const override { return KBlockType::Call; };
   bool intrinsic() const;
   bool internal() const;
+  bool kleeHandled() const;
   KFunction *getKFunction() const;
 };
 
@@ -116,19 +122,26 @@ public:
 };
 
 struct KFunction : public KCallable {
+private:
+  std::unordered_map<std::string, KBlock *> labelMap;
+
+public:
   KModule *parent;
   llvm::Function *function;
 
   unsigned numArgs, numRegisters;
+  unsigned id;
 
   std::unordered_map<unsigned, KInstruction *> registerToInstructionMap;
   unsigned numInstructions;
   unsigned numBlocks;
   KInstruction **instructions;
 
-  std::unordered_map<llvm::Instruction *, KInstruction *> instructionMap;
+  bool kleeHandled = false;
+
+  std::unordered_map<const llvm::Instruction *, KInstruction *> instructionMap;
   std::vector<std::unique_ptr<KBlock>> blocks;
-  std::unordered_map<llvm::BasicBlock *, KBlock *> blockMap;
+  std::unordered_map<const llvm::BasicBlock *, KBlock *> blockMap;
   KBlock *entryKBlock;
   std::vector<KBlock *> returnKBlocks;
   std::vector<KCallBlock *> kCallBlocks;
@@ -149,6 +162,15 @@ struct KFunction : public KCallable {
 
   llvm::FunctionType *getFunctionType() const override {
     return function->getFunctionType();
+  }
+
+  const std::unordered_map<std::string, KBlock *> &getLabelMap() {
+    if (labelMap.size() == 0) {
+      for (auto &kb : blocks) {
+        labelMap[kb->getLabel()] = kb.get();
+      }
+    }
+    return labelMap;
   }
 
   llvm::Value *getValue() override { return function; }
@@ -180,8 +202,10 @@ public:
 
   // Our shadow versions of LLVM structures.
   std::vector<std::unique_ptr<KFunction>> functions;
-  std::unordered_map<llvm::Function *, KFunction *> functionMap;
+  std::unordered_map<const llvm::Function *, KFunction *> functionMap;
   std::unordered_map<llvm::Function *, std::set<llvm::Function *>> callMap;
+  std::unordered_map<std::string, KFunction *> functionNameMap;
+  std::unordered_map<const llvm::Function *, unsigned> functionIDMap;
 
   // Functions which escape (may be called indirectly)
   // XXX change to KFunction

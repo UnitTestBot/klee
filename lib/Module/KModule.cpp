@@ -369,6 +369,7 @@ void KModule::manifest(InterpreterHandler *ih, bool forceSourceOutput) {
 
   std::vector<Function *> declarations;
 
+  unsigned functionID = 0;
   for (auto &Function : *module) {
     if (Function.isDeclaration()) {
       declarations.push_back(&Function);
@@ -386,6 +387,10 @@ void KModule::manifest(InterpreterHandler *ih, bool forceSourceOutput) {
       }
     }
 
+    functionIDMap.insert({&Function, functionID});
+    kf->id = functionID;
+    functionID++;
+    functionNameMap.insert({kf->getName().str(), kf.get()});
     functionMap.insert(std::make_pair(&Function, kf.get()));
     functions.push_back(std::move(kf));
   }
@@ -576,6 +581,7 @@ KFunction::KFunction(llvm::Function *_function, KModule *_km)
   }
   numRegisters = rnum;
 
+  unsigned blockID = 0;
   for (llvm::Function::iterator bbit = function->begin(),
                                 bbie = function->end();
        bbit != bbie; ++bbit) {
@@ -606,6 +612,7 @@ KFunction::KFunction(llvm::Function *_function, KModule *_km)
     for (unsigned i = 0; i < kb->numInstructions; i++, n++) {
       instructionMap[instructions[n]->inst] = instructions[n];
     }
+    kb->id = blockID++;
     blockMap[&*bbit] = kb;
     blocks.push_back(std::unique_ptr<KBlock>(kb));
   }
@@ -650,6 +657,7 @@ KBlock::KBlock(
 
     Instruction *inst = &*it;
     handleKInstruction(instructionToRegisterMap, inst, km, ki);
+    ki->index = i;
     instructions[i++] = ki;
     registerToInstructionMap[instructionToRegisterMap[&*it]] = ki;
   }
@@ -666,6 +674,10 @@ KCallBlock::KCallBlock(
 }
 
 bool KCallBlock::intrinsic() const {
+  auto kf = parent->parent->functionMap[calledFunction];
+  if (kf && kf->kleeHandled) {
+    return true;
+  }
   return calledFunction->getIntrinsicID() != llvm::Intrinsic::not_intrinsic;
 }
 
@@ -685,13 +697,14 @@ KReturnBlock::KReturnBlock(
     : KBlock::KBlock(_kfunction, block, km, instructionToRegisterMap,
                      registerToInstructionMap, instructionsKF) {}
 
-std::string KBlock::getAssemblyLocation() const {
-  std::string repr = "KBlock ";
-  std::string label;
-  llvm::raw_string_ostream label_stream(label);
-  basicBlock->printAsOperand(label_stream);
-  repr += label_stream.str().substr(6);
-  repr += " in function ";
-  repr += parent->function->getName();
-  return repr;
+std::string KBlock::getLabel() const {
+  std::string _label;
+  llvm::raw_string_ostream label_stream(_label);
+  basicBlock->printAsOperand(label_stream, false);
+  std::string label = label_stream.str();
+  return label;
+}
+
+std::string KBlock::toString() const {
+  return getLabel() + " in function " + parent->function->getName().str();
 }

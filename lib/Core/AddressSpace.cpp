@@ -36,6 +36,12 @@ llvm::cl::opt<bool> SkipNotLazyInitialized(
                    "use only with timestamps (default=false)"),
     llvm::cl::cat(PointerResolvingCat));
 
+llvm::cl::opt<bool> SkipLocal(
+    "skip-local", llvm::cl::init(true),
+    llvm::cl::desc(
+        "Do not set symbolic pointers on local objects (default=true)"),
+    llvm::cl::cat(PointerResolvingCat));
+
 llvm::cl::opt<bool> UseTimestamps(
     "use-timestamps", llvm::cl::init(true),
     llvm::cl::desc("Set symbolic pointers only to objects created before those "
@@ -116,8 +122,10 @@ bool AddressSpace::resolveOneIfUnique(ExecutionState &state,
                                       bool &success) const {
   ref<Expr> base =
       state.isGEPExpr(address) ? state.gepExprBases.at(address).first : address;
-  ref<Expr> uniqueAddress;
-  if (!solver->tryGetUnique(state.constraints, base, uniqueAddress,
+  ref<Expr> uniqueAddress =
+      state.constraints.cs().concretization().evaluate(base);
+  if (!isa<ConstantExpr>(uniqueAddress) &&
+      !solver->tryGetUnique(state.constraints.cs(), base, uniqueAddress,
                             state.queryMetaData)) {
     return false;
   }
@@ -129,7 +137,7 @@ bool AddressSpace::resolveOneIfUnique(ExecutionState &state,
       const MemoryObject *mo = res->first;
       ref<Expr> inBounds = mo->getBoundsCheckPointer(address);
 
-      if (!solver->mayBeTrue(state.constraints, inBounds, success,
+      if (!solver->mayBeTrue(state.constraints.cs(), inBounds, success,
                              state.queryMetaData)) {
         return false;
       }
@@ -166,7 +174,8 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
   // try cheap search, will succeed for any inbounds pointer
 
   ref<ConstantExpr> cex;
-  if (!solver->getValue(state.constraints, address, cex, state.queryMetaData))
+  if (!solver->getValue(state.constraints.cs(), address, cex,
+                        state.queryMetaData))
     return false;
   uint64_t example = cex->getZExtValue();
   MemoryObject hack(example);
@@ -198,7 +207,7 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
     }
 
     bool mayBeTrue;
-    if (!solver->mayBeTrue(state.constraints,
+    if (!solver->mayBeTrue(state.constraints.cs(),
                            mo->getBoundsCheckPointer(address), mayBeTrue,
                            state.queryMetaData))
       return false;
@@ -238,7 +247,12 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
   }
   if (SkipNotLazyInitialized) {
     predicate = [predicate](const MemoryObject *mo) {
-      return predicate(mo) && mo->isLazyInitialized();
+      return predicate(mo) && mo->isLazyInitialized;
+    };
+  }
+  if (SkipLocal) {
+    predicate = [predicate](const MemoryObject *mo) {
+      return predicate(mo) && !mo->isLocal;
     };
   }
 
@@ -254,9 +268,14 @@ int AddressSpace::checkPointerInObject(ExecutionState &state,
   // mustBeTrue before mayBeTrue for the first result. easy
   // to add I just want to have a nice symbolic test case first.
   const MemoryObject *mo = op.first;
+  ref<Expr> base = state.isGEPExpr(p) ? state.gepExprBases.at(p).first : p;
   ref<Expr> inBounds = mo->getBoundsCheckPointer(p);
+  inBounds = AndExpr::create(
+      inBounds,
+      mo->getBoundsCheckPointer(base)); // FIXME: remove when segmented memory
+                                        // model will be implemented
   bool mayBeTrue;
-  if (!solver->mayBeTrue(state.constraints, inBounds, mayBeTrue,
+  if (!solver->mayBeTrue(state.constraints.cs(), inBounds, mayBeTrue,
                          state.queryMetaData)) {
     return 1;
   }
@@ -268,7 +287,7 @@ int AddressSpace::checkPointerInObject(ExecutionState &state,
     auto size = rl.size();
     if (size == 1) {
       bool mustBeTrue;
-      if (!solver->mustBeTrue(state.constraints, inBounds, mustBeTrue,
+      if (!solver->mustBeTrue(state.constraints.cs(), inBounds, mustBeTrue,
                               state.queryMetaData))
         return 1;
       if (mustBeTrue)
@@ -367,7 +386,12 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
   }
   if (SkipNotLazyInitialized) {
     predicate = [predicate](const MemoryObject *mo) {
-      return predicate(mo) && mo->isLazyInitialized();
+      return predicate(mo) && mo->isLazyInitialized;
+    };
+  }
+  if (SkipLocal) {
+    predicate = [predicate](const MemoryObject *mo) {
+      return predicate(mo) && !mo->isLocal;
     };
   }
 

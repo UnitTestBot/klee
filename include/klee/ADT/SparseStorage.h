@@ -63,8 +63,8 @@ public:
   }
 
   void store(size_t idx, const ValueType &value) {
-    assert(idx >= 0 && idx < capacity);
-    internalStorage[idx] = value;
+    if (idx < capacity)
+      internalStorage[idx] = value;
   }
 
   template <typename InputIterator>

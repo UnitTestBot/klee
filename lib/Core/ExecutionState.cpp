@@ -35,17 +35,12 @@ using namespace llvm;
 using namespace klee;
 
 namespace {
-cl::opt<bool> DebugLogStateMerge(
-    "debug-log-state-merge", cl::init(false),
-    cl::desc("Debug information for underlying state merging (default=false)"),
-    cl::cat(MergeCat));
-
 cl::opt<bool> UseGEPOptimization(
     "use-gep-opt", cl::init(true),
     cl::desc("Lazily initialize whole objects referenced by gep expressions "
              "instead of only the referenced parts (default=true)"),
     cl::cat(ExecCat));
-} // namespace
+}
 
 /***/
 
@@ -81,25 +76,20 @@ ExecutionState::ExecutionState(KFunction *kf)
 }
 
 ExecutionState::~ExecutionState() {
-  for (const auto &cur_mergehandler : openMergeStack) {
-    cur_mergehandler->removeOpenState(this);
-  }
-
   while (!stack.empty())
     popFrame();
 }
 
 ExecutionState::ExecutionState(const ExecutionState &state)
     : initPC(state.initPC), pc(state.pc), prevPC(state.prevPC),
-      stack(state.stack), incomingBBIndex(state.incomingBBIndex),
-      depth(state.depth), multilevel(state.multilevel), level(state.level),
-      addressSpace(state.addressSpace), constraints(state.constraints),
-      pathOS(state.pathOS), symPathOS(state.symPathOS),
-      coveredLines(state.coveredLines), symbolics(state.symbolics),
-      symbolicSizes(state.symbolicSizes),
-      resolvedPointers(state.resolvedPointers),
+      stack(state.stack), stackBalance(state.stackBalance),
+      incomingBBIndex(state.incomingBBIndex), depth(state.depth),
+      multilevel(state.multilevel), level(state.level),
+      transitionLevel(state.transitionLevel), addressSpace(state.addressSpace),
+      constraints(state.constraints), pathOS(state.pathOS),
+      symPathOS(state.symPathOS), coveredLines(state.coveredLines),
+      symbolics(state.symbolics), resolvedPointers(state.resolvedPointers),
       cexPreferences(state.cexPreferences), arrayNames(state.arrayNames),
-      openMergeStack(state.openMergeStack),
       steppedInstructions(state.steppedInstructions),
       steppedMemoryInstructions(state.steppedMemoryInstructions),
       instsSinceCovNew(state.instsSinceCovNew),
@@ -108,11 +98,10 @@ ExecutionState::ExecutionState(const ExecutionState &state)
                                ? state.unwindingInformation->clone()
                                : nullptr),
       coveredNew(state.coveredNew), forkDisabled(state.forkDisabled),
-      targets(state.targets), gepExprBases(state.gepExprBases),
-      gepExprOffsets(state.gepExprOffsets) {
-  for (const auto &cur_mergehandler : openMergeStack)
-    cur_mergehandler->addOpenState(this);
-}
+      symbolicCounter(state.symbolicCounter),
+      returnValue(state.returnValue), targets(state.targets),
+      gepExprBases(state.gepExprBases), backwardStepsLeftCounter(0),
+      failedBackwardStepsCounter(0) {}
 
 ExecutionState *ExecutionState::branch() {
   depth++;
@@ -134,8 +123,30 @@ bool ExecutionState::inSymbolics(const MemoryObject *mo) const {
   return false;
 }
 
+ExecutionState *ExecutionState::withKInstruction(KInstruction *ki) const {
+  assert(stack.size() == 0);
+  ExecutionState *newState = new ExecutionState(*this);
+  newState->setID();
+  newState->pushFrame(nullptr, ki->parent->parent);
+  newState->stackBalance = 0;
+  newState->initPC = ki->parent->instructions;
+  while (newState->initPC != ki) {
+    ++newState->initPC;
+  }
+  newState->pc = newState->initPC;
+  newState->prevPC = newState->pc;
+  return newState;
+}
+
+ExecutionState *ExecutionState::copy() const {
+  ExecutionState *newState = new ExecutionState(*this);
+  newState->setID();
+  return newState;
+}
+
 void ExecutionState::pushFrame(KInstIterator caller, KFunction *kf) {
   stack.emplace_back(StackFrame(caller, kf));
+  ++stackBalance;
 }
 
 void ExecutionState::popFrame() {
@@ -147,6 +158,7 @@ void ExecutionState::popFrame() {
     addressSpace.unbindObject(memoryObject);
   }
   stack.pop_back();
+  --stackBalance;
 }
 
 void ExecutionState::addSymbolic(const MemoryObject *mo, const Array *array,
@@ -208,25 +220,34 @@ bool ExecutionState::getBase(
 }
 
 void ExecutionState::removePointerResolutions(const MemoryObject *mo) {
-  for (auto i = resolvedPointers.begin(), last = resolvedPointers.end();
-       i != last;) {
-    if (i->second.first == mo->id) {
-      i = resolvedPointers.erase(i);
+  for (auto resolution = begin(resolvedPointers);
+       resolution != end(resolvedPointers);) {
+    resolution->second.erase(mo->id);
+    if (resolution->second.size() == 0) {
+      resolution = resolvedPointers.erase(resolution);
     } else {
-      ++i;
+      ++resolution;
+    }
+  }
+
+  for (auto resolution = begin(resolvedSubobjects);
+       resolution != end(resolvedSubobjects);) {
+    resolution->second.erase(mo->id);
+    if (resolution->second.size() == 0) {
+      resolution = resolvedSubobjects.erase(resolution);
+    } else {
+      ++resolution;
     }
   }
 }
 
 // base address mo and ignore non pure reads in setinitializationgraph
-void ExecutionState::addPointerResolution(ref<Expr> address, ref<Expr> base,
-                                          const MemoryObject *mo) {
+void ExecutionState::addPointerResolution(ref<Expr> address,
+                                          const MemoryObject *mo,
+                                          unsigned size) {
   if (!isa<ConstantExpr>(address)) {
-    resolvedPointers[address] =
-        std::make_pair(mo->id, mo->getOffsetExpr(address));
-  }
-  if (base != address && !isa<ConstantExpr>(base)) {
-    resolvedPointers[base] = std::make_pair(mo->id, mo->getOffsetExpr(base));
+    resolvedPointers[address].insert(mo->id);
+    resolvedSubobjects[MemorySubobject(address, size)].insert(mo->id);
   }
 }
 
@@ -239,7 +260,7 @@ bool ExecutionState::resolveOnSymbolics(const ref<ConstantExpr> &addr,
     // Check if the provided address is between start and end of the object
     // [mo->address, mo->address + mo->size) or the object is a 0-sized object.
     ref<ConstantExpr> size = cast<ConstantExpr>(
-        constraints.getConcretization().evaluate(mo->getSizeExpr()));
+        constraints.cs().concretization().evaluate(mo->getSizeExpr()));
     if ((size->getZExtValue() == 0 && address == mo->address) ||
         (address - mo->address < size->getZExtValue())) {
       result = mo->id;
@@ -264,168 +285,6 @@ llvm::raw_ostream &klee::operator<<(llvm::raw_ostream &os,
   }
   os << "}";
   return os;
-}
-
-bool ExecutionState::merge(const ExecutionState &b) {
-  if (DebugLogStateMerge)
-    llvm::errs() << "-- attempting merge of A:" << this << " with B:" << &b
-                 << "--\n";
-  if (pc != b.pc)
-    return false;
-
-  // XXX is it even possible for these to differ? does it matter? probably
-  // implies difference in object states?
-
-  if (symbolics != b.symbolics)
-    return false;
-
-  {
-    std::vector<StackFrame>::const_iterator itA = stack.begin();
-    std::vector<StackFrame>::const_iterator itB = b.stack.begin();
-    while (itA != stack.end() && itB != b.stack.end()) {
-      // XXX vaargs?
-      if (itA->caller != itB->caller || itA->kf != itB->kf)
-        return false;
-      ++itA;
-      ++itB;
-    }
-    if (itA != stack.end() || itB != b.stack.end())
-      return false;
-  }
-
-  std::set<ref<Expr>> aConstraints(constraints.begin(), constraints.end());
-  std::set<ref<Expr>> bConstraints(b.constraints.begin(), b.constraints.end());
-  std::set<ref<Expr>> commonConstraints, aSuffix, bSuffix;
-  std::set_intersection(
-      aConstraints.begin(), aConstraints.end(), bConstraints.begin(),
-      bConstraints.end(),
-      std::inserter(commonConstraints, commonConstraints.begin()));
-  std::set_difference(aConstraints.begin(), aConstraints.end(),
-                      commonConstraints.begin(), commonConstraints.end(),
-                      std::inserter(aSuffix, aSuffix.end()));
-  std::set_difference(bConstraints.begin(), bConstraints.end(),
-                      commonConstraints.begin(), commonConstraints.end(),
-                      std::inserter(bSuffix, bSuffix.end()));
-  if (DebugLogStateMerge) {
-    llvm::errs() << "\tconstraint prefix: [";
-    for (std::set<ref<Expr>>::iterator it = commonConstraints.begin(),
-                                       ie = commonConstraints.end();
-         it != ie; ++it)
-      llvm::errs() << *it << ", ";
-    llvm::errs() << "]\n";
-    llvm::errs() << "\tA suffix: [";
-    for (std::set<ref<Expr>>::iterator it = aSuffix.begin(), ie = aSuffix.end();
-         it != ie; ++it)
-      llvm::errs() << *it << ", ";
-    llvm::errs() << "]\n";
-    llvm::errs() << "\tB suffix: [";
-    for (std::set<ref<Expr>>::iterator it = bSuffix.begin(), ie = bSuffix.end();
-         it != ie; ++it)
-      llvm::errs() << *it << ", ";
-    llvm::errs() << "]\n";
-  }
-
-  // We cannot merge if addresses would resolve differently in the
-  // states. This means:
-  //
-  // 1. Any objects created since the branch in either object must
-  // have been free'd.
-  //
-  // 2. We cannot have free'd any pre-existing object in one state
-  // and not the other
-
-  if (DebugLogStateMerge) {
-    llvm::errs() << "\tchecking object states\n";
-    llvm::errs() << "A: " << addressSpace.objects << "\n";
-    llvm::errs() << "B: " << b.addressSpace.objects << "\n";
-  }
-
-  std::set<const MemoryObject *> mutated;
-  MemoryMap::iterator ai = addressSpace.objects.begin();
-  MemoryMap::iterator bi = b.addressSpace.objects.begin();
-  MemoryMap::iterator ae = addressSpace.objects.end();
-  MemoryMap::iterator be = b.addressSpace.objects.end();
-  for (; ai != ae && bi != be; ++ai, ++bi) {
-    if (ai->first != bi->first) {
-      if (DebugLogStateMerge) {
-        if (ai->first < bi->first) {
-          llvm::errs() << "\t\tB misses binding for: " << ai->first->id << "\n";
-        } else {
-          llvm::errs() << "\t\tA misses binding for: " << bi->first->id << "\n";
-        }
-      }
-      return false;
-    }
-    if (ai->second.get() != bi->second.get()) {
-      if (DebugLogStateMerge)
-        llvm::errs() << "\t\tmutated: " << ai->first->id << "\n";
-      mutated.insert(ai->first);
-    }
-  }
-  if (ai != ae || bi != be) {
-    if (DebugLogStateMerge)
-      llvm::errs() << "\t\tmappings differ\n";
-    return false;
-  }
-
-  // merge stack
-
-  ref<Expr> inA = ConstantExpr::alloc(1, Expr::Bool);
-  ref<Expr> inB = ConstantExpr::alloc(1, Expr::Bool);
-  for (std::set<ref<Expr>>::iterator it = aSuffix.begin(), ie = aSuffix.end();
-       it != ie; ++it)
-    inA = AndExpr::create(inA, *it);
-  for (std::set<ref<Expr>>::iterator it = bSuffix.begin(), ie = bSuffix.end();
-       it != ie; ++it)
-    inB = AndExpr::create(inB, *it);
-
-  // XXX should we have a preference as to which predicate to use?
-  // it seems like it can make a difference, even though logically
-  // they must contradict each other and so inA => !inB
-
-  std::vector<StackFrame>::iterator itA = stack.begin();
-  std::vector<StackFrame>::const_iterator itB = b.stack.begin();
-  for (; itA != stack.end(); ++itA, ++itB) {
-    StackFrame &af = *itA;
-    const StackFrame &bf = *itB;
-    for (unsigned i = 0; i < af.kf->numRegisters; i++) {
-      ref<Expr> &av = af.locals[i].value;
-      const ref<Expr> &bv = bf.locals[i].value;
-      if (!av || !bv) {
-        // if one is null then by implication (we are at same pc)
-        // we cannot reuse this local, so just ignore
-      } else {
-        av = SelectExpr::create(inA, av, bv);
-      }
-    }
-  }
-
-  for (std::set<const MemoryObject *>::iterator it = mutated.begin(),
-                                                ie = mutated.end();
-       it != ie; ++it) {
-    const MemoryObject *mo = *it;
-    const ObjectState *os = addressSpace.findObject(mo).second;
-    const ObjectState *otherOS = b.addressSpace.findObject(mo).second;
-    assert(os && !os->readOnly &&
-           "objects mutated but not writable in merging state");
-    assert(otherOS);
-
-    ObjectState *wos = addressSpace.getWriteable(mo, os);
-    for (unsigned i = 0; i < mo->size; i++) {
-      ref<Expr> av = wos->read8(i);
-      ref<Expr> bv = otherOS->read8(i);
-      wos->write(i, SelectExpr::create(inA, av, bv));
-    }
-  }
-
-  constraints = ConstraintSet();
-
-  ConstraintManager m(constraints);
-  for (const auto &constraint : commonConstraints)
-    m.addConstraint(constraint);
-  m.addConstraint(OrExpr::create(inA, inB));
-
-  return true;
 }
 
 void ExecutionState::dumpStack(llvm::raw_ostream &out) const {
@@ -463,14 +322,8 @@ void ExecutionState::dumpStack(llvm::raw_ostream &out) const {
   }
 }
 
-void ExecutionState::addConstraint(ref<Expr> e) {
-  ConstraintManager cm(constraints);
-  cm.addConstraint(e);
-}
-
-void ExecutionState::addConstraint(ref<Expr> e, const Assignment &c) {
-  ConstraintManager cm(constraints);
-  cm.addConstraint(e, c);
+void ExecutionState::addConstraint(ref<Expr> e, const Assignment &delta) {
+  constraints.addConstraint(e, delta);
 }
 
 void ExecutionState::addCexPreference(const ref<Expr> &cond) {
@@ -502,4 +355,15 @@ void ExecutionState::increaseLevel() {
 
 bool ExecutionState::isGEPExpr(ref<Expr> expr) const {
   return UseGEPOptimization && gepExprBases.find(expr) != gepExprBases.end();
+}
+
+bool ExecutionState::reachedTarget(Target target) const {
+  if (constraints.path().KBlockSize() == 0) {
+    return false;
+  }
+  if (target.atReturn()) {
+    return prevPC == target.getBlock()->getLastInstruction();
+  } else {
+    return pc == target.getBlock()->getFirstInstruction();
+  }
 }

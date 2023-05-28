@@ -3,32 +3,31 @@
 #include "klee/Expr/Constraints.h"
 #include "klee/Expr/IndependentSet.h"
 #include "klee/Solver/Solver.h"
+#include <assert.h>
 #include <set>
 
 using namespace klee;
 
-Assignment ConcretizationManager::get(const ConstraintSet &set,
-                                      ref<Expr> query) {
+std::pair<Assignment, bool> ConcretizationManager::get(const ConstraintSet &set,
+                                                       ref<Expr> query) {
   if (simplifyExprs) {
-    query = ConstraintManager::simplifyExpr(set, query);
+    query = Simplificator::simplifyExpr(set, query).simplified;
   }
-  CacheEntry ce(set, query);
+  CacheEntry ce(set.cs(), set.symcretes(), query);
   concretizations_map::iterator it = concretizations.find(ce);
   if (it != concretizations.end()) {
-    return it->second;
-  } else if (!set.empty()) {
-    assert(0);
+    return {it->second, true};
+  } else {
+    return {Assignment(true), false};
   }
-
-  return Assignment(true);
 }
 
 bool ConcretizationManager::contains(const ConstraintSet &set,
                                      ref<Expr> query) {
   if (simplifyExprs) {
-    query = ConstraintManager::simplifyExpr(set, query);
+    query = Simplificator::simplifyExpr(set, query).simplified;
   }
-  CacheEntry ce(set, query);
+  CacheEntry ce(set.cs(), set.symcretes(), query);
   concretizations_map::iterator it = concretizations.find(ce);
   return it != concretizations.end();
 }
@@ -36,8 +35,10 @@ bool ConcretizationManager::contains(const ConstraintSet &set,
 void ConcretizationManager::add(const Query &query, const Assignment &assign) {
   ref<Expr> expr = query.expr;
   if (simplifyExprs) {
-    expr = ConstraintManager::simplifyExpr(query.constraints, expr);
+    expr = Simplificator::simplifyExpr(query.constraints, expr).simplified;
   }
-  CacheEntry ce(query.constraints, query.expr);
+  CacheEntry ce(query.constraints.cs(), query.constraints.symcretes(), expr);
   concretizations.insert(std::make_pair(ce, assign));
+  assert(concretizations.find(ce) != concretizations.end());
+  assert(contains(query.constraints, expr));
 }

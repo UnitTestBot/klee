@@ -12,7 +12,6 @@
 #include "CoreStats.h"
 #include "ExecutionState.h"
 #include "Executor.h"
-#include "MergeHandler.h"
 #include "PTree.h"
 #include "StatsTracker.h"
 #include "Target.h"
@@ -391,14 +390,14 @@ void TargetedSearcher::removeReached() {
 
 ///
 
-GuidedSearcher::GuidedSearcher(
-    Searcher *baseSearcher, CodeGraphDistance &codeGraphDistance,
-    TargetCalculator &stateHistory,
-    std::set<ExecutionState *, ExecutionStateIDCompare> &pausedStates,
-    std::size_t bound, RNG &rng, bool stopAfterReachingTarget)
+GuidedSearcher::GuidedSearcher(Searcher *baseSearcher,
+                               CodeGraphDistance &codeGraphDistance,
+                               TargetCalculator &stateHistory,
+                               std::size_t bound, RNG &rng,
+                               bool stopAfterReachingTarget)
     : baseSearcher(baseSearcher), codeGraphDistance(codeGraphDistance),
-      stateHistory(stateHistory), pausedStates(pausedStates), bound(bound),
-      theRNG(rng), stopAfterReachingTarget(stopAfterReachingTarget) {}
+      stateHistory(stateHistory), bound(bound), theRNG(rng),
+      stopAfterReachingTarget(stopAfterReachingTarget) {}
 
 ExecutionState &GuidedSearcher::selectState() {
   unsigned size = targets.size();
@@ -717,19 +716,22 @@ void WeightedRandomSearcher::printName(llvm::raw_ostream &os) {
 
 ///
 
-// Check if n is a valid pointer and a node belonging to us
 #define IS_OUR_NODE_VALID(n)                                                   \
   (((n).getPointer() != nullptr) && (((n).getInt() & idBitMask) != 0))
 
-RandomPathSearcher::RandomPathSearcher(PTree &processTree, RNG &rng)
-    : processTree{processTree}, theRNG{rng}, idBitMask{
-                                                 processTree.getNextId()} {};
+RandomPathSearcher::RandomPathSearcher(PForest &processForest, RNG &rng)
+    : processForest{processForest}, theRNG{rng},
+      idBitMask{processForest.getNextId()} {};
 
 ExecutionState &RandomPathSearcher::selectState() {
-  unsigned flips = 0, bits = 0;
-  assert(processTree.root.getInt() & idBitMask &&
-         "Root should belong to the searcher");
-  PTreeNode *n = processTree.root.getPointer();
+  unsigned flips = 0, bits = 0, range = 0;
+  PTreeNodePtr *root = nullptr;
+  while (!root || !IS_OUR_NODE_VALID(*root))
+    root = &processForest.getPTrees()
+                .at(range++ % processForest.getPTrees().size() + 1)
+                ->root;
+  assert(root->getInt() & idBitMask && "Root should belong to the searcher");
+  PTreeNode *n = root->getPointer();
   while (!n->state) {
     if (!IS_OUR_NODE_VALID(n->left)) {
       assert(IS_OUR_NODE_VALID(n->right) &&
@@ -757,13 +759,14 @@ void RandomPathSearcher::update(
     ExecutionState *current, const std::vector<ExecutionState *> &addedStates,
     const std::vector<ExecutionState *> &removedStates) {
   // insert states
-  for (auto es : addedStates) {
+  for (auto &es : addedStates) {
     PTreeNode *pnode = es->ptreeNode, *parent = pnode->parent;
+    PTreeNodePtr &root = processForest.getPTrees().at(pnode->getTreeID())->root;
     PTreeNodePtr *childPtr;
 
     childPtr = parent ? ((parent->left.getPointer() == pnode) ? &parent->left
                                                               : &parent->right)
-                      : &processTree.root;
+                      : &root;
     while (pnode && !IS_OUR_NODE_VALID(*childPtr)) {
       childPtr->setInt(childPtr->getInt() | idBitMask);
       pnode = parent;
@@ -773,20 +776,21 @@ void RandomPathSearcher::update(
       childPtr = parent
                      ? ((parent->left.getPointer() == pnode) ? &parent->left
                                                              : &parent->right)
-                     : &processTree.root;
+                     : &root;
     }
   }
 
   // remove states
-  for (auto es : removedStates) {
+  for (auto &es : removedStates) {
     PTreeNode *pnode = es->ptreeNode, *parent = pnode->parent;
+    PTreeNodePtr &root = processForest.getPTrees().at(pnode->getTreeID())->root;
 
     while (pnode && !IS_OUR_NODE_VALID(pnode->left) &&
            !IS_OUR_NODE_VALID(pnode->right)) {
       auto childPtr =
           parent ? ((parent->left.getPointer() == pnode) ? &parent->left
                                                          : &parent->right)
-                 : &processTree.root;
+                 : &root;
       assert(IS_OUR_NODE_VALID(*childPtr) && "Removing pTree child not ours");
       childPtr->setInt(childPtr->getInt() & ~idBitMask);
       pnode = parent;
@@ -797,77 +801,14 @@ void RandomPathSearcher::update(
 }
 
 bool RandomPathSearcher::empty() {
-  return !IS_OUR_NODE_VALID(processTree.root);
+  bool res = true;
+  for (const auto &ntree : processForest.getPTrees())
+    res = res && !IS_OUR_NODE_VALID(ntree.second->root);
+  return res;
 }
 
 void RandomPathSearcher::printName(llvm::raw_ostream &os) {
   os << "RandomPathSearcher\n";
-}
-
-///
-
-MergingSearcher::MergingSearcher(Searcher *baseSearcher)
-    : baseSearcher{baseSearcher} {};
-
-void MergingSearcher::pauseState(ExecutionState &state) {
-  assert(std::find(pausedStates.begin(), pausedStates.end(), &state) ==
-         pausedStates.end());
-  pausedStates.push_back(&state);
-  baseSearcher->update(nullptr, {}, {&state});
-}
-
-void MergingSearcher::continueState(ExecutionState &state) {
-  auto it = std::find(pausedStates.begin(), pausedStates.end(), &state);
-  assert(it != pausedStates.end());
-  pausedStates.erase(it);
-  baseSearcher->update(nullptr, {&state}, {});
-}
-
-ExecutionState &MergingSearcher::selectState() {
-  assert(!baseSearcher->empty() && "base searcher is empty");
-
-  if (!UseIncompleteMerge)
-    return baseSearcher->selectState();
-
-  // Iterate through all MergeHandlers
-  for (auto cur_mergehandler : mergeGroups) {
-    // Find one that has states that could be released
-    if (!cur_mergehandler->hasMergedStates()) {
-      continue;
-    }
-    // Find a state that can be prioritized
-    ExecutionState *es = cur_mergehandler->getPrioritizeState();
-    if (es) {
-      return *es;
-    } else {
-      if (DebugLogIncompleteMerge) {
-        llvm::errs() << "Preemptively releasing states\n";
-      }
-      // If no state can be prioritized, they all exceeded the amount of time we
-      // are willing to wait for them. Release the states that already arrived
-      // at close_merge.
-      cur_mergehandler->releaseStates();
-    }
-  }
-  // If we were not able to prioritize a merging state, just return some state
-  return baseSearcher->selectState();
-}
-
-void MergingSearcher::update(
-    ExecutionState *current, const std::vector<ExecutionState *> &addedStates,
-    const std::vector<ExecutionState *> &removedStates) {
-  // We have to check if the current execution state was just deleted, as to
-  // not confuse the nurs searchers
-  if (std::find(pausedStates.begin(), pausedStates.end(), current) ==
-      pausedStates.end()) {
-    baseSearcher->update(current, addedStates, removedStates);
-  }
-}
-
-bool MergingSearcher::empty() { return baseSearcher->empty(); }
-
-void MergingSearcher::printName(llvm::raw_ostream &os) {
-  os << "MergingSearcher\n";
 }
 
 ///

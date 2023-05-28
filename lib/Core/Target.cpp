@@ -36,7 +36,7 @@ llvm::cl::opt<TargetCalculateBy> TargetCalculatorMode(
 
 std::string Target::toString() const {
   std::string repr = "Target: ";
-  repr += block->getAssemblyLocation();
+  repr += block->toString();
   if (atReturn()) {
     repr += " (at the end)";
   }
