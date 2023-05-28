@@ -10,6 +10,7 @@
 #include "Executor.h"
 
 #include "AddressManager.h"
+#include "BidirectionalSearcher.h"
 #include "CXXTypeSystem/CXXTypeManager.h"
 #include "Context.h"
 #include "CoreStats.h"
@@ -19,8 +20,8 @@
 #include "ImpliedValue.h"
 #include "Memory.h"
 #include "MemoryManager.h"
-#include "PForest.h"
 #include "Searcher.h"
+#include "SearcherUtil.h"
 #include "SeedInfo.h"
 #include "SpecialFunctionHandler.h"
 #include "StatsTracker.h"
@@ -140,6 +141,13 @@ cl::opt<std::string>
             cl::desc("Halt execution after the specified duration.  "
                      "Set to 0s to disable (default=0s)"),
             cl::init("0s"), cl::cat(TerminationCat));
+
+cl::opt<ExecutionKind> ExecutionMode(
+    "execution-mode",
+    cl::values(clEnumValN(ExecutionKind::Forward, "forward",
+                          "Use basic klee symbolic execution")),
+    cl::init(ExecutionKind::Forward), cl::desc("Execution mode"),
+    cl::cat(ExecCat));
 
 cl::opt<bool>
     LazyInitialization("use-lazy-initialization", cl::init(true),
@@ -490,6 +498,9 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
       usingSeeds(0), atMemoryLimit(false), inhibitForking(false),
       haltExecution(false), ivcEnabled(false),
       debugLogBuffer(debugBufferString) {
+
+  seedMap = std::make_unique<SeedMap>();
+  objectManager.addSubscriber(seedMap.get());
 
   const time::Span maxTime{MaxTime};
   if (maxTime)
@@ -971,22 +982,19 @@ void Executor::branch(ExecutionState &state,
     result.push_back(&state);
     for (unsigned i = 1; i < N; ++i) {
       ExecutionState *es = result[theRNG.getInt32() % i];
-      ExecutionState *ns = es->branch();
-      addedStates.push_back(ns);
+      auto ns = objectManager.branchState(es, reason);
       result.push_back(ns);
-      processForest->attach(es->ptreeNode, ns, es, reason);
     }
   }
-
   // If necessary redistribute seeds to match conditions, killing
   // states if necessary due to OnlyReplaySeeds (inefficient but
   // simple).
 
   std::map<ExecutionState *, std::vector<SeedInfo>>::iterator it =
-      seedMap.find(&state);
-  if (it != seedMap.end()) {
+      seedMap->find(&state);
+  if (it != seedMap->end()) {
     std::vector<SeedInfo> seeds = it->second;
-    seedMap.erase(it);
+    seedMap->erase(it);
 
     // Assume each seed only satisfies one condition (necessarily true
     // when conditions are mutually exclusive and their conjunction is
@@ -1013,12 +1021,12 @@ void Executor::branch(ExecutionState &state,
 
       // Extra check in case we're replaying seeds with a max-fork
       if (result[i])
-        seedMap[result[i]].push_back(*siit);
+        seedMap->at(result[i]).push_back(*siit);
     }
 
     if (OnlyReplaySeeds) {
       for (unsigned i = 0; i < N; ++i) {
-        if (result[i] && !seedMap.count(result[i])) {
+        if (result[i] && !seedMap->count(result[i])) {
           terminateStateEarly(*result[i], "Unseeded path during replay",
                               StateTerminationType::Replay);
           result[i] = nullptr;
@@ -1092,8 +1100,8 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
                                    bool isInternal, BranchType reason) {
   PartialValidity res;
   std::map<ExecutionState *, std::vector<SeedInfo>>::iterator it =
-      seedMap.find(&current);
-  bool isSeeding = it != seedMap.end();
+      seedMap->find(&current);
+  bool isSeeding = it != seedMap->end();
 
   if (!isSeeding)
     condition = maxStaticPctChecks(current, condition);
@@ -1214,14 +1222,13 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
 
     ++stats::forks;
 
-    falseState = trueState->branch();
-    addedStates.push_back(falseState);
+    falseState = objectManager.branchState(trueState, reason);
 
-    if (it != seedMap.end()) {
+    if (it != seedMap->end()) {
       std::vector<SeedInfo> seeds = it->second;
       it->second.clear();
-      std::vector<SeedInfo> &trueSeeds = seedMap[trueState];
-      std::vector<SeedInfo> &falseSeeds = seedMap[falseState];
+      std::vector<SeedInfo> &trueSeeds = seedMap->at(trueState);
+      std::vector<SeedInfo> &falseSeeds = seedMap->at(falseState);
       for (std::vector<SeedInfo>::iterator siit = seeds.begin(),
                                            siie = seeds.end();
            siit != siie; ++siit) {
@@ -1242,20 +1249,18 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
       if (trueSeeds.empty()) {
         if (&current == trueState)
           swapInfo = true;
-        seedMap.erase(trueState);
+        seedMap->erase(trueState);
       }
       if (falseSeeds.empty()) {
         if (&current == falseState)
           swapInfo = true;
-        seedMap.erase(falseState);
+        seedMap->erase(falseState);
       }
       if (swapInfo) {
         std::swap(trueState->coveredNew, falseState->coveredNew);
         std::swap(trueState->coveredLines, falseState->coveredLines);
       }
     }
-
-    processForest->attach(current.ptreeNode, falseState, trueState, reason);
 
     if (pathWriter) {
       // Need to update the pathOS.id field of falseState, otherwise the same id
@@ -1299,8 +1304,8 @@ void Executor::addConstraint(ExecutionState &state, ref<Expr> condition) {
 
   // Check to see if this constraint violates seeds.
   std::map<ExecutionState *, std::vector<SeedInfo>>::iterator it =
-      seedMap.find(&state);
-  if (it != seedMap.end()) {
+      seedMap->find(&state);
+  if (it != seedMap->end()) {
     bool warn = false;
     for (std::vector<SeedInfo>::iterator siit = it->second.begin(),
                                          siie = it->second.end();
@@ -1445,8 +1450,8 @@ void Executor::executeGetValue(ExecutionState &state, ref<Expr> e,
                                KInstruction *target) {
   e = Simplificator::simplifyExpr(state.constraints.cs(), e).simplified;
   std::map<ExecutionState *, std::vector<SeedInfo>>::iterator it =
-      seedMap.find(&state);
-  if (it == seedMap.end() || isa<ConstantExpr>(e)) {
+      seedMap->find(&state);
+  if (it == seedMap->end() || isa<ConstantExpr>(e)) {
     ref<ConstantExpr> value;
     e = optimizer.optimizeExpr(e, true);
     bool success =
@@ -3728,31 +3733,6 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
   }
 }
 
-void Executor::updateStates(ExecutionState *current) {
-  if (searcher) {
-    searcher->update(current, addedStates, removedStates);
-  }
-
-  states.insert(addedStates.begin(), addedStates.end());
-  addedStates.clear();
-
-  for (std::vector<ExecutionState *>::iterator it = removedStates.begin(),
-                                               ie = removedStates.end();
-       it != ie; ++it) {
-    ExecutionState *es = *it;
-    std::set<ExecutionState *>::iterator it2 = states.find(es);
-    assert(it2 != states.end());
-    states.erase(it2);
-    std::map<ExecutionState *, std::vector<SeedInfo>>::iterator it3 =
-        seedMap.find(es);
-    if (it3 != seedMap.end())
-      seedMap.erase(it3);
-    processForest->remove(es->ptreeNode);
-    delete es;
-  }
-  removedStates.clear();
-}
-
 template <typename SqType, typename TypeIt>
 void Executor::computeOffsetsSeqTy(KGEPInstruction *kgepi,
                                    ref<ConstantExpr> &constantOffset,
@@ -3851,6 +3831,7 @@ bool Executor::checkMemoryUsage() {
     return true;
 
   // just guess at how many to kill
+  auto states = objectManager.getStates();
   const auto numStates = states.size();
   auto toKill = std::max(1UL, numStates - numStates * MaxMemory / totalUsage);
   klee_warning("killing %lu states (over memory cap: %luMB)", toKill,
@@ -3875,20 +3856,46 @@ bool Executor::checkMemoryUsage() {
 }
 
 void Executor::doDumpStates() {
-  if (!DumpStatesOnHalt || states.empty()) {
-    interpreterHandler->incPathsExplored(states.size());
+  if (!DumpStatesOnHalt || objectManager.getStates().empty()) {
+    interpreterHandler->incPathsExplored(objectManager.getStates().size());
     return;
   }
-
   klee_message("halting execution, dumping remaining states");
-  for (const auto &state : pausedStates)
-    terminateStateEarly(*state, "Execution halting (paused state).",
-                        StateTerminationType::Interrupted);
-  updateStates(nullptr);
-  for (const auto &state : states)
+  for (const auto &state : objectManager.getStates())
     terminateStateEarly(*state, "Execution halting.",
                         StateTerminationType::Interrupted);
-  updateStates(nullptr);
+}
+
+void Executor::executeAction(ref<BidirectionalAction> action) {
+  switch (action->getKind()) {
+  case BidirectionalAction::Kind::Forward: {
+    goForward(cast<ForwardAction>(action));
+    break;
+  }
+  }
+}
+
+void Executor::goForward(ref<ForwardAction> action) {
+  ref<ForwardAction> fa = cast<ForwardAction>(action);
+  objectManager.setCurrentState(fa->state);
+
+  KInstruction *prevKI = fa->state->prevPC;
+  KFunction *kf = prevKI->parent->parent;
+
+  if (prevKI->inst->isTerminator() &&
+      kmodule->inMainModule(kf->function)) {
+    targetCalculator->update(*fa->state);
+  }
+
+  KInstruction *ki = fa->state->pc;
+  stepInstruction(*fa->state);
+  executeInstruction(*fa->state, ki);
+
+  timers.invoke();
+  if (::dumpStates)
+    dumpStates();
+  if (::dumpPForest)
+    dumpPForest();
 }
 
 const KInstruction *Executor::getKInst(const llvm::Instruction *inst) const {
@@ -3918,10 +3925,8 @@ void Executor::run(ExecutionState &initialState) {
   // such.
   timers.reset();
 
-  states.insert(&initialState);
-
   if (usingSeeds) {
-    std::vector<SeedInfo> &v = seedMap[&initialState];
+    std::vector<SeedInfo> &v = seedMap->at(&initialState);
 
     for (std::vector<KTest *>::const_iterator it = usingSeeds->begin(),
                                               ie = usingSeeds->end();
@@ -3931,19 +3936,20 @@ void Executor::run(ExecutionState &initialState) {
     int lastNumSeeds = usingSeeds->size() + 10;
     time::Point lastTime, startTime = lastTime = time::getWallTime();
     ExecutionState *lastState = 0;
-    while (!seedMap.empty()) {
+    while (!seedMap->empty()) {
       if (haltExecution) {
         doDumpStates();
         return;
       }
 
       std::map<ExecutionState *, std::vector<SeedInfo>>::iterator it =
-          seedMap.upper_bound(lastState);
-      if (it == seedMap.end())
-        it = seedMap.begin();
+          seedMap->upper_bound(lastState);
+      if (it == seedMap->end())
+        it = seedMap->begin();
       lastState = it->first;
       ExecutionState &state = *lastState;
       KInstruction *ki = state.pc;
+      objectManager.setCurrentState(&state);
       stepInstruction(state);
 
       executeInstruction(state, ki);
@@ -3952,13 +3958,13 @@ void Executor::run(ExecutionState &initialState) {
         dumpStates();
       if (::dumpPForest)
         dumpPForest();
-      updateStates(&state);
+      objectManager.updateSubscribers();
 
       if ((stats::instructions % 1000) == 0) {
         int numSeeds = 0, numStates = 0;
         for (std::map<ExecutionState *, std::vector<SeedInfo>>::iterator
-                 it = seedMap.begin(),
-                 ie = seedMap.end();
+                 it = seedMap->begin(),
+                 ie = seedMap->end();
              it != ie; ++it) {
           numSeeds += it->second.size();
           numStates++;
@@ -3979,7 +3985,8 @@ void Executor::run(ExecutionState &initialState) {
       }
     }
 
-    klee_message("seeding done (%d states remain)", (int)states.size());
+    klee_message("seeding done (%d states remain)",
+                 (int)objectManager.getStates().size());
 
     if (OnlySeed) {
       doDumpStates();
@@ -3987,31 +3994,24 @@ void Executor::run(ExecutionState &initialState) {
     }
   }
 
-  searcher = constructUserSearcher(*this);
+  searcher =
+      std::make_unique<ForwardOnlySearcher>(constructUserSearcher(*this));
 
-  std::vector<ExecutionState *> newStates(states.begin(), states.end());
-  searcher->update(0, newStates, std::vector<ExecutionState *>());
+  objectManager.addSubscriber(searcher.get());
+  objectManager.initialUpdate();
 
   // main interpreter loop
-  while (!states.empty() && !haltExecution) {
-    while (!searcher->empty() && !haltExecution) {
-      ExecutionState &state = searcher->selectState();
-      KInstruction *prevKI = state.prevPC;
-      KFunction *kf = prevKI->parent->parent;
+  while (!haltExecution && !searcher->empty()) {
+    auto action = searcher->selectAction();
+    executeAction(action);
+    objectManager.updateSubscribers();
 
-      if (prevKI->inst->isTerminator() && kmodule->inMainModule(kf->function)) {
-        targetCalculator->update(state);
-      }
-
-      executeStep(state);
+    if (!checkMemoryUsage()) {
+      // update searchers when states were terminated early due to memory
+      // pressure
+      objectManager.updateSubscribers();
     }
-
-    if (searcher->empty())
-      haltExecution = true;
   }
-
-  delete searcher;
-  searcher = nullptr;
 
   doDumpStates();
   haltExecution = false;
@@ -4029,25 +4029,6 @@ void Executor::initializeTypeManager() {
     assert(false && "Unknown type system!");
   }
   typeSystemManager->initModule();
-}
-
-void Executor::executeStep(ExecutionState &state) {
-  KInstruction *ki = state.pc;
-  stepInstruction(state);
-
-  executeInstruction(state, ki);
-  timers.invoke();
-  if (::dumpStates)
-    dumpStates();
-  if (::dumpPForest)
-    dumpPForest();
-
-  updateStates(&state);
-
-  if (!checkMemoryUsage()) {
-    // update searchers when states were terminated early due to memory pressure
-    updateStates(nullptr);
-  }
 }
 
 std::string Executor::getAddressInfo(ExecutionState &state, ref<Expr> address,
@@ -4114,32 +4095,10 @@ void Executor::terminateState(ExecutionState &state) {
                       "replay did not consume all objects in test input.");
   }
 
-  std::vector<ExecutionState *>::iterator itr =
-      std::find(removedStates.begin(), removedStates.end(), &state);
-
-  if (itr != removedStates.end()) {
-    klee_warning("remove state twice");
-    return;
-  }
-
   interpreterHandler->incPathsExplored();
 
-  std::vector<ExecutionState *>::iterator it =
-      std::find(addedStates.begin(), addedStates.end(), &state);
-  if (it == addedStates.end()) {
-    state.pc = state.prevPC;
 
-    removedStates.push_back(&state);
-  } else {
-    // never reached searcher, just delete immediately
-    std::map<ExecutionState *, std::vector<SeedInfo>>::iterator it3 =
-        seedMap.find(&state);
-    if (it3 != seedMap.end())
-      seedMap.erase(it3);
-    addedStates.erase(it);
-    processForest->remove(state.ptreeNode);
-    delete &state;
-  }
+  objectManager.removeState(&state);
 }
 
 static bool shouldWriteTest(const ExecutionState &state) {
@@ -4160,7 +4119,7 @@ static std::string terminationTypeFileExtension(StateTerminationType type) {
 };
 
 void Executor::terminateStateOnExit(ExecutionState &state) {
-  if (shouldWriteTest(state) || (AlwaysOutputSeeds && seedMap.count(&state)))
+  if (shouldWriteTest(state) || (AlwaysOutputSeeds && seedMap->count(&state)))
     interpreterHandler->processTestCase(
         state, nullptr,
         terminationTypeFileExtension(StateTerminationType::Exit).c_str());
@@ -4174,7 +4133,7 @@ void Executor::terminateStateEarly(ExecutionState &state, const Twine &message,
                                    StateTerminationType terminationType) {
   if ((terminationType <= StateTerminationType::EXECERR &&
        shouldWriteTest(state)) ||
-      (AlwaysOutputSeeds && seedMap.count(&state))) {
+      (AlwaysOutputSeeds && seedMap->count(&state))) {
     interpreterHandler->processTestCase(
         state, (message + "\n").str().c_str(),
         terminationTypeFileExtension(terminationType).c_str());
@@ -5589,9 +5548,9 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
     state.addSymbolic(mo, array, type);
 
     std::map<ExecutionState *, std::vector<SeedInfo>>::iterator it =
-        seedMap.find(&state);
-    if (it != seedMap.end()) { // In seed mode we need to add this as a
-                               // binding.
+        seedMap->find(&state);
+    if (it != seedMap->end()) { // In seed mode we need to add this as a
+                                // binding.
       for (std::vector<SeedInfo>::iterator siit = it->second.begin(),
                                            siie = it->second.end();
            siit != siie; ++siit) {
@@ -5745,7 +5704,13 @@ ExecutionState *Executor::formState(Function *f, int argc, char **argv,
 
 void Executor::runFunctionAsMain(Function *f, int argc, char **argv,
                                  char **envp) {
+  std::vector<ref<Expr>> arguments;
+
+  processForest = std::make_unique<PForest>();
+  objectManager.addProcessForest(processForest.get());
+
   auto state = formState(f, argc, argv, envp);
+  objectManager.makeInitialStates(state);
 
   if (pathWriter)
     state->pathOS = pathWriter->open();
@@ -5755,11 +5720,8 @@ void Executor::runFunctionAsMain(Function *f, int argc, char **argv,
   if (statsTracker)
     statsTracker->framePushed(*state, 0);
 
-  processForest = std::make_unique<PForest>();
-  processForest->addRoot(state);
   bindModuleConstants(llvm::APFloat::rmNearestTiesToEven);
   run(*state);
-  processForest = nullptr;
 
   // hack to clear memory objects
   delete memory;
@@ -6237,7 +6199,7 @@ void Executor::dumpStates() {
   auto os = interpreterHandler->openOutputFile("states.txt");
 
   if (os) {
-    for (ExecutionState *es : states) {
+    for (ExecutionState *es : objectManager.getStates()) {
       *os << "(" << es << ",";
       *os << "[";
       auto next = es->stack.begin();

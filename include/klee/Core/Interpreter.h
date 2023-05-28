@@ -49,6 +49,10 @@ public:
                                const char *suffix) = 0;
 };
 
+enum class ExecutionKind {
+  Forward
+};
+
 class Interpreter {
 public:
   /// ModuleOptions - Module level options which can be set when

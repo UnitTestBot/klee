@@ -15,7 +15,11 @@
 #ifndef KLEE_EXECUTOR_H
 #define KLEE_EXECUTOR_H
 
+#include "BidirectionalSearcher.h"
 #include "ExecutionState.h"
+#include "ObjectManager.h"
+#include "SearcherUtil.h"
+#include "SeedMap.h"
 #include "UserSearcher.h"
 
 #include "klee/ADT/RNG.h"
@@ -81,7 +85,7 @@ class KModule;
 class MemoryManager;
 class MemoryObject;
 class ObjectState;
-class PForest;
+class PTree;
 class Searcher;
 class SeedInfo;
 class SpecialFunctionHandler;
@@ -92,8 +96,6 @@ class StatsTracker;
 class TimingSolver;
 class TreeStreamWriter;
 class TypeManager;
-class MergeHandler;
-class MergingSearcher;
 template <class T> class ref;
 
 /// \todo Add a context object to keep track of data only live
@@ -107,6 +109,12 @@ class Executor : public Interpreter {
   friend class StatsTracker;
   friend klee::Searcher *
   klee::constructUserSearcher(Executor &executor, bool stopAfterReachingTarget);
+
+  struct ComposeResult {
+    bool success;
+    PathConstraints composed;
+    Conflict conflict;
+  };
 
 public:
   typedef std::pair<ExecutionState *, ExecutionState *> StatePair;
@@ -122,7 +130,7 @@ private:
 
   std::unique_ptr<KModule> kmodule;
   InterpreterHandler *interpreterHandler;
-  Searcher *searcher;
+  std::unique_ptr<IBidirectionalSearcher> searcher;
 
   ExternalDispatcher *externalDispatcher;
   TimingSolver *solver;
@@ -130,8 +138,8 @@ private:
   MemoryManager *memory;
   TypeManager *typeSystemManager;
 
-  std::set<ExecutionState *, ExecutionStateIDCompare> states;
-  std::set<ExecutionState *, ExecutionStateIDCompare> pausedStates;
+  ObjectManager objectManager;
+
   StatsTracker *statsTracker;
   TreeStreamWriter *pathWriter, *symPathWriter;
   SpecialFunctionHandler *specialFunctionHandler;
@@ -141,17 +149,6 @@ private:
   std::unique_ptr<CodeGraphDistance> codeGraphDistance;
   std::unique_ptr<TargetCalculator> targetCalculator;
 
-  /// Used to track states that have been added during the current
-  /// instructions step.
-  /// \invariant \ref addedStates is a subset of \ref states.
-  /// \invariant \ref addedStates and \ref removedStates are disjoint.
-  std::vector<ExecutionState *> addedStates;
-  /// Used to track states that have been removed during the current
-  /// instructions step.
-  /// \invariant \ref removedStates is a subset of \ref states.
-  /// \invariant \ref addedStates and \ref removedStates are disjoint.
-  std::vector<ExecutionState *> removedStates;
-
   /// When non-empty the Executor is running in "seed" mode. The
   /// states in this map will be executed in an arbitrary order
   /// (outside the normal search interface) until they terminate. When
@@ -159,7 +156,7 @@ private:
   /// satisfies one or more seeds will be added to this map. What
   /// happens with other states (that don't satisfy the seeds) depends
   /// on as-yet-to-be-determined flags.
-  std::map<ExecutionState *, std::vector<SeedInfo>> seedMap;
+  std::unique_ptr<SeedMap> seedMap;
 
   /// Map of globals to their representative memory object.
   std::map<const llvm::GlobalValue *, MemoryObject *> globalObjects;
@@ -252,7 +249,6 @@ private:
   void initializeGlobalObjects(ExecutionState &state);
 
   void stepInstruction(ExecutionState &state);
-  void updateStates(ExecutionState *current);
   void transferToBasicBlock(llvm::BasicBlock *dst, llvm::BasicBlock *src,
                             ExecutionState &state);
 
@@ -484,17 +480,17 @@ private:
                                            llvm::APFloat::roundingMode rm,
                                            const KInstruction *ki = NULL);
 
-  /// Evaluates an LLVM float comparison. the operands are two float
-  /// expressions.
-  ref<klee::Expr> evaluateFCmp(unsigned int predicate, ref<klee::Expr> left,
-                               ref<klee::Expr> right) const;
-
   /// Evaluates an LLVM constant.  The optional argument ki is the
   /// instruction where this constant was encountered, or NULL if
   /// not applicable/unavailable.
   ref<klee::ConstantExpr> evalConstant(const llvm::Constant *c,
                                        llvm::APFloat::roundingMode rm,
                                        const KInstruction *ki = NULL);
+
+  /// Evaluates an LLVM float comparison. the operands are two float
+  /// expressions.
+  ref<klee::Expr> evaluateFCmp(unsigned int predicate, ref<klee::Expr> left,
+                               ref<klee::Expr> right) const;
 
   /// Return a unique constant value for the given expression in the
   /// given state, if it has one (i.e. it provably only has a single
@@ -598,6 +594,10 @@ private:
   void dumpStates();
   void dumpPForest();
 
+  void executeAction(ref<BidirectionalAction> action);
+
+  void goForward(ref<ForwardAction> action);
+
   const KInstruction *getKInst(const llvm::Instruction *ints) const;
   const KBlock *getKBlock(const llvm::BasicBlock *bb) const;
   const KFunction *getKFunction(const llvm::Function *f) const;
@@ -695,8 +695,6 @@ public:
 
   /// Returns the errno location in memory of the state
   int *getErrnoLocation(const ExecutionState &state) const;
-
-  void executeStep(ExecutionState &state);
 };
 
 } // namespace klee

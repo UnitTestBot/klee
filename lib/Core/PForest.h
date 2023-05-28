@@ -12,6 +12,7 @@
 #define KLEE_PFOREST_H
 
 #include "PTree.h"
+#include "SearcherUtil.h"
 
 namespace klee {
 class ExecutionState;
