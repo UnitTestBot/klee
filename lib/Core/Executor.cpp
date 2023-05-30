@@ -518,8 +518,9 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
       haltExecution(false), ivcEnabled(false),
       debugLogBuffer(debugBufferString) {
 
+  objectManager = std::make_unique<ObjectManager>();
   seedMap = std::make_unique<SeedMap>();
-  objectManager.addSubscriber(seedMap.get());
+  objectManager->addSubscriber(seedMap.get());
 
   const time::Span maxTime{MaxTime};
   if (maxTime)
@@ -1004,7 +1005,7 @@ void Executor::branch(ExecutionState &state,
     result.push_back(&state);
     for (unsigned i = 1; i < N; ++i) {
       ExecutionState *es = result[theRNG.getInt32() % i];
-      auto ns = objectManager.branchState(es, reason);
+      auto ns = objectManager->branchState(es, reason);
       result.push_back(ns);
     }
   }
@@ -1246,7 +1247,7 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
       ++stats::forks;
     }
 
-    falseState = objectManager.branchState(trueState, reason);
+    falseState = objectManager->branchState(trueState, reason);
 
     if (it != seedMap->end()) {
       std::vector<SeedInfo> seeds = it->second;
@@ -2434,12 +2435,12 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
             if (!successTransitionsTo.count(targeted->target->basicBlock) &&
                 failedTransitionsTo[targeted->target->basicBlock] >
                     MaxFailedBranchings) {
-              objectManager.addTargetedConflict(targeted);
+              objectManager->addTargetedConflict(targeted);
 
               if (!verifingTransitionsTo.count(targeted->target->basicBlock)) {
                 verifingTransitionsTo.insert(targeted->target->basicBlock);
                 ProofObligation *pob = new ProofObligation(targeted->target);
-                objectManager.addPob(pob);
+                objectManager->addPob(pob);
               }
             }
           }
@@ -3906,7 +3907,7 @@ bool Executor::checkMemoryUsage() {
     return true;
 
   // just guess at how many to kill
-  auto states = objectManager.getStates();
+  auto states = objectManager->getStates();
   const auto numStates = states.size();
   auto toKill = std::max(1UL, numStates - numStates * MaxMemory / totalUsage);
   klee_warning("killing %lu states (over memory cap: %luMB)", toKill,
@@ -3931,18 +3932,18 @@ bool Executor::checkMemoryUsage() {
 }
 
 void Executor::doDumpStates() {
-  if (!DumpStatesOnHalt || objectManager.getStates().empty()) {
-    interpreterHandler->incPathsExplored(objectManager.getStates().size());
+  if (!DumpStatesOnHalt || objectManager->getStates().empty()) {
+    interpreterHandler->incPathsExplored(objectManager->getStates().size());
     return;
   }
   klee_message("halting execution, dumping remaining states");
-  for (const auto &state : objectManager.getStates())
+  for (const auto &state : objectManager->getStates())
     terminateStateEarly(*state, "Execution halting.",
                         StateTerminationType::Interrupted);
 
-  objectManager.updateSubscribers();
+  objectManager->updateSubscribers();
 
-  for (const auto &state : objectManager.getIsolatedStates())
+  for (const auto &state : objectManager->getIsolatedStates())
     terminateState(*state); // Correct?
 }
 
@@ -4299,7 +4300,7 @@ void Executor::executeAction(ref<BidirectionalAction> action) {
 
 void Executor::goForward(ref<ForwardAction> action) {
   ref<ForwardAction> fa = cast<ForwardAction>(action);
-  objectManager.setCurrentState(fa->state);
+  objectManager->setCurrentState(fa->state);
 
   KInstruction *prevKI = fa->state->prevPC;
   KFunction *kf = prevKI->parent->parent;
@@ -4321,7 +4322,7 @@ void Executor::goForward(ref<ForwardAction> action) {
 }
 
 void Executor::goBackward(ref<BackwardAction> action) {
-  objectManager.removePropagation(action->prop);
+  objectManager->removePropagation(action->prop);
 
   ExecutionState *state = action->prop.state;
   ProofObligation *pob = action->prop.pob;
@@ -4343,15 +4344,15 @@ void Executor::goBackward(ref<BackwardAction> action) {
         ProofObligation *callPob =
             new ProofObligation(composeResult.composed, *pob, returnBlock);
         callPob->propagationCount[state]++;
-        objectManager.addPob(callPob);
+        objectManager->addPob(callPob);
       }
     } else {
       ProofObligation *newPob =
           new ProofObligation(composeResult.composed, *pob);
       newPob->propagationCount[state]++;
-      objectManager.addPob(newPob);
+      objectManager->addPob(newPob);
       if (newPob->location.getBlock()->getFirstInstruction() ==
-          objectManager.emptyState->initPC) {
+          objectManager->emptyState->initPC) {
         closeProofObligation(pob);
       }
     }
@@ -4384,12 +4385,13 @@ void Executor::goBackward(ref<BackwardAction> action) {
 void Executor::closeProofObligation(ProofObligation *pob) {
   // answerPob(pob);
   // std::queue<ProofObligation *> pobs;
-  objectManager.removePob(pob->root);
+  objectManager->removePob(pob->root);
 }
 
 void Executor::initializeIsolated(ref<InitializeAction> action) {
-  auto state = objectManager.initializeState(action->location, action->targets);
-  if (action->location != objectManager.initialState->initPC) {
+  auto state =
+      objectManager->initializeState(action->location, action->targets);
+  if (action->location != objectManager->initialState->initPC) {
     prepareSymbolicArgs(*state, state->stack.back());
   }
 }
@@ -4445,7 +4447,7 @@ void Executor::run(ExecutionState &initialState) {
       lastState = it->first;
       ExecutionState &state = *lastState;
       KInstruction *ki = state.pc;
-      objectManager.setCurrentState(&state);
+      objectManager->setCurrentState(&state);
       stepInstruction(state);
 
       executeInstruction(state, ki);
@@ -4454,7 +4456,7 @@ void Executor::run(ExecutionState &initialState) {
         dumpStates();
       if (::dumpPForest)
         dumpPForest();
-      objectManager.updateSubscribers();
+      objectManager->updateSubscribers();
 
       if ((stats::instructions % 1000) == 0) {
         int numSeeds = 0, numStates = 0;
@@ -4482,7 +4484,7 @@ void Executor::run(ExecutionState &initialState) {
     }
 
     klee_message("seeding done (%d states remain)",
-                 (int)objectManager.getStates().size());
+                 (int)objectManager->getStates().size());
 
     if (OnlySeed) {
       doDumpStates();
@@ -4503,19 +4505,19 @@ void Executor::run(ExecutionState &initialState) {
                                                        backward, initializer);
   }
 
-  objectManager.addSubscriber(searcher.get());
-  objectManager.initialUpdate();
+  objectManager->addSubscriber(searcher.get());
+  objectManager->initialUpdate();
 
   // main interpreter loop
   while (!haltExecution && !searcher->empty()) {
     auto action = searcher->selectAction();
     executeAction(action);
-    objectManager.updateSubscribers();
+    objectManager->updateSubscribers();
 
     if (!checkMemoryUsage()) {
       // update searchers when states were terminated early due to memory
       // pressure
-      objectManager.updateSubscribers();
+      objectManager->updateSubscribers();
     }
   }
 
@@ -4605,7 +4607,7 @@ void Executor::terminateState(ExecutionState &state) {
     interpreterHandler->incPathsExplored();
   }
 
-  objectManager.removeState(&state);
+  objectManager->removeState(&state);
 }
 
 static bool shouldWriteTest(const ExecutionState &state) {
@@ -6256,10 +6258,10 @@ void Executor::runFunctionAsMain(Function *f, int argc, char **argv,
   std::vector<ref<Expr>> arguments;
 
   processForest = std::make_unique<PForest>();
-  objectManager.addProcessForest(processForest.get());
+  objectManager->addProcessForest(processForest.get());
 
   auto state = formState(f, argc, argv, envp);
-  objectManager.makeInitialStates(state);
+  objectManager->makeInitialStates(state);
 
   if (pathWriter)
     state->pathOS = pathWriter->open();
@@ -6274,6 +6276,7 @@ void Executor::runFunctionAsMain(Function *f, int argc, char **argv,
   run(*state);
 
   summary.dumpToFile(kmodule.get());
+  objectManager->resetInitialStates();
   // hack to clear memory objects
   delete memory;
   memory = new MemoryManager(NULL);
@@ -6750,7 +6753,7 @@ void Executor::dumpStates() {
   auto os = interpreterHandler->openOutputFile("states.txt");
 
   if (os) {
-    for (ExecutionState *es : objectManager.getStates()) {
+    for (ExecutionState *es : objectManager->getStates()) {
       *os << "(" << es << ",";
       *os << "[";
       auto next = es->stack.begin();

@@ -18,7 +18,18 @@ cl::opt<bool> DebugConflicts("debug-conflicts", cl::desc(""), cl::init(false),
                              cl::cat(DebugCat));
 } // namespace klee
 
-ObjectManager::ObjectManager() {}
+ObjectManager::ObjectManager() : initialState(nullptr), emptyState(nullptr) {}
+
+ObjectManager::~ObjectManager() {}
+
+void ObjectManager::resetInitialStates() {
+  if (initialState) {
+    delete initialState;
+  }
+  if (emptyState) {
+    delete emptyState;
+  }
+}
 
 void ObjectManager::addSubscriber(Subscriber *s) { subscribers.push_back(s); }
 
@@ -300,27 +311,6 @@ void ObjectManager::removePob(ProofObligation *pob) {
 void ObjectManager::removePropagation(Propagation prop) {
   removedPropagations.insert(prop);
 }
-
-// bool ObjectManager::checkStack(ExecutionState *state, ProofObligation *pob) {
-//   if (state->stack.size() == 0) {
-//     return true;
-//   }
-
-//   size_t range = std::min(state->stack.size() - 1, pob->stack.size());
-//   auto stateIt = state->stack.rbegin();
-//   auto pobIt = pob->stack.rbegin();
-
-//   for (size_t i = 0; i < range; ++i) {
-//     KInstruction *stateInstr = stateIt->caller;
-//     KInstruction *pobInstr = *pobIt;
-//     if (stateInstr != pobInstr) {
-//       return false;
-//     }
-//     stateIt++;
-//     pobIt++;
-//   }
-//   return true;
-// }
 
 bool ObjectManager::checkStack(ExecutionState *state, ProofObligation *pob) {
   if (state->stack.size() == 0) {

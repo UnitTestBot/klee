@@ -141,7 +141,7 @@ private:
   MemoryManager *memory;
   TypeManager *typeSystemManager;
 
-  ObjectManager objectManager;
+  std::unique_ptr<ObjectManager> objectManager;
   Summary summary;
 
   StatsTracker *statsTracker;

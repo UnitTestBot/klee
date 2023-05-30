@@ -606,7 +606,7 @@ void StatsTracker::writeStatsLine() {
   sqlite3_bind_int64(insertStmt, 3, partialBranches);
   sqlite3_bind_int64(insertStmt, 4, numBranches);
   sqlite3_bind_int64(insertStmt, 5, time::getUserTime().toMicroseconds());
-  sqlite3_bind_int64(insertStmt, 6, executor.objectManager.getStates().size());
+  sqlite3_bind_int64(insertStmt, 6, executor.objectManager->getStates().size());
   sqlite3_bind_int64(insertStmt, 7,
                      util::GetTotalMallocUsage() +
                          executor.memory->getUsedDeterministicSize());
@@ -649,7 +649,7 @@ void StatsTracker::writeStatsLine() {
 
 void StatsTracker::updateStateStatistics(uint64_t addend) {
   std::set<ExecutionState *, ExecutionStateIDCompare> states =
-      executor.objectManager.getStates();
+      executor.objectManager->getStates();
   for (std::set<ExecutionState *>::iterator it = states.begin(),
                                             ie = states.end();
        it != ie; ++it) {
@@ -1082,7 +1082,7 @@ void StatsTracker::computeReachableUncovered() {
   } while (changed);
 
   std::set<ExecutionState *, ExecutionStateIDCompare> states =
-      executor.objectManager.getStates();
+      executor.objectManager->getStates();
   for (std::set<ExecutionState *>::iterator it = states.begin(),
                                             ie = states.end();
        it != ie; ++it) {

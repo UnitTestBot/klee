@@ -85,6 +85,8 @@ void Summary::readFromFile(KModule *km, ArrayCache *cache) {
       }
     }
   }
+
+  delete P;
 }
 
 std::string Summary::getFilename() {

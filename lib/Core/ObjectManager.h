@@ -95,11 +95,13 @@ public:
   };
 
   ObjectManager();
+  ~ObjectManager();
 
   void addSubscriber(Subscriber *);
   void addProcessForest(PForest *);
 
   void makeInitialStates(ExecutionState *initial);
+  void resetInitialStates();
 
   void setCurrentState(ExecutionState *_current);
   ExecutionState *branchState(ExecutionState *state, BranchType reason);
