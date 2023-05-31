@@ -9,11 +9,55 @@
 
 #include "TargetReachability.h"
 #include "DistanceCalculator.h"
+#include "klee/Module/KInstruction.h"
 #include "klee/Module/Target.h"
 #include "klee/Support/ErrorHandling.h"
 
 using namespace klee;
 using namespace llvm;
+
+namespace {
+
+void collectTargets(ExecutionState *es,
+                    TargetReachability::TargetHashSet &targets) {
+  targets.clear();
+
+  for (auto &t : *es->targetForest.getTargets()) {
+    targets.insert(t.first);
+  }
+}
+
+void collectTargets(
+    ExecutionState *current, const std::vector<ExecutionState *> &addedStates,
+    const std::vector<ExecutionState *> &removedStates,
+    TargetReachability::TargetHashSet ExecutionState::*targets) {
+  if (current) {
+    collectTargets(current, current->*targets);
+  }
+
+  for (const auto state : addedStates) {
+    collectTargets(state, state->*targets);
+  }
+
+  for (const auto state : removedStates) {
+    collectTargets(state, state->*targets);
+  }
+}
+
+unsigned int ulog2(unsigned int val) {
+  if (val == 0)
+    return UINT_MAX;
+  if (val == 1)
+    return 0;
+  unsigned int ret = 0;
+  while (val > 1) {
+    val >>= 1;
+    ret++;
+  }
+  return ret;
+}
+
+} // anonymous namespace
 
 void TargetReachability::addReachableStateForTarget(ExecutionState *es,
                                                     const ref<Target> &target) {
@@ -52,6 +96,162 @@ void TargetReachability::updateConfidencesInState(ExecutionState *es) {
 }
 
 void TargetReachability::clear() {
+  reachedOnLastUpdate.clear();
   reachableStatesOfTarget.clear();
   reachablePotentialStatesOfTarget.clear();
+}
+
+void TargetReachability::updateConfidences(
+    ExecutionState *current, const std::vector<ExecutionState *> &addedStates,
+    const std::vector<ExecutionState *> &removedStates) {
+  updateConfidencesInState(current);
+  for (const auto state : addedStates) {
+    updateConfidencesInState(state);
+  }
+}
+
+void TargetReachability::update(
+    ExecutionState *current, const std::vector<ExecutionState *> &addedStates,
+    const std::vector<ExecutionState *> &removedStates) {
+  innerUpdate(current, addedStates, removedStates);
+  updateConfidences(current, addedStates, removedStates);
+  stepTo(current, addedStates, removedStates);
+  clear();
+}
+
+void TargetReachability::innerUpdate(
+    ExecutionState *current, const std::vector<ExecutionState *> &addedStates,
+    const std::vector<ExecutionState *> &removedStates) {
+  collectTargets(current, addedStates, removedStates,
+                 &ExecutionState::prevTargets);
+
+  if (current) {
+    updateDistance(current);
+  }
+
+  for (const auto state : addedStates) {
+    updateDistance(state);
+  }
+
+  for (const auto state : removedStates) {
+    updateDistance(state, true);
+  }
+}
+
+void TargetReachability::stepTo(
+    ExecutionState *current, const std::vector<ExecutionState *> &addedStates,
+    const std::vector<ExecutionState *> &removedStates) {
+  for (const auto &p : reachedOnLastUpdate) {
+    const auto state = p.first;
+    for (const auto &t : p.second) {
+      state->targetForest.stepTo(t);
+    }
+  }
+
+  collectTargets(current, addedStates, removedStates,
+                 &ExecutionState::currTargets);
+}
+
+bool TargetReachability::updateDistance(ExecutionState *es,
+                                        const ref<Target> &target,
+                                        bool isStateRemoved) {
+  weight_type weight = 0;
+  bool canReach = false;
+
+  if (isStateRemoved && target->atReturn() &&
+      !target->shouldFailOnThisTarget() &&
+      es->prevPC == target->getBlock()->getLastInstruction()) {
+    canReach = true;
+    reachedOnLastUpdate[es].insert(target);
+    return canReach;
+  }
+
+  switch (tryGetWeight(es, target, weight)) {
+  case Continue:
+    if (!isStateRemoved) {
+      calculatedDistance[es][target] = weight;
+    }
+    canReach = true;
+    break;
+  case Done:
+    reachedOnLastUpdate[es].insert(target);
+    removeDistance(es, target);
+    canReach = true;
+    break;
+  case Miss:
+    es->targetForest.remove(target);
+    removeDistance(es, target);
+    break;
+  }
+
+  return canReach;
+}
+
+void TargetReachability::updateDistance(ExecutionState *es,
+                                        bool isStateRemoved) {
+  for (const auto &t : es->prevTargets) {
+    bool canReach = updateDistance(es, t, isStateRemoved);
+    if (canReach) {
+      addReachableStateForTarget(es, t);
+    }
+  }
+
+  if (isStateRemoved) {
+    calculatedDistance.erase(es);
+  }
+}
+
+WeightResult TargetReachability::tryGetWeight(ExecutionState *es,
+                                              const ref<Target> &target,
+                                              weight_type &weight) {
+  if (target->atReturn() && !target->shouldFailOnThisTarget()) {
+    if (es->prevPC->parent == target->getBlock() &&
+        es->prevPC == target->getBlock()->getLastInstruction()) {
+      return Done;
+    } else if (es->pc->parent == target->getBlock()) {
+      weight = 0;
+      return Continue;
+    }
+  }
+
+  if (target->shouldFailOnThisTarget() && target->isTheSameAsIn(es->prevPC) &&
+      target->isThatError(es->error)) {
+    return Done;
+  }
+
+  BasicBlock *bb = es->getPCBlock();
+  KBlock *kb = es->pc->parent->parent->blockMap[bb];
+  KInstruction *ki = es->pc;
+  if (!target->shouldFailOnThisTarget() && kb->numInstructions &&
+      !isa<KCallBlock>(kb) && kb->getFirstInstruction() != ki &&
+      isCalculated(es, target)) {
+    return Continue;
+  }
+
+  auto distRes = distanceCalculator.getDistance(es, target.get());
+  weight = ulog2(distRes.weight + es->steppedMemoryInstructions); // [0, 32]
+  if (!distRes.isInsideFunction) {
+    weight += 32; // [32, 64]
+  }
+
+  return distRes.result;
+}
+
+bool TargetReachability::isCalculated(ExecutionState *es,
+                                      const ref<Target> &target) {
+  if (calculatedDistance.count(es) != 0) {
+    return calculatedDistance[es].count(target) != 0;
+  }
+
+  return false;
+}
+
+void TargetReachability::removeDistance(ExecutionState *es,
+                                        const ref<Target> &target) {
+  if (calculatedDistance.count(es) != 0) {
+    calculatedDistance[es].erase(target);
+    if (calculatedDistance[es].size() == 0) {
+      calculatedDistance.erase(es);
+    }
+  }
 }

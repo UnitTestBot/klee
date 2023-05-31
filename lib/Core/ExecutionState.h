@@ -182,6 +182,8 @@ private:
 
 public:
   using stack_ty = std::vector<StackFrame>;
+  using TargetHashSet =
+      std::unordered_set<ref<Target>, RefTargetHash, RefTargetCmp>;
 
   // Execution - Control Flow specific
 
@@ -221,6 +223,9 @@ public:
 
   /// @brief Key points which should be visited through execution
   TargetForest targetForest;
+
+  TargetHashSet prevTargets;
+  TargetHashSet currTargets;
 
   /// @brief Velocity and acceleration of this state investigating new blocks
   long long progressVelocity = 0;
