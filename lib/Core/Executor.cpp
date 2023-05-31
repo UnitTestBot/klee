@@ -4209,13 +4209,9 @@ Executor::ComposeResult Executor::compose(const ExecutionState &state,
       }
       ref<Expr> condition =
           AndExpr::create(composeResult.first, composeResult.second);
+
       condition = Simplificator::simplifyExpr(composer.state.constraints.cs(),
-                                              condition);
-      std::vector<ref<Expr>> exprs;
-      Simplificator::splitAnds(condition, exprs);
-      for (auto expr : exprs) {
-        rebuildMap.insert({expr, constraint});
-      }
+                                                 condition).simplified;
 
       ValidityCore core;
       bool isValid;
@@ -4241,33 +4237,23 @@ Executor::ComposeResult Executor::compose(const ExecutionState &state,
           }
         }
 
-        // 2 negations must cancel out
-        std::vector<ref<Expr>> exprs;
-        Simplificator::splitAnds(Expr::createIsZero(core.expr), exprs);
-        for (auto e : exprs) {
-          if (rebuildMap.count(e)) {
-            conflict.core.insert(Expr::createIsZero(rebuildMap.at(e)));
-          }
-        }
+        conflict.core.insert(Expr::createIsZero(constraint));
 
         result.success = false;
         result.conflict = conflict;
         return result;
       }
 
-      if (concretizationManager->contains(composer.state.constraints.cs(),
-                                          condition)) {
-        // Update memory objects if arraystates have affected them.
-        Assignment delta =
-            composer.state.constraints.cs().concretization().diffWith(
-                concretizationManager->get(composer.state.constraints.cs(),
-                                           condition));
-        updateStateWithSymcretes(
-            composer.state, concretizationManager->get(
-                                composer.state.constraints.cs(), condition));
-        composer.state.constraints.addConstraint(condition, delta, index);
-      } else {
-        composer.state.constraints.addConstraint(condition, {}, index);
+      auto symcretization = concretizationManager->get(
+          composer.state.constraints.cs(), condition);
+      Assignment delta;
+      if (symcretization.second) {
+        delta = composer.state.constraints.cs().concretization().diffWith(symcretization.first);
+        updateStateWithSymcretes(composer.state, symcretization.first);
+      }
+      auto added = composer.state.constraints.addConstraint(condition, delta, index);
+      for (auto expr : added) {
+        rebuildMap.insert({expr, constraint});
       }
     }
   }
