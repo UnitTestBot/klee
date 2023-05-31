@@ -331,6 +331,8 @@ public:
   ExecutionState *empty();
   ExecutionState *copy();
 
+  bool isStuck() const;
+
   bool inSymbolics(const MemoryObject *mo) const;
 
   void pushFrame(KInstIterator caller, KFunction *kf);

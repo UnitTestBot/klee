@@ -47,6 +47,11 @@ cl::opt<bool> UseGEPOptimization(
     cl::desc("Lazily initialize whole objects referenced by gep expressions "
              "instead of only the referenced parts (default=true)"),
     cl::cat(ExecCat));
+cl::opt<unsigned long long>
+    MaxCycles("max-cycles",
+              cl::desc("stop execution after visiting some basic block this "
+                       "amount of times (default=1)."),
+              cl::init(1), cl::cat(TerminationCat));
 } // namespace
 
 /***/
@@ -131,6 +136,12 @@ ExecutionState::ExecutionState(const ExecutionState &state)
       gepExprBases(state.gepExprBases), gepExprOffsets(state.gepExprOffsets) {
   for (const auto &cur_mergehandler : openMergeStack)
     cur_mergehandler->addOpenState(this);
+}
+
+bool ExecutionState::isStuck() const {
+  KInstruction *prevKI = prevPC;
+  return (prevKI->inst->isTerminator() &&
+          multilevel.count(getPCBlock()) > MaxCycles - 1);
 }
 
 ExecutionState *ExecutionState::branch() {

@@ -299,22 +299,20 @@ void TargetedSearcher::removeReached() {
 GuidedSearcher::GuidedSearcher(
     Searcher *baseSearcher, DistanceCalculator &distanceCalculator_,
     TargetCalculator &stateHistory, TargetReachability &targetReachability_,
-    std::set<ExecutionState *, ExecutionStateIDCompare> &pausedStates,
-    std::size_t bound, RNG &rng)
+    std::set<ExecutionState *, ExecutionStateIDCompare> &pausedStates, RNG &rng)
     : guidance(CoverageGuidance), baseSearcher(baseSearcher),
       distanceCalculator(distanceCalculator_), stateHistory(&stateHistory),
       targetReachability(targetReachability_), pausedStates(pausedStates),
-      bound(bound), theRNG(rng) {}
+      theRNG(rng) {}
 
 GuidedSearcher::GuidedSearcher(
     DistanceCalculator &distanceCalculator_,
     TargetReachability &targetReachability_,
-    std::set<ExecutionState *, ExecutionStateIDCompare> &pausedStates,
-    std::size_t bound, RNG &rng)
+    std::set<ExecutionState *, ExecutionStateIDCompare> &pausedStates, RNG &rng)
     : guidance(ErrorGuidance), baseSearcher(nullptr),
       distanceCalculator(distanceCalculator_), stateHistory(nullptr),
       targetReachability(targetReachability_), pausedStates(pausedStates),
-      bound(bound), theRNG(rng) {}
+      theRNG(rng) {}
 
 ExecutionState &GuidedSearcher::selectState() {
   unsigned size = historiesAndTargets.size();
@@ -335,12 +333,6 @@ ExecutionState &GuidedSearcher::selectState() {
     state = &targetedSearchers.at(history).at(target)->selectState();
   }
   return *state;
-}
-
-bool GuidedSearcher::isStuck(ExecutionState &state) {
-  KInstruction *prevKI = state.prevPC;
-  return (prevKI->inst->isTerminator() &&
-          state.multilevel.count(state.getPCBlock()) > bound);
 }
 
 bool GuidedSearcher::updateTargetedSearcher(
@@ -452,12 +444,12 @@ void GuidedSearcher::innerUpdate(
     if (current &&
         (std::find(baseRemovedStates.begin(), baseRemovedStates.end(),
                    current) == baseRemovedStates.end()) &&
-        isStuck(*current)) {
+        current->isStuck()) {
       pausedStates.insert(current);
       baseRemovedStates.push_back(current);
     }
     for (const auto state : addedStates) {
-      if (isStuck(*state)) {
+      if (state->isStuck()) {
         pausedStates.insert(state);
         addedStuckStates.push_back(state);
         auto is =
@@ -511,7 +503,7 @@ void GuidedSearcher::innerUpdate(
   if (CoverageGuidance == guidance) {
     assert(stateHistory);
     for (const auto state : targetlessStates) {
-      if (isStuck(*state)) {
+      if (state->isStuck()) {
         ref<Target> target(stateHistory->calculate(*state));
         if (target) {
           state->targetForest.add(target);

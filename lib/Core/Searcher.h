@@ -208,7 +208,6 @@ private:
   TargetReachability &targetReachability;
   TargetHashSet reachedTargets;
   std::set<ExecutionState *, ExecutionStateIDCompare> &pausedStates;
-  std::size_t bound;
   RNG &theRNG;
   unsigned index{1};
 
@@ -221,7 +220,6 @@ private:
   bool tryAddTarget(ref<TargetForest::History> history, ref<Target> target);
   TargetForestHisoryTargetVector::iterator
   removeTarget(ref<TargetForest::History> history, ref<Target> target);
-  bool isStuck(ExecutionState &state);
   void innerUpdate(ExecutionState *current,
                    const std::vector<ExecutionState *> &addedStates,
                    const std::vector<ExecutionState *> &removedStates);
@@ -245,12 +243,12 @@ public:
       Searcher *baseSearcher, DistanceCalculator &distanceCalculator_,
       TargetCalculator &stateHistory, TargetReachability &targetReachability_,
       std::set<ExecutionState *, ExecutionStateIDCompare> &pausedStates,
-      std::size_t bound, RNG &rng);
+      RNG &rng);
   GuidedSearcher(
       DistanceCalculator &distanceCalculator_,
       TargetReachability &targetReachability_,
       std::set<ExecutionState *, ExecutionStateIDCompare> &pausedStates,
-      std::size_t bound, RNG &rng);
+      RNG &rng);
   ~GuidedSearcher() override = default;
   ExecutionState &selectState() override;
   void update(ExecutionState *current,
