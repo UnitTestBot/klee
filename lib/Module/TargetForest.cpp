@@ -512,6 +512,14 @@ void TargetForest::blockIn(ref<Target> subtarget, ref<Target> target) {
   forest = forest->blockLeafInChild(subtarget, target);
 }
 
+void TargetForest::block(const ref<Target> &target) {
+  if (!forest->deepFind(target)) {
+    return;
+  }
+
+  forest = forest->blockLeaf(target);
+}
+
 void TargetForest::dump() const {
   llvm::errs() << "History:\n";
   history->dump();

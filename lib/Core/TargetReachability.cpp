@@ -214,7 +214,7 @@ void TargetReachability::updateDistance(ExecutionState *es,
     calculatedDistance.erase(es);
   } else {
     for (const auto &t : reachedTargets) {
-      es->targetForest.blockIn(t);
+      es->targetForest.block(t);
     }
   }
 }
