@@ -4,7 +4,7 @@
 // RUN: %klee --write-kqueries --output-dir=%t.klee-out --solver-backend=z3 --execution-mode=bidirectional --max-cycles=3 --max-stack-frames=4 --debug-initializer --debug-backward --debug-reached --debug-conflicts --skip-not-lazy-initialized --skip-not-symbolic-objects %t.bc 2> %t.log
 // RUN: FileCheck %s -input-file=%t.log
 // RUN: diff %t.klee-out/summary.ksummary %s.ksummary
-// RUN: tail -n +4 %t.log > %t.log.tail
+// RUN: sed -n '/Propagated pobs/,$p' %t.log > %t.log.tail
 // RUN: diff %t.log.tail %s.good
 
 #include "klee/klee.h"
