@@ -4211,7 +4211,8 @@ Executor::ComposeResult Executor::compose(const ExecutionState &state,
           AndExpr::create(composeResult.first, composeResult.second);
 
       condition = Simplificator::simplifyExpr(composer.state.constraints.cs(),
-                                                 condition).simplified;
+                                              condition)
+                      .simplified;
 
       ValidityCore core;
       bool isValid;
@@ -4248,10 +4249,12 @@ Executor::ComposeResult Executor::compose(const ExecutionState &state,
           composer.state.constraints.cs(), condition);
       Assignment delta;
       if (symcretization.second) {
-        delta = composer.state.constraints.cs().concretization().diffWith(symcretization.first);
+        delta = composer.state.constraints.cs().concretization().diffWith(
+            symcretization.first);
         updateStateWithSymcretes(composer.state, symcretization.first);
       }
-      auto added = composer.state.constraints.addConstraint(condition, delta, index);
+      auto added =
+          composer.state.constraints.addConstraint(condition, delta, index);
       for (auto expr : added) {
         rebuildMap.insert({expr, constraint});
       }
