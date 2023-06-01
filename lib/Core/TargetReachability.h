@@ -20,12 +20,16 @@ namespace klee {
 class DistanceCalculator;
 struct DistanceResult;
 struct Target;
+class TargetCalculator;
 class ExecutionState;
 
 class TargetReachability {
 public:
-  explicit TargetReachability(DistanceCalculator &distanceCalculator_)
-      : distanceCalculator(distanceCalculator_) {}
+  explicit TargetReachability(DistanceCalculator &distanceCalculator_,
+                              bool isCoverageGuided_,
+                              TargetCalculator &stateHistory_)
+      : distanceCalculator(distanceCalculator_), stateHistory(stateHistory_),
+        isCoverageGuided(isCoverageGuided_) {}
 
   using TargetToStateUnorderedSetMap =
       std::unordered_map<ref<Target>, std::unordered_set<ExecutionState *>,
@@ -61,10 +65,13 @@ private:
   TargetToStateUnorderedSetMap reachableStatesOfTarget;
   TargetToPotentialStateMap reachablePotentialStatesOfTarget;
   DistanceCalculator &distanceCalculator;
+  TargetCalculator &stateHistory;
   TargetHashSet reachedTargets;
   std::unordered_map<ExecutionState *, TargetHashSet> reachedOnLastUpdate;
   std::unordered_map<ExecutionState *, TargetHashMap<weight_type>>
       calculatedDistance;
+
+  bool isCoverageGuided;
 
   void innerUpdate(ExecutionState *current,
                    const std::vector<ExecutionState *> &addedStates,
@@ -82,6 +89,9 @@ private:
                          const std::vector<ExecutionState *> &addedStates,
                          const std::vector<ExecutionState *> &removedStates);
   void removeDistance(ExecutionState *es, const ref<Target> &target);
+  void updateTargetlessState(ExecutionState *es);
+  void handleTargetlessStates(ExecutionState *current,
+                              const std::vector<ExecutionState *> &addedStates);
 };
 
 } // namespace klee

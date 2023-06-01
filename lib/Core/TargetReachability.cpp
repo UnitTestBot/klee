@@ -9,6 +9,7 @@
 
 #include "TargetReachability.h"
 #include "DistanceCalculator.h"
+#include "TargetCalculator.h"
 #include "klee/Module/KInstruction.h"
 #include "klee/Module/Target.h"
 #include "klee/Support/ErrorHandling.h"
@@ -114,6 +115,9 @@ void TargetReachability::update(
     ExecutionState *current, const std::vector<ExecutionState *> &addedStates,
     const std::vector<ExecutionState *> &removedStates) {
   innerUpdate(current, addedStates, removedStates);
+  if (isCoverageGuided) {
+    handleTargetlessStates(current, addedStates);
+  }
   updateConfidences(current, addedStates, removedStates);
   stepTo(current, addedStates, removedStates);
   clear();
@@ -144,6 +148,9 @@ void TargetReachability::stepTo(
   for (const auto &p : reachedOnLastUpdate) {
     const auto state = p.first;
     for (const auto &t : p.second) {
+      if (t->shouldFailOnThisTarget()) {
+        reachedTargets.insert(t);
+      }
       state->targetForest.stepTo(t);
     }
   }
@@ -166,22 +173,29 @@ bool TargetReachability::updateDistance(ExecutionState *es,
     return canReach;
   }
 
-  switch (tryGetWeight(es, target, weight)) {
-  case Continue:
-    if (!isStateRemoved) {
-      calculatedDistance[es][target] = weight;
+  if (reachedTargets.count(target) == 0) {
+    switch (tryGetWeight(es, target, weight)) {
+    case Continue:
+      if (!isStateRemoved) {
+        calculatedDistance[es][target] = weight;
+      }
+      canReach = true;
+      break;
+    case Done:
+      reachedOnLastUpdate[es].insert(target);
+      removeDistance(es, target);
+      canReach = true;
+      break;
+    case Miss:
+      es->targetForest.remove(target);
+      removeDistance(es, target);
+      break;
     }
+  } else {
     canReach = true;
-    break;
-  case Done:
-    reachedOnLastUpdate[es].insert(target);
-    removeDistance(es, target);
-    canReach = true;
-    break;
-  case Miss:
-    es->targetForest.remove(target);
-    removeDistance(es, target);
-    break;
+    if (!isStateRemoved) {
+      es->targetForest.remove(target);
+    }
   }
 
   return canReach;
@@ -198,6 +212,10 @@ void TargetReachability::updateDistance(ExecutionState *es,
 
   if (isStateRemoved) {
     calculatedDistance.erase(es);
+  } else {
+    for (const auto &t : reachedTargets) {
+      es->targetForest.blockIn(t);
+    }
   }
 }
 
@@ -252,6 +270,28 @@ void TargetReachability::removeDistance(ExecutionState *es,
     calculatedDistance[es].erase(target);
     if (calculatedDistance[es].size() == 0) {
       calculatedDistance.erase(es);
+    }
+  }
+}
+
+void TargetReachability::updateTargetlessState(ExecutionState *es) {
+  if (es->isStuck()) {
+    ref<Target> target(stateHistory.calculate(*es));
+    if (target) {
+      es->targetForest.add(target);
+    }
+  }
+}
+
+void TargetReachability::handleTargetlessStates(
+    ExecutionState *current, const std::vector<ExecutionState *> &addedStates) {
+  if (current->targetForest.getTargets()->size() == 0) {
+    updateTargetlessState(current);
+  }
+
+  for (const auto state : addedStates) {
+    if (state->targetForest.getTargets()->size() == 0) {
+      updateTargetlessState(state);
     }
   }
 }
