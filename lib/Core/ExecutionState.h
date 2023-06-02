@@ -225,7 +225,9 @@ public:
   TargetForest targetForest;
 
   TargetHashSet prevTargets;
+  ref<TargetForest::History> prevHistory;
   TargetHashSet currTargets;
+  ref<TargetForest::History> currHistory;
 
   /// @brief Velocity and acceleration of this state investigating new blocks
   long long progressVelocity = 0;

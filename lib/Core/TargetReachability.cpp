@@ -20,9 +20,11 @@ using namespace llvm;
 namespace {
 
 void collectTargets(ExecutionState *es,
-                    TargetReachability::TargetHashSet &targets) {
+                    TargetReachability::TargetHashSet &targets,
+                    ref<TargetForest::History> &history) {
   targets.clear();
 
+  history = es->targetForest.getHistory();
   for (auto &t : *es->targetForest.getTargets()) {
     targets.insert(t.first);
   }
@@ -31,17 +33,18 @@ void collectTargets(ExecutionState *es,
 void collectTargets(
     ExecutionState *current, const std::vector<ExecutionState *> &addedStates,
     const std::vector<ExecutionState *> &removedStates,
-    TargetReachability::TargetHashSet ExecutionState::*targets) {
+    TargetReachability::TargetHashSet ExecutionState::*targets,
+    ref<TargetForest::History> ExecutionState::*history) {
   if (current) {
-    collectTargets(current, current->*targets);
+    collectTargets(current, current->*targets, current->*history);
   }
 
   for (const auto state : addedStates) {
-    collectTargets(state, state->*targets);
+    collectTargets(state, state->*targets, state->*history);
   }
 
   for (const auto state : removedStates) {
-    collectTargets(state, state->*targets);
+    collectTargets(state, state->*targets, state->*history);
   }
 }
 
@@ -127,7 +130,7 @@ void TargetReachability::innerUpdate(
     ExecutionState *current, const std::vector<ExecutionState *> &addedStates,
     const std::vector<ExecutionState *> &removedStates) {
   collectTargets(current, addedStates, removedStates,
-                 &ExecutionState::prevTargets);
+                 &ExecutionState::prevTargets, &ExecutionState::prevHistory);
 
   if (current) {
     updateDistance(current);
@@ -156,7 +159,7 @@ void TargetReachability::stepTo(
   }
 
   collectTargets(current, addedStates, removedStates,
-                 &ExecutionState::currTargets);
+                 &ExecutionState::currTargets, &ExecutionState::currHistory);
 }
 
 bool TargetReachability::updateDistance(ExecutionState *es,
