@@ -118,7 +118,7 @@ void TargetReachability::update(
     ExecutionState *current, const std::vector<ExecutionState *> &addedStates,
     const std::vector<ExecutionState *> &removedStates) {
   innerUpdate(current, addedStates, removedStates);
-  if (isCoverageGuided) {
+  if (guidance == Coverage) {
     handleTargetlessStates(current, addedStates);
   }
   updateConfidences(current, addedStates, removedStates);

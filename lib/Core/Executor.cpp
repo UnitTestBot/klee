@@ -428,14 +428,15 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
       concretizationManager(new ConcretizationManager(EqualitySubstitution)),
       codeGraphDistance(new CodeGraphDistance()),
       distanceCalculator(new DistanceCalculator(*codeGraphDistance)),
-      targetReachability(new TargetReachability(*distanceCalculator, false,
-                                                *targetCalculator)),
       targetedExecutionManager(*codeGraphDistance), replayKTest(0),
       replayPath(0), usingSeeds(0), atMemoryLimit(false), inhibitForking(false),
       haltExecution(HaltExecution::NotHalt), ivcEnabled(false),
       debugLogBuffer(debugBufferString) {
 
   guidanceKind = opts.Guidance;
+
+  targetReachability = std::make_unique<TargetReachability>(*distanceCalculator, guidanceKind == GuidanceKind::ErrorGuidance ? TargetReachability::Guidance::Error : TargetReachability::Guidance::Coverage,
+                                                *targetCalculator);
 
   const time::Span maxTime{MaxTime};
   if (maxTime)

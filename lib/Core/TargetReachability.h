@@ -25,11 +25,16 @@ class ExecutionState;
 
 class TargetReachability {
 public:
+  enum Guidance {
+    Error,
+    Coverage
+  };
+
   explicit TargetReachability(DistanceCalculator &distanceCalculator_,
-                              bool isCoverageGuided_,
+                              Guidance guidance_,
                               TargetCalculator &stateHistory_)
       : distanceCalculator(distanceCalculator_), stateHistory(stateHistory_),
-        isCoverageGuided(isCoverageGuided_) {}
+        guidance(guidance_) {}
 
   using TargetToStateUnorderedSetMap =
       std::unordered_map<ref<Target>, std::unordered_set<ExecutionState *>,
@@ -71,7 +76,7 @@ private:
   std::unordered_map<ExecutionState *, TargetHashMap<weight_type>>
       calculatedDistance;
 
-  bool isCoverageGuided;
+  Guidance guidance;
 
   void innerUpdate(ExecutionState *current,
                    const std::vector<ExecutionState *> &addedStates,
