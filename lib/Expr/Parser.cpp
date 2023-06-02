@@ -781,8 +781,8 @@ DeclResult ParserImpl::ParseLemmaCommand() {
     } else {
       assert(Tok.kind == Token::Identifier);
       auto label = Tok.getString();
-      assert(stack.top()->labelMap.count(label));
-      kblocks.push_back(stack.top()->labelMap[label]);
+      assert(stack.top()->getLabelMap().count(label));
+      kblocks.push_back(stack.top()->getLabelMap().at(label));
       ConsumeExpectedToken(Token::Identifier);
     }
   }
