@@ -139,7 +139,12 @@ Target: %9 in function fib
 Contradictions was found
 Path: (path: 0 (main: %0 %7 %8 %13 %14 %16 (fib: %1 %8 %26 %28) %16 %18 %21 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %21 %23 %26 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1)))) 8)
 Contradiction [
-false
+(And (Not (Eq 0
+               N0:(ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0)))))
+      (Not (Eq 1 N0)))
+(Or (Eq 0
+         N0:(ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0))))
+     (Eq 1 N0))
 ]
 Target: %9 in function fib
 
@@ -212,7 +217,12 @@ Target: %8 in function fib
 Contradictions was found
 Path: (path: 0 (main: %0 %7 %8 %13 %14 %16 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1))) 8)
 Contradiction [
-false
+(And (Not (Eq 2
+               N0:(ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0)))))
+      (Not (Eq 3 N0)))
+(Or (Eq 2
+         N0:(ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0))))
+     (Eq 3 N0))
 ]
 Target: %9 in function fib
 
@@ -335,7 +345,13 @@ Target: %9 in function fib
 Contradictions was found
 Path: (path: 0 (main: %0 %7 %8 %13 %14 %16 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %16 %18 %21 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1))) 8)
 Contradiction [
-false
+(Not (Eq 0
+          (ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0)))))
+(Not (Eq 1
+          (ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0)))))
+(Or (Eq 0
+         N0:(ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0))))
+     (Eq 1 N0))
 ]
 Target: %8 in function fib
 
@@ -426,7 +442,12 @@ Target: %9 in function fib
 Contradictions was found
 Path: (path: 0 (main: %0 %7 %8 %13 %14 %16 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %16 %18 %21 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1)))) 8)
 Contradiction [
-false
+(And (Not (Eq 1
+               N0:(ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0)))))
+      (Not (Eq 2 N0)))
+(Or (Eq 1
+         N0:(ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0))))
+     (Eq 2 N0))
 ]
 Target: %9 in function fib
 
@@ -610,7 +631,12 @@ Symcretes [
 Contradictions was found
 Path: (path: 0 (main: %0 %7 %8 %13 %14 %16 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1)))) 8)
 Contradiction [
-false
+(And (Not (Eq 3
+               N0:(ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0)))))
+      (Not (Eq 4 N0)))
+(Or (Eq 3
+         N0:(ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0))))
+     (Eq 4 N0))
 ]
 Target: %9 in function fib
 
@@ -656,14 +682,25 @@ Symcretes [
 Contradictions was found
 Path: (path: 0 (main: %0 %7 %8 %13 %14 %16 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %16 %18 %21 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1))) 8)
 Contradiction [
-false
+(Not (Eq 0
+          (ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0)))))
+(Not (Eq 1
+          (ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0)))))
+(Or (Eq 0
+         N0:(ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0))))
+     (Eq 1 N0))
 ]
 Target: %8 in function fib
 
 Contradictions was found
 Path: (path: 0 (main: %0 %7 %8 %13 %14 %16 (fib: %1 %8 %26 %28) %16 %18 %21 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %21 %23 %26 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1))) 8)
 Contradiction [
-false
+(And (Not (Eq 0
+               N0:(ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0)))))
+      (Not (Eq 1 N0)))
+(Or (Eq 0
+         N0:(ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0))))
+     (Eq 1 N0))
 ]
 Target: %9 in function fib
 
@@ -890,7 +927,13 @@ Symcretes [
 Contradictions was found
 Path: (path: 0 (main: %0 %7 %8 %13 %14 %16 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %16 %18 %21 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1)))) 8)
 Contradiction [
-false
+(Not (Eq 1
+          (ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0)))))
+(Not (Eq 2
+          (ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0)))))
+(Or (Eq 1
+         N0:(ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0))))
+     (Eq 2 N0))
 ]
 Target: %8 in function fib
 
@@ -1005,28 +1048,49 @@ Symcretes [
 Contradictions was found
 Path: (path: 0 (main: %0 %7 %8 %13 %14 %16 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %16 %18 %21 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1))))) 8)
 Contradiction [
-false
+(And (Not (Eq 2
+               N0:(ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0)))))
+      (Not (Eq 3 N0)))
+(Or (Eq 2
+         N0:(ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0))))
+     (Eq 3 N0))
 ]
 Target: %9 in function fib
 
 Contradictions was found
 Path: (path: 0 (main: %0 %7 %8 %13 %14 %16 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1))) 8)
 Contradiction [
-false
+(Not (Eq 3
+          (ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0)))))
+(Not (Eq 2
+          (ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0)))))
+(Or (Eq 2
+         N0:(ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0))))
+     (Eq 3 N0))
 ]
 Target: %8 in function fib
 
 Contradictions was found
 Path: (path: 0 (main: %0 %7 %8 %13 %14 %16 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %16 %18 %21 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1))) 8)
 Contradiction [
-false
+(And (Not (Eq 1
+               N0:(ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0)))))
+      (Not (Eq 2 N0)))
+(Or (Eq 1
+         N0:(ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0))))
+     (Eq 2 N0))
 ]
 Target: %9 in function fib
 
 Contradictions was found
 Path: (path: 0 (main: %0 %7 %8 %13 %14 %16 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1)))) 8)
 Contradiction [
-false
+(And (Not (Eq 3
+               N0:(ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0)))))
+      (Not (Eq 4 N0)))
+(Or (Eq 3
+         N0:(ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0))))
+     (Eq 4 N0))
 ]
 Target: %9 in function fib
 
@@ -1068,7 +1132,13 @@ Target: %8 in function fib
 Contradictions was found
 Path: (path: 0 (main: %0 %7 %8 %13 %14 %16 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %16 %18 %21 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %21 %23 %26 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1)))) 8)
 Contradiction [
-false
+(Not (Eq 0
+          (ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0)))))
+(Not (Eq 1
+          (ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0)))))
+(Or (Eq 0
+         N0:(ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0))))
+     (Eq 1 N0))
 ]
 Target: %8 in function fib
 
@@ -1089,14 +1159,24 @@ Target: %9 in function fib
 Contradictions was found
 Path: (path: 0 (main: %0 %7 %8 %13 %14 %16 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %16 %18 %21 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %21 %23 %26 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1))))) 8)
 Contradiction [
-false
+(And (Not (Eq 1
+               N0:(ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0)))))
+      (Not (Eq 2 N0)))
+(Or (Eq 1
+         N0:(ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0))))
+     (Eq 2 N0))
 ]
 Target: %9 in function fib
 
 Contradictions was found
 Path: (path: 0 (main: %0 %7 %8 %13 %14 %16 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %16 %18 %21 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1)))) 8)
 Contradiction [
-false
+(And (Not (Eq 2
+               N0:(ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0)))))
+      (Not (Eq 3 N0)))
+(Or (Eq 2
+         N0:(ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0))))
+     (Eq 3 N0))
 ]
 Target: %9 in function fib
 
@@ -1127,35 +1207,64 @@ Target: %9 in function fib
 Contradictions was found
 Path: (path: 0 (main: %0 %7 %8 %13 %14 %16 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %16 %18 %21 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1))) 8)
 Contradiction [
-false
+(Not (Eq 0
+          (ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0)))))
+(Not (Eq 1
+          (ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0)))))
+(Or (Eq 0
+         N0:(ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0))))
+     (Eq 1 N0))
 ]
 Target: %8 in function fib
 
 Contradictions was found
 Path: (path: 0 (main: %0 %7 %8 %13 %14 %16 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %16 %18 %21 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1))) 8)
 Contradiction [
-false
+(Not (Eq 1
+          (ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0)))))
+(Not (Eq 2
+          (ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0)))))
+(Or (Eq 1
+         N0:(ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0))))
+     (Eq 2 N0))
 ]
 Target: %8 in function fib
 
 Contradictions was found
 Path: (path: 0 (main: %0 %7 %8 %13 %14 %16 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %16 %18 %21 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1)))) 8)
 Contradiction [
-false
+(Not (Eq 1
+          (ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0)))))
+(Not (Eq 2
+          (ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0)))))
+(Or (Eq 1
+         N0:(ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0))))
+     (Eq 2 N0))
 ]
 Target: %8 in function fib
 
 Contradictions was found
 Path: (path: 0 (main: %0 %7 %8 %13 %14 %16 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %16 %18 %21 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1)))) 8)
 Contradiction [
-false
+(And (Not (Eq 2
+               N0:(ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0)))))
+      (Not (Eq 3 N0)))
+(Or (Eq 2
+         N0:(ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0))))
+     (Eq 3 N0))
 ]
 Target: %9 in function fib
 
 Contradictions was found
 Path: (path: 0 (main: %0 %7 %8 %13 %14 %16 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %16 %18 %21 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1))))) 8)
 Contradiction [
-false
+(Not (Eq 3
+          (ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0)))))
+(Not (Eq 2
+          (ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0)))))
+(Or (Eq 2
+         N0:(ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0))))
+     (Eq 3 N0))
 ]
 Target: %8 in function fib
 
@@ -1163,7 +1272,12 @@ KLEE: WARNING: Maximum stack size reached.
 Contradictions was found
 Path: (path: 0 (main: %0 %7 %8 %13 %14 %16 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %16 %18 %21 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %21 %23 %26 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1)))) 8)
 Contradiction [
-false
+(And (Not (Eq 1
+               N0:(ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0)))))
+      (Not (Eq 2 N0)))
+(Or (Eq 1
+         N0:(ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0))))
+     (Eq 2 N0))
 ]
 Target: %9 in function fib
 
@@ -1184,7 +1298,13 @@ Target: %9 in function fib
 Contradictions was found
 Path: (path: 0 (main: %0 %7 %8 %13 %14 %16 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %16 %18 %21 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %21 %23 %26 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1))) 8)
 Contradiction [
-false
+(Not (Eq 0
+          (ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0)))))
+(Not (Eq 1
+          (ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0)))))
+(Or (Eq 0
+         N0:(ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0))))
+     (Eq 1 N0))
 ]
 Target: %8 in function fib
 
@@ -1202,7 +1322,12 @@ Target: %8 in function fib
 Contradictions was found
 Path: (path: 0 (main: %0 %7 %8 %13 %14 %16 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %16 %18 %21 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %21 %23 %26 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1)))) 8)
 Contradiction [
-false
+(And (Not (Eq 1
+               N0:(ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0)))))
+      (Not (Eq 2 N0)))
+(Or (Eq 1
+         N0:(ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0))))
+     (Eq 2 N0))
 ]
 Target: %9 in function fib
 
@@ -1219,7 +1344,13 @@ Target: %8 in function fib
 Contradictions was found
 Path: (path: 0 (main: %0 %7 %8 %13 %14 %16 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %16 %18 %21 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %21 %23 %26 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1)))) 8)
 Contradiction [
-false
+(Not (Eq 0
+          (ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0)))))
+(Not (Eq 1
+          (ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0)))))
+(Or (Eq 0
+         N0:(ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0))))
+     (Eq 1 N0))
 ]
 Target: %8 in function fib
 
@@ -1240,7 +1371,13 @@ Target: %9 in function fib
 Contradictions was found
 Path: (path: 0 (main: %0 %7 %8 %13 %14 %16 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %16 %18 %21 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %8 %26 %28) %13 %15 %17 (dec: %1 %5) %17 %19 (dec: %1 %5) %19 %21 (fib: %1 %8 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %21 %23 (sum: %2 %8) %23 %25 %26 %28) %21 %23 %26 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1 %9 %11 (dec: %1 %5) %11 %13 (fib: %1))))) 8)
 Contradiction [
-false
+(Not (Eq 1
+          (ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0)))))
+(Not (Eq 2
+          (ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0)))))
+(Or (Eq 1
+         N0:(ReadLSB w32 0 (array (w64 4) (makeSymbolic n 0))))
+     (Eq 2 N0))
 ]
 Target: %8 in function fib
 
