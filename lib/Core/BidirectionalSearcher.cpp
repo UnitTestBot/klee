@@ -23,20 +23,7 @@
 
 #include <cstdlib>
 
-namespace {
-llvm::cl::opt<bool> DebugBidirectionalSearcher("debug-bidirectional-searcher",
-                                               llvm::cl::desc(""),
-                                               llvm::cl::init(false),
-                                               llvm::cl::cat(klee::DebugCat));
-
-// TODO
-// llvm::cl::opt<bool> DoBackwardFirst(
-//     "do-backward-first",
-//     llvm::cl::desc("do all possible backward steps with a state before "
-//                    "forward step (default=true)."),
-//     llvm::cl::init(true), llvm::cl::cat(klee::ExecCat));
-
-} // namespace
+namespace {} // namespace
 
 namespace klee {
 

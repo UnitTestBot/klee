@@ -22,8 +22,8 @@ bool ComposeHelper::collectMemoryObjects(
                             hasLazyInitialized, incomplete)) {
     return false;
   }
-  ref<Expr> checkOutOfBounds;
 
+  ref<Expr> checkOutOfBounds;
   if (!checkResolvedMemoryObjects(state, address, target, 0,
                                   mayBeResolvedMemoryObjects,
                                   resolvedMemoryObjects, resolveConditions,
@@ -122,6 +122,7 @@ bool ComposeHelper::tryResolveContent(
                             hasLazyInitialized, incomplete)) {
     return false;
   }
+
   ref<Expr> checkOutOfBounds;
   std::vector<ref<Expr>> resolveConditions;
   std::vector<IDType> resolvedMemoryObjects;
