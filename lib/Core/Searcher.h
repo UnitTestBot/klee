@@ -135,13 +135,13 @@ private:
   std::unique_ptr<WeightedQueue<ExecutionState *, ExecutionStateIDCompare>>
       states;
   ref<Target> target;
-  DistanceCalculator &distanceCalculator;
+  DistanceCalculator *distanceCalculator;
   std::set<ExecutionState *> reachedOnLastUpdate;
 
   WeightResult tryGetWeight(ExecutionState *es, weight_type &weight);
 
 public:
-  TargetedSearcher(ref<Target> target, DistanceCalculator &distanceCalculator_);
+  TargetedSearcher(ref<Target> target, DistanceCalculator *distanceCalculator_);
   ~TargetedSearcher() override;
 
   ExecutionState &selectState() override;
@@ -153,8 +153,9 @@ public:
                            const std::vector<ExecutionState *> &removedStates);
   bool empty() override;
   void printName(llvm::raw_ostream &os) override;
-  std::set<ExecutionState *> reached();
-  void removeReached();
+  void updateWeight(ExecutionState *es, weight_type weight);
+  void addWeight(ExecutionState *es, weight_type weight);
+  void removeWeight(ExecutionState *es);
 };
 
 class GuidedSearcher final : public Searcher {
@@ -203,10 +204,7 @@ private:
   Guidance guidance;
   std::unique_ptr<Searcher> baseSearcher;
   TargetForestHistoryToSearcherMap targetedSearchers;
-  DistanceCalculator &distanceCalculator;
-  TargetCalculator *stateHistory;
   TargetReachability &targetReachability;
-  TargetHashSet reachedTargets;
   std::set<ExecutionState *, ExecutionStateIDCompare> &pausedStates;
   RNG &theRNG;
   unsigned index{1};
@@ -218,34 +216,22 @@ private:
   TargetForestHisoryTargetVector historiesAndTargets;
 
   bool tryAddTarget(ref<TargetForest::History> history, ref<Target> target);
+  TargetedSearcher *
+  getTargetedSearcher(const ref<TargetForest::History> &history,
+                      const ref<Target> &target);
   TargetForestHisoryTargetVector::iterator
   removeTarget(ref<TargetForest::History> history, ref<Target> target);
   void innerUpdate(ExecutionState *current,
                    const std::vector<ExecutionState *> &addedStates,
                    const std::vector<ExecutionState *> &removedStates);
-  bool updateTargetedSearcher(ref<TargetForest::History> history,
-                              ref<Target> target, ExecutionState *current,
-                              std::vector<ExecutionState *> &addedStates,
-                              std::vector<ExecutionState *> &removedStates);
-  void updateTargetedSearcherForStates(
-      std::vector<ExecutionState *> &states,
-      std::vector<ExecutionState *> &tmpAddedStates,
-      std::vector<ExecutionState *> &tmpRemovedStates,
-      TargetToStateUnorderedSetMap &reachableStatesOfTarget,
-      bool areStatesStuck, bool areStatesRemoved);
-
-  void clearReached(const std::vector<ExecutionState *> &removedStates);
-  void collectReached(TargetToStateSetMap &reachedStates);
-  bool isReached(ref<TargetForest::History> history, ref<Target> target);
+  void updateForState(ExecutionState *es, bool isAdded, bool isRemoved);
 
 public:
   GuidedSearcher(
-      Searcher *baseSearcher, DistanceCalculator &distanceCalculator_,
-      TargetCalculator &stateHistory, TargetReachability &targetReachability_,
+      Searcher *baseSearcher, TargetReachability &targetReachability_,
       std::set<ExecutionState *, ExecutionStateIDCompare> &pausedStates,
       RNG &rng);
   GuidedSearcher(
-      DistanceCalculator &distanceCalculator_,
       TargetReachability &targetReachability_,
       std::set<ExecutionState *, ExecutionStateIDCompare> &pausedStates,
       RNG &rng);

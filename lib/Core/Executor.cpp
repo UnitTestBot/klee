@@ -435,9 +435,6 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
 
   guidanceKind = opts.Guidance;
 
-  targetReachability = std::make_unique<TargetReachability>(*distanceCalculator, guidanceKind == GuidanceKind::ErrorGuidance ? TargetReachability::Guidance::Error : TargetReachability::Guidance::Coverage,
-                                                *targetCalculator);
-
   const time::Span maxTime{MaxTime};
   if (maxTime)
     timers.add(std::make_unique<Timer>(maxTime, [&] {
@@ -573,6 +570,13 @@ Executor::setModule(std::vector<std::unique_ptr<llvm::Module>> &userModules,
 
   targetCalculator = std::unique_ptr<TargetCalculator>(
       new TargetCalculator(*kmodule.get(), *codeGraphDistance.get()));
+
+  targetReachability = std::make_unique<TargetReachability>(
+      *distanceCalculator,
+      guidanceKind == GuidanceKind::ErrorGuidance
+          ? TargetReachability::Guidance::Error
+          : TargetReachability::Guidance::Coverage,
+      *targetCalculator);
 
   return kmodule->module.get();
 }
@@ -4163,7 +4167,7 @@ void Executor::targetedRun(ExecutionState &initialState, KBlock *target,
   states.insert(&initialState);
 
   TargetedSearcher *targetedSearcher =
-      new TargetedSearcher(Target::create(target), *distanceCalculator);
+      new TargetedSearcher(Target::create(target), distanceCalculator.get());
   searcher = targetedSearcher;
 
   std::vector<ExecutionState *> newStates(states.begin(), states.end());

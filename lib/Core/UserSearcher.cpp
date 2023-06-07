@@ -185,15 +185,13 @@ Searcher *klee::constructUserSearcher(Executor &executor) {
   }
 
   if (executor.guidanceKind == Interpreter::GuidanceKind::CoverageGuidance) {
-    searcher = new GuidedSearcher(
-        searcher, *executor.distanceCalculator, *executor.targetCalculator,
-        *executor.targetReachability, executor.pausedStates, executor.theRNG);
+    searcher = new GuidedSearcher(searcher, *executor.targetReachability,
+                                  executor.pausedStates, executor.theRNG);
   }
 
   if (executor.guidanceKind == Interpreter::GuidanceKind::ErrorGuidance) {
     delete searcher;
-    searcher = new GuidedSearcher(*executor.distanceCalculator,
-                                  *executor.targetReachability,
+    searcher = new GuidedSearcher(*executor.targetReachability,
                                   executor.pausedStates, executor.theRNG);
   }
 

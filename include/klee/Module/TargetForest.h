@@ -302,7 +302,7 @@ public:
   void add(ref<Target>);
   void remove(ref<Target>);
   void blockIn(ref<Target>, ref<Target>);
-  void block(const ref<Target>&);
+  void block(const ref<Target> &);
   const ref<History> getHistory() { return history; };
   const ref<Layer> getTargets() { return forest; };
   void dump() const;

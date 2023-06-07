@@ -25,10 +25,7 @@ class ExecutionState;
 
 class TargetReachability {
 public:
-  enum Guidance {
-    Error,
-    Coverage
-  };
+  enum Guidance { Error, Coverage };
 
   explicit TargetReachability(DistanceCalculator &distanceCalculator_,
                               Guidance guidance_,
@@ -50,21 +47,22 @@ public:
       : public std::unordered_map<ref<Target>, T, RefTargetHash, RefTargetCmp> {
   };
 
-  void addReachableStateForTarget(ExecutionState *es,
-                                  const ref<Target> &target);
+  void addReachableStateForTarget(ExecutionState *es, ref<Target> target);
   void updateReachibilityOfStateForTarget(ExecutionState *es,
-                                          const ref<Target> &target);
+                                          ref<Target> target);
   void updateReachabilityOfPotentialStateForTarget(
       unsigned stateId, KInstIterator pc, KInstIterator prevPC,
       KInstIterator initPC, const ExecutionState::stack_ty &stack,
       ReachWithError error, llvm::BasicBlock *pcBlock,
-      llvm::BasicBlock *prevPCBlock, const ref<Target> &target);
+      llvm::BasicBlock *prevPCBlock, ref<Target> target);
   void updateConfidencesInState(ExecutionState *es);
   void clear();
 
   void update(ExecutionState *current,
               const std::vector<ExecutionState *> &addedStates,
               const std::vector<ExecutionState *> &removedStates);
+
+  weight_type getDistance(ExecutionState *es, ref<Target> target);
 
 private:
   TargetToStateUnorderedSetMap reachableStatesOfTarget;
@@ -84,16 +82,16 @@ private:
   void stepTo(ExecutionState *current,
               const std::vector<ExecutionState *> &addedStates,
               const std::vector<ExecutionState *> &removedStates);
-  bool updateDistance(ExecutionState *es, const ref<Target> &target,
+  bool updateDistance(ExecutionState *es, ref<Target> target,
                       bool isStateRemoved);
   void updateDistance(ExecutionState *es, bool isStateRemoved = false);
-  WeightResult tryGetWeight(ExecutionState *es, const ref<Target> &target,
+  WeightResult tryGetWeight(ExecutionState *es, ref<Target> target,
                             weight_type &weight);
-  bool isCalculated(ExecutionState *es, const ref<Target> &target);
+  bool isCalculated(ExecutionState *es, ref<Target> target);
   void updateConfidences(ExecutionState *current,
                          const std::vector<ExecutionState *> &addedStates,
                          const std::vector<ExecutionState *> &removedStates);
-  void removeDistance(ExecutionState *es, const ref<Target> &target);
+  void removeDistance(ExecutionState *es, ref<Target> target);
   void updateTargetlessState(ExecutionState *es);
   void handleTargetlessStates(ExecutionState *current,
                               const std::vector<ExecutionState *> &addedStates);
