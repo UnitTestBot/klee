@@ -475,7 +475,7 @@ private:
   // Add information about reachability of targets for speculative state after
   // fork in branch instruction
   void updateReachabilityForSpeculativeState(ExecutionState &es,
-                                           llvm::BasicBlock *bb);
+                                             llvm::BasicBlock *bb);
 
   /// Call exit handler and terminate state normally
   /// (end of execution path)

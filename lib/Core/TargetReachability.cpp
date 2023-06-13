@@ -80,8 +80,8 @@ void TargetReachability::updateReachabilityOfSpeculativeStateForTarget(
     uint32_t stateId, KInstruction *pc, KInstruction *prevPC,
     KInstruction *initPC, const ExecutionState::stack_ty &stack,
     ReachWithError error, ref<Target> target) {
-  auto distRes = distanceCalculator.getDistance(
-      pc, prevPC, initPC, stack, error, target);
+  auto distRes =
+      distanceCalculator.getDistance(pc, prevPC, initPC, stack, error, target);
   if (distRes.result != Miss) {
     reachableSpeculativeStatesOfTarget[target].insert(stateId);
   }
@@ -89,7 +89,7 @@ void TargetReachability::updateReachabilityOfSpeculativeStateForTarget(
 
 void TargetReachability::updateConfidencesInState(ExecutionState &es) {
   es.targetForest.divideConfidenceBy(reachableStatesOfTarget,
-                                      reachableSpeculativeStatesOfTarget);
+                                     reachableSpeculativeStatesOfTarget);
 }
 
 void TargetReachability::clear() {
@@ -241,9 +241,9 @@ WeightResult TargetReachability::tryGetWeight(ExecutionState &es,
   BasicBlock *bb = es.getPCBlock();
   KBlock *kb = es.pc->parent->parent->blockMap[bb];
   KInstruction *ki = es.pc;
-  if (!target->atReturn() && !target->shouldFailOnThisTarget() && kb->numInstructions &&
-      !isa<KCallBlock>(kb) && kb->getFirstInstruction() != ki &&
-      isCalculated(es, target)) {
+  if (!target->atReturn() && !target->shouldFailOnThisTarget() &&
+      kb->numInstructions && !isa<KCallBlock>(kb) &&
+      kb->getFirstInstruction() != ki && isCalculated(es, target)) {
     weight = getDistance(es, target);
     if (weight != UINT_MAX) {
       return Continue;

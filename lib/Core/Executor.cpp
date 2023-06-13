@@ -2233,13 +2233,14 @@ void Executor::transferToBasicBlock(BasicBlock *dst, BasicBlock *src,
 }
 
 void Executor::updateReachabilityForSpeculativeState(ExecutionState &es,
-                                                   BasicBlock *bb) {
+                                                     BasicBlock *bb) {
   KFunction *kf = es.stack.back().kf;
   auto kdst = kf->blockMap[bb];
   KInstIterator pc = kdst->instructions;
   for (const auto &target : *es.targetForest.getTargets()) {
     targetReachability->updateReachabilityOfSpeculativeStateForTarget(
-        speculativeStateId, pc, es.prevPC, es.initPC, es.stack, es.error, target.first);
+        speculativeStateId, pc, es.prevPC, es.initPC, es.stack, es.error,
+        target.first);
   }
   speculativeStateId++;
 }
@@ -2424,7 +2425,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
                              *branches.first);
       } else if (branches.second) {
         updateReachabilityForSpeculativeState(*branches.second,
-                                            bi->getSuccessor(0));
+                                              bi->getSuccessor(0));
       }
 
       if (branches.second) {
@@ -2432,7 +2433,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
                              *branches.second);
       } else if (branches.first) {
         updateReachabilityForSpeculativeState(*branches.first,
-                                            bi->getSuccessor(1));
+                                              bi->getSuccessor(1));
       }
 
       if (guidanceKind == GuidanceKind::ErrorGuidance) {

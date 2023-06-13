@@ -21,10 +21,11 @@ DistanceResult DistanceCalculator::getDistance(ExecutionState &es,
   return getDistance(es.pc, es.prevPC, es.initPC, es.stack, es.error, target);
 }
 
-DistanceResult DistanceCalculator::getDistance(
-    KInstruction *pc, KInstruction *prevPC, KInstruction *initPC,
-    const ExecutionState::stack_ty &stack, ReachWithError error,
-    ref<Target> target) {
+DistanceResult
+DistanceCalculator::getDistance(KInstruction *pc, KInstruction *prevPC,
+                                KInstruction *initPC,
+                                const ExecutionState::stack_ty &stack,
+                                ReachWithError error, ref<Target> target) {
   weight_type weight = 0;
 
   BasicBlock *pcBlock = pc->inst->getParent();
