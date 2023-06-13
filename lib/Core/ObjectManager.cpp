@@ -1,7 +1,10 @@
 #include "ObjectManager.h"
+
 #include "PForest.h"
 #include "SearcherUtil.h"
+
 #include "klee/Module/KModule.h"
+#include "klee/Support/Debug.h"
 
 #include "llvm/Support/CommandLine.h"
 
@@ -14,8 +17,12 @@ cl::opt<bool> DebugBackward("debug-backward", cl::desc(""), cl::init(false),
 cl::opt<bool> DebugReached("debug-reached", cl::desc(""), cl::init(false),
                            cl::cat(DebugCat));
 
-cl::opt<bool> DebugConflicts("debug-conflicts", cl::desc(""), cl::init(false),
-                             cl::cat(DebugCat));
+cl::opt<DebugLoggingType> DebugConflicts(
+    "debug-conflicts", cl::desc(""),
+    llvm::cl::values(clEnumValN(DebugLoggingType::NONE, "none", ""),
+                     clEnumValN(DebugLoggingType::PATH, "path", ""),
+                     clEnumValN(DebugLoggingType::ALL, "all", "")),
+    cl::init(DebugLoggingType::NONE), cl::cat(DebugCat));
 } // namespace klee
 
 ObjectManager::ObjectManager() : initialState(nullptr), emptyState(nullptr) {}
@@ -177,18 +184,20 @@ void ObjectManager::updateSubscribers() {
   }
 
   {
-    if (DebugConflicts) {
+    if (DebugConflicts != DebugLoggingType::NONE) {
       if (addedTargetedConflicts.size() > 0) {
         llvm::errs() << "Contradictions was found\n";
         for (auto conflict : addedTargetedConflicts) {
           llvm::errs() << "Path: " << conflict->conflict.path.toString()
                        << "\n";
-          llvm::errs() << "Contradiction [\n";
-          for (const auto &constraint : conflict->conflict.core) {
-            constraint->print(llvm::errs());
-            llvm::errs() << "\n";
+          if (DebugConflicts == DebugLoggingType::ALL) {
+            llvm::errs() << "Contradiction [\n";
+            for (const auto &constraint : conflict->conflict.core) {
+              constraint->print(llvm::errs());
+              llvm::errs() << "\n";
+            }
+            llvm::errs() << "]\n";
           }
-          llvm::errs() << "]\n";
           llvm::errs() << "Target: " << conflict->target->toString() << "\n";
           llvm::errs() << "\n";
         }

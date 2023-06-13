@@ -62,6 +62,7 @@
 #include "klee/Solver/SolverCmdLine.h"
 #include "klee/Statistics/TimerStatIncrementer.h"
 #include "klee/Support/Casting.h"
+#include "klee/Support/Debug.h"
 #include "klee/Support/ErrorHandling.h"
 #include "klee/Support/FileHandling.h"
 #include "klee/Support/FloatEvaluation.h"
@@ -483,8 +484,12 @@ cl::opt<bool> DebugCheckForImpliedValues(
 cl::opt<bool> DebugBidirectional("debug-bidirectional", cl::desc(""),
                                  cl::init(false), cl::cat(DebugCat));
 
-cl::opt<bool> DebugLemmas("debug-lemmas", cl::desc(""), cl::init(false),
-                          cl::cat(DebugCat));
+cl::opt<DebugLoggingType>
+    DebugLemmas("debug-lemmas", cl::desc(""),
+                llvm::cl::values(clEnumValN(DebugLoggingType::NONE, "none", ""),
+                                 clEnumValN(DebugLoggingType::PATH, "path", ""),
+                                 clEnumValN(DebugLoggingType::ALL, "all", "")),
+                cl::init(DebugLoggingType::NONE), cl::cat(DebugCat));
 } // namespace
 
 extern llvm::cl::opt<uint64_t> MaxConstantAllocationSize;
@@ -4358,18 +4363,20 @@ void Executor::goBackward(ref<BackwardAction> action) {
     }
   } else {
     if (state->isolated && composeResult.conflict.core.size()) {
-      if (DebugLemmas) {
+      if (DebugLemmas != DebugLoggingType::NONE) {
         llvm::errs() << "Add lemma for pob at: "
                      << pob->location.getBlock()->toString()
                      << (pob->atReturn() ? "(at return)" : "") << "\n";
         llvm::errs() << "Path: " << state->constraints.path().toString()
                      << "\n";
-        llvm::errs() << "Content: [\n";
-        for (const auto &condition : composeResult.conflict.core) {
-          condition->print(llvm::errs());
-          llvm::errs() << "\n";
+        if (DebugLemmas == DebugLoggingType::ALL) {
+          llvm::errs() << "Content: [\n";
+          for (const auto &condition : composeResult.conflict.core) {
+            condition->print(llvm::errs());
+            llvm::errs() << "\n";
+          }
+          llvm::errs() << "]\n";
         }
-        llvm::errs() << "]\n";
         llvm::errs() << "\n";
       }
       summary.addLemma(
