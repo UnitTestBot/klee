@@ -32,16 +32,16 @@ DistanceCalculator::getDistance(KInstruction *pc, KInstruction *prevPC,
   BasicBlock *prevPCBlock = prevPC->inst->getParent();
 
   if (!target->shouldFailOnThisTarget() && target->atReturn()) {
-    if (es.prevPC->parent == target->getBlock() &&
-        es.prevPC == target->getBlock()->getLastInstruction()) {
+    if (prevPC->parent == target->getBlock() &&
+        prevPC == target->getBlock()->getLastInstruction()) {
       return DistanceResult(Done);
-    } else if (es.pc->parent == target->getBlock()) {
+    } else if (pc->parent == target->getBlock()) {
       return DistanceResult(Continue);
     }
   }
 
-  if (target->shouldFailOnThisTarget() && target->isTheSameAsIn(es.prevPC) &&
-      target->isThatError(es.error)) {
+  if (target->shouldFailOnThisTarget() && target->isTheSameAsIn(prevPC) &&
+      target->isThatError(error)) {
     return DistanceResult(Done);
   }
 
