@@ -238,25 +238,10 @@ void TargetReachability::updateDistance(ExecutionState &es,
 WeightResult TargetReachability::tryGetWeight(ExecutionState &es,
                                               ref<Target> target,
                                               weight_type &weight) {
-  if (!target->shouldFailOnThisTarget() && target->atReturn()) {
-    if (es.prevPC->parent == target->getBlock() &&
-        es.prevPC == target->getBlock()->getLastInstruction()) {
-      return Done;
-    } else if (es.pc->parent == target->getBlock()) {
-      weight = 0;
-      return Continue;
-    }
-  }
-
-  if (target->shouldFailOnThisTarget() && target->isTheSameAsIn(es.prevPC) &&
-      target->isThatError(es.error)) {
-    return Done;
-  }
-
   BasicBlock *bb = es.getPCBlock();
   KBlock *kb = es.pc->parent->parent->blockMap[bb];
   KInstruction *ki = es.pc;
-  if (!target->shouldFailOnThisTarget() && kb->numInstructions &&
+  if (!target->atReturn() && !target->shouldFailOnThisTarget() && kb->numInstructions &&
       !isa<KCallBlock>(kb) && kb->getFirstInstruction() != ki &&
       isCalculated(es, target)) {
     weight = getDistance(es, target);

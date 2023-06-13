@@ -30,6 +30,20 @@ DistanceResult DistanceCalculator::getDistance(
   BasicBlock *pcBlock = pc->inst->getParent();
   BasicBlock *prevPCBlock = prevPC->inst->getParent();
 
+  if (!target->shouldFailOnThisTarget() && target->atReturn()) {
+    if (es.prevPC->parent == target->getBlock() &&
+        es.prevPC == target->getBlock()->getLastInstruction()) {
+      return DistanceResult(Done);
+    } else if (es.pc->parent == target->getBlock()) {
+      return DistanceResult(Continue);
+    }
+  }
+
+  if (target->shouldFailOnThisTarget() && target->isTheSameAsIn(es.prevPC) &&
+      target->isThatError(es.error)) {
+    return DistanceResult(Done);
+  }
+
   BasicBlock *bb = pcBlock;
   KBlock *kb = pc->parent->parent->blockMap[bb];
   const auto &distanceToTargetFunction =

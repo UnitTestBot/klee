@@ -160,21 +160,6 @@ ExecutionState &TargetedSearcher::selectState() { return *states->choose(0); }
 
 WeightResult TargetedSearcher::tryGetWeight(ExecutionState *es,
                                             weight_type &weight) {
-  if (target->atReturn() && !target->shouldFailOnThisTarget()) {
-    if (es->prevPC->parent == target->getBlock() &&
-        es->prevPC == target->getBlock()->getLastInstruction()) {
-      return Done;
-    } else if (es->pc->parent == target->getBlock()) {
-      weight = 0;
-      return Continue;
-    }
-  }
-
-  if (target->shouldFailOnThisTarget() && target->isTheSameAsIn(es->prevPC) &&
-      target->isThatError(es->error)) {
-    return Done;
-  }
-
   BasicBlock *bb = es->getPCBlock();
   KBlock *kb = es->pc->parent->parent->blockMap[bb];
   KInstruction *ki = es->pc;
