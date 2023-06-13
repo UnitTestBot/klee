@@ -11,6 +11,7 @@ bool ComposeHelper::collectMemoryObjects(
     ExecutionState &state, ref<Expr> address, KType *targetType,
     KInstruction *target, ref<Expr> &guard,
     std::vector<ref<Expr>> &resolveConditions,
+    std::vector<ref<Expr>> &unboundConditions,
     std::vector<IDType> &resolvedMemoryObjects) {
   bool mayBeOutOfBound = true;
   bool hasLazyInitialized = false;
@@ -24,16 +25,16 @@ bool ComposeHelper::collectMemoryObjects(
   }
 
   ref<Expr> checkOutOfBounds;
-  if (!checkResolvedMemoryObjects(state, address, target, 0,
-                                  mayBeResolvedMemoryObjects,
-                                  resolvedMemoryObjects, resolveConditions,
-                                  checkOutOfBounds, mayBeOutOfBound)) {
+  if (!checkResolvedMemoryObjects(
+          state, address, target, 0, mayBeResolvedMemoryObjects,
+          resolvedMemoryObjects, resolveConditions, unboundConditions,
+          checkOutOfBounds, mayBeOutOfBound)) {
     return false;
   }
 
   bool mayBeInBounds;
-  if (!makeGuard(state, resolveConditions, checkOutOfBounds, hasLazyInitialized,
-                 guard, mayBeInBounds)) {
+  if (!makeGuard(state, resolveConditions, unboundConditions, checkOutOfBounds,
+                 hasLazyInitialized, guard, mayBeInBounds)) {
     return false;
   }
   return true;
@@ -43,12 +44,14 @@ bool ComposeHelper::tryResolveAddress(ExecutionState &state, ref<Expr> address,
                                       std::pair<ref<Expr>, ref<Expr>> &result) {
   ref<Expr> guard;
   std::vector<ref<Expr>> resolveConditions;
+  std::vector<ref<Expr>> unboundConditions;
   std::vector<IDType> resolvedMemoryObjects;
   KType *targetType = executor->typeSystemManager->getUnknownType();
   KInstruction *target = nullptr;
 
   if (!collectMemoryObjects(state, address, targetType, target, guard,
-                            resolveConditions, resolvedMemoryObjects)) {
+                            resolveConditions, unboundConditions,
+                            resolvedMemoryObjects)) {
     return false;
   }
 
@@ -76,12 +79,14 @@ bool ComposeHelper::tryResolveSize(ExecutionState &state, ref<Expr> address,
                                    std::pair<ref<Expr>, ref<Expr>> &result) {
   ref<Expr> guard;
   std::vector<ref<Expr>> resolveConditions;
+  std::vector<ref<Expr>> unboundConditions;
   std::vector<IDType> resolvedMemoryObjects;
   KType *targetType = executor->typeSystemManager->getUnknownType();
   KInstruction *target = nullptr;
 
   if (!collectMemoryObjects(state, address, targetType, target, guard,
-                            resolveConditions, resolvedMemoryObjects)) {
+                            resolveConditions, unboundConditions,
+                            resolvedMemoryObjects)) {
     return false;
   }
 
@@ -125,13 +130,14 @@ bool ComposeHelper::tryResolveContent(
 
   ref<Expr> checkOutOfBounds;
   std::vector<ref<Expr>> resolveConditions;
+  std::vector<ref<Expr>> unboundConditions;
   std::vector<IDType> resolvedMemoryObjects;
   ref<Expr> address = AddExpr::create(base, offset);
 
-  if (!checkResolvedMemoryObjects(state, address, target, size,
-                                  mayBeResolvedMemoryObjects,
-                                  resolvedMemoryObjects, resolveConditions,
-                                  checkOutOfBounds, mayBeOutOfBound)) {
+  if (!checkResolvedMemoryObjects(
+          state, address, target, size, mayBeResolvedMemoryObjects,
+          resolvedMemoryObjects, resolveConditions, unboundConditions,
+          checkOutOfBounds, mayBeOutOfBound)) {
     return false;
   }
 
@@ -139,9 +145,10 @@ bool ComposeHelper::tryResolveContent(
   std::vector<Assignment> resolveConcretizations;
   bool mayBeInBounds;
 
-  if (!collectConcretizations(state, resolveConditions, resolvedMemoryObjects,
-                              checkOutOfBounds, hasLazyInitialized, guard,
-                              resolveConcretizations, mayBeInBounds)) {
+  if (!collectConcretizations(state, resolveConditions, unboundConditions,
+                              resolvedMemoryObjects, checkOutOfBounds,
+                              hasLazyInitialized, guard, resolveConcretizations,
+                              mayBeInBounds)) {
     return false;
   }
 

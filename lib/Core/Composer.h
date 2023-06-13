@@ -53,38 +53,44 @@ public:
       ExecutionState &state, ref<Expr> address, KInstruction *target,
       unsigned bytes, const std::vector<IDType> &mayBeResolvedMemoryObjects,
       std::vector<IDType> &resolvedMemoryObjects,
-      std::vector<ref<Expr>> &resolveConditions, ref<Expr> &checkOutOfBounds,
+      std::vector<ref<Expr>> &resolveConditions,
+      std::vector<ref<Expr>> &unboundConditions, ref<Expr> &checkOutOfBounds,
       bool &mayBeOutOfBound) {
     return executor->checkResolvedMemoryObjects(
         state, address, target, bytes, mayBeResolvedMemoryObjects,
-        resolvedMemoryObjects, resolveConditions, checkOutOfBounds,
-        mayBeOutOfBound);
+        resolvedMemoryObjects, resolveConditions, unboundConditions,
+        checkOutOfBounds, mayBeOutOfBound);
   }
 
   bool makeGuard(ExecutionState &state,
                  const std::vector<ref<Expr>> &resolveConditions,
+                 const std::vector<ref<Expr>> &unboundConditions,
                  ref<Expr> checkOutOfBounds, bool hasLazyInitialized,
                  ref<Expr> &guard, bool &mayBeInBounds) {
-    return executor->makeGuard(state, resolveConditions, checkOutOfBounds,
-                               hasLazyInitialized, guard, mayBeInBounds);
+    return executor->makeGuard(state, resolveConditions, unboundConditions,
+                               checkOutOfBounds, hasLazyInitialized, guard,
+                               mayBeInBounds);
   }
 
   bool collectConcretizations(ExecutionState &state,
                               const std::vector<ref<Expr>> &resolveConditions,
+                              const std::vector<ref<Expr>> &unboundConditions,
                               const std::vector<IDType> &resolvedMemoryObjects,
                               ref<Expr> checkOutOfBounds,
                               bool hasLazyInitialized, ref<Expr> &guard,
                               std::vector<Assignment> &resolveConcretizations,
                               bool &mayBeInBounds) {
     return executor->collectConcretizations(
-        state, resolveConditions, resolvedMemoryObjects, checkOutOfBounds,
-        hasLazyInitialized, guard, resolveConcretizations, mayBeInBounds);
+        state, resolveConditions, unboundConditions, resolvedMemoryObjects,
+        checkOutOfBounds, hasLazyInitialized, guard, resolveConcretizations,
+        mayBeInBounds);
   }
 
   bool collectMemoryObjects(ExecutionState &state, ref<Expr> address,
                             KType *targetType, KInstruction *target,
                             ref<Expr> &guard,
                             std::vector<ref<Expr>> &resolveConditions,
+                            std::vector<ref<Expr>> &unboundConditions,
                             std::vector<IDType> &resolvedMemoryObjects);
 
   void collectReads(ExecutionState &state, ref<Expr> address, KType *targetType,
