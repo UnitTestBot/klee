@@ -157,6 +157,6 @@ ForwardOnlySearcher::ForwardOnlySearcher(Searcher *_searcher) {
   searcher = _searcher;
 }
 
-ForwardOnlySearcher::~ForwardOnlySearcher() {}
+ForwardOnlySearcher::~ForwardOnlySearcher() { delete searcher; }
 
 } // namespace klee

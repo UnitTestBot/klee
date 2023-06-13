@@ -73,9 +73,9 @@ void Summary::readFromFile(KModule *km, ArrayCache *cache) {
     klee_error("Error during reading the .ksummary file.");
   }
   std::unique_ptr<MemoryBuffer> &MB = *MBResult;
-  ExprBuilder *Builder = createDefaultExprBuilder();
-  expr::Parser *P =
-      expr::Parser::Create("LemmaParser", MB.get(), Builder, cache, km, true);
+  std::unique_ptr<ExprBuilder> Builder(createDefaultExprBuilder());
+  expr::Parser *P = expr::Parser::Create("LemmaParser", MB.get(), Builder.get(),
+                                         cache, km, true);
   while (auto parsed = P->ParseTopLevelDecl()) {
     if (auto lemmaDecl = dyn_cast<expr::LemmaCommand>(parsed)) {
       ref<Lemma> l(new Lemma(lemmaDecl->path, lemmaDecl->constraints));
