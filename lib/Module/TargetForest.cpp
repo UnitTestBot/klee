@@ -575,35 +575,35 @@ void TargetForest::Layer::divideConfidenceBy(unsigned factor) {
 }
 
 TargetForest::Layer *TargetForest::Layer::divideConfidenceBy(
-    const TargetForest::TargetToStateSetMap &reachableStatesOfTarget,
-    const TargetToPotentialStateSetMap &reachablePotentialStatesOfTarget) {
+    const TargetToStateSetMap &reachableStatesOfTarget,
+    const TargetToStateSetMap &reachableSpeculativeStatesOfTarget) {
   if (forest.empty() || (reachableStatesOfTarget.empty() &&
-                         reachablePotentialStatesOfTarget.empty()))
+                         reachableSpeculativeStatesOfTarget.empty()))
     return this;
   auto result = new Layer(this);
   for (auto &targetAndForest : forest) {
     auto targetsVec = targetAndForest.first;
     auto layer = targetAndForest.second;
-    std::unordered_set<ExecutionState *> reachableStatesForTargetsVec;
-    std::unordered_set<unsigned> reachablePotentialStatesForTargetsVec;
+    std::unordered_set<uint32_t> reachableStatesForTargetsVec;
+    std::unordered_set<uint32_t> reachableSpeculativeStatesForTargetsVec;
     for (const auto &target : targetsVec->getTargets()) {
       auto it = reachableStatesOfTarget.find(target);
-      auto potentialIt = reachablePotentialStatesOfTarget.find(target);
+      auto potentialIt = reachableSpeculativeStatesOfTarget.find(target);
       if (it != reachableStatesOfTarget.end()) {
         for (auto state : it->second) {
           reachableStatesForTargetsVec.insert(state);
         }
       }
 
-      if (potentialIt != reachablePotentialStatesOfTarget.end()) {
+      if (potentialIt != reachableSpeculativeStatesOfTarget.end()) {
         for (auto state : potentialIt->second) {
-          reachablePotentialStatesForTargetsVec.insert(state);
+          reachableSpeculativeStatesForTargetsVec.insert(state);
         }
       }
     }
 
     size_t count = reachableStatesForTargetsVec.size() +
-                   reachablePotentialStatesForTargetsVec.size();
+                   reachableSpeculativeStatesForTargetsVec.size();
     if (count) {
       if (count == 1)
         continue;
@@ -612,7 +612,7 @@ TargetForest::Layer *TargetForest::Layer::divideConfidenceBy(
       next->confidence /= count;
     } else
       result->forest[targetsVec] = layer->divideConfidenceBy(
-          reachableStatesOfTarget, reachablePotentialStatesOfTarget);
+          reachableStatesOfTarget, reachableSpeculativeStatesOfTarget);
   }
   return result;
 }

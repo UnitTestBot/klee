@@ -2232,17 +2232,17 @@ void Executor::transferToBasicBlock(BasicBlock *dst, BasicBlock *src,
   transferToBasicBlock(kdst, src, state);
 }
 
-void Executor::updateReachabilityForPotentialState(ExecutionState *es,
+void Executor::updateReachabilityForSpeculativeState(ExecutionState &es,
                                                    BasicBlock *bb) {
-  KFunction *kf = es->stack.back().kf;
+  KFunction *kf = es.stack.back().kf;
   auto kdst = kf->blockMap[bb];
   KInstIterator pc = kdst->instructions;
-  for (const auto &target : *es->targetForest.getTargets()) {
-    targetReachability->updateReachabilityOfPotentialStateForTarget(
-        potentialStateId, pc, es->prevPC, es->initPC, es->stack, es->error,
-        pc->inst->getParent(), es->prevPC->inst->getParent(), target.first);
+  for (const auto &target : *es.targetForest.getTargets()) {
+    targetReachability->updateReachabilityOfSpeculativeStateForTarget(
+        speculativeStateId, pc, es.prevPC, es.initPC, es.stack, es.error,
+        pc->inst->getParent(), es.prevPC->inst->getParent(), target.first);
   }
-  potentialStateId++;
+  speculativeStateId++;
 }
 
 void Executor::checkNullCheckAfterDeref(ref<Expr> cond, ExecutionState &state,
@@ -2424,7 +2424,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
         transferToBasicBlock(bi->getSuccessor(0), bi->getParent(),
                              *branches.first);
       } else if (branches.second) {
-        updateReachabilityForPotentialState(branches.second,
+        updateReachabilityForSpeculativeState(*branches.second,
                                             bi->getSuccessor(0));
       }
 
@@ -2432,7 +2432,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
         transferToBasicBlock(bi->getSuccessor(1), bi->getParent(),
                              *branches.second);
       } else if (branches.first) {
-        updateReachabilityForPotentialState(branches.first,
+        updateReachabilityForSpeculativeState(*branches.first,
                                             bi->getSuccessor(1));
       }
 
@@ -3801,7 +3801,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 void Executor::updateStates(ExecutionState *current) {
   if (searcher) {
     searcher->update(current, addedStates, removedStates);
-    potentialStateId = 0;
+    speculativeStateId = 0;
   }
 
   states.insert(addedStates.begin(), addedStates.end());

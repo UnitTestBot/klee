@@ -66,7 +66,7 @@ unsigned int ulog2(unsigned int val) {
 void TargetReachability::addReachableStateForTarget(ExecutionState *es,
                                                     ref<Target> target) {
   if (es) {
-    reachableStatesOfTarget[target].insert(es);
+    reachableStatesOfTarget[target].insert(es->getID());
   }
 }
 
@@ -75,34 +75,34 @@ void TargetReachability::updateReachibilityOfStateForTarget(
   if (es) {
     auto distRes = distanceCalculator.getDistance(es, target.get());
     if (distRes.result != Miss) {
-      reachableStatesOfTarget[target].insert(es);
+      reachableStatesOfTarget[target].insert(es->getID());
     }
   }
 }
 
-void TargetReachability::updateReachabilityOfPotentialStateForTarget(
-    unsigned stateId, KInstIterator pc, KInstIterator prevPC,
+void TargetReachability::updateReachabilityOfSpeculativeStateForTarget(
+    uint32_t stateId, KInstIterator pc, KInstIterator prevPC,
     KInstIterator initPC, const ExecutionState::stack_ty &stack,
     ReachWithError error, llvm::BasicBlock *pcBlock,
     llvm::BasicBlock *prevPCBlock, ref<Target> target) {
   auto distRes = distanceCalculator.getDistance(
       pc, prevPC, initPC, stack, error, pcBlock, prevPCBlock, target.get());
   if (distRes.result != Miss) {
-    reachablePotentialStatesOfTarget[target].insert(stateId);
+    reachableSpeculativeStatesOfTarget[target].insert(stateId);
   }
 }
 
 void TargetReachability::updateConfidencesInState(ExecutionState *es) {
   if (es) {
     es->targetForest.divideConfidenceBy(reachableStatesOfTarget,
-                                        reachablePotentialStatesOfTarget);
+                                        reachableSpeculativeStatesOfTarget);
   }
 }
 
 void TargetReachability::clear() {
   reachedOnLastUpdate.clear();
   reachableStatesOfTarget.clear();
-  reachablePotentialStatesOfTarget.clear();
+  reachableSpeculativeStatesOfTarget.clear();
 }
 
 void TargetReachability::updateConfidences(

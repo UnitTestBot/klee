@@ -34,10 +34,7 @@ public:
         guidance(guidance_) {}
 
   using TargetToStateUnorderedSetMap =
-      std::unordered_map<ref<Target>, std::unordered_set<ExecutionState *>,
-                         RefTargetHash, RefTargetCmp>;
-  using TargetToPotentialStateMap =
-      std::unordered_map<ref<Target>, std::unordered_set<unsigned>,
+      std::unordered_map<ref<Target>, std::unordered_set<uint32_t>,
                          RefTargetHash, RefTargetCmp>;
 
   using TargetHashSet =
@@ -50,8 +47,8 @@ public:
   void addReachableStateForTarget(ExecutionState *es, ref<Target> target);
   void updateReachibilityOfStateForTarget(ExecutionState *es,
                                           ref<Target> target);
-  void updateReachabilityOfPotentialStateForTarget(
-      unsigned stateId, KInstIterator pc, KInstIterator prevPC,
+  void updateReachabilityOfSpeculativeStateForTarget(
+      uint32_t stateId, KInstIterator pc, KInstIterator prevPC,
       KInstIterator initPC, const ExecutionState::stack_ty &stack,
       ReachWithError error, llvm::BasicBlock *pcBlock,
       llvm::BasicBlock *prevPCBlock, ref<Target> target);
@@ -66,7 +63,7 @@ public:
 
 private:
   TargetToStateUnorderedSetMap reachableStatesOfTarget;
-  TargetToPotentialStateMap reachablePotentialStatesOfTarget;
+  TargetToStateUnorderedSetMap reachableSpeculativeStatesOfTarget;
   DistanceCalculator &distanceCalculator;
   TargetCalculator &stateHistory;
   TargetHashSet reachedTargets;
