@@ -184,7 +184,7 @@ WeightResult TargetedSearcher::tryGetWeight(ExecutionState *es,
     return Continue;
   }
 
-  auto distRes = distanceCalculator->getDistance(es, target.get());
+  auto distRes = distanceCalculator->getDistance(*es, target);
   weight = ulog2(distRes.weight + es->steppedMemoryInstructions); // [0, 32]
   if (!distRes.isInsideFunction) {
     weight += 32; // [32, 64]
@@ -341,59 +341,59 @@ GuidedSearcher::getTargetedSearcher(const ref<TargetForest::History> &history,
   return historiedTargetedSearchers[target].get();
 }
 
-void GuidedSearcher::updateForState(ExecutionState *es, bool isAdded,
+void GuidedSearcher::updateForState(ExecutionState &es, bool isAdded,
                                     bool isRemoved) {
   if (isAdded) {
-    const auto &history = es->currHistory;
-    for (const auto &target : es->currTargets) {
+    const auto &history = es.currHistory;
+    for (const auto &target : es.currTargets) {
       auto *targetedSearcher = getTargetedSearcher(history, target);
       auto weight = targetReachability.getDistance(es, target);
-      targetedSearcher->addWeight(es, weight);
+      targetedSearcher->addWeight(&es, weight);
     }
   } else if (isRemoved) {
-    const auto &history = es->prevHistory;
-    for (const auto &target : es->prevTargets) {
+    const auto &history = es.prevHistory;
+    for (const auto &target : es.prevTargets) {
       auto *targetedSearcher = getTargetedSearcher(history, target);
-      targetedSearcher->removeWeight(es);
+      targetedSearcher->removeWeight(&es);
       if (targetedSearcher->empty()) {
         removeTarget(history, target);
       }
     }
   } else {
-    if (es->prevHistory.get() != es->currHistory.get()) {
-      for (const auto &target : es->prevTargets) {
-        auto *targetedSearcher = getTargetedSearcher(es->prevHistory, target);
-        targetedSearcher->removeWeight(es);
+    if (es.prevHistory.get() != es.currHistory.get()) {
+      for (const auto &target : es.prevTargets) {
+        auto *targetedSearcher = getTargetedSearcher(es.prevHistory, target);
+        targetedSearcher->removeWeight(&es);
         if (targetedSearcher->empty()) {
-          removeTarget(es->prevHistory, target);
+          removeTarget(es.prevHistory, target);
         }
       }
 
-      for (const auto &target : es->currTargets) {
-        auto *targetedSeacher = getTargetedSearcher(es->currHistory, target);
+      for (const auto &target : es.currTargets) {
+        auto *targetedSeacher = getTargetedSearcher(es.currHistory, target);
         auto weight = targetReachability.getDistance(es, target);
-        targetedSeacher->addWeight(es, weight);
+        targetedSeacher->addWeight(&es, weight);
       }
     } else {
-      for (const auto &target : es->prevTargets) {
-        if (es->currTargets.count(target) == 0) {
-          auto *targetedSearcher = getTargetedSearcher(es->currHistory, target);
-          targetedSearcher->removeWeight(es);
+      for (const auto &target : es.prevTargets) {
+        if (es.currTargets.count(target) == 0) {
+          auto *targetedSearcher = getTargetedSearcher(es.currHistory, target);
+          targetedSearcher->removeWeight(&es);
           if (targetedSearcher->empty()) {
-            removeTarget(es->currHistory, target);
+            removeTarget(es.currHistory, target);
           }
         }
       }
 
-      for (const auto &target : es->currTargets) {
-        if (es->prevTargets.count(target) == 0) {
-          auto *targetedSearcher = getTargetedSearcher(es->currHistory, target);
+      for (const auto &target : es.currTargets) {
+        if (es.prevTargets.count(target) == 0) {
+          auto *targetedSearcher = getTargetedSearcher(es.currHistory, target);
           auto weight = targetReachability.getDistance(es, target);
-          targetedSearcher->addWeight(es, weight);
+          targetedSearcher->addWeight(&es, weight);
         } else {
-          auto *targetedSearcher = getTargetedSearcher(es->currHistory, target);
+          auto *targetedSearcher = getTargetedSearcher(es.currHistory, target);
           auto weight = targetReachability.getDistance(es, target);
-          targetedSearcher->updateWeight(es, weight);
+          targetedSearcher->updateWeight(&es, weight);
         }
       }
     }
@@ -477,16 +477,16 @@ void GuidedSearcher::innerUpdate(
 
   if (current && std::find(baseRemovedStates.begin(), baseRemovedStates.end(),
                            current) == baseRemovedStates.end()) {
-    updateForState(current, false, isCurrentRemoved);
+    updateForState(*current, false, isCurrentRemoved);
   }
 
   for (const auto state : targetedAddedStates) {
-    updateForState(state, true, false);
+    updateForState(*state, true, false);
   }
   targetedAddedStates.clear();
 
   for (const auto state : baseRemovedStates) {
-    updateForState(state, false, true);
+    updateForState(*state, false, true);
   }
 
   if (CoverageGuidance == guidance) {

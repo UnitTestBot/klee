@@ -224,7 +224,7 @@ private:
   void innerUpdate(ExecutionState *current,
                    const std::vector<ExecutionState *> &addedStates,
                    const std::vector<ExecutionState *> &removedStates);
-  void updateForState(ExecutionState *es, bool isAdded, bool isRemoved);
+  void updateForState(ExecutionState &es, bool isAdded, bool isRemoved);
 
 public:
   GuidedSearcher(

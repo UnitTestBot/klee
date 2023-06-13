@@ -2239,8 +2239,7 @@ void Executor::updateReachabilityForSpeculativeState(ExecutionState &es,
   KInstIterator pc = kdst->instructions;
   for (const auto &target : *es.targetForest.getTargets()) {
     targetReachability->updateReachabilityOfSpeculativeStateForTarget(
-        speculativeStateId, pc, es.prevPC, es.initPC, es.stack, es.error,
-        pc->inst->getParent(), es.prevPC->inst->getParent(), target.first);
+        speculativeStateId, pc, es.prevPC, es.initPC, es.stack, es.error, target.first);
   }
   speculativeStateId++;
 }

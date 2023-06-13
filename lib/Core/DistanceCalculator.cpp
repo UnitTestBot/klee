@@ -16,21 +16,19 @@
 using namespace llvm;
 using namespace klee;
 
-DistanceResult DistanceCalculator::getDistance(ExecutionState *es,
-                                               Target *target) {
-  if (es) {
-    return getDistance(es->pc, es->prevPC, es->initPC, es->stack, es->error,
-                       es->getPCBlock(), es->getPrevPCBlock(), target);
-  }
-
-  return DistanceResult(Miss);
+DistanceResult DistanceCalculator::getDistance(ExecutionState &es,
+                                               ref<Target> target) {
+  return getDistance(es.pc, es.prevPC, es.initPC, es.stack, es.error, target);
 }
 
 DistanceResult DistanceCalculator::getDistance(
-    KInstIterator pc, KInstIterator prevPC, KInstIterator initPC,
+    KInstruction *pc, KInstruction *prevPC, KInstruction *initPC,
     const ExecutionState::stack_ty &stack, ReachWithError error,
-    BasicBlock *pcBlock, BasicBlock *prevPCBlock, Target *target) {
+    ref<Target> target) {
   weight_type weight = 0;
+
+  BasicBlock *pcBlock = pc->inst->getParent();
+  BasicBlock *prevPCBlock = prevPC->inst->getParent();
 
   BasicBlock *bb = pcBlock;
   KBlock *kb = pc->parent->parent->blockMap[bb];
@@ -93,7 +91,7 @@ bool DistanceCalculator::distanceInCallGraph(
     KFunction *kf, KBlock *kb, unsigned int &distance,
     const std::unordered_map<KFunction *, unsigned int>
         &distanceToTargetFunction,
-    Target *target) {
+    ref<Target> target) {
   distance = UINT_MAX;
   const std::unordered_map<KBlock *, unsigned> &dist =
       codeGraphDistance.getDistance(kb);
@@ -120,9 +118,9 @@ bool DistanceCalculator::distanceInCallGraph(
 }
 
 WeightResult DistanceCalculator::tryGetLocalWeight(
-    KInstIterator pc, KInstIterator initPC, BasicBlock *pcBlock,
+    KInstruction *pc, KInstruction *initPC, BasicBlock *pcBlock,
     BasicBlock *prevPCBlock, weight_type &weight,
-    const std::vector<KBlock *> &localTargets, Target *target) {
+    const std::vector<KBlock *> &localTargets, ref<Target> target) {
   KFunction *currentKF = pc->parent->parent;
   KBlock *initKB = initPC->parent;
   KBlock *currentKB = currentKF->blockMap[pcBlock];
@@ -148,11 +146,11 @@ WeightResult DistanceCalculator::tryGetLocalWeight(
 }
 
 WeightResult DistanceCalculator::tryGetPreTargetWeight(
-    KInstIterator pc, KInstIterator initPC, BasicBlock *pcBlock,
+    KInstruction *pc, KInstruction *initPC, BasicBlock *pcBlock,
     BasicBlock *prevPCBlock, weight_type &weight,
     const std::unordered_map<KFunction *, unsigned int>
         &distanceToTargetFunction,
-    Target *target) {
+    ref<Target> target) {
   KFunction *currentKF = pc->parent->parent;
   std::vector<KBlock *> localTargets;
   for (auto &kCallBlock : currentKF->kCallBlocks) {
@@ -174,8 +172,8 @@ WeightResult DistanceCalculator::tryGetPreTargetWeight(
 }
 
 WeightResult DistanceCalculator::tryGetPostTargetWeight(
-    KInstIterator pc, KInstIterator initPC, BasicBlock *pcBlock,
-    BasicBlock *prevPCBlock, weight_type &weight, Target *target) {
+    KInstruction *pc, KInstruction *initPC, BasicBlock *pcBlock,
+    BasicBlock *prevPCBlock, weight_type &weight, ref<Target> target) {
   KFunction *currentKF = pc->parent->parent;
   std::vector<KBlock *> &localTargets = currentKF->returnKBlocks;
 
@@ -188,8 +186,8 @@ WeightResult DistanceCalculator::tryGetPostTargetWeight(
 }
 
 WeightResult DistanceCalculator::tryGetTargetWeight(
-    KInstIterator pc, KInstIterator initPC, BasicBlock *pcBlock,
-    BasicBlock *prevPCBlock, weight_type &weight, Target *target) {
+    KInstruction *pc, KInstruction *initPC, BasicBlock *pcBlock,
+    BasicBlock *prevPCBlock, weight_type &weight, ref<Target> target) {
   std::vector<KBlock *> localTargets = {target->getBlock()};
   WeightResult res = tryGetLocalWeight(pc, initPC, pcBlock, prevPCBlock, weight,
                                        localTargets, target);

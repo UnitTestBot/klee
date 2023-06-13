@@ -43,12 +43,11 @@ public:
   explicit DistanceCalculator(CodeGraphDistance &codeGraphDistance_)
       : codeGraphDistance(codeGraphDistance_) {}
 
-  DistanceResult getDistance(ExecutionState *es, Target *target);
-  DistanceResult getDistance(KInstIterator pc, KInstIterator prevPC,
-                             KInstIterator initPC,
+  DistanceResult getDistance(ExecutionState &es, ref<Target> target);
+  DistanceResult getDistance(KInstruction *pc, KInstruction *prevPC,
+                             KInstruction *initPC,
                              const ExecutionState::stack_ty &stack,
-                             ReachWithError error, llvm::BasicBlock *pcBlock,
-                             llvm::BasicBlock *prevPCBlock, Target *target);
+                             ReachWithError error, ref<Target> target);
 
 private:
   CodeGraphDistance &codeGraphDistance;
@@ -56,28 +55,28 @@ private:
   bool distanceInCallGraph(KFunction *kf, KBlock *kb, unsigned int &distance,
                            const std::unordered_map<KFunction *, unsigned int>
                                &distanceToTargetFunction,
-                           Target *target);
-  WeightResult tryGetLocalWeight(KInstIterator pc, KInstIterator initPC,
+                           ref<Target> target);
+  WeightResult tryGetLocalWeight(KInstruction *pc, KInstruction *initPC,
                                  llvm::BasicBlock *pcBlock,
                                  llvm::BasicBlock *prevPCBlock,
                                  weight_type &weight,
                                  const std::vector<KBlock *> &localTargets,
-                                 Target *target);
+                                 ref<Target> target);
   WeightResult
-  tryGetPreTargetWeight(KInstIterator pc, KInstIterator initPC,
+  tryGetPreTargetWeight(KInstruction *pc, KInstruction *initPC,
                         llvm::BasicBlock *pcBlock,
                         llvm::BasicBlock *prevPCBlock, weight_type &weight,
                         const std::unordered_map<KFunction *, unsigned int>
                             &distanceToTargetFunction,
-                        Target *target);
-  WeightResult tryGetTargetWeight(KInstIterator pc, KInstIterator initPC,
+                        ref<Target> target);
+  WeightResult tryGetTargetWeight(KInstruction *pc, KInstruction *initPC,
                                   llvm::BasicBlock *pcBlock,
                                   llvm::BasicBlock *prevPCBlock,
-                                  weight_type &weight, Target *target);
-  WeightResult tryGetPostTargetWeight(KInstIterator pc, KInstIterator initPC,
+                                  weight_type &weight, ref<Target> target);
+  WeightResult tryGetPostTargetWeight(KInstruction *pc, KInstruction *initPC,
                                       llvm::BasicBlock *pcBlock,
                                       llvm::BasicBlock *prevPCBlock,
-                                      weight_type &weight, Target *target);
+                                      weight_type &weight, ref<Target> target);
 };
 } // namespace klee
 
