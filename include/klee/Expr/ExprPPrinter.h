@@ -56,6 +56,9 @@ public:
 
   static void printSignleArray(llvm::raw_ostream &os, const Array *a);
 
+  static void printSignleSource(llvm::raw_ostream &os,
+                                const ref<SymbolicSource> s);
+
   static void printConstraints(llvm::raw_ostream &os,
                                const ConstraintSet &constraints);
 

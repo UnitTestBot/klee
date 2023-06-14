@@ -1,16 +1,16 @@
 # RUN: %kleaver %s 2>&1 | FileCheck %s
-0 : (array (w64 4) (makeSymbolic n_args 1))
-1 : (array (w64 4) (makeSymbolic n_args_1 1))
-2 : (array (w64 144) (makeSymbolic A-data-stat 1))
-3 : (array (w64 144) (makeSymbolic stdin-stat 1))
+makeSymbolic0 : (array (w64 4) (makeSymbolic n_args 0))
+makeSymbolic1 : (array (w64 4) (makeSymbolic n_args_1 0))
+makeSymbolic2 : (array (w64 144) (makeSymbolic A-data-stat 0))
+makeSymbolic3 : (array (w64 144) (makeSymbolic stdin-stat 0))
 
-(query [(Ult N0:(ReadLSB w32 0 0) 2)
+(query [(Ult N0:(ReadLSB w32 0 makeSymbolic0) 2)
 (Slt 0 N0)
-(Ult N1:(ReadLSB w32 0 1) 3)
+(Ult N1:(ReadLSB w32 0 makeSymbolic1) 3)
 (Slt 0 N1)
 (Slt 1 N1)
-(Eq false (Eq 0 (And w64 (ReadLSB w64 8 2) 2147483647)))
-(Ult (ReadLSB w64 56 2) 65536)
-(Eq false (Eq 0 (And w64 (ReadLSB w64 8 3) 2147483647)))]
-(Eq false (Ult (ReadLSB w64 56 3) 65536)) [] [0])
+(Eq false (Eq 0 (And w64 (ReadLSB w64 8 makeSymbolic2) 2147483647)))
+(Ult (ReadLSB w64 56 makeSymbolic2) 65536)
+(Eq false (Eq 0 (And w64 (ReadLSB w64 8 makeSymbolic3) 2147483647)))]
+(Eq false (Ult (ReadLSB w64 56 makeSymbolic3) 65536)) [] [makeSymbolic0])
 # CHECK: INVALID

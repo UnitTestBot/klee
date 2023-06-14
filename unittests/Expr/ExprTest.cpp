@@ -135,7 +135,7 @@ TEST(ExprTest, ReadExprFoldingBasic) {
 
   const Array *array =
       ac.CreateArray(ConstantExpr::create(size, sizeof(uint64_t) * CHAR_BIT),
-                     SourceBuilder::constant("arr", Contents));
+                     SourceBuilder::constant(Contents));
 
   // Basic constant folding rule
   UpdateList ul(array, 0);
@@ -162,7 +162,7 @@ TEST(ExprTest, ReadExprFoldingIndexOutOfBound) {
   ArrayCache ac;
   const Array *array =
       ac.CreateArray(ConstantExpr::create(size, sizeof(uint64_t) * CHAR_BIT),
-                     SourceBuilder::constant("arr", Contents));
+                     SourceBuilder::constant(Contents));
 
   // Constant folding rule with index-out-of-bound
   // Constant index (128)
@@ -185,7 +185,7 @@ TEST(ExprTest, ReadExprFoldingConstantUpdate) {
 
   const Array *array =
       ac.CreateArray(ConstantExpr::create(size, sizeof(uint64_t) * CHAR_BIT),
-                     SourceBuilder::constant("arr", Contents));
+                     SourceBuilder::constant(Contents));
 
   // Constant folding rule with constant update
   // Constant index (0)
@@ -212,7 +212,7 @@ TEST(ExprTest, ReadExprFoldingConstantMultipleUpdate) {
 
   const Array *array =
       ac.CreateArray(ConstantExpr::create(size, sizeof(uint64_t) * CHAR_BIT),
-                     SourceBuilder::constant("arr", Contents));
+                     SourceBuilder::constant(Contents));
 
   // Constant folding rule with constant update
   // Constant index (0)
@@ -241,7 +241,7 @@ TEST(ExprTest, ReadExprFoldingSymbolicValueUpdate) {
 
   const Array *array =
       ac.CreateArray(ConstantExpr::create(size, sizeof(uint64_t) * CHAR_BIT),
-                     SourceBuilder::constant("arr", Contents));
+                     SourceBuilder::constant(Contents));
 
   // Constant folding rule with symbolic update (value)
   // Constant index (0)
@@ -270,7 +270,7 @@ TEST(ExprTest, ReadExprFoldingSymbolicIndexUpdate) {
 
   const Array *array =
       ac.CreateArray(ConstantExpr::create(size, sizeof(uint64_t) * CHAR_BIT),
-                     SourceBuilder::constant("arr", Contents));
+                     SourceBuilder::constant(Contents));
 
   // Constant folding rule with symbolic update (index)
   UpdateList ul(array, 0);

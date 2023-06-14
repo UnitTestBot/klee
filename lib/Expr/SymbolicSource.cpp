@@ -1,6 +1,7 @@
 #include "klee/Expr/SymbolicSource.h"
 
 #include "klee/Expr/Expr.h"
+#include "klee/Expr/ExprPPrinter.h"
 #include "klee/Expr/ExprUtil.h"
 
 #include "llvm/IR/BasicBlock.h"
@@ -12,8 +13,25 @@ namespace klee {
 int SymbolicSource::compare(const SymbolicSource &b) const {
   return internalCompare(b);
 }
+
 bool SymbolicSource::equals(const SymbolicSource &b) const {
   return compare(b) == 0;
+}
+
+void SymbolicSource::print(llvm::raw_ostream &os) const {
+  ExprPPrinter::printSignleSource(os, const_cast<SymbolicSource *>(this));
+}
+
+void SymbolicSource::dump() const {
+  this->print(llvm::errs());
+  llvm::errs() << "\n";
+}
+
+std::string SymbolicSource::toString() const {
+  std::string str;
+  llvm::raw_string_ostream output(str);
+  this->print(output);
+  return str;
 }
 
 std::set<const Array *> LazyInitializationSource::getRelatedArrays() const {
@@ -64,30 +82,28 @@ unsigned LazyInitializationSource::computeHash() {
   return hashValue;
 }
 
-std::string LazyInitializationSource::toString() const {
-  return "LI" + pointer->toString() + "<" + getName() + ">";
-};
-
-std::string ArgumentSource::toString() const {
-  std::string repr = allocSite.getParent()->getName().str();
-  std::string label;
-  llvm::raw_string_ostream label_stream(label);
-  label_stream << allocSite;
-  size_t regNum = label_stream.str().find('%');
-  repr += label_stream.str().substr(regNum);
-  repr += "#" + llvm::itostr(index);
-  return repr + "<" + getName() + ">";
+unsigned ArgumentSource::computeHash() {
+  unsigned res = (getKind() * SymbolicSource::MAGIC_HASH_CONSTANT) + index;
+  auto parent = allocSite.getParent();
+  res = (res * SymbolicSource::MAGIC_HASH_CONSTANT) +
+        km->functionIDMap.at(parent);
+  res = (res * SymbolicSource::MAGIC_HASH_CONSTANT) + allocSite.getArgNo();
+  hashValue = res;
+  return hashValue;
 }
 
-std::string InstructionSource::toString() const {
-  std::string repr = allocSite.getParent()->getParent()->getName().str();
-  std::string label;
-  llvm::raw_string_ostream label_stream(label);
-  label_stream << allocSite;
-  size_t regNum = label_stream.str().find('=');
-  repr += label_stream.str().substr(2, regNum - 3);
-  repr += "#" + llvm::itostr(index);
-  return repr + "<" + getName() + ">";
+unsigned InstructionSource::computeHash() {
+  unsigned res = (getKind() * SymbolicSource::MAGIC_HASH_CONSTANT) + index;
+  auto function = allocSite.getParent()->getParent();
+  auto kf = km->functionMap.at(function);
+  auto block = allocSite.getParent();
+  res = (res * SymbolicSource::MAGIC_HASH_CONSTANT) +
+        km->functionIDMap.at(function);
+  res = (res * SymbolicSource::MAGIC_HASH_CONSTANT) + kf->blockMap[block]->id;
+  res = (res * SymbolicSource::MAGIC_HASH_CONSTANT) +
+        kf->instructionMap[&allocSite]->index;
+  hashValue = res;
+  return hashValue;
 }
 
 } // namespace klee

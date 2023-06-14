@@ -272,7 +272,7 @@ static bool EvaluateInputAST(const char *Filename, const llvm::MemoryBuffer *MB,
           Assignment solutionAssugnment(QC->Objects, result);
           for (unsigned i = 0, e = result.size(); i != e; ++i) {
             llvm::outs() << "\tArray " << i << ":\t"
-                         << QC->Objects[i]->getIdentifiedID() << "[";
+                         << QC->Objects[i]->getIdentifier() << "[";
             ref<ConstantExpr> arrayConstantSize = dyn_cast<ConstantExpr>(
                 solutionAssugnment.evaluate(QC->Objects[i]->size));
             assert(arrayConstantSize &&

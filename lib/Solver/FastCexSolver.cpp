@@ -1022,12 +1022,12 @@ public:
       ref<ConstantExpr> arrayConstantSize = dyn_cast<ConstantExpr>(A->size);
       if (!arrayConstantSize) {
         klee_warning("Cannot dump %s as it has symbolic size\n",
-                     A->getIdentifiedID().c_str());
+                     A->getIdentifier().c_str());
       }
 
       CexObjectData *COD = it->second;
 
-      llvm::errs() << A->getIdentifiedID() << "\n";
+      llvm::errs() << A->getIdentifier() << "\n";
       llvm::errs() << "possible: [";
       for (unsigned i = 0; i < arrayConstantSize->getZExtValue(); ++i) {
         if (i)

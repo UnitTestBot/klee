@@ -6,9 +6,8 @@
 using namespace klee;
 
 ref<SymbolicSource>
-SourceBuilder::constant(const std::string &name,
-                        const std::vector<ref<ConstantExpr>> &constantValues) {
-  ref<SymbolicSource> r(new ConstantSource(name, constantValues));
+SourceBuilder::constant(const std::vector<ref<ConstantExpr>> &constantValues) {
+  ref<SymbolicSource> r(new ConstantSource(constantValues));
   r->computeHash();
   return r;
 }

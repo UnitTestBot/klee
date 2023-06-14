@@ -1,16 +1,16 @@
 # RUN: not %kleaver %s 2> %t.log
 
 
-# RUN: grep "TypeChecking.kquery:7:9: error: type widths do not match in binary expression" %t.log
-0 : (array (w64 8) (makeSymbolic arr1 1))
 
-(query [(Eq (ReadLSB w32 0 0) true)]
+# RUN: grep "TypeChecking.kquery:7:9: error: type widths do not match in binary expression" %t.log
+arr1 : (array (w64 8) (makeSymbolic arr1 0))
+(query [(Eq (ReadLSB w32 0 arr1) true)]
        false)
 
 # RUN: grep "TypeChecking.kquery:14:25: error: invalid write index (doesn't match array domain)" %t.log
 # RUN: grep "TypeChecking.kquery:14:35: error: invalid write value (doesn't match array range)" %t.log
 # FIXME: Add array declarations
-1 : (array (w64 8) (makeSymbolic arr2 1))
-(query [(Eq (Read w8 0 [ (w17 0) = (w9 0) ] @ 1) 0)] false)
+arr2 : (array (w64 8) (makeSymbolic arr2 0))
+(query [(Eq (Read w8 0 [ (w17 0) = (w9 0) ] @ arr2) 0)] false)
 
 # RUN: grep "TypeChecking.kquery: parse failure: 3 errors." %t.log

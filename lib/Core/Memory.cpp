@@ -235,8 +235,8 @@ const UpdateList &ObjectState::getUpdates() const {
         }
       }
     } else {
-      array = getArrayCache()->CreateArray(
-          object->getSizeExpr(), SourceBuilder::constant(arrayName, Contents));
+      array = getArrayCache()->CreateArray(object->getSizeExpr(),
+                                           SourceBuilder::constant(Contents));
       updates = UpdateList(array, 0);
     }
 

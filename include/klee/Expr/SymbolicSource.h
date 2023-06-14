@@ -49,7 +49,9 @@ public:
   static bool classof(const SymbolicSource *) { return true; }
   unsigned hash() const { return hashValue; }
   virtual unsigned computeHash() = 0;
-  virtual std::string toString() const = 0;
+  virtual void print(llvm::raw_ostream &os) const;
+  void dump() const;
+  std::string toString() const;
   virtual int internalCompare(const SymbolicSource &b) const = 0;
   int compare(const SymbolicSource &b) const;
   bool equals(const SymbolicSource &b) const;
@@ -57,15 +59,13 @@ public:
 
 class ConstantSource : public SymbolicSource {
 public:
-  const std::string name;
   /// constantValues - The constant initial values for this array, or empty for
   /// a symbolic array. If non-empty, this size of this array is equivalent to
   /// the array size.
   const std::vector<ref<ConstantExpr>> constantValues;
 
-  ConstantSource(const std::string &_name,
-                 const std::vector<ref<ConstantExpr>> &_constantValues)
-      : name(_name), constantValues(_constantValues){};
+  ConstantSource(const std::vector<ref<ConstantExpr>> &_constantValues)
+      : constantValues(_constantValues){};
   Kind getKind() const override { return Kind::Constant; }
   virtual std::string getName() const override { return "constant"; }
   uint64_t size() const { return constantValues.size(); }
@@ -74,7 +74,6 @@ public:
     return S->getKind() == Kind::Constant;
   }
   static bool classof(const ConstantSource *) { return true; }
-  virtual std::string toString() const override { return name; }
   virtual unsigned computeHash() override;
 
   virtual int internalCompare(const SymbolicSource &b) const override {
@@ -104,9 +103,6 @@ public:
     return S->getKind() == Kind::SymbolicSizeConstant;
   }
   static bool classof(const SymbolicSizeConstantSource *) { return true; }
-  virtual std::string toString() const override {
-    return getName() + "<default" + llvm::utostr(defaultValue) + ">";
-  }
 
   virtual unsigned computeHash() override;
 
@@ -140,10 +136,6 @@ public:
   }
   static bool classof(const SymbolicSizeConstantAddressSource *) {
     return true;
-  }
-  virtual std::string toString() const override {
-    return getName() + "<default" + llvm::utostr(defaultValue) + "version" +
-           llvm::utostr(version) + ">";
   }
 
   virtual unsigned computeHash() override;
@@ -179,10 +171,6 @@ public:
   }
   static bool classof(const MakeSymbolicSource *) { return true; }
 
-  virtual std::string toString() const override {
-    return version == 0 ? name : name + llvm::utostr(version);
-  }
-
   virtual unsigned computeHash() override;
 
   virtual int internalCompare(const SymbolicSource &b) const override {
@@ -212,7 +200,6 @@ public:
   }
 
   virtual unsigned computeHash() override;
-  virtual std::string toString() const override;
 
   virtual int internalCompare(const SymbolicSource &b) const override {
     if (getKind() != b.getKind()) {
@@ -286,15 +273,7 @@ public:
 
   virtual const llvm::Value &value() const = 0;
 
-  virtual unsigned computeHash() override {
-    unsigned res = (getKind() * SymbolicSource::MAGIC_HASH_CONSTANT) + index;
-    std::string name = toString();
-    for (unsigned i = 0, e = name.size(); i != e; ++i) {
-      res = (res * SymbolicSource::MAGIC_HASH_CONSTANT) + name[i];
-    }
-    hashValue = res;
-    return hashValue;
-  }
+  virtual unsigned computeHash() = 0;
 };
 
 class ArgumentSource : public ValueSource {
@@ -315,7 +294,7 @@ public:
 
   const llvm::Value &value() const override { return allocSite; }
 
-  virtual std::string toString() const override;
+  virtual unsigned computeHash() override;
 
   virtual int internalCompare(const SymbolicSource &b) const override {
     if (getKind() != b.getKind()) {
@@ -357,7 +336,7 @@ public:
 
   const llvm::Value &value() const override { return allocSite; }
 
-  virtual std::string toString() const override;
+  virtual unsigned computeHash() override;
 
   virtual int internalCompare(const SymbolicSource &b) const override {
     if (getKind() != b.getKind()) {

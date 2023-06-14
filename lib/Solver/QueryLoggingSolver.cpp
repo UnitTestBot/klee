@@ -187,7 +187,7 @@ bool QueryLoggingSolver::computeInitialValues(
            i != e; ++i, ++values_it) {
         const Array *array = *i;
         SparseStorage<unsigned char> &data = *values_it;
-        logBuffer << queryCommentSign << "     " << array->getIdentifiedID()
+        logBuffer << queryCommentSign << "     " << array->getIdentifier()
                   << " = [";
         ref<ConstantExpr> arrayConstantSize =
             dyn_cast<ConstantExpr>(solutionAssignment.evaluate(array->size));
@@ -235,7 +235,7 @@ bool QueryLoggingSolver::check(const Query &query,
            i != e; ++i) {
         const Array *array = i->first;
         const SparseStorage<unsigned char> &data = i->second;
-        logBuffer << queryCommentSign << "     " << array->getIdentifiedID()
+        logBuffer << queryCommentSign << "     " << array->getIdentifier()
                   << " = [";
         ref<ConstantExpr> arrayConstantSize =
             dyn_cast<ConstantExpr>(solutionAssignment.evaluate(array->size));

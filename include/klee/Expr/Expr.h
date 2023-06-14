@@ -614,7 +614,9 @@ public:
   }
 
   const std::string getName() const { return source->toString(); }
-  const std::string getIdentifiedID() const { return "A" + llvm::utostr(id); }
+  const std::string getIdentifier() const {
+    return source->getName() + llvm::utostr(id);
+  }
   ref<Expr> getSize() const { return size; }
   Expr::Width getDomain() const { return domain; }
   Expr::Width getRange() const { return range; }

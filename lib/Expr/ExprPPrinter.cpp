@@ -155,7 +155,7 @@ private:
       if (printArrayDecls) {
         printArrayDecl(updates.root, PC);
       } else {
-        PC << updates.root->id;
+        PC << updates.root->getIdentifier();
       }
       return;
     }
@@ -210,7 +210,7 @@ private:
     if (printArrayDecls) {
       printArrayDecl(updates.root, PC);
     } else {
-      PC << updates.root->id;
+      PC << updates.root->getIdentifier();
     }
   }
 
@@ -381,7 +381,7 @@ public:
     PC << "(";
     PC << source->getName() << " ";
     if (auto s = dyn_cast<ConstantSource>(source)) {
-      PC << s->name << " [";
+      PC << " [";
       for (unsigned i = 0; i < s->constantValues.size(); i++) {
         PC << s->constantValues[i];
         if (i != s->constantValues.size() - 1) {
@@ -520,9 +520,16 @@ void ExprPPrinter::printSingleExpr(llvm::raw_ostream &os, const ref<Expr> &e) {
 
 void ExprPPrinter::printSignleArray(llvm::raw_ostream &os, const Array *a) {
   PPrinter p(os);
-  os << a->id << " : ";
+  os << a->getIdentifier() << " : ";
   PrintContext PC(os);
   p.printArrayDecl(a, PC);
+}
+
+void ExprPPrinter::printSignleSource(llvm::raw_ostream &os,
+                                     const ref<SymbolicSource> s) {
+  PPrinter p(os);
+  PrintContext PC(os);
+  p.printSource(s, PC);
 }
 
 void ExprPPrinter::printConstraints(llvm::raw_ostream &os,
@@ -579,7 +586,7 @@ void ExprPPrinter::printQuery(
                                               ie = sortedArray.end();
          it != ie; ++it) {
       const Array *A = *it;
-      PC << A->id << " : ";
+      PC << A->getIdentifier() << " : ";
       p.printArrayDecl(A, PC);
       PC.breakLine();
     }
@@ -621,7 +628,7 @@ void ExprPPrinter::printQuery(
     PC.breakLine(indent - 1);
     PC << '[';
     for (const Array *const *it = evalArraysBegin; it != evalArraysEnd; ++it) {
-      PC << (*it)->id;
+      PC << (*it)->getIdentifier();
       if (it + 1 != evalArraysEnd)
         PC.breakLine(indent);
     }

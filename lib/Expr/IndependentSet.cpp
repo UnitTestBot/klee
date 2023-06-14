@@ -131,7 +131,7 @@ void IndependentElementSet::print(llvm::raw_ostream &os) const {
       os << ", ";
     }
 
-    os << "MO" << array->getIdentifiedID();
+    os << "MO" << array->getIdentifier();
   }
   for (elements_ty::const_iterator it = elements.begin(), ie = elements.end();
        it != ie; ++it) {
@@ -144,7 +144,7 @@ void IndependentElementSet::print(llvm::raw_ostream &os) const {
       os << ", ";
     }
 
-    os << "MO" << array->getIdentifiedID() << " : " << dis;
+    os << "MO" << array->getIdentifier() << " : " << dis;
   }
   os << "}";
 }

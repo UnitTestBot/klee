@@ -136,7 +136,6 @@ class ParserImpl : public Parser {
   /* Core parsing functionality */
 
   const Identifier *GetOrCreateIdentifier(const Token &Tok);
-  const Identifier *GetOrCreateIdentifier(const std::string &name);
 
   void GetNextNonCommentToken() {
     do {
@@ -386,22 +385,11 @@ const Identifier *ParserImpl::GetOrCreateIdentifier(const Token &Tok) {
   return I;
 }
 
-const Identifier *ParserImpl::GetOrCreateIdentifier(const std::string &name) {
-  IdentifierTabTy::iterator it = IdentifierTab.find(name);
-  if (it != IdentifierTab.end())
-    return it->second;
-
-  Identifier *I = new Identifier(name);
-  IdentifierTab.insert(std::make_pair(name, I));
-
-  return I;
-}
-
 Decl *ParserImpl::ParseTopLevelDecl() {
   // Repeat until success or EOF.
   while (Tok.kind != Token::EndOfFile) {
     switch (Tok.kind) {
-    case Token::Number: {
+    case Token::Identifier: {
       DeclResult Res = ParseArrayDecl();
       if (Res.isValid())
         return Res.get();
@@ -416,7 +404,7 @@ Decl *ParserImpl::ParseTopLevelDecl() {
     }
 
     default:
-      Error("expected 'array' or '(' token.");
+      Error("expected identifier or '(' token.");
       ConsumeAnyToken();
     }
   }
@@ -435,7 +423,7 @@ DeclResult ParserImpl::ParseArrayDecl() {
   // something.
   Token ID = Tok;
 
-  ConsumeExpectedToken(Token::Number);
+  ConsumeExpectedToken(Token::Identifier);
   ConsumeExpectedToken(Token::Colon);
 
   ConsumeLParen();
@@ -467,13 +455,13 @@ DeclResult ParserImpl::ParseArrayDecl() {
 
   auto array = TheArrayCache->CreateArray(size, source, domain, range);
 
-  auto IDExpr = ParseNumberToken(64, ID).get();
-  assert(isa<ConstantExpr>(IDExpr));
-  auto name = "A" + IDExpr->toString();
+  // auto IDExpr = ParseNumberToken(64, ID).get();
+  // assert(isa<ConstantExpr>(IDExpr));
+  // auto name = "A" + IDExpr->toString();
 
   ArrayDecl *AD = new ArrayDecl(array);
 
-  auto Label = GetOrCreateIdentifier(name);
+  auto Label = GetOrCreateIdentifier(ID);
 
   ArraySymTab[Label] = AD;
 
@@ -517,8 +505,6 @@ SourceResult ParserImpl::ParseSource() {
 
 SourceResult ParserImpl::ParseConstantSource() {
   std::vector<ref<ConstantExpr>> Values;
-  auto Name = Tok;
-  ConsumeExpectedToken(Token::Identifier);
   ConsumeLSquare();
   while (Tok.kind != Token::RSquare) {
     if (Tok.kind == Token::EndOfFile) {
@@ -531,7 +517,7 @@ SourceResult ParserImpl::ParseConstantSource() {
       Values.push_back(cast<ConstantExpr>(Res.get()));
   }
   ConsumeRSquare();
-  return SourceBuilder::constant(Name.getString(), Values);
+  return SourceBuilder::constant(Values);
 }
 
 SourceResult ParserImpl::ParseSymbolicSizeConstantSource() {
@@ -725,14 +711,14 @@ DeclResult ParserImpl::ParseQueryCommand() {
     }
 
     // FIXME: Factor out.
-    if (Tok.kind != Token::Number) {
+    if (Tok.kind != Token::Identifier) {
       Error("unexpected token.");
       ConsumeToken();
       continue;
     }
 
     Token LTok = Tok;
-    const Identifier *Label = GetOrCreateIdentifier("A" + Tok.getString());
+    const Identifier *Label = GetOrCreateIdentifier(Tok);
     ConsumeToken();
 
     // Lookup array.
@@ -1378,16 +1364,10 @@ ExprResult ParserImpl::ParseAnyReadParenExpr(const Token &Name, unsigned Kind,
 /// version-specifier = [<identifier>:] [ version ]
 VersionResult ParserImpl::ParseVersionSpecifier() {
   const Identifier *Label = 0;
-
-  if (Tok.kind == Token::Identifier || Tok.kind == Token::Number) {
+  if (Tok.kind == Token::Identifier) {
     Token LTok = Tok;
-    if (Tok.kind == Token::Identifier) {
-      Label = GetOrCreateIdentifier(Tok);
-      ConsumeToken();
-    } else {
-      auto arrayNumExpr = ParseNumber(64);
-      Label = GetOrCreateIdentifier("A" + arrayNumExpr.get()->toString());
-    }
+    Label = GetOrCreateIdentifier(Tok);
+    ConsumeToken();
 
     if (Tok.kind != Token::Colon) {
       VersionSymTabTy::iterator it = VersionSymTab.find(Label);
@@ -1701,7 +1681,10 @@ ParserImpl::~ParserImpl() {
 
 Decl::Decl(DeclKind _Kind) : Kind(_Kind) {}
 
-void ArrayDecl::dump() { ExprPPrinter::printSignleArray(llvm::outs(), Root); }
+void ArrayDecl::dump() {
+  ExprPPrinter::printSignleArray(llvm::outs(), Root);
+  llvm::outs() << "\n";
+}
 
 void QueryCommand::dump() {
   const ExprHandle *ValuesBegin = 0, *ValuesEnd = 0;

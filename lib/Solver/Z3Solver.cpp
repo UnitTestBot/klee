@@ -458,7 +458,8 @@ bool Z3SolverImpl::internalRunSolver(
 
   if (dumpedQueriesFile) {
     *dumpedQueriesFile << "; start Z3 query\n";
-    *dumpedQueriesFile << Z3_params_to_string(builder->ctx, solverParameters);
+    *dumpedQueriesFile << Z3_params_to_string(builder->ctx, solverParameters)
+                       << "\n";
     *dumpedQueriesFile << Z3_solver_to_string(builder->ctx, theSolver);
     *dumpedQueriesFile << "(check-sat)\n";
     *dumpedQueriesFile << "(reset)\n";

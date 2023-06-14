@@ -497,7 +497,7 @@ void ExprSMTLIBPrinter::printUpdatesAndArray(const UpdateNode *un,
     *p << ")";
   } else {
     // The base case of the recursion
-    *p << root->getIdentifiedID();
+    *p << root->getIdentifier();
   }
 }
 
@@ -569,7 +569,7 @@ void ExprSMTLIBPrinter::printArrayDeclarations() {
   std::sort(sortedArrays.begin(), sortedArrays.end(), ArrayPtrsByName());
   for (std::vector<const Array *>::iterator it = sortedArrays.begin();
        it != sortedArrays.end(); it++) {
-    *o << "(declare-fun " << (*it)->getIdentifiedID()
+    *o << "(declare-fun " << (*it)->getIdentifier()
        << " () "
           "(Array (_ BitVec "
        << (*it)->getDomain()
@@ -605,7 +605,7 @@ void ExprSMTLIBPrinter::printArrayDeclarations() {
           p->pushIndent();
           printSeperator();
 
-          *p << "(select " << array->getIdentifiedID() << " (_ bv" << byteIndex
+          *p << "(select " << array->getIdentifier() << " (_ bv" << byteIndex
              << " " << array->getDomain() << ") )";
           printSeperator();
 
@@ -698,12 +698,12 @@ void ExprSMTLIBPrinter::printAction() {
         klee_warning(
             "Query for %s can not  be printed as it has non-conretized "
             "symbolic size!",
-            theArray->getIdentifiedID().c_str());
+            theArray->getIdentifier().c_str());
         continue;
       }
       for (unsigned int index = 0; index < arrayConstantSize->getZExtValue();
            ++index) {
-        *o << "(get-value ( (select " << (**it).getIdentifiedID() << " (_ bv"
+        *o << "(get-value ( (select " << (**it).getIdentifier() << " (_ bv"
            << index << " " << theArray->getDomain() << ") ) ) )\n";
       }
     }

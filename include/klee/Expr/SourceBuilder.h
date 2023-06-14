@@ -12,8 +12,7 @@ public:
   SourceBuilder() = delete;
 
   static ref<SymbolicSource>
-  constant(const std::string &name,
-           const std::vector<ref<ConstantExpr>> &constantValues);
+  constant(const std::vector<ref<ConstantExpr>> &constantValues);
   static ref<SymbolicSource> symbolicSizeConstant(unsigned defaultValue);
   static ref<SymbolicSource> symbolicSizeConstantAddress(unsigned defaultValue,
                                                          unsigned version);

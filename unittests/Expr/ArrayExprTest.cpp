@@ -41,7 +41,7 @@ TEST(ArrayExprTest, HashCollisions) {
                                            ConstantExpr::create(5, Expr::Int8));
   const Array *array = ac.CreateArray(
       ConstantExpr::create(256, sizeof(uint64_t) * CHAR_BIT),
-      SourceBuilder::constant("arr0", constVals), Expr::Int32, Expr::Int8);
+      SourceBuilder::constant(constVals), Expr::Int32, Expr::Int8);
   const Array *symArray =
       ac.CreateArray(ConstantExpr::create(4, sizeof(uint64_t) * CHAR_BIT),
                      SourceBuilder::makeSymbolic("symIdx", 0));

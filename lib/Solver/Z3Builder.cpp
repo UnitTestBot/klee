@@ -246,7 +246,7 @@ Z3ASTHandle Z3Builder::getInitialArray(const Array *root) {
     // Unique arrays by name, so we make sure the name is unique by
     // using the size of the array hash as a counter.
     std::string unique_id = llvm::utostr(_arr_hash._array_hash.size());
-    std::string unique_name = root->getIdentifiedID() + unique_id;
+    std::string unique_name = root->getIdentifier() + unique_id;
     if (ref<SymbolicSizeConstantSource> symbolicSizeConstantSource =
             dyn_cast<SymbolicSizeConstantSource>(root->source)) {
       array_expr = buildConstantArray(unique_name.c_str(), root->getDomain(),
