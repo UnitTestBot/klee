@@ -666,7 +666,7 @@ void ExprPPrinter::printLemma(llvm::raw_ostream &os, const Lemma &l) {
 
   for (auto it = sortedArray.begin(), ie = sortedArray.end(); it != ie; ++it) {
     const Array *A = *it;
-    PC << A->id << " : ";
+    PC << A->getIdentifier() << " : ";
     p.printArrayDecl(A, PC);
     if (it + 1 != ie) {
       PC.breakLine(2);
