@@ -4069,8 +4069,7 @@ ref<ObjectState> Executor::fillConstant(ExecutionState &state,
                                         ref<ConstantSource> constanSource,
                                         ref<Expr> size) {
   const Array *newArray =
-      makeArray(size, SourceBuilder::constant(constanSource->name,
-                                              constanSource->constantValues));
+      makeArray(size, SourceBuilder::constant(constanSource->constantValues));
   return new ObjectState(constanSource->constantValues.size(), newArray,
                          typeSystemManager->getUnknownType());
 }
