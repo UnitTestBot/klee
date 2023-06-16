@@ -246,8 +246,8 @@ ref<Expr> ComposeVisitor::processRead(const Array *root,
   ref<Expr> size = visit(root->getSize());
   Expr::Width concreteSizeInBits = 0;
   concreteSizeInBits = width;
-  unsigned concreteSize =
-      concreteSizeInBits < CHAR_BIT ? 1 : concreteSizeInBits / CHAR_BIT;
+  unsigned concreteSize = concreteSizeInBits / CHAR_BIT;
+  concreteSize += (concreteSizeInBits % CHAR_BIT == 0) ? 0 : 1;
   ref<Expr> res;
   switch (root->source->getKind()) {
   case SymbolicSource::Kind::Argument:

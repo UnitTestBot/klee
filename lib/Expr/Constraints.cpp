@@ -152,37 +152,20 @@ public:
     std::vector<ref<Expr>> splittedCond;
     Expr::splitAnds(cond, splittedCond);
 
-    ExprHashMap<ref<Expr>> localReplacements;
+    ConstraintSet trueConstraints;
+    ConstraintSet falseConstraints;
+
     for (auto scond : splittedCond) {
-      if (const EqExpr *ee = dyn_cast<EqExpr>(scond)) {
-        if (isa<ConstantExpr>(ee->left)) {
-          localReplacements.insert(std::make_pair(ee->right, ee->left));
-        } else {
-          localReplacements.insert(
-              std::make_pair(scond, ConstantExpr::alloc(1, Expr::Bool)));
-        }
-      } else {
-        localReplacements.insert(
-            std::make_pair(scond, ConstantExpr::alloc(1, Expr::Bool)));
-      }
+      trueConstraints.addConstraint(scond, {});
     }
+    falseConstraints.addConstraint(Expr::createIsZero(cond), {});
 
-    replacements.push_back(localReplacements);
-    visited.pushFrame();
-    auto trueExpr = visit(sexpr.trueExpr);
-    visited.popFrame();
-    replacements.pop_back();
-
-    // Reuse for false branch replacements
-    localReplacements.clear();
-    localReplacements.insert(
-        std::make_pair(cond, ConstantExpr::alloc(0, Expr::Bool)));
-
-    replacements.push_back(localReplacements);
-    visited.pushFrame();
-    auto falseExpr = visit(sexpr.falseExpr);
-    visited.popFrame();
-    replacements.pop_back();
+    auto trueExpr =
+        Simplificator::simplifyExpr(trueConstraints, visit(sexpr.trueExpr))
+            .simplified;
+    auto falseExpr =
+        Simplificator::simplifyExpr(falseConstraints, visit(sexpr.falseExpr))
+            .simplified;
 
     if (trueExpr != sexpr.trueExpr || falseExpr != sexpr.falseExpr) {
       ref<Expr> seres = SelectExpr::create(cond, trueExpr, falseExpr);
@@ -329,7 +312,7 @@ const ExprHashMap<ExprHashSet> &PathConstraints::simplificationMap() const {
 
 const ConstraintSet &PathConstraints::cs() const { return constraints; }
 
-const PathConstraints::ordered_constraints_ty &
+const PathConstraints::path_ordered_constraints_ty &
 PathConstraints::orderedCS() const {
   return orderedConstraints;
 }
@@ -358,7 +341,7 @@ ExprHashSet PathConstraints::addConstraint(ref<Expr> e, const Assignment &delta,
       added.insert(expr);
       pathIndexes.insert({expr, currIndex});
       _simplificationMap[expr].insert(expr);
-      orderedConstraints[currIndex].insert(expr);
+      orderedConstraints[currIndex].push_back(expr);
       constraints.addConstraint(expr, delta);
     }
   }
@@ -404,7 +387,7 @@ PathConstraints PathConstraints::concat(const PathConstraints &l,
     auto index = r.pathIndexes.at(i);
     index.block += offset;
     path.pathIndexes.insert({i, index});
-    path.orderedConstraints[index].insert(i);
+    path.orderedConstraints[index].push_back(i);
   }
   for (const auto &i : r.constraints.cs()) {
     path.constraints.addConstraint(i, {});

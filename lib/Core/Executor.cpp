@@ -4213,8 +4213,7 @@ Executor::ComposeResult Executor::compose(const ExecutionState &state,
         result.success = false;
         return result;
       }
-      ref<Expr> condition =
-          AndExpr::create(composeResult.first, composeResult.second);
+      ref<Expr> condition = composeResult.second;
 
       condition = Simplificator::simplifyExpr(composer.state.constraints.cs(),
                                               condition)
@@ -5705,13 +5704,13 @@ void Executor::executeMemoryOperation(
     bool success = solver->getResponse(state->constraints.cs(), inBounds,
                                        response, state->queryMetaData);
     solver->setTimeout(time::Span());
-    bool mustBeInBounds = !isa<InvalidResponse>(response);
     if (!success) {
       state->pc = state->prevPC;
       terminateStateOnSolverError(*state, "Query timed out (bounds check).");
       return;
     }
 
+    bool mustBeInBounds = !isa<InvalidResponse>(response);
     if (mustBeInBounds) {
       if (isa<UnknownResponse>(response)) {
         addConstraint(*state, inBounds);
@@ -5818,25 +5817,26 @@ void Executor::executeMemoryOperation(
 
           ObjectState *wos = state->addressSpace.getWriteable(mo, os);
           if (wos->readOnly) {
-            branches =
-                fork(*state, resolveConditions[i], true, BranchType::MemOp);
+            branches = fork(*state, Expr::createIsZero(unboundConditions[i]),
+                            true, BranchType::MemOp);
             assert(branches.first);
             terminateStateOnError(*branches.first,
                                   "memory error: object read only",
                                   StateTerminationType::ReadOnly);
             state = branches.second;
           } else {
-            ref<Expr> result =
-                SelectExpr::create(resolveConditions[i], value, results[i]);
+            ref<Expr> result = SelectExpr::create(
+                Expr::createIsZero(unboundConditions[i]), value, results[i]);
             wos->write(mo->getOffsetExpr(address), result);
           }
         }
       } else {
-        ref<Expr> result = results[resolveConditions.size() - 1];
-        for (unsigned int i = 0; i < resolveConditions.size(); ++i) {
-          unsigned int index = resolveConditions.size() - 1 - i;
-          result = SelectExpr::create(resolveConditions[index], results[index],
-                                      result);
+        ref<Expr> result = results[unboundConditions.size() - 1];
+        for (unsigned int i = 0; i < unboundConditions.size(); ++i) {
+          unsigned int index = unboundConditions.size() - 1 - i;
+          result =
+              SelectExpr::create(Expr::createIsZero(unboundConditions[index]),
+                                 results[index], result);
         }
         bindLocal(target, *state, result);
       }
