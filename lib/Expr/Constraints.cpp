@@ -18,6 +18,7 @@
 #include "klee/Expr/IndependentSet.h"
 #include "klee/Expr/Path.h"
 #include "klee/Expr/Symcrete.h"
+#include "klee/Module/KInstruction.h"
 #include "klee/Module/KModule.h"
 #include "klee/Support/OptionCategories.h"
 
@@ -334,12 +335,28 @@ const ExprHashMap<ExprHashSet> &PathConstraints::simplificationMap() const {
 
 const ConstraintSet &PathConstraints::cs() const { return constraints; }
 
-const PathConstraints::ordered_constraints_ty &
+const ConstraintSet &
+PathConstraints::withAssumtions(const ExprHashSet &assumptions) const {
+  if (assumptions.size() == 0) {
+    return cs();
+  }
+  tmpConstraints = constraints;
+  for (auto assump : assumptions) {
+    tmpConstraints.addConstraint(assump, {});
+  }
+  return tmpConstraints;
+}
+
+const PathConstraints::path_ordered_constraints_ty &
 PathConstraints::orderedCS() const {
   return orderedConstraints;
 }
 
-void PathConstraints::advancePath(KInstruction *ki) { _path.advance(ki); }
+void PathConstraints::advancePath(KInstruction *prevPC, KInstruction *pc) {
+  _path.stepInstruction(prevPC, pc);
+}
+
+void PathConstraints::retractPath() { _path.retractInstruction(); }
 
 void PathConstraints::advancePath(const Path &path) {
   _path = Path::concat(_path, path);
@@ -365,7 +382,7 @@ ExprHashSet PathConstraints::addConstraint(ref<Expr> e, const Assignment &delta,
       added.insert(expr);
       pathIndexes.insert({expr, currIndex});
       _simplificationMap[expr].insert(expr);
-      orderedConstraints[currIndex].insert(expr);
+      orderedConstraints[currIndex].push_back(expr);
       constraints.addConstraint(expr, delta);
     }
   }
@@ -400,29 +417,6 @@ void PathConstraints::addSymcrete(ref<Symcrete> s,
 
 void PathConstraints::rewriteConcretization(const Assignment &a) {
   constraints.rewriteConcretization(a);
-}
-
-PathConstraints PathConstraints::concat(const PathConstraints &l,
-                                        const PathConstraints &r) {
-  // TODO : How to handle symcretes and concretization?
-  PathConstraints path = l;
-  path._path = Path::concat(l._path, r._path);
-  auto offset = l._path.KBlockSize();
-  for (const auto &i : r._original) {
-    path._original.insert(i);
-    auto index = r.pathIndexes.at(i);
-    index.block += offset;
-    path.pathIndexes.insert({i, index});
-    path.orderedConstraints[index].insert(i);
-  }
-  for (const auto &i : r.constraints.cs()) {
-    path.constraints.addConstraint(i, {});
-    if (r._simplificationMap.count(i)) {
-      path._simplificationMap.insert({i, r._simplificationMap.at(i)});
-    }
-  }
-  // Run the simplificator on the newly constructed set?
-  return path;
 }
 
 Simplificator::ExprResult
