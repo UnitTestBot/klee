@@ -373,6 +373,7 @@ public:
   bool isGEPExpr(ref<Expr> expr) const;
 
   bool reachedTarget(Target target) const;
+  Target getTarget() const;
 };
 
 struct ExecutionStateIDCompare {

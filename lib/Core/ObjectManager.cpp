@@ -25,7 +25,8 @@ cl::opt<DebugLoggingType> DebugConflicts(
     cl::init(DebugLoggingType::NONE), cl::cat(DebugCat));
 } // namespace klee
 
-ObjectManager::ObjectManager() : initialState(nullptr), emptyState(nullptr) {}
+ObjectManager::ObjectManager(KBlockPredicate predicate)
+    : predicate(predicate), initialState(nullptr), emptyState(nullptr) {}
 
 ObjectManager::~ObjectManager() {}
 
@@ -238,25 +239,30 @@ void ObjectManager::checkReachedStates() {
       toRemove.push_back(state);
       continue;
     }
-    for (auto target : state->targets) {
-      if (state->reachedTarget(target)) {
-        auto copy = state->copy();
-        if (DebugReached) {
-          llvm::errs() << "New isolated state.\n";
-          llvm::errs() << "Id: " << state->id << "\n";
-          llvm::errs() << "Path: " << state->constraints.path().toString()
-                       << "\n";
-          llvm::errs() << "Constraints:\n" << state->constraints.cs();
-          llvm::errs() << "\n";
+
+    auto reached = state->getTarget();
+    if (!reached || state->constraints.path().KBlockSize() == 0) {
+      continue;
+    }
+
+    if (state->targets.count(reached)) {
+      if (DebugReached) {
+        llvm::errs() << "New isolated state\n";
+        llvm::errs() << state->constraints.path().toString() << "\n";
+      }
+      auto copy = state->copy();
+      reachedStates[reached].insert(copy);
+      for (auto pob : pobs[reached]) {
+        if (checkStack(copy, pob)) {
+          addedPropagations.insert({copy, pob});
         }
-        reachedStates[target].insert(copy);
-        for (auto pob : pobs[target]) {
-          if (checkStack(copy, pob)) {
-            addedPropagations.insert({copy, pob});
-          }
-        }
+      }
+      if (predicate(reached.getBlock())) {
         toRemove.push_back(state);
-        break;
+      }
+    } else {
+      if (predicate(reached.getBlock())) {
+        toRemove.push_back(state);
       }
     }
   }

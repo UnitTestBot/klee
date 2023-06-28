@@ -523,7 +523,7 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
       haltExecution(false), ivcEnabled(false),
       debugLogBuffer(debugBufferString) {
 
-  objectManager = std::make_unique<ObjectManager>();
+  objectManager = std::make_unique<ObjectManager>(JointBlockPredicate);
   seedMap = std::make_unique<SeedMap>();
   objectManager->addSubscriber(seedMap.get());
 
@@ -4506,7 +4506,7 @@ void Executor::run(ExecutionState &initialState) {
     Searcher *branch = constructUserSearcher(*this, false);
     BackwardSearcher *backward = constructUserBackwardSearcher();
     Initializer *initializer =
-        new ConflictCoreInitializer(codeGraphDistance.get());
+        new ConflictCoreInitializer(codeGraphDistance.get(), JointBlockPredicate);
     searcher = std::make_unique<BidirectionalSearcher>(forward, branch,
                                                        backward, initializer);
   }

@@ -621,6 +621,12 @@ KFunction::KFunction(llvm::Function *_function, KModule *_km)
     assert(function->begin() != function->end());
     entryKBlock = blockMap[&*function->begin()];
   }
+
+  for (const auto &block : blocks) {
+    if (block->getLastInstruction()->inst->getNumSuccessors() == 0) {
+      finalKBlocks.insert(block.get());
+    }
+  }
 }
 
 KFunction::~KFunction() {
@@ -707,4 +713,32 @@ std::string KBlock::getLabel() const {
 
 std::string KBlock::toString() const {
   return getLabel() + " in function " + parent->function->getName().str();
+}
+
+bool klee::JointBlockPredicate(KBlock *block) {
+  if (block == block->parent->entryKBlock) {
+    return true;
+  }
+
+  if (block->parent->finalKBlocks.count(block)) {
+    return true;
+  }
+
+#if LLVM_VERSION_CODE >= LLVM_VERSION(9, 0)
+  if (block->basicBlock->hasNPredecessorsOrMore(2) ||
+      block->basicBlock->hasNPredecessors(0)) {
+    return true;
+  }
+#else
+  if (block->basicBlock->hasNUsesOrMore(2) || block->basicBlock->hasNUses(0)) {
+    return true;
+  }
+#endif
+
+  if (isa<KCallBlock>(block) && dyn_cast<KCallBlock>(block)->internal() &&
+      !dyn_cast<KCallBlock>(block)->intrinsic()) {
+    return true;
+  }
+
+  return false;
 }

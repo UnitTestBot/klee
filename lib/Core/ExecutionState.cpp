@@ -367,3 +367,17 @@ bool ExecutionState::reachedTarget(Target target) const {
     return pc == target.getBlock()->getFirstInstruction();
   }
 }
+
+Target ExecutionState::getTarget() const {
+  if (isa<KReturnBlock>(prevPC->parent) &&
+      prevPC == prevPC->parent->getLastInstruction()) {
+    // This means we just exited a function and are at the second instruction in
+    // a call block (or exited the execution altogether)
+    return Target(prevPC->parent);
+  } else if (!isa<KReturnBlock>(pc->parent) &&
+             pc == pc->parent->getFirstInstruction()) {
+    return Target(pc->parent);
+  } else {
+    return Target(nullptr);
+  }
+}

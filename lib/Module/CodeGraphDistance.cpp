@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "klee/Module/CodeGraphDistance.h"
+#include "klee/Module/KModule.h"
 #include "llvm/IR/CFG.h"
 
 #include <deque>
@@ -172,44 +173,21 @@ CodeGraphDistance::getSortedBackwardDistance(KFunction *kf) {
   return functionSortedBackwardDistance.at(kf);
 }
 
-KBlock *CodeGraphDistance::getNearestJoinBlock(KBlock *kb) {
-  for (auto &kbd : getSortedBackwardDistance(kb)) {
-#if LLVM_VERSION_CODE >= LLVM_VERSION(9, 0)
-    if (kbd.first->basicBlock->hasNPredecessorsOrMore(2) ||
-        kbd.first->basicBlock->hasNPredecessors(0))
+KBlock *CodeGraphDistance::getNearestPredicateSatisfying(
+    KBlock *kb, KBlockPredicate predicate, bool forward) {
+  auto sortedDistance =
+      forward ? getSortedDistance(kb) : getSortedBackwardDistance(kb);
+  for (auto &kbd : sortedDistance) {
+    if (predicate(kbd.first)) {
       return kbd.first;
-#else
-    if (kbd.first->basicBlock->hasNUsesOrMore(2) ||
-        kbd.first->basicBlock->hasNUses(0))
-      return kbd.first;
-#endif
-  }
-  return nullptr;
-}
-
-KBlock *CodeGraphDistance::getNearestJoinOrCallBlock(KBlock *kb) {
-  for (auto &kbd : getSortedBackwardDistance(kb)) {
-#if LLVM_VERSION_CODE >= LLVM_VERSION(9, 0)
-    if (kbd.first->basicBlock->hasNPredecessorsOrMore(2) ||
-        kbd.first->basicBlock->hasNPredecessors(0) ||
-        (isa<KCallBlock>(kbd.first) &&
-         dyn_cast<KCallBlock>(kbd.first)->internal() &&
-         !dyn_cast<KCallBlock>(kbd.first)->intrinsic()))
-      return kbd.first;
-#else
-    if (kbd.first->basicBlock->hasNUsesOrMore(2) ||
-        kbd.first->basicBlock->hasNUses(0) ||
-        (isa<KCallBlock>(kbd.first) &&
-         dyn_cast<KCallBlock>(kbd.first)->internal() &&
-         !dyn_cast<KCallBlock>(kbd.first)->intrinsic()))
-      return kbd.first;
-#endif
+    }
   }
   return nullptr;
 }
 
 std::vector<std::pair<KBlock *, KBlock *>>
-CodeGraphDistance::dismantle(KBlock *from, std::vector<KBlock *> to) {
+CodeGraphDistance::dismantle(KBlock *from, std::set<KBlock *> to,
+                             KBlockPredicate predicate) {
   for (auto block : to) {
     assert(from->parent == block->parent &&
            "to and from KBlocks are from different functions.");
@@ -228,7 +206,8 @@ CodeGraphDistance::dismantle(KBlock *from, std::vector<KBlock *> to) {
     auto block = queue.front();
     queue.pop();
     for (auto const &pred : predecessors(block->basicBlock)) {
-      auto nearest = getNearestJoinOrCallBlock(kf->blockMap[pred]);
+      auto nearest =
+          getNearestPredicateSatisfying(kf->blockMap[pred], predicate, false);
       if (distance.count(nearest)) {
         if (!used.count(nearest)) {
           used.insert(nearest);

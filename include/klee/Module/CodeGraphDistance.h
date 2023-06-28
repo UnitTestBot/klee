@@ -66,11 +66,11 @@ public:
   const std::vector<std::pair<KFunction *, unsigned int>> &
   getSortedBackwardDistance(KFunction *kf);
 
-  KBlock *getNearestJoinBlock(KBlock *kb);
-  KBlock *getNearestJoinOrCallBlock(KBlock *kb);
+  KBlock *getNearestPredicateSatisfying(KBlock *kb, KBlockPredicate predicate,
+                                        bool forward);
 
   std::vector<std::pair<KBlock *, KBlock *>>
-  dismantle(KBlock *from, std::vector<KBlock *> to);
+  dismantle(KBlock *from, std::set<KBlock *> to, KBlockPredicate predicate);
 };
 
 } // namespace klee
