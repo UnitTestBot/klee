@@ -122,6 +122,10 @@ void ObjectManager::updateSubscribers() {
       checkReachedStates();
     }
 
+    if (!isolated) {
+      checkReachedPobs();
+    }
+
     ref<Event> e = new States(current, addedStates, removedStates, isolated);
     for (auto s : subscribers) {
       s->update(e);
@@ -272,6 +276,31 @@ void ObjectManager::checkReachedStates() {
         removedStates.end()) {
       removeState(state);
     }
+  }
+}
+
+void ObjectManager::checkReachedPobs() {
+  assert(statesUpdated && stateUpdateKind == StateKind::Regular);
+
+  std::set<ExecutionState *> states(addedStates.begin(), addedStates.end());
+  if (current) {
+    states.insert(current);
+  }
+
+  std::set<ProofObligation *> toRemove;
+  for (auto state : states) {
+    auto reached = state->getTarget();
+    if (reached && pobs.count(reached)) {
+      for (auto pob : pobs.at(reached)) {
+        if (!pob->parent) {
+          toRemove.insert(pob);
+        }
+      }
+    }
+  }
+
+  for (auto pob : toRemove) {
+    removePob(pob);
   }
 }
 
