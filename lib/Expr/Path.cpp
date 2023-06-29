@@ -3,6 +3,7 @@
 #include "klee/Module/KInstruction.h"
 #include "klee/Module/KModule.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/IR/CFG.h"
 #include "llvm/Support/Casting.h"
 
 using namespace klee;
@@ -27,6 +28,41 @@ unsigned Path::KBlockSize() const { return KBlocks.size(); }
 
 const Path::path_ty &Path::getBlocks() const { return KBlocks; }
 
+const Path::path_kind_ty Path::getKindedBlocks() const {
+  path_kind_ty kinded;
+  kinded.reserve(KBlocks.size());
+
+  if (KBlocks.size() == 1 && isa<KCallBlock>(KBlocks.front())) {
+    kinded.push_back(
+        {KBlocks.front(), firstInstruction == 0 ? Kind::In : Kind::Out});
+    return kinded;
+  }
+
+  for (unsigned i = 0; i < KBlocks.size(); i++) {
+    if (isa<KCallBlock>(KBlocks[i])) {
+      if (i != KBlocks.size() - 1) {
+        if (KBlocks[i + 1]->parent != KBlocks[i]->parent) {
+          kinded.push_back({KBlocks[i], Kind::In});
+        } else {
+          kinded.push_back({KBlocks[i], Kind::Out});
+        }
+        continue;
+      }
+      if (i != 0) {
+        if (KBlocks[i - 1]->parent != KBlocks[i]->parent) {
+          kinded.push_back({KBlocks[i], Kind::Out});
+        } else {
+          kinded.push_back({KBlocks[i], Kind::In});
+        }
+        continue;
+      }
+    } else {
+      kinded.push_back({KBlocks[i], Kind::None});
+    }
+  }
+  return kinded;
+}
+
 unsigned Path::getFirstIndex() const { return firstInstruction; }
 
 unsigned Path::getLastIndex() const { return lastInstruction; }
@@ -50,19 +86,19 @@ std::vector<stackframe_ty> Path::getStack(bool reversed) const {
     }
     if (reversed) {
       auto kind = getTransitionKind(current, prev);
-      if (kind == TransitionKind::StepInto) {
+      if (kind == Kind::In) {
         if (!stack.empty()) {
           stack.pop_back();
         }
-      } else if (kind == TransitionKind::StepOut) {
+      } else if (kind == Kind::Out) {
         assert(isa<KCallBlock>(prev));
         stack.push_back({prev->getFirstInstruction(), current->parent});
       }
     } else {
       auto kind = getTransitionKind(prev, current);
-      if (kind == TransitionKind::StepInto) {
+      if (kind == Kind::In) {
         stack.push_back({prev->getFirstInstruction(), current->parent});
-      } else if (kind == TransitionKind::StepOut) {
+      } else if (kind == Kind::Out) {
         if (!stack.empty()) {
           stack.pop_back();
         }
@@ -79,7 +115,7 @@ Path::asFunctionRanges() const {
   BlockRange range{0, 0};
   KFunction *function = KBlocks[0]->parent;
   for (unsigned i = 1; i < KBlocks.size(); i++) {
-    if (getTransitionKind(KBlocks[i - 1], KBlocks[i]) == TransitionKind::None) {
+    if (getTransitionKind(KBlocks[i - 1], KBlocks[i]) == Kind::None) {
       if (i == KBlocks.size() - 1) {
         range.last = i;
         ranges.push_back({function, range});
@@ -115,11 +151,11 @@ std::string Path::toString() const {
       prev = KBlocks[i - 1];
     }
     auto kind =
-        i == 0 ? TransitionKind::StepInto : getTransitionKind(prev, current);
-    if (kind == TransitionKind::StepInto) {
+        i == 0 ? Kind::In : getTransitionKind(prev, current);
+    if (kind == Kind::In) {
       blocks += " (" + current->parent->getName().str() + ":";
       depth++;
-    } else if (kind == TransitionKind::StepOut) {
+    } else if (kind == Kind::Out) {
       blocks += ")";
       if (depth > 0) {
         depth--;
@@ -200,16 +236,64 @@ Path Path::parse(const std::string &str, const KModule &km) {
   return Path(firstInstruction, KBlocks, lastInstruction);
 }
 
-Path::TransitionKind Path::getTransitionKind(KBlock *a, KBlock *b) {
+Path::Kind Path::getTransitionKind(KBlock *a, KBlock *b) {
   if (auto cb = dyn_cast<KCallBlock>(a)) {
     if (b->parent->function == cb->calledFunction &&
         b == b->parent->entryKBlock) {
-      return TransitionKind::StepInto;
+      return Kind::In;
     }
   }
   if (auto rb = dyn_cast<KReturnBlock>(a)) {
-    return TransitionKind::StepOut;
+    return Kind::Out;
   }
   assert(a->parent == b->parent);
-  return TransitionKind::None;
+  return Kind::None;
+}
+
+std::vector<Path::entry> Path::entry::getPredecessors() {
+  auto km = block->parent->parent;
+  std::vector<Path::entry> ret;
+
+  if (kind == Kind::Out) {
+    auto kCallBlock = dyn_cast<KCallBlock>(block);
+    auto kf = kCallBlock->getKFunction();
+    for (auto retBlock : kf->returnKBlocks) {
+      ret.push_back({retBlock, Kind::None});
+    }
+  } else if (block->parent->entryKBlock == block) {
+    for (auto callBlock : km->callSiteMap.at(block->parent->function)) {
+      ret.push_back({callBlock, Kind::In});
+    }
+  } else {
+    auto bb = block->basicBlock;
+    for (auto it = llvm::pred_iterator(bb), et = llvm::pred_end(bb); it != et;
+         it++) {
+      auto kb = km->getKBlock(*it);
+      auto kind = isa<KCallBlock>(kb) ? Kind::Out : Kind::None;
+      ret.push_back({kb, kind});
+    }
+  }
+  return ret;
+}
+
+std::vector<Path::entry> Path::entry::getSuccessors() {
+  auto km = block->parent->parent;
+  std::vector<Path::entry> ret;
+
+  if (kind == Kind::In) {
+    auto kCallBlock = dyn_cast<KCallBlock>(block);
+    auto kb = kCallBlock->getKFunction()->entryKBlock;
+    auto kind = isa<KCallBlock>(kb) ? Kind::In : Kind::None;
+    ret.push_back({kb, kind});
+  } else if (isa<KReturnBlock>(block)) {
+    for (auto callBlock : km->callSiteMap.at(block->parent->function)) {
+      ret.push_back({callBlock, Kind::Out});
+    }
+  } else {
+    for (auto successor : block->successors()) {
+      auto kind = isa<KCallBlock>(successor) ? Kind::In : Kind::None;
+      ret.push_back({successor, kind});
+    }
+  }
+  return ret;
 }

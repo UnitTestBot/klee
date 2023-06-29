@@ -11,6 +11,7 @@
 #define KLEE_EXECUTIONSTATE_H
 
 #include "AddressSpace.h"
+#include "PathForest.h"
 #include "Target.h"
 
 #include "klee/ADT/ImmutableSet.h"
@@ -318,6 +319,8 @@ public:
 
   unsigned backwardStepsLeftCounter;
   unsigned failedBackwardStepsCounter;
+
+  PathTree pathTree;
 
 public:
 #ifdef KLEE_UNITTEST

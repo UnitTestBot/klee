@@ -410,6 +410,7 @@ void KModule::manifest(InterpreterHandler *ih, bool forceSourceOutput) {
   for (auto &kfp : functions) {
     for (auto &kcb : kfp.get()->kCallBlocks) {
       callMap[kcb->calledFunction].insert(kfp.get()->function);
+      callSiteMap[kcb->calledFunction].insert(kcb);
     }
   }
 
@@ -713,6 +714,15 @@ std::string KBlock::getLabel() const {
 
 std::string KBlock::toString() const {
   return getLabel() + " in function " + parent->function->getName().str();
+}
+
+KBlock::successor_iterator::successor_iterator(const KBlock *currentBlock) :
+  lastInstruction(currentBlock->getLastInstruction()->inst),
+  blockMap(currentBlock->parent->blockMap),
+  i(lastInstruction->getNumSuccessors()) {}
+
+KBlock::successor_iterator::successor_iterator(const KBlock *currentBlock, unsigned int ii) : successor_iterator(currentBlock) {
+  i = ii;
 }
 
 bool klee::JointBlockPredicate(KBlock *block) {

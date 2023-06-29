@@ -1125,7 +1125,8 @@ ref<Expr> Executor::maxStaticPctChecks(ExecutionState &current,
 }
 
 Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
-                                   bool isInternal, BranchType reason) {
+                                   bool isInternal, BranchType reason,
+                                   AllowedFork fork) {
   PartialValidity res;
   std::map<ExecutionState *, std::vector<SeedInfo>>::iterator it =
       seedMap->find(&current);
@@ -1138,14 +1139,37 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
   if (isSeeding)
     timeout *= static_cast<unsigned>(it->second.size());
   solver->setTimeout(timeout);
-  bool success = solver->evaluate(current.constraints.cs(), condition, res,
-                                  current.queryMetaData);
-  solver->setTimeout(time::Span());
-  if (!success) {
-    current.pc = current.prevPC;
-    terminateStateOnSolverError(current, "Query timed out (fork).");
+
+  if (fork == AllowedFork::None) {
     return StatePair(nullptr, nullptr);
+  } else if (fork == AllowedFork::True) {
+    bool result;
+    bool success = solver->mustBeTrue(current.constraints.cs(), condition,
+                                     result, current.queryMetaData);
+    if (!success || !result) {
+      return StatePair(nullptr, nullptr);
+    } else {
+      res = PValidity::MustBeTrue;
+    }
+  } else if (fork == AllowedFork::False) {
+    bool result;
+    bool success = solver->mustBeFalse(current.constraints.cs(), condition,
+                                     result, current.queryMetaData);
+    if (!success || !result) {
+      return StatePair(nullptr, nullptr);
+    } else {
+      res = PValidity::MustBeFalse;
+    }
+  } else {
+    bool success = solver->evaluate(current.constraints.cs(), condition, res,
+                                  current.queryMetaData);
+    if (!success) {
+      current.pc = current.prevPC;
+      terminateStateOnSolverError(current, "Query timed out (fork).");
+      return StatePair(nullptr, nullptr);
+    }
   }
+  solver->setTimeout(time::Span());
 
   if (!isSeeding) {
     if (replayPath && !isInternal) {
@@ -2280,6 +2304,10 @@ void Executor::transferToBasicBlock(BasicBlock *dst, BasicBlock *src,
     PHINode *first = static_cast<PHINode *>(state.pc->inst);
     state.incomingBBIndex = first->getBasicBlockIndex(src);
   }
+  // Return to call blocks are handled in a different place
+  auto block = getKBlock(dst);
+  auto kind = isa<KCallBlock>(block) ? Path::Kind::In : Path::Kind::None;
+  state.pathTree.transfer({block, kind}, pathForest);
 }
 
 void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
@@ -2319,6 +2347,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
         state.pc = kcaller;
         state.increaseLevel();
         ++state.pc;
+        state.pathTree.transfer({kcaller->parent, Path::Kind::Out}, pathForest);
       }
 
 #ifdef SUPPORT_KLEE_EH_CXX
@@ -2407,8 +2436,29 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       ref<Expr> cond = eval(ki, 0, state).value;
 
       cond = optimizer.optimizeExpr(cond, false);
+      auto LBlock = getKBlock(bi->getSuccessor(0)),
+           RBlock = getKBlock(bi->getSuccessor(1));
+      auto LKind = isa<KCallBlock>(LBlock) ? Path::Kind::In : Path::Kind::None,
+           RKind = isa<KCallBlock>(RBlock) ? Path::Kind::In : Path::Kind::None;
+      bool LeftAllowed = !state.pathTree.TransitionForbidden({LBlock, LKind});
+      bool RightAllowed = !state.pathTree.TransitionForbidden({RBlock, RKind});
+      if (!LeftAllowed) {
+        llvm::errs() << "Forward left blocked\n";
+      }
+      if (!RightAllowed) {
+        llvm::errs() << "Forward right blocked\n";
+      }
+      AllowedFork fk = AllowedFork::None;
+      if (LeftAllowed && RightAllowed) {
+        fk = AllowedFork::Both;
+      } else if (LeftAllowed) {
+        fk = AllowedFork::True;
+      } else if (RightAllowed) {
+        fk = AllowedFork::False;
+      }
+
       Executor::StatePair branches =
-          fork(state, cond, false, BranchType::ConditionalBranch);
+          fork(state, cond, false, BranchType::ConditionalBranch, fk);
 
       if (ProduceUnsatCore && !state.isolated &&
           ExecutionMode == ExecutionKind::Bidirectional) {
@@ -2444,7 +2494,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
               if (!verifingTransitionsTo.count(targeted->target->basicBlock)) {
                 verifingTransitionsTo.insert(targeted->target->basicBlock);
-                ProofObligation *pob = new ProofObligation(targeted->target);
+                ProofObligation *pob =
+                    new ProofObligation(targeted->target, pathForest);
                 objectManager->addPob(pob);
               }
             }
@@ -2458,6 +2509,28 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       if (statsTracker && !state.isolated &&
           state.stack.back().kf->trackCoverage) {
         statsTracker->markBranchVisited(branches.first, branches.second);
+      }
+
+      if (state.isolated) {
+        if (!branches.first) {
+          auto path = branches.second->constraints.path().getKindedBlocks();
+          auto block = kmodule->getKBlock(bi->getSuccessor(0));
+          auto kind =
+              isa<KCallBlock>(block) ? Path::Kind::In : Path::Kind::None;
+          path.push_back({block, kind});
+          // llvm::errs() << "Conflict in forward" << (state.isolated ? " (isolated)\n" : "\n");
+          pathForest.addPath(path);
+        }
+
+        if (!branches.second) {
+          auto path = branches.first->constraints.path().getKindedBlocks();
+          auto block = kmodule->getKBlock(bi->getSuccessor(1));
+          auto kind =
+              isa<KCallBlock>(block) ? Path::Kind::In : Path::Kind::None;
+          path.push_back({block, kind});
+          // llvm::errs() << "Conflict in forward" << (state.isolated ? " (isolated)\n" : "\n");
+          pathForest.addPath(path);
+        }
       }
 
       if (branches.first)
@@ -4232,6 +4305,8 @@ Executor::ComposeResult Executor::compose(const ExecutionState &state,
       }
       if (isValid) {
         auto conflict = Conflict();
+        auto path = Path::concat(state.constraints.path(), pob.path());
+        pathForest.addPath(path.getKindedBlocks());
         conflict.path = state.constraints.path();
         constraints_ty rebuiltCore;
         for (auto e : core.constraints) {
@@ -4331,6 +4406,11 @@ void Executor::goBackward(ref<BackwardAction> action) {
   ExecutionState *state = action->prop.state;
   ProofObligation *pob = action->prop.pob;
 
+  if (pob->pathTree.TransitionForbidden(state->constraints.path())) {
+    llvm::errs() << "Backward blocked\n";
+    return;
+  }
+
   // Conflict::core_ty conflictCore;
   // ExprHashMap<ref<Expr>> rebuildMap;
 
@@ -4345,14 +4425,14 @@ void Executor::goBackward(ref<BackwardAction> action) {
       KCallBlock *b = dyn_cast<KCallBlock>(state->initPC->parent);
       KFunction *kf = kmodule->functionMap[b->calledFunction];
       for (auto returnBlock : kf->returnKBlocks) {
-        ProofObligation *callPob =
-            new ProofObligation(composeResult.composed, *pob, returnBlock);
+        ProofObligation *callPob = new ProofObligation(
+            composeResult.composed, *pob, pathForest, returnBlock);
         callPob->propagationCount[state]++;
         objectManager->addPob(callPob);
       }
     } else {
       ProofObligation *newPob =
-          new ProofObligation(composeResult.composed, *pob);
+          new ProofObligation(composeResult.composed, *pob, pathForest);
       newPob->propagationCount[state]++;
       objectManager->addPob(newPob);
       if (newPob->location.getBlock()->getFirstInstruction() ==
@@ -4409,12 +4489,12 @@ const KInstruction *Executor::getKInst(const llvm::Instruction *inst) const {
   return kf->instructionMap.at(inst);
 }
 
-const KBlock *Executor::getKBlock(const llvm::BasicBlock *bb) const {
+KBlock *Executor::getKBlock(const llvm::BasicBlock *bb) const {
   const llvm::Function *F = bb->getParent();
   assert(F && kmodule->functionMap.find(F) != kmodule->functionMap.end());
   klee::KFunction *KF = kmodule->functionMap.at(F);
   assert(KF->blockMap.find(bb) != KF->blockMap.end());
-  const klee::KBlock *KB = KF->blockMap.at(bb);
+  klee::KBlock *KB = KF->blockMap.at(bb);
   assert(KB);
   return KB;
 }

@@ -18,6 +18,7 @@
 #include "BidirectionalSearcher.h"
 #include "ExecutionState.h"
 #include "ObjectManager.h"
+#include "PathForest.h"
 #include "ProofObligation.h"
 #include "SearcherUtil.h"
 #include "SeedMap.h"
@@ -119,6 +120,13 @@ class Executor : public Interpreter {
     Conflict conflict;
   };
 
+  enum class AllowedFork {
+    None,
+    True,
+    False,
+    Both
+  };
+
 public:
   typedef std::pair<ExecutionState *, ExecutionState *> StatePair;
 
@@ -152,6 +160,8 @@ private:
   std::unique_ptr<PForest> processForest;
   std::unique_ptr<CodeGraphDistance> codeGraphDistance;
   std::unique_ptr<TargetCalculator> targetCalculator;
+
+  PathForest pathForest;
 
   /// When non-empty the Executor is running in "seed" mode. The
   /// states in this map will be executed in an arbitrary order
@@ -419,7 +429,7 @@ private:
   /// not hold, respectively. One of the states is necessarily the
   /// current state, and one of the states may be null.
   StatePair fork(ExecutionState &current, ref<Expr> condition, bool isInternal,
-                 BranchType reason);
+                 BranchType reason, AllowedFork fork = AllowedFork::Both);
 
   // If the MaxStatic*Pct limits have been reached, concretize the condition and
   // return it. Otherwise, return the unmodified condition.
@@ -647,7 +657,7 @@ private:
   void closeProofObligation(ProofObligation *pob);
 
   const KInstruction *getKInst(const llvm::Instruction *ints) const;
-  const KBlock *getKBlock(const llvm::BasicBlock *bb) const;
+  KBlock *getKBlock(const llvm::BasicBlock *bb) const;
   const KFunction *getKFunction(const llvm::Function *f) const;
 
 public:

@@ -70,7 +70,7 @@ StackFrame::~StackFrame() { delete[] locals; }
 
 ExecutionState::ExecutionState(KFunction *kf)
     : initPC(kf->instructions), pc(initPC), prevPC(pc),
-      roundingMode(llvm::APFloat::rmNearestTiesToEven) {
+      roundingMode(llvm::APFloat::rmNearestTiesToEven), pathTree(true) {
   pushFrame(nullptr, kf);
   setID();
 }
@@ -101,7 +101,7 @@ ExecutionState::ExecutionState(const ExecutionState &state)
       isolated(state.isolated), symbolicCounter(state.symbolicCounter),
       returnValue(state.returnValue), targets(state.targets),
       gepExprBases(state.gepExprBases), backwardStepsLeftCounter(0),
-      failedBackwardStepsCounter(0) {}
+      failedBackwardStepsCounter(0), pathTree(state.pathTree) {}
 
 ExecutionState *ExecutionState::branch() {
   depth++;

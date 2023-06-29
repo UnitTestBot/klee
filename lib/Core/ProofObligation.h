@@ -2,6 +2,7 @@
 #define KLEE_PROOFOBLIGATION_H
 
 #include "ExecutionState.h"
+#include "PathForest.h"
 #include "Target.h"
 
 #include "klee/Expr/Constraints.h"
@@ -36,25 +37,32 @@ public:
   Target location;
   PathConstraints constraints;
 
+  PathTree pathTree;
+
   std::vector<std::pair<ref<const MemoryObject>, const Array *>>
       sourcedSymbolics;
 
-  ProofObligation(KBlock *_location)
-      : id(nextID++), parent(nullptr), root(this), location(Target(_location)) {
+  ProofObligation(KBlock *_location, const PathForest &forest)
+      : id(nextID++), parent(nullptr), root(this), location(Target(_location)),
+        pathTree(false) {
     if (!location.atReturn()) {
       constraints.advancePath(_location->getFirstInstruction());
     }
   }
 
   ProofObligation(PathConstraints &pconstraint, ProofObligation &_parent,
-                  KBlock *_location = nullptr)
+                  const PathForest &forest, KBlock *_location = nullptr)
       : id(nextID++), parent(&_parent), root(parent->root),
         stack(pconstraint.path().getStack(true)),
         propagationCount(parent->propagationCount),
         location(_location ? _location
                            : pconstraint.path().getBlocks().front()),
-        constraints(pconstraint) {
+        constraints(pconstraint), pathTree(parent->pathTree) {
     parent->children.insert(this);
+    auto blocks = pconstraint.path().getKindedBlocks();
+    for (auto it = blocks.rbegin(); it != blocks.rend(); it++) {
+      pathTree.transfer(*it, forest);
+    }
   }
 
   ~ProofObligation() {

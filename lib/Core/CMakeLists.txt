@@ -26,6 +26,7 @@ klee_add_component(kleeCore
   MemoryManager.cpp
   ObjectManager.cpp
   PForest.cpp
+  PathForest.cpp
   PTree.cpp
   ProofObligation.cpp
   Searcher.cpp

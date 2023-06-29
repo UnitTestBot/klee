@@ -52,6 +52,46 @@ template <class T> class ref;
 enum KBlockType { Base, Call, Return };
 
 struct KBlock {
+
+  struct successor_iterator {
+    using difference_type = std::ptrdiff_t;
+    using value_type = KBlock *;
+    using pointer = value_type *;
+    using reference = value_type &;
+    using iterator_category = std::input_iterator_tag;
+    successor_iterator(const KBlock *, unsigned int);
+    successor_iterator(const KBlock *);
+
+    const value_type &operator*() {
+      return blockMap[lastInstruction->getSuccessor(i - 1)];
+    }
+
+    successor_iterator &operator++() {
+      i--;
+      return *this;
+    }
+
+    friend bool operator!=(const successor_iterator &a,
+                           const successor_iterator &b) {
+      return a.i != b.i;
+    }
+
+  private:
+    llvm::Instruction *lastInstruction;
+    std::unordered_map<const llvm::BasicBlock *, KBlock *> &blockMap;
+    unsigned int i;
+  };
+  struct successor_iter {
+    successor_iter(const KBlock *b) : b(b) {}
+    successor_iterator begin() const { return successor_iterator(b); }
+    successor_iterator end() const { return successor_iterator(b, 0); };
+
+  private:
+    const KBlock *b;
+  };
+
+  successor_iter successors() const { return successor_iter(this); }
+
   KFunction *parent;
   llvm::BasicBlock *basicBlock;
 
@@ -209,6 +249,7 @@ public:
   std::vector<std::unique_ptr<KFunction>> functions;
   std::unordered_map<const llvm::Function *, KFunction *> functionMap;
   std::unordered_map<llvm::Function *, std::set<llvm::Function *>> callMap;
+  std::unordered_map<llvm::Function *, std::set<KCallBlock *>> callSiteMap;
   std::unordered_map<std::string, KFunction *> functionNameMap;
   std::unordered_map<const llvm::Function *, unsigned> functionIDMap;
 

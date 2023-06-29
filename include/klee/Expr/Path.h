@@ -16,8 +16,26 @@ using stackframe_ty = std::pair<KInstruction *, KFunction *>;
 
 class Path {
 public:
+  enum class Kind { In, Out, None };
+
+  struct entry {
+    KBlock* block;
+    Kind kind;
+
+    bool operator==(const entry &other) const {
+      return block == other.block && kind == other.kind;
+    }
+
+    bool operator<(const entry &other) const {
+      return block < other.block || (block == other.block && kind < other.kind);
+    }
+
+    std::vector<entry> getPredecessors();
+    std::vector<entry> getSuccessors();
+  };
+
   using path_ty = std::vector<KBlock *>;
-  enum class TransitionKind { StepInto, StepOut, None };
+  using path_kind_ty = std::vector<entry>;
 
   struct PathIndex {
     unsigned long block;
@@ -57,6 +75,7 @@ public:
 
   unsigned KBlockSize() const;
   const path_ty &getBlocks() const;
+  const path_kind_ty getKindedBlocks() const;
   unsigned getFirstIndex() const;
   unsigned getLastIndex() const;
 
@@ -85,7 +104,7 @@ private:
   // Index of the last (current) instruction in the current basic block
   unsigned lastInstruction = 0;
 
-  static TransitionKind getTransitionKind(KBlock *a, KBlock *b);
+  static Kind getTransitionKind(KBlock *a, KBlock *b);
 };
 
 }; // namespace klee
