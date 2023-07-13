@@ -45,15 +45,6 @@ void klee::findReads(ref<Expr> e, bool visitUpdates,
         stack.push_back(re->updates.root->getSize());
       }
 
-      if (isa<LazyInitializationSource>(re->updates.root->source) &&
-          visited
-              .insert(cast<LazyInitializationSource>(re->updates.root->source)
-                          ->pointer)
-              .second) {
-        stack.push_back(
-            cast<LazyInitializationSource>(re->updates.root->source)->pointer);
-      }
-
       if (visitUpdates) {
         // XXX this is probably suboptimal. We want to avoid a potential
         // explosion traversing update lists which can be quite
