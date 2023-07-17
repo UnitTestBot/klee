@@ -9,6 +9,7 @@
 
 #include "UserSearcher.h"
 
+#include "BackwardSearcher.h"
 #include "Executor.h"
 #include "Searcher.h"
 
@@ -79,6 +80,12 @@ cl::opt<std::string> BatchTime(
     cl::desc("Amount of time to batch when using "
              "--use-batching-search.  Set to 0s to disable (default=5s)"),
     cl::init("5s"), cl::cat(SearchCat));
+
+cl::opt<unsigned long long>
+    MaxPropagations("max-propagations",
+                    cl::desc("propagate at most this amount of propagations "
+                             "with the same state (default=0 (no limit))."),
+                    cl::init(0), cl::cat(TerminationCat));
 
 } // namespace
 
@@ -189,4 +196,8 @@ Searcher *klee::constructUserSearcher(Executor &executor,
   os << "END searcher description\n";
 
   return searcher;
+}
+
+BackwardSearcher *klee::constructUserBackwardSearcher() {
+  return new RecencyRankedSearcher(MaxPropagations - 1);
 }

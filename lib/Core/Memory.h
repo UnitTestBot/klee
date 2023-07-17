@@ -246,6 +246,7 @@ public:
   /// Create a new object state for the given memory object with symbolic
   /// contents.
   ObjectState(const MemoryObject *mo, const Array *array, KType *dt);
+  ObjectState(unsigned size, const Array *array, KType *dt);
   ObjectState(const MemoryObject *mo, const ObjectState &os);
 
   ObjectState(const ObjectState &os);

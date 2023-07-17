@@ -73,8 +73,9 @@ private:
 
 class PathConstraints {
 public:
-  using ordered_constraints_ty =
-      std::map<Path::PathIndex, constraints_ty, Path::PathIndexCompare>;
+  using ordered_constraints_ty = std::vector<ref<Expr>>;
+  using path_ordered_constraints_ty =
+      std::map<Path::PathIndex, ordered_constraints_ty, Path::PathIndexCompare>;
 
   void advancePath(KInstruction *ki);
   void advancePath(const Path &path);
@@ -90,7 +91,7 @@ public:
   const ConstraintSet &cs() const;
   const Path &path() const;
   const ExprHashMap<Path::PathIndex> &indexes() const;
-  const ordered_constraints_ty &orderedCS() const;
+  const path_ordered_constraints_ty &orderedCS() const;
 
   static PathConstraints concat(const PathConstraints &l,
                                 const PathConstraints &r);
@@ -100,7 +101,7 @@ private:
   constraints_ty _original;
   ConstraintSet constraints;
   ExprHashMap<Path::PathIndex> pathIndexes;
-  ordered_constraints_ty orderedConstraints;
+  path_ordered_constraints_ty orderedConstraints;
   ExprHashMap<ExprHashSet> _simplificationMap;
 };
 

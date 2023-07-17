@@ -13,6 +13,7 @@
 
 #include "DistanceCalculator.h"
 
+#include "ObjectManager.h"
 #include "klee/Core/Interpreter.h"
 #include "klee/Module/TargetHash.h"
 
@@ -42,7 +43,7 @@ public:
                       const TargetHistoryTargetPairToStatesMap &removed) = 0;
 };
 
-class TargetManager {
+class TargetManager final : public Subscriber {
 private:
   using StatesSet = std::unordered_set<ExecutionState *>;
   using StateToDistanceMap =
@@ -106,6 +107,8 @@ public:
   void update(ExecutionState *current,
               const std::vector<ExecutionState *> &addedStates,
               const std::vector<ExecutionState *> &removedStates);
+
+  void update(ref<ObjectManager::Event> e) override;
 
   DistanceResult distance(const ExecutionState &state, ref<Target> target) {
 

@@ -292,6 +292,7 @@ class ParserImpl : public Parser {
   /* Commands */
 
   DeclResult ParseQueryCommand();
+  DeclResult ParseLemmaCommand();
 
   /* Etc. */
 
@@ -616,6 +617,9 @@ DeclResult ParserImpl::ParseCommandDecl() {
   case Token::KWQuery:
     return ParseQueryCommand();
 
+  case Token::KWLemma:
+    return ParseLemmaCommand();
+
   default:
     Error("malformed command (unexpected keyword).");
     SkipUntilRParen();
@@ -748,6 +752,75 @@ exit:
     ArraySymTab.clear();
 
   return new QueryCommand(Constraints, km, Res.get(), Values, Objects);
+}
+
+DeclResult ParserImpl::ParseLemmaCommand() {
+  ExprSymTab.clear();
+  VersionSymTab.clear();
+  ArraySymTab.clear();
+
+  ConsumeExpectedToken(Token::KWLemma);
+
+  // -- Parsing path
+  ConsumeLParen();
+  ConsumeExpectedToken(Token::KWPath);
+  ConsumeExpectedToken(Token::Colon);
+  auto firstInstructionExpr = ParseNumber(64);
+
+  std::vector<KBlock *> kblocks;
+  std::stack<KFunction *> stack;
+  bool firstParsed = false;
+  while (!stack.empty() || !firstParsed) {
+    if (Tok.kind == Token::LParen) {
+      ConsumeLParen();
+      assert(Tok.kind == Token::Identifier);
+      auto functionaName = Tok.getString();
+      assert(km->functionNameMap.count(functionaName));
+      stack.push(km->functionNameMap.at(functionaName));
+      ConsumeExpectedToken(Token::Identifier);
+      ConsumeExpectedToken(Token::Colon);
+      firstParsed = true;
+    } else if (Tok.kind == Token::RParen) {
+      ConsumeRParen();
+      stack.pop();
+    } else {
+      assert(Tok.kind == Token::Identifier);
+      auto label = Tok.getString();
+      assert(stack.top()->getLabelMap().count(label));
+      kblocks.push_back(stack.top()->getLabelMap().at(label));
+      ConsumeExpectedToken(Token::Identifier);
+    }
+  }
+
+  auto lastInstructionExpr = ParseNumber(64);
+  ConsumeRParen();
+
+  auto firstInstruction =
+      dyn_cast<ConstantExpr>(firstInstructionExpr.get())->getZExtValue();
+  auto lastInstruction =
+      dyn_cast<ConstantExpr>(lastInstructionExpr.get())->getZExtValue();
+
+  auto path = Path(firstInstruction, kblocks, lastInstruction);
+  // -- Path parsed
+
+  ConsumeLParen();
+  while (Tok.kind != Token::RParen) {
+    ParseArrayDecl();
+  }
+  ConsumeRParen();
+
+  ExprOrderedSet constraints;
+
+  ConsumeLParen();
+  while (Tok.kind != Token::RParen) {
+    auto res = ParseExpr(TypeResult());
+    assert(res.isValid());
+    constraints.insert(res.get());
+  }
+  ConsumeRParen();
+
+  ConsumeRParen();
+  return new LemmaCommand(constraints, path);
 }
 
 /// ParseNumberOrExpr - Parse an expression whose type cannot be

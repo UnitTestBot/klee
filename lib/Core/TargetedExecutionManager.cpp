@@ -16,6 +16,7 @@
 #include "klee/Core/TerminationTypes.h"
 #include "klee/Module/CodeGraphDistance.h"
 #include "klee/Module/KInstruction.h"
+#include "klee/Module/KModule.h"
 #include "klee/Support/ErrorHandling.h"
 
 #include <memory>
@@ -614,4 +615,12 @@ void TargetedExecutionManager::update(
   }
 
   localStates.clear();
+}
+
+void TargetedExecutionManager::update(ref<ObjectManager::Event> e) {
+  if (auto states = dyn_cast<ObjectManager::States>(e)) {
+    if (!states->isolated) {
+      update(states->modified, states->added, states->removed);
+    }
+  }
 }

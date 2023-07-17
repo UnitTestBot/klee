@@ -413,8 +413,11 @@ void StatsTracker::stepInstruction(ExecutionState &es) {
         es.coveredLines[&ii.file].insert(ii.line);
         es.coveredNew = true;
         es.instsSinceCovNew = 1;
-        ++stats::coveredInstructions;
-        stats::uncoveredInstructions += (uint64_t)-1;
+
+        if (!es.isolated) {
+          ++stats::coveredInstructions;
+          stats::uncoveredInstructions += (uint64_t)-1;
+        }
       }
     }
   }
@@ -642,7 +645,8 @@ void StatsTracker::writeStatsLine() {
   sqlite3_bind_int64(insertStmt, arg++, partialBranches);
   sqlite3_bind_int64(insertStmt, arg++, numBranches);
   sqlite3_bind_int64(insertStmt, arg++, time::getUserTime().toMicroseconds());
-  sqlite3_bind_int64(insertStmt, arg++, executor.states.size());
+  sqlite3_bind_int64(insertStmt, arg++,
+                     executor.objectManager->getStates().size());
   sqlite3_bind_int64(
       insertStmt, arg++,
       util::GetTotalMallocUsage() +
@@ -694,8 +698,10 @@ void StatsTracker::writeStatsLine() {
 }
 
 void StatsTracker::updateStateStatistics(uint64_t addend) {
-  for (std::set<ExecutionState *>::iterator it = executor.states.begin(),
-                                            ie = executor.states.end();
+  std::set<ExecutionState *, ExecutionStateIDCompare> states =
+      executor.objectManager->getStates();
+  for (std::set<ExecutionState *>::iterator it = states.begin(),
+                                            ie = states.end();
        it != ie; ++it) {
     ExecutionState &state = **it;
     const InstructionInfo &ii = *state.pc->info;
@@ -899,7 +905,7 @@ uint64_t klee::computeMinDistToUncovered(const KInstruction *ki,
     uint64_t distToReturn =
         sm.getIndexedValue(stats::minDistToReturn, ki->info->id);
 
-    if (distToReturn == 0) { // return unreachable, best is local
+    if (distToReturn == 0) {    // return unreachable, best is local
       return minDistLocal;
     } else if (!minDistLocal) { // no local reachable
       return distToReturn + minDistAtRA;
@@ -1130,8 +1136,10 @@ void StatsTracker::computeReachableUncovered() {
     }
   } while (changed);
 
-  for (std::set<ExecutionState *>::iterator it = executor.states.begin(),
-                                            ie = executor.states.end();
+  std::set<ExecutionState *, ExecutionStateIDCompare> states =
+      executor.objectManager->getStates();
+  for (std::set<ExecutionState *>::iterator it = states.begin(),
+                                            ie = states.end();
        it != ie; ++it) {
     ExecutionState *es = *it;
     uint64_t currentFrameMinDist = 0;

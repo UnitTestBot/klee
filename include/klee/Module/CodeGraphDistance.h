@@ -68,6 +68,11 @@ public:
 
   void getNearestPredicateSatisfying(KBlock *from, KBlockPredicate predicate,
                                      std::set<KBlock *> &result);
+  KBlock *getNearestJoinBlock(KBlock *kb);
+  KBlock *getNearestJoinOrCallBlock(KBlock *kb);
+
+  std::vector<std::pair<KBlock *, KBlock *>>
+  dismantle(KBlock *from, std::vector<KBlock *> to);
 };
 
 } // namespace klee

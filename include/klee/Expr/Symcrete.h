@@ -88,10 +88,7 @@ typedef std::set<ref<Symcrete>, SymcreteLess> SymcreteOrderedSet;
 
 class AddressSymcrete : public Symcrete {
 public:
-  const Array *addressArray;
-
-  AddressSymcrete(const Array *_addressArray, ref<Expr> s, SymcreteKind kind)
-      : Symcrete(s, kind), addressArray(_addressArray) {
+  AddressSymcrete(ref<Expr> s, SymcreteKind kind) : Symcrete(s, kind) {
     assert((kind == SymcreteKind::SK_ALLOC_ADDRESS ||
             kind == SymcreteKind::SK_LI_ADDRESS) &&
            "wrong kind");
@@ -105,8 +102,8 @@ public:
 
 class AllocAddressSymcrete : public AddressSymcrete {
 public:
-  AllocAddressSymcrete(const Array *addressArray, ref<Expr> s)
-      : AddressSymcrete(addressArray, s, SymcreteKind::SK_ALLOC_ADDRESS) {}
+  AllocAddressSymcrete(ref<Expr> s)
+      : AddressSymcrete(s, SymcreteKind::SK_ALLOC_ADDRESS) {}
 
   static bool classof(const Symcrete *symcrete) {
     return symcrete->getKind() == SymcreteKind::SK_ALLOC_ADDRESS;
@@ -115,8 +112,8 @@ public:
 
 class LazyInitializedAddressSymcrete : public AddressSymcrete {
 public:
-  LazyInitializedAddressSymcrete(const Array *addressArray, ref<Expr> s)
-      : AddressSymcrete(addressArray, s, SymcreteKind::SK_LI_ADDRESS) {}
+  LazyInitializedAddressSymcrete(ref<Expr> s)
+      : AddressSymcrete(s, SymcreteKind::SK_LI_ADDRESS) {}
 
   static bool classof(const Symcrete *symcrete) {
     return symcrete->getKind() == SymcreteKind::SK_LI_ADDRESS;

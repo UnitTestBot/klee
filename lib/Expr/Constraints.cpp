@@ -264,7 +264,7 @@ const ExprHashMap<ExprHashSet> &PathConstraints::simplificationMap() const {
 
 const ConstraintSet &PathConstraints::cs() const { return constraints; }
 
-const PathConstraints::ordered_constraints_ty &
+const PathConstraints::path_ordered_constraints_ty &
 PathConstraints::orderedCS() const {
   return orderedConstraints;
 }
@@ -293,7 +293,7 @@ ExprHashSet PathConstraints::addConstraint(ref<Expr> e, const Assignment &delta,
       added.insert(expr);
       pathIndexes.insert({expr, currIndex});
       _simplificationMap[expr].insert(expr);
-      orderedConstraints[currIndex].insert(expr);
+      orderedConstraints[currIndex].push_back(expr);
       constraints.addConstraint(expr, delta);
     }
   }
@@ -339,7 +339,7 @@ PathConstraints PathConstraints::concat(const PathConstraints &l,
     auto index = r.pathIndexes.at(i);
     index.block += offset;
     path.pathIndexes.insert({i, index});
-    path.orderedConstraints[index].insert(i);
+    path.orderedConstraints[index].push_back(i);
   }
   for (const auto &i : r.constraints.cs()) {
     path.constraints.addConstraint(i, {});

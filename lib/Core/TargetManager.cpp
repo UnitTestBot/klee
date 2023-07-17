@@ -130,7 +130,7 @@ void TargetManager::updateReached(ExecutionState &state) {
 }
 
 void TargetManager::updateTargets(ExecutionState &state) {
-  if (guidance == Interpreter::GuidanceKind::CoverageGuidance) {
+  if (!state.isolated && guidance == Interpreter::GuidanceKind::CoverageGuidance) {
     if (targets(state).empty() && state.isStuck(MaxCyclesBeforeStuck)) {
       state.setTargeted(true);
     }
@@ -282,4 +282,10 @@ bool TargetManager::isReachedTarget(const ExecutionState &state,
     }
   }
   return false;
+}
+
+void TargetManager::update(ref<ObjectManager::Event> e) {
+  if (auto states = dyn_cast<ObjectManager::States>(e)) {
+    update(states->modified, states->added, states->removed);
+  }
 }
