@@ -8,6 +8,7 @@
 #===------------------------------------------------------------------------===#
 klee_add_component(kleeSupport
   CompressionStream.cpp
+  DebugFlags.cpp
   ErrorHandling.cpp
   FileHandling.cpp
   MemoryUsage.cpp

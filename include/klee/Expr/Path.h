@@ -30,8 +30,18 @@ public:
       return block < other.block || (block == other.block && kind < other.kind);
     }
 
-    std::vector<entry> getPredecessors();
-    std::vector<entry> getSuccessors();
+    std::vector<entry> getPredecessors() const;
+    std::vector<entry> getSuccessors() const;
+
+    std::string kindToString() const {
+      if (kind == Kind::In) {
+        return "In";
+      } else if (kind == Kind::Out) {
+        return "Out";
+      } else {
+        return "None";
+      }
+    }
   };
 
   using path_ty = std::vector<KBlock *>;
@@ -97,8 +107,18 @@ public:
       : KBlocks(kblocks), firstInstruction(firstInstruction),
         lastInstruction(lastInstruction) {}
 
-private:
-  path_ty KBlocks;
+  Path(unsigned firstInstruction, const path_kind_ty &kblocks,
+       unsigned lastInstruction)
+      : firstInstruction(firstInstruction), lastInstruction(lastInstruction) {
+    std::vector<KBlock *> blocks;
+    blocks.reserve(kblocks.size());
+    for (auto i : kblocks) {
+      blocks.push_back(i.block);
+    }
+    KBlocks = blocks;
+  }
+
+private : path_ty KBlocks;
   // Index of the first instruction in the first basic block
   unsigned firstInstruction = 0;
   // Index of the last (current) instruction in the current basic block

@@ -367,6 +367,8 @@ public:
 
   void dumpStack(llvm::raw_ostream &out) const;
 
+  std::string pathAndPCToString() const;
+
   std::uint32_t getID() const { return id; };
   void setID() { id = nextID++; };
   llvm::BasicBlock *getInitPCBlock() const;

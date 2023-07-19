@@ -725,6 +725,11 @@ KBlock::successor_iterator::successor_iterator(const KBlock *currentBlock, unsig
   i = ii;
 }
 
+bool klee::RegularFunctionPredicate(KBlock *block) {
+  return (isa<KCallBlock>(block) && dyn_cast<KCallBlock>(block)->internal() &&
+          !dyn_cast<KCallBlock>(block)->intrinsic());
+}
+
 bool klee::JointBlockPredicate(KBlock *block) {
   if (block == block->parent->entryKBlock) {
     return true;
@@ -745,8 +750,7 @@ bool klee::JointBlockPredicate(KBlock *block) {
   }
 #endif
 
-  if (isa<KCallBlock>(block) && dyn_cast<KCallBlock>(block)->internal() &&
-      !dyn_cast<KCallBlock>(block)->intrinsic()) {
+  if (RegularFunctionPredicate(block)) {
     return true;
   }
 

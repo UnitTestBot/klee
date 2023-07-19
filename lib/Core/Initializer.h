@@ -36,6 +36,8 @@ public:
 
   ~ConflictCoreInitializer() override {}
 
+  // void dismantle(std::set<KFunction *> functions);
+
 private:
   CodeGraphDistance *cgd;
   KBlockPredicate predicate;

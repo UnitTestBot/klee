@@ -32,16 +32,16 @@ const Path::path_kind_ty Path::getKindedBlocks() const {
   path_kind_ty kinded;
   kinded.reserve(KBlocks.size());
 
-  if (KBlocks.size() == 1 && isa<KCallBlock>(KBlocks.front())) {
+  if (KBlocks.size() == 1 && RegularFunctionPredicate(KBlocks.front())) {
     kinded.push_back(
         {KBlocks.front(), firstInstruction == 0 ? Kind::In : Kind::Out});
     return kinded;
   }
 
   for (unsigned i = 0; i < KBlocks.size(); i++) {
-    if (isa<KCallBlock>(KBlocks[i])) {
+    if (RegularFunctionPredicate(KBlocks[i])) {
       if (i != KBlocks.size() - 1) {
-        if (KBlocks[i + 1]->parent != KBlocks[i]->parent) {
+        if (KBlocks[i + 1]->parent->entryKBlock == KBlocks[i + 1]) {
           kinded.push_back({KBlocks[i], Kind::In});
         } else {
           kinded.push_back({KBlocks[i], Kind::Out});
@@ -49,7 +49,7 @@ const Path::path_kind_ty Path::getKindedBlocks() const {
         continue;
       }
       if (i != 0) {
-        if (KBlocks[i - 1]->parent != KBlocks[i]->parent) {
+        if (isa<KReturnBlock>(KBlocks[i - 1])) {
           kinded.push_back({KBlocks[i], Kind::Out});
         } else {
           kinded.push_back({KBlocks[i], Kind::In});
@@ -250,7 +250,7 @@ Path::Kind Path::getTransitionKind(KBlock *a, KBlock *b) {
   return Kind::None;
 }
 
-std::vector<Path::entry> Path::entry::getPredecessors() {
+std::vector<Path::entry> Path::entry::getPredecessors() const {
   auto km = block->parent->parent;
   std::vector<Path::entry> ret;
 
@@ -269,21 +269,21 @@ std::vector<Path::entry> Path::entry::getPredecessors() {
     for (auto it = llvm::pred_iterator(bb), et = llvm::pred_end(bb); it != et;
          it++) {
       auto kb = km->getKBlock(*it);
-      auto kind = isa<KCallBlock>(kb) ? Kind::Out : Kind::None;
+      auto kind = RegularFunctionPredicate(kb) ? Kind::Out : Kind::None;
       ret.push_back({kb, kind});
     }
   }
   return ret;
 }
 
-std::vector<Path::entry> Path::entry::getSuccessors() {
+std::vector<Path::entry> Path::entry::getSuccessors() const {
   auto km = block->parent->parent;
   std::vector<Path::entry> ret;
 
   if (kind == Kind::In) {
     auto kCallBlock = dyn_cast<KCallBlock>(block);
     auto kb = kCallBlock->getKFunction()->entryKBlock;
-    auto kind = isa<KCallBlock>(kb) ? Kind::In : Kind::None;
+    auto kind = RegularFunctionPredicate(kb) ? Kind::In : Kind::None;
     ret.push_back({kb, kind});
   } else if (isa<KReturnBlock>(block)) {
     for (auto callBlock : km->callSiteMap.at(block->parent->function)) {
@@ -291,7 +291,7 @@ std::vector<Path::entry> Path::entry::getSuccessors() {
     }
   } else {
     for (auto successor : block->successors()) {
-      auto kind = isa<KCallBlock>(successor) ? Kind::In : Kind::None;
+      auto kind = RegularFunctionPredicate(successor) ? Kind::In : Kind::None;
       ret.push_back({successor, kind});
     }
   }

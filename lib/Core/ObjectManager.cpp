@@ -5,25 +5,12 @@
 
 #include "klee/Module/KModule.h"
 #include "klee/Support/Debug.h"
+#include "klee/Support/DebugFlags.h"
 
 #include "llvm/Support/CommandLine.h"
 
 using namespace llvm;
 using namespace klee;
-namespace klee {
-cl::opt<bool> DebugBackward("debug-backward", cl::desc(""), cl::init(false),
-                            cl::cat(DebugCat));
-
-cl::opt<bool> DebugReached("debug-reached", cl::desc(""), cl::init(false),
-                           cl::cat(DebugCat));
-
-cl::opt<DebugLoggingType> DebugConflicts(
-    "debug-conflicts", cl::desc(""),
-    llvm::cl::values(clEnumValN(DebugLoggingType::NONE, "none", ""),
-                     clEnumValN(DebugLoggingType::PATH, "path", ""),
-                     clEnumValN(DebugLoggingType::ALL, "all", "")),
-    cl::init(DebugLoggingType::NONE), cl::cat(DebugCat));
-} // namespace klee
 
 ObjectManager::ObjectManager(KBlockPredicate predicate)
     : predicate(predicate), initialState(nullptr), emptyState(nullptr) {}
@@ -163,17 +150,7 @@ void ObjectManager::updateSubscribers() {
 
   {
     ref<Event> e = new ProofObligations(addedPobs, removedPobs);
-    if (DebugBackward) {
-      if (addedPobs.size() > 0) {
-        llvm::errs() << "Propagated pobs\n";
-        for (auto pob : addedPobs) {
-          llvm::errs() << "Path: " << pob->constraints.path().toString()
-                       << "\n";
-          llvm::errs() << "Constraints:\n" << pob->constraints.cs() << "\n";
-          llvm::errs() << "\n";
-        }
-      }
-    }
+
     for (auto s : subscribers) {
       s->update(e);
     }
@@ -189,25 +166,6 @@ void ObjectManager::updateSubscribers() {
   }
 
   {
-    if (DebugConflicts != DebugLoggingType::NONE) {
-      if (addedTargetedConflicts.size() > 0) {
-        llvm::errs() << "Contradictions was found\n";
-        for (auto conflict : addedTargetedConflicts) {
-          llvm::errs() << "Path: " << conflict->conflict.path.toString()
-                       << "\n";
-          if (DebugConflicts == DebugLoggingType::ALL) {
-            llvm::errs() << "Contradiction [\n";
-            for (const auto &constraint : conflict->conflict.core) {
-              constraint->print(llvm::errs());
-              llvm::errs() << "\n";
-            }
-            llvm::errs() << "]\n";
-          }
-          llvm::errs() << "Target: " << conflict->target->toString() << "\n";
-          llvm::errs() << "\n";
-        }
-      }
-    }
     ref<Event> e = new Conflicts(addedTargetedConflicts);
     for (auto s : subscribers) {
       s->update(e);
@@ -250,9 +208,9 @@ void ObjectManager::checkReachedStates() {
     }
 
     if (state->targets.count(reached)) {
-      if (DebugReached) {
-        llvm::errs() << "New isolated state\n";
-        llvm::errs() << state->constraints.path().toString() << "\n";
+      if (debugPrints.isSet(DebugPrint::Reached)) {
+        llvm::errs() << "[reached] Isolated state: "
+                     << state->pathAndPCToString() << "\n";
       }
       auto copy = state->copy();
       reachedStates[reached].insert(copy);
@@ -300,6 +258,10 @@ void ObjectManager::checkReachedPobs() {
   }
 
   for (auto pob : toRemove) {
+    if (debugPrints.isSet(DebugPrint::ClosePob)) {
+      llvm::errs() << "[close pob] Pob closed due to forward reach at: "
+                   << pob->location.toString() << "\n";
+    }
     removePob(pob);
   }
 }
@@ -330,6 +292,12 @@ void ObjectManager::addTargetedConflict(ref<TargetedConflict> conflict) {
 
 void ObjectManager::addPob(ProofObligation *pob) {
   assert(!pobExists(pob));
+
+  if (!pob->parent && debugPrints.isSet(DebugPrint::RootPob)) {
+    llvm::errs() << "[pob] New root proof obligation at: "
+                 << pob->location.toString() << "\n";
+  }
+
   addedPobs.insert(pob);
   pathedPobs.insert({{pob->constraints.path(), pob->location}, pob});
   for (auto state : reachedStates[pob->location]) {

@@ -101,7 +101,8 @@ ExecutionState::ExecutionState(const ExecutionState &state)
       isolated(state.isolated), symbolicCounter(state.symbolicCounter),
       returnValue(state.returnValue), targets(state.targets),
       gepExprBases(state.gepExprBases), backwardStepsLeftCounter(0),
-      failedBackwardStepsCounter(0), pathTree(state.pathTree) {}
+      failedBackwardStepsCounter(0), pathTree(state.pathTree) {
+}
 
 ExecutionState *ExecutionState::branch() {
   depth++;
@@ -320,6 +321,10 @@ void ExecutionState::dumpStack(llvm::raw_ostream &out) const {
     out << "\n";
     target = sf.caller;
   }
+}
+
+std::string ExecutionState::pathAndPCToString() const {
+  return constraints.path().toString() + " at " + pc->toString();
 }
 
 void ExecutionState::addConstraint(ref<Expr> e, const Assignment &delta) {

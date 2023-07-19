@@ -2,7 +2,7 @@
 #include "ProofObligation.h"
 #include "klee/Module/KInstruction.h"
 #include "klee/Module/KModule.h"
-#include "klee/Support/OptionCategories.h"
+#include "klee/Support/DebugFlags.h"
 
 #include "llvm/IR/Instructions.h"
 
@@ -11,12 +11,6 @@
 #include <set>
 #include <stack>
 #include <utility>
-
-namespace {
-llvm::cl::opt<bool> DebugInitializer("debug-initializer", llvm::cl::desc(""),
-                                     llvm::cl::init(false),
-                                     llvm::cl::cat(klee::DebugCat));
-}
 
 namespace klee {
 
@@ -150,9 +144,9 @@ void ConflictCoreInitializer::addInit(KInstruction *from, Target to) {
   }
   initialized[from].insert(to);
 
-  if (DebugInitializer) {
-    llvm::errs() << "Initializer: Adding init from " << from->toString()
-                 << " to " << to.toString() << "\n";
+  if (debugPrints.isSet(DebugPrint::Init)) {
+    llvm::errs() << "[initializer] From " << from->toString() << " to "
+                 << to.toString() << "\n";
   }
 
   targetMap[from].insert(to);

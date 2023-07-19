@@ -1814,7 +1814,8 @@ int run_klee(int argc, char **argv, char **envp) {
         << "KLEE: done: generated tests = " << handler->getNumTestCases()
         << '\n'
         << "KLEE: done: newly summarized locations = "
-        << handler->getSummarizedLocaitons() << '\n';
+        << handler->getSummarizedLocaitons() << '\n'
+        << "KLEE: done: queries = " << queries << '\n';
 
   bool useColors = llvm::errs().is_displayed();
   if (useColors)

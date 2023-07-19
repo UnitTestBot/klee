@@ -63,6 +63,7 @@
 #include "klee/Statistics/TimerStatIncrementer.h"
 #include "klee/Support/Casting.h"
 #include "klee/Support/Debug.h"
+#include "klee/Support/DebugFlags.h"
 #include "klee/Support/ErrorHandling.h"
 #include "klee/Support/FileHandling.h"
 #include "klee/Support/FloatEvaluation.h"
@@ -480,16 +481,6 @@ cl::opt<bool> DebugCompressInstructions(
 cl::opt<bool> DebugCheckForImpliedValues(
     "debug-check-for-implied-values", cl::init(false),
     cl::desc("Debug the implied value optimization"), cl::cat(DebugCat));
-
-cl::opt<bool> DebugBidirectional("debug-bidirectional", cl::desc(""),
-                                 cl::init(false), cl::cat(DebugCat));
-
-cl::opt<DebugLoggingType>
-    DebugLemmas("debug-lemmas", cl::desc(""),
-                llvm::cl::values(clEnumValN(DebugLoggingType::NONE, "none", ""),
-                                 clEnumValN(DebugLoggingType::PATH, "path", ""),
-                                 clEnumValN(DebugLoggingType::ALL, "all", "")),
-                cl::init(DebugLoggingType::NONE), cl::cat(DebugCat));
 } // namespace
 
 extern llvm::cl::opt<uint64_t> MaxConstantAllocationSize;
@@ -522,6 +513,7 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
       usingSeeds(0), atMemoryLimit(false), inhibitForking(false),
       haltExecution(false), ivcEnabled(false),
       debugLogBuffer(debugBufferString) {
+  pathForest.cgd = codeGraphDistance.get(); // Remove
 
   objectManager = std::make_unique<ObjectManager>(JointBlockPredicate);
   seedMap = std::make_unique<SeedMap>();
@@ -1141,24 +1133,40 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
   solver->setTimeout(timeout);
 
   if (fork == AllowedFork::None) {
+    terminateStateEarly(current, "Both branches blocked (pathforest)",
+                        StateTerminationType::SilentExit);
     return StatePair(nullptr, nullptr);
   } else if (fork == AllowedFork::True) {
     bool result;
-    bool success = solver->mustBeTrue(current.constraints.cs(), condition,
+    bool success = solver->mayBeTrue(current.constraints.cs(), condition,
                                      result, current.queryMetaData);
     if (!success || !result) {
+      if (!success) {
+        terminateStateOnSolverError(current, "Query timed out (fork).");
+      } else {
+        terminateStateEarly(
+            current, "False branch blocked, true branch unsat (pathforest)",
+            StateTerminationType::SilentExit);
+      }
       return StatePair(nullptr, nullptr);
     } else {
-      res = PValidity::MustBeTrue;
+      res = PValidity::MayBeTrue;
     }
   } else if (fork == AllowedFork::False) {
     bool result;
-    bool success = solver->mustBeFalse(current.constraints.cs(), condition,
+    bool success = solver->mayBeFalse(current.constraints.cs(), condition,
                                      result, current.queryMetaData);
     if (!success || !result) {
+      if (!success) {
+        terminateStateOnSolverError(current, "Query timed out (fork).");
+      } else {
+        terminateStateEarly(
+            current, "True branch blocked, false branch unsat (pathforest)",
+            StateTerminationType::SilentExit);
+      }
       return StatePair(nullptr, nullptr);
     } else {
-      res = PValidity::MustBeFalse;
+      res = PValidity::MayBeFalse;
     }
   } else {
     bool success = solver->evaluate(current.constraints.cs(), condition, res,
@@ -2140,7 +2148,16 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
     // from just an instruction (unlike LLVM).
     KFunction *kf = kmodule->functionMap[f];
 
-    state.pushFrame(state.prevPC, kf);
+    auto block = getKBlock(&*kf->function->begin());
+    auto kind =
+        RegularFunctionPredicate(block) ? Path::Kind::In : Path::Kind::None;
+    if (state.pathTree.TransitionForbidden({block, kind})) {
+      terminateStateEarly(state, "Transition forbidden",
+                          StateTerminationType::SilentExit);
+      return;
+    }
+
+      state.pushFrame(state.prevPC, kf);
     transferToBasicBlock(&*kf->function->begin(), state.getPrevPCBlock(),
                          state);
 
@@ -2306,8 +2323,9 @@ void Executor::transferToBasicBlock(BasicBlock *dst, BasicBlock *src,
   }
   // Return to call blocks are handled in a different place
   auto block = getKBlock(dst);
-  auto kind = isa<KCallBlock>(block) ? Path::Kind::In : Path::Kind::None;
-  state.pathTree.transfer({block, kind}, pathForest);
+  auto kind = RegularFunctionPredicate(block) ? Path::Kind::In : Path::Kind::None;
+  state.pathTree.transfer({block, kind}, pathForest, state.targets);
+  successTransitionsTo.insert(dst);
 }
 
 void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
@@ -2347,7 +2365,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
         state.pc = kcaller;
         state.increaseLevel();
         ++state.pc;
-        state.pathTree.transfer({kcaller->parent, Path::Kind::Out}, pathForest);
+        state.pathTree.transfer({kcaller->parent, Path::Kind::Out}, pathForest, state.targets);
       }
 
 #ifdef SUPPORT_KLEE_EH_CXX
@@ -2429,7 +2447,20 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
   case Instruction::Br: {
     BranchInst *bi = cast<BranchInst>(i);
     if (bi->isUnconditional()) {
-      transferToBasicBlock(bi->getSuccessor(0), bi->getParent(), state);
+      auto block = getKBlock(bi->getSuccessor(0));
+      auto kind = RegularFunctionPredicate(block) ? Path::Kind::In : Path::Kind::None;
+      if (state.pathTree.TransitionForbidden({block, kind})) {
+        if (debugPrints.isSet(DebugPrint::BlockedForward)) {
+          llvm::errs()
+              << "[blocked forward] Blocked unconditional transition to "
+              << block->toString() << "\n";
+        }
+        terminateStateEarly(state,
+                            "Blocked unconditional transition (pathforest)",
+                            StateTerminationType::SilentExit);
+      } else {
+        transferToBasicBlock(bi->getSuccessor(0), bi->getParent(), state);
+      }
     } else {
       // FIXME: Find a way that we don't have this hidden dependency.
       assert(bi->getCondition() == bi->getOperand(0) && "Wrong operand index!");
@@ -2438,16 +2469,13 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       cond = optimizer.optimizeExpr(cond, false);
       auto LBlock = getKBlock(bi->getSuccessor(0)),
            RBlock = getKBlock(bi->getSuccessor(1));
-      auto LKind = isa<KCallBlock>(LBlock) ? Path::Kind::In : Path::Kind::None,
-           RKind = isa<KCallBlock>(RBlock) ? Path::Kind::In : Path::Kind::None;
+      auto LKind = RegularFunctionPredicate(LBlock) ? Path::Kind::In
+                                                    : Path::Kind::None,
+           RKind = RegularFunctionPredicate(RBlock) ? Path::Kind::In
+                                                    : Path::Kind::None;
       bool LeftAllowed = !state.pathTree.TransitionForbidden({LBlock, LKind});
       bool RightAllowed = !state.pathTree.TransitionForbidden({RBlock, RKind});
-      if (!LeftAllowed) {
-        llvm::errs() << "Forward left blocked\n";
-      }
-      if (!RightAllowed) {
-        llvm::errs() << "Forward right blocked\n";
-      }
+
       AllowedFork fk = AllowedFork::None;
       if (LeftAllowed && RightAllowed) {
         fk = AllowedFork::Both;
@@ -2457,11 +2485,28 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
         fk = AllowedFork::False;
       }
 
+      if (debugPrints.isSet(DebugPrint::BlockedForward)) {
+        switch (fk) {
+        case AllowedFork::True:
+          llvm::errs() << "[blocked forward] Blocked transition (false branch) to "
+                       << RBlock->toString() << "\n";
+          break;
+        case AllowedFork::False:
+          llvm::errs() << "[blocked forward] Blocked transition (true branch) to "
+                       << LBlock->toString() << "\n";
+          break;
+        case AllowedFork::None:
+          llvm::errs() << "[blocked forward] Blocked both branches\n";
+          break;
+        default:
+          break;
+        }
+      }
+
       Executor::StatePair branches =
           fork(state, cond, false, BranchType::ConditionalBranch, fk);
 
-      if (ProduceUnsatCore && !state.isolated &&
-          ExecutionMode == ExecutionKind::Bidirectional) {
+      if (ProduceUnsatCore && ExecutionMode == ExecutionKind::Bidirectional) {
         if ((!branches.first && branches.second) ||
             (branches.first && !branches.second)) {
           ExecutionState &validState =
@@ -2475,28 +2520,45 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
               solver->getValidityCore(validState.constraints.cs(), condition,
                                       core, result, validState.queryMetaData);
           if (success && result) {
-            auto conflict = Conflict();
-            conflict.path = validState.constraints.path();
-            conflict.core = core.constraints;
+            if (state.isolated) {
+              auto path = validState.constraints.path().getKindedBlocks();
+              auto block = kmodule->getKBlock(bi->getSuccessor(index));
+              auto kind =
+                  isa<KCallBlock>(block) ? Path::Kind::In : Path::Kind::None;
+              path.push_back({block, kind});
+              pathForest.addPath(path);
+
+              if (debugPrints.isSet(DebugPrint::Conflict)) {
+                llvm::errs() << "[conflict] Conflict in forward: "
+                             << Path(0, path, 0).toString() << "\n";
+              }
+            }
+
             // for (const auto &i: conflict.core) {
             //   conflict.pathIndexes.insert({i,
             //   state.constraints.indexes().at(i)});
             // }
-            conflict.core.insert(Expr::createIsZero(core.expr));
-            ref<TargetedConflict> targeted = new TargetedConflict(
-                conflict, kmodule->getKBlock(bi->getSuccessor(index)));
-            failedTransitionsTo[targeted->target->basicBlock] =
-                failedTransitionsTo[targeted->target->basicBlock] + 1;
-            if (!successTransitionsTo.count(targeted->target->basicBlock) &&
-                failedTransitionsTo[targeted->target->basicBlock] >
-                    MaxFailedBranchings) {
-              objectManager->addTargetedConflict(targeted);
+            if (!state.isolated) {
+              auto conflict = Conflict();
+              conflict.path = validState.constraints.path();
+              conflict.core = core.constraints;
+              conflict.core.insert(Expr::createIsZero(core.expr));
+              ref<TargetedConflict> targeted = new TargetedConflict(
+                  conflict, kmodule->getKBlock(bi->getSuccessor(index)));
+              failedTransitionsTo[targeted->target->basicBlock] =
+                  failedTransitionsTo[targeted->target->basicBlock] + 1;
+              if (!successTransitionsTo.count(targeted->target->basicBlock) &&
+                  failedTransitionsTo[targeted->target->basicBlock] >
+                      MaxFailedBranchings) {
+                objectManager->addTargetedConflict(targeted);
 
-              if (!verifingTransitionsTo.count(targeted->target->basicBlock)) {
-                verifingTransitionsTo.insert(targeted->target->basicBlock);
-                ProofObligation *pob =
-                    new ProofObligation(targeted->target, pathForest);
-                objectManager->addPob(pob);
+                if (!verifingTransitionsTo.count(
+                        targeted->target->basicBlock)) {
+                  verifingTransitionsTo.insert(targeted->target->basicBlock);
+                  ProofObligation *pob =
+                      new ProofObligation(targeted->target, pathForest);
+                  objectManager->addPob(pob);
+                }
               }
             }
           }
@@ -2509,28 +2571,6 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       if (statsTracker && !state.isolated &&
           state.stack.back().kf->trackCoverage) {
         statsTracker->markBranchVisited(branches.first, branches.second);
-      }
-
-      if (state.isolated) {
-        if (!branches.first) {
-          auto path = branches.second->constraints.path().getKindedBlocks();
-          auto block = kmodule->getKBlock(bi->getSuccessor(0));
-          auto kind =
-              isa<KCallBlock>(block) ? Path::Kind::In : Path::Kind::None;
-          path.push_back({block, kind});
-          // llvm::errs() << "Conflict in forward" << (state.isolated ? " (isolated)\n" : "\n");
-          pathForest.addPath(path);
-        }
-
-        if (!branches.second) {
-          auto path = branches.first->constraints.path().getKindedBlocks();
-          auto block = kmodule->getKBlock(bi->getSuccessor(1));
-          auto kind =
-              isa<KCallBlock>(block) ? Path::Kind::In : Path::Kind::None;
-          path.push_back({block, kind});
-          // llvm::errs() << "Conflict in forward" << (state.isolated ? " (isolated)\n" : "\n");
-          pathForest.addPath(path);
-        }
       }
 
       if (branches.first)
@@ -4306,6 +4346,10 @@ Executor::ComposeResult Executor::compose(const ExecutionState &state,
       if (isValid) {
         auto conflict = Conflict();
         auto path = Path::concat(state.constraints.path(), pob.path());
+        if (debugPrints.isSet(DebugPrint::Conflict)) {
+          llvm::errs() << "[conflict] Conflict in backward: " << path.toString()
+                       << "\n";
+        }
         pathForest.addPath(path.getKindedBlocks());
         conflict.path = state.constraints.path();
         constraints_ty rebuiltCore;
@@ -4350,22 +4394,31 @@ Executor::ComposeResult Executor::compose(const ExecutionState &state,
 void Executor::executeAction(ref<BidirectionalAction> action) {
   switch (action->getKind()) {
   case BidirectionalAction::Kind::Forward: {
+    if (debugPrints.isSet(DebugPrint::Forward)) {
+      llvm::errs() << "[forward] State: "
+                   << cast<ForwardAction>(action)->state->pathAndPCToString()
+                   << "\n";
+      if (debugConstraints.isSet(DebugPrint::Forward)) {
+        // TODO
+      }
+    }
     goForward(cast<ForwardAction>(action));
     break;
   }
   case BidirectionalAction::Kind::Backward: {
-    if (DebugBidirectional) {
-      llvm::errs() << "Backward: chosen propagation is:\n";
-      llvm::errs() << "state: "
-                   << cast<BackwardAction>(action)
-                          ->prop.state->constraints.path()
-                          .toString()
-                   << "\n";
-      llvm::errs() << "pob: "
+    if (debugPrints.isSet(DebugPrint::Backward)) {
+      llvm::errs()
+          << "[backward] State: "
+          << cast<BackwardAction>(action)->prop.state->pathAndPCToString()
+          << "\n";
+      llvm::errs() << "[backward] Pob: "
                    << cast<BackwardAction>(action)
                           ->prop.pob->constraints.path()
                           .toString()
                    << "\n";
+      if (debugConstraints.isSet(DebugPrint::Backward)) {
+        // TODO
+      }
     }
     goBackward(cast<BackwardAction>(action));
     break;
@@ -4407,7 +4460,9 @@ void Executor::goBackward(ref<BackwardAction> action) {
   ProofObligation *pob = action->prop.pob;
 
   if (pob->pathTree.TransitionForbidden(state->constraints.path())) {
-    llvm::errs() << "Backward blocked\n";
+    if (debugPrints.isSet(DebugPrint::BlockedBackward)) {
+      llvm::errs() << "[blocked backward]\n";
+    }
     return;
   }
 
@@ -4437,27 +4492,15 @@ void Executor::goBackward(ref<BackwardAction> action) {
       objectManager->addPob(newPob);
       if (newPob->location.getBlock()->getFirstInstruction() ==
           objectManager->emptyState->initPC) {
+        if (debugPrints.isSet(DebugPrint::ClosePob)) {
+          llvm::errs() << "[close pob] Pob closed due to backward reach at: "
+                       << newPob->root->location.toString() << "\n";
+        }
         closeProofObligation(pob);
       }
     }
   } else {
     if (state->isolated && composeResult.conflict.core.size()) {
-      if (DebugLemmas != DebugLoggingType::NONE) {
-        llvm::errs() << "Add lemma for pob at: "
-                     << pob->location.getBlock()->toString()
-                     << (pob->atReturn() ? "(at return)" : "") << "\n";
-        llvm::errs() << "Path: " << state->constraints.path().toString()
-                     << "\n";
-        if (DebugLemmas == DebugLoggingType::ALL) {
-          llvm::errs() << "Content: [\n";
-          for (const auto &condition : composeResult.conflict.core) {
-            condition->print(llvm::errs());
-            llvm::errs() << "\n";
-          }
-          llvm::errs() << "]\n";
-        }
-        llvm::errs() << "\n";
-      }
       summary.addLemma(
           new Lemma(state->constraints.path(), composeResult.conflict.core));
       if (!summarized.count(state->constraints.path().getBlocks().back())) {
@@ -4469,8 +4512,6 @@ void Executor::goBackward(ref<BackwardAction> action) {
 }
 
 void Executor::closeProofObligation(ProofObligation *pob) {
-  // answerPob(pob);
-  // std::queue<ProofObligation *> pobs;
   objectManager->removePob(pob->root);
 }
 

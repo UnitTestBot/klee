@@ -5,6 +5,7 @@
 #include "klee/Expr/ExprPPrinter.h"
 #include "klee/Expr/Parser/Parser.h"
 #include "klee/Module/KModule.h"
+#include "klee/Support/DebugFlags.h"
 #include "klee/Support/ErrorHandling.h"
 #include "klee/Support/OptionCategories.h"
 
@@ -29,6 +30,18 @@ cl::opt<std::string> SummaryFile("ksummary-file",
 void Summary::addLemma(ref<Lemma> lemma) {
   if (!lemmas.count(lemma)) {
     lemmas.insert(lemma);
+
+    if (debugPrints.isSet(DebugPrint::Lemma)) {
+      llvm::errs() << "[lemma] New Lemma ------------------------\n";
+      llvm::errs() << lemma->path.toString() << "\n";
+      llvm::errs() << "Constraints [\n";
+      for (auto i : lemma->constraints) {
+        i->print(llvm::errs());
+      }
+      llvm::errs() << "]\n";
+      llvm::errs() << "[lemma] New Lemma End --------------------\n";
+    }
+
     std::error_code ec;
     raw_fd_ostream os(getFilename(), ec, sys::fs::CD_OpenAlways,
                       sys::fs::FA_Write, sys::fs::OF_Append);

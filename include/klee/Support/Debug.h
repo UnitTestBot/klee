@@ -26,6 +26,4 @@
 #endif
 #define KLEE_DEBUG(X) KLEE_DEBUG_WITH_TYPE(DEBUG_TYPE, X)
 
-enum DebugLoggingType { NONE, PATH, ALL };
-
 #endif /* KLEE_DEBUG_H */
