@@ -96,6 +96,15 @@ public:
 
 typedef std::function<bool(KBlock *)> KBlockPredicate;
 
+bool JointBlockPredicate(KBlock *);
+
+struct TraceVerifyPredicate {
+  // TraceVerifyPredicate()
+
+private:
+  std::set<KBlock *> specialPoints;
+};
+
 struct KCallBlock : KBlock {
   KInstruction *kcallInstruction;
   std::set<llvm::Function *> calledFunctions;
@@ -151,6 +160,7 @@ public:
   std::unordered_map<const llvm::BasicBlock *, KBlock *> blockMap;
   KBlock *entryKBlock;
   std::vector<KBlock *> returnKBlocks;
+  std::set<KBlock *> finalKBlocks;
   std::vector<KCallBlock *> kCallBlocks;
 
   /// Whether instructions in this function should count as

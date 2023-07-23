@@ -88,19 +88,19 @@ void ConflictCoreInitializer::removePob(ProofObligation *pob) {
 void ConflictCoreInitializer::addConflictInit(const Conflict &conflict,
                                               KBlock *target) {
   auto &blocks = conflict.path.getBlocks();
-  std::vector<KFunction *> functions;
+  std::unordered_set<KFunction *> functions;
 
   for (auto block : blocks) {
-    if (std::find(functions.begin(), functions.end(), block->parent) ==
-        functions.end()) {
-      functions.push_back(block->parent);
+    if (!dismantledFunctions.count(block->parent)) {
+      functions.insert(block->parent);
+      dismantledFunctions.insert(block->parent);
     }
   }
 
   // Dismantle all functions present in the path
   for (auto function : functions) {
-    auto dismantled =
-        cgd->dismantle(function->entryKBlock, function->returnKBlocks);
+    auto dismantled = cgd->dismantle(function->entryKBlock,
+                                     function->finalKBlocks, predicate);
     for (auto i : dismantled) {
       KInstruction *from =
           (isa<KCallBlock>(i.first) &&
@@ -126,16 +126,15 @@ void ConflictCoreInitializer::addConflictInit(const Conflict &conflict,
     }
   }
 
-  // Dismantle to target
-  auto dismantled = cgd->dismantle(target->parent->entryKBlock, {target});
-  for (auto i : dismantled) {
+  auto targetB = cgd->getNearestPredicateSatisfying(target, predicate, false);
+  if (target != targetB) {
     KInstruction *from =
-        (isa<KCallBlock>(i.first) &&
+        (isa<KCallBlock>(targetB) &&
                  isa<llvm::CallInst>(
-                     cast<KCallBlock>(i.first)->kcallInstruction->inst)
-             ? i.first->instructions[1]
-             : i.first->instructions[0]);
-    addInit(from, Target::create(i.second));
+                     cast<KCallBlock>(targetB)->kcallInstruction->inst)
+             ? targetB->instructions[1]
+             : targetB->instructions[0]);
+    addInit(from, Target::create(target));
   }
 }
 

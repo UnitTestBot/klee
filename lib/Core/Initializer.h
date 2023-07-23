@@ -30,11 +30,15 @@ public:
   void addConflictInit(const Conflict &, KBlock *) override;
   void update(const pobs_ty &added, const pobs_ty &removed) override;
 
-  explicit ConflictCoreInitializer(CodeGraphDistance *cgd) : cgd(cgd){};
+  explicit ConflictCoreInitializer(CodeGraphDistance *cgd,
+                                   KBlockPredicate predicate)
+      : cgd(cgd), predicate(predicate){};
+
   ~ConflictCoreInitializer() override {}
 
 private:
   CodeGraphDistance *cgd;
+  KBlockPredicate predicate;
 
   // There are proof obligation in these targets
   std::map<ref<Target>, unsigned> knownTargets;
@@ -52,6 +56,9 @@ private:
   // For every (KI, Target) pair in this map, there is a state that starts
   // at KI and has Target as one of its targets.
   std::map<KInstruction *, std::set<ref<Target>>> initialized;
+
+  // Already dismantled functions don't need to be dismantled again
+  std::unordered_set<KFunction *> dismantledFunctions;
 
   void addInit(KInstruction *from, ref<Target> to);
   void addPob(ProofObligation *pob);

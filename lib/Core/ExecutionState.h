@@ -483,6 +483,7 @@ public:
 
   bool reachedTarget(ref<ReachBlockTarget> target) const;
   static std::uint32_t getLastID() { return nextID - 1; };
+  ref<Target> getTarget() const;
 
   inline bool isStuck(unsigned long long bound) {
     KInstruction *prevKI = prevPC;

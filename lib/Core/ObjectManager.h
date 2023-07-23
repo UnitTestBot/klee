@@ -95,7 +95,7 @@ public:
     static bool classof(const ProofObligations *) { return true; }
   };
 
-  ObjectManager();
+  ObjectManager(KBlockPredicate predicate);
   ~ObjectManager();
 
   void addSubscriber(Subscriber *);
@@ -127,6 +127,8 @@ public:
 private:
   std::vector<Subscriber *> subscribers;
   PForest *processForest;
+
+  KBlockPredicate predicate;
 
 public:
   ExecutionState *emptyState;

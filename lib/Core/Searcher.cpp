@@ -178,12 +178,16 @@ void TargetedSearcher::update(
     states->update(current, getWeight(current));
 
   // insert states
-  for (const auto state : addedStates)
+  for (const auto state : addedStates) {
     states->insert(state, getWeight(state));
+    stateshere.insert(state);
+  }
 
   // remove states
-  for (const auto state : removedStates)
+  for (const auto state : removedStates) {
     states->remove(state);
+    stateshere.erase(state);
+  }
 }
 
 weight_type TargetedSearcher::getWeight(ExecutionState *es) {

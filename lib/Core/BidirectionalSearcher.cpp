@@ -73,12 +73,14 @@ ref<BidirectionalAction> BidirectionalSearcher::selectAction() {
 
     case StepKind::Forward: {
       auto &state = forward->selectState();
+      state.isolated = state.isolated;
       action = new ForwardAction(&state);
       break;
     }
 
     case StepKind::Branch: {
       auto &state = branch->selectState();
+      state.isolated = state.isolated;
       action = new ForwardAction(&state);
       break;
     }

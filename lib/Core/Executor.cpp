@@ -486,8 +486,8 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
       inhibitForking(false), haltExecution(HaltExecution::NotHalt),
       ivcEnabled(false), debugLogBuffer(debugBufferString) {
 
-  objectManager = std::make_unique<ObjectManager>();
-  seedMap = std::make_unique<SeedMap>();
+
+  objectManager = std::make_unique<ObjectManager>(JointBlockPredicate);
   objectManager->addSubscriber(seedMap.get());
 
   const time::Span maxTime{MaxTime};
@@ -4777,20 +4777,21 @@ void Executor::run(std::vector<ExecutionState *> initialStates) {
     Searcher *forward = constructUserSearcher(*this);
     Searcher *branch = constructUserSearcher(*this, false);
     BackwardSearcher *backward = constructUserBackwardSearcher();
-    Initializer *initializer =
-        new ConflictCoreInitializer(codeGraphDistance.get());
+    Initializer *initializer = new ConflictCoreInitializer(
+        codeGraphDistance.get(), JointBlockPredicate);
     searcher = std::make_unique<BidirectionalSearcher>(forward, branch,
                                                        backward, initializer);
   }
 
-  objectManager->addSubscriber(searcher.get());
-
   if (targetManager) {
     objectManager->addSubscriber(targetManager.get());
   }
+
   if (guidanceKind == GuidanceKind::ErrorGuidance && targetedExecutionManager) {
     objectManager->addSubscriber(targetedExecutionManager.get());
   }
+
+  objectManager->addSubscriber(searcher.get());
 
   objectManager->initialUpdate();
 

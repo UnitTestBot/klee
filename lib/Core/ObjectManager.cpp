@@ -14,7 +14,8 @@
 using namespace llvm;
 using namespace klee;
 
-ObjectManager::ObjectManager() : emptyState(nullptr) {}
+ObjectManager::ObjectManager(KBlockPredicate predicate)
+    : predicate(predicate), emptyState(nullptr) {}
 
 ObjectManager::~ObjectManager() {}
 
@@ -115,9 +116,16 @@ void ObjectManager::updateSubscribers() {
     for (auto s : subscribers) {
       s->update(e);
     }
+
+    if (current) {
+      current->stepTargetsAndHistory();
+    }
+
     for (auto state : addedStates) {
+      state->stepTargetsAndHistory();
       isolated ? isolatedStates.insert(state) : states.insert(state);
     }
+
     for (auto state : removedStates) {
       processForest->remove(state->ptreeNode);
       isolated ? isolatedStates.erase(state) : states.erase(state);
@@ -192,30 +200,33 @@ void ObjectManager::checkReachedStates() {
   std::vector<ExecutionState *> toRemove;
   for (auto state : states) {
     if (!isOKIsolatedState(state)) {
-      if (state->isolated) {
-        // llvm::errs() << "DELETING: " << state->pathAndPCToString() << "\n";
-      }
       toRemove.push_back(state);
       continue;
     }
-    for (auto target : state->targets()) {
-      if (state->reachedTarget(target)) {
-        if (debugPrints.isSet(DebugPrint::Reached)) {
-          llvm::errs() << "[reached] Isolated state: "
-                       << state->pathAndPCToString() << "\n";
+
+    auto reached = state->getTarget();
+    if (!reached || state->constraints.path().KBlockSize() == 0) {
+      continue;
+    }
+
+    if (state->targets().count(reached)) {
+      if (debugPrints.isSet(DebugPrint::Reached)) {
+        llvm::errs() << "[reached] Isolated state: "
+                     << state->pathAndPCToString() << "\n";
+      }
+      auto copy = state->copy();
+      reachedStates[reached].insert(copy);
+      for (auto pob : pobs[reached]) {
+        if (checkStack(copy, pob)) {
+          addedPropagations.insert({copy, pob});
         }
-        auto copy = state->copy();
-        reachedStates[target].insert(copy);
-        for (auto pob : pobs[target]) {
-          if (checkStack(copy, pob)) {
-            addedPropagations.insert({copy, pob});
-          }
-        }
+      }
+      if (predicate(reached->getBlock())) {
         toRemove.push_back(state);
-        if (state->isolated) {
-          // llvm::errs() << "DELETING: " << state->pathAndPCToString() << "\n";
-        }
-        break;
+      }
+    } else {
+      if (predicate(reached->getBlock())) {
+        toRemove.push_back(state);
       }
     }
   }
