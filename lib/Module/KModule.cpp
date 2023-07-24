@@ -746,3 +746,24 @@ bool klee::JointBlockPredicate(KBlock *block) {
 
   return false;
 }
+
+bool TraceVerifyPredicate::operator()(KBlock *block) {
+  if (block == block->parent->entryKBlock) {
+    return true;
+  }
+
+  if (block->parent->finalKBlocks.count(block)) {
+    return true;
+  }
+
+  if (isa<KCallBlock>(block) && dyn_cast<KCallBlock>(block)->internal() &&
+      !dyn_cast<KCallBlock>(block)->intrinsic()) {
+    return true;
+  }
+
+  if (specialPoints.count(block)) {
+    return true;
+  }
+
+  return false;
+}

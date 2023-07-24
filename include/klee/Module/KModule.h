@@ -99,7 +99,10 @@ typedef std::function<bool(KBlock *)> KBlockPredicate;
 bool JointBlockPredicate(KBlock *);
 
 struct TraceVerifyPredicate {
-  // TraceVerifyPredicate()
+  TraceVerifyPredicate(std::set<KBlock *> specialPoints)
+      : specialPoints(specialPoints){};
+
+  bool operator()(KBlock *block);
 
 private:
   std::set<KBlock *> specialPoints;
