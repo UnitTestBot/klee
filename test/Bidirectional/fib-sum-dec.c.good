@@ -54,4 +54,4 @@ KLEE: done: completed paths = 2
 KLEE: done: partially completed paths = 3
 KLEE: done: generated tests = 6
 KLEE: done: newly summarized locations = 1
-KLEE: done: queries = 148
+KLEE: done: queries = 151
