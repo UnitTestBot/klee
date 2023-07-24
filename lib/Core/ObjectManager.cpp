@@ -112,6 +112,10 @@ void ObjectManager::updateSubscribers() {
       checkReachedStates();
     }
 
+    if (!isolated) {
+      checkReachedPobs();
+    }
+
     ref<Event> e = new States(current, addedStates, removedStates, isolated);
     for (auto s : subscribers) {
       s->update(e);
@@ -239,6 +243,34 @@ void ObjectManager::checkReachedStates() {
   }
 }
 
+void ObjectManager::checkReachedPobs() {
+  assert(statesUpdated && stateUpdateKind == StateKind::Regular);
+
+  std::set<ExecutionState *> states(addedStates.begin(), addedStates.end());
+  if (current) {
+    states.insert(current);
+  }
+
+  std::set<ProofObligation *> toRemove;
+  for (auto state : states) {
+    auto reached = state->getTarget();
+    if (reached && pobs.count(reached)) {
+      for (auto pob : pobs.at(reached)) {
+        if (!pob->parent) {
+          if (debugPrints.isSet(DebugPrint::ClosePob)) {
+            llvm::errs() << "[close pob] Pob closed due to forward reach at: "
+                         << pob->location->toString() << "\n";
+          }
+          toRemove.insert(pob);
+        }
+      }
+    }
+  }
+
+  for (auto pob : toRemove) {
+    removePob(pob);
+  }
+}
 
 bool ObjectManager::isOKIsolatedState(ExecutionState *state) {
   assert(state->isolated);

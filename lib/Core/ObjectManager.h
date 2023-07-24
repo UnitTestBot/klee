@@ -166,6 +166,7 @@ public:
 
   bool checkStack(ExecutionState *state, ProofObligation *pob);
   void checkReachedStates();
+  void checkReachedPobs();
 
   // Check that the state has not entered a different function
   // unless it is a 'bridge' state

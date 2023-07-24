@@ -1,7 +1,7 @@
 // REQUIRES: z3
 // RUN: %clang %s -emit-llvm %O0opt -c -o %t.bc
 // RUN: rm -rf %t.klee-out
-// RUN: %klee --write-kqueries --output-dir=%t.klee-out --solver-backend=z3 --execution-mode=bidirectional --max-propagations=3 --max-stack-frames=4 --skip-not-lazy-initialized --skip-not-symbolic-objects --debug=rootpob,backward,conflict %t.bc 2> %t.log
+// RUN: %klee --write-kqueries --output-dir=%t.klee-out --solver-backend=z3 --execution-mode=bidirectional --max-propagations=3 --max-stack-frames=4 --skip-not-lazy-initialized --skip-not-symbolic-objects --debug=rootpob,backward,conflict,closepob %t.bc 2> %t.log
 // RUN: FileCheck %s -input-file=%t.log
 // RUN: sed -n '/\[pob\]/,$p' %t.log > %t.log.tail
 // RUN: diff %t.log.tail %s.good
