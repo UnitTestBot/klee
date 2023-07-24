@@ -275,9 +275,7 @@ void ObjectManager::checkReachedPobs() {
 bool ObjectManager::isOKIsolatedState(ExecutionState *state) {
   assert(state->isolated);
 
-  if (state->multilevelCount > state->level.size()) {
-    return false;
-  }
+  return true;
 
   if (state->stack.size() < 2) {
     return true;

@@ -75,6 +75,15 @@ public:
 
   std::vector<std::pair<KBlock *, KBlock *>>
   dismantle(KBlock *from, std::set<KBlock *> to, KBlockPredicate predicate);
+
+  std::vector<std::pair<KBlock *, KBlock *>>
+  dismantleFunction(KFunction *kf, KBlockPredicate predicate);
+
+  std::set<KBlock *> getNearestPredicateSatisfying(KBlock *from, KBlockPredicate predicate);
+
+  void getNearestPredicateSatisfying(KBlock *from, KBlockPredicate predicate,
+                                     std::set<KBlock *> &visited,
+                                     std::set<KBlock *> &result);
 };
 
 } // namespace klee

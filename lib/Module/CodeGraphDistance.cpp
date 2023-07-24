@@ -262,3 +262,44 @@ CodeGraphDistance::dismantle(KBlock *from, std::set<KBlock *> to,
   }
   return dismantled;
 }
+
+std::vector<std::pair<KBlock *, KBlock *>>
+CodeGraphDistance::dismantleFunction(KFunction *kf, KBlockPredicate predicate) {
+  std::vector<std::pair<KBlock *, KBlock *>> dismantled;
+  std::queue<KBlock *> queue;
+  std::set<KBlock *> used;
+
+  queue.push(kf->entryKBlock);
+  while (!queue.empty()) {
+    auto kblock = queue.front();
+    queue.pop();
+    used.insert(kblock);
+    std::set<KBlock *> visited, nearest;
+    getNearestPredicateSatisfying(kblock, predicate, visited, nearest);
+    for (auto to : nearest) {
+      dismantled.push_back({kblock, to});
+      if (!used.count(to)) {
+        queue.push(to);
+      }
+    }
+  }
+  return dismantled;
+}
+
+void CodeGraphDistance::getNearestPredicateSatisfying(
+    KBlock *from, KBlockPredicate predicate, std::set<KBlock *> &visited,
+    std::set<KBlock *> &result) {
+  auto kf = from->parent;
+  for (auto block : successors(from->basicBlock)) {
+    auto kblock = kf->blockMap.at(block);
+    if (visited.count(kblock)) {
+      continue;
+    }
+    visited.insert(kblock);
+    if (predicate(kblock)) {
+      result.insert(kblock);
+    } else {
+      getNearestPredicateSatisfying(kblock, predicate, visited, result);
+    }
+  }
+}

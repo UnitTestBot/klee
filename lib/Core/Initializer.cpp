@@ -99,29 +99,23 @@ void ConflictCoreInitializer::addConflictInit(const Conflict &conflict,
 
   // Dismantle all functions present in the path
   for (auto function : functions) {
-    auto dismantled = cgd->dismantle(function->entryKBlock,
-                                     function->finalKBlocks, predicate);
+    auto dismantled = cgd->dismantleFunction(function, predicate);
     for (auto i : dismantled) {
       KInstruction *from =
-          (isa<KCallBlock>(i.first) &&
-                   isa<llvm::CallInst>(
-                       cast<KCallBlock>(i.first)->kcallInstruction->inst)
-               ? i.first->instructions[1]
-               : i.first->instructions[0]);
+          (RegularFunctionPredicate(i.first) ? i.first->instructions[1]
+                                             : i.first->instructions[0]);
       addInit(from, Target::create(i.second));
     }
   }
 
-  // Go through all the present functions and bridge calls if they lead to
-  // a present function (itself included)
+  // Bridge calls
   for (auto function : functions) {
     for (auto &block : function->blocks) {
-      if (auto call = dyn_cast<KCallBlock>(block.get())) {
+      if (RegularFunctionPredicate(block.get())) {
+        auto call = dyn_cast<KCallBlock>(block.get());
         auto called = call->getKFunction();
-        if (std::find(functions.begin(), functions.end(), called) !=
-            functions.end()) {
-          addInit(call->getFirstInstruction(), Target::create(called->entryKBlock));
-        }
+        addInit(call->getFirstInstruction(),
+                Target::create(called->entryKBlock));
       }
     }
   }
@@ -129,11 +123,8 @@ void ConflictCoreInitializer::addConflictInit(const Conflict &conflict,
   auto targetB = cgd->getNearestPredicateSatisfying(target, predicate, false);
   if (target != targetB) {
     KInstruction *from =
-        (isa<KCallBlock>(targetB) &&
-                 isa<llvm::CallInst>(
-                     cast<KCallBlock>(targetB)->kcallInstruction->inst)
-             ? targetB->instructions[1]
-             : targetB->instructions[0]);
+        (RegularFunctionPredicate(targetB) ? targetB->instructions[1]
+                                           : targetB->instructions[0]);
     addInit(from, Target::create(target));
   }
 }

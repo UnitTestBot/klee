@@ -719,6 +719,11 @@ std::string KBlock::toString() const {
   return getLabel() + " in function " + parent->function->getName().str();
 }
 
+bool klee::RegularFunctionPredicate(KBlock *block) {
+  return (isa<KCallBlock>(block) && dyn_cast<KCallBlock>(block)->internal() &&
+          !dyn_cast<KCallBlock>(block)->intrinsic());
+}
+
 bool klee::JointBlockPredicate(KBlock *block) {
   if (block == block->parent->entryKBlock) {
     return true;
@@ -728,16 +733,16 @@ bool klee::JointBlockPredicate(KBlock *block) {
     return true;
   }
 
-#if LLVM_VERSION_CODE >= LLVM_VERSION(9, 0)
-  if (block->basicBlock->hasNPredecessorsOrMore(2) ||
-      block->basicBlock->hasNPredecessors(0)) {
-    return true;
-  }
-#else
-  if (block->basicBlock->hasNUsesOrMore(2) || block->basicBlock->hasNUses(0)) {
-    return true;
-  }
-#endif
+// #if LLVM_VERSION_CODE >= LLVM_VERSION(9, 0)
+//   if (block->basicBlock->hasNPredecessorsOrMore(2) ||
+//       block->basicBlock->hasNPredecessors(0)) {
+//     return true;
+//   }
+// #else
+//   if (block->basicBlock->hasNUsesOrMore(2) || block->basicBlock->hasNUses(0)) {
+//     return true;
+//   }
+// #endif
 
   if (isa<KCallBlock>(block) && dyn_cast<KCallBlock>(block)->internal() &&
       !dyn_cast<KCallBlock>(block)->intrinsic()) {
