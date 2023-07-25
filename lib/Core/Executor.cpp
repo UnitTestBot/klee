@@ -7401,7 +7401,7 @@ void Executor::runFunctionAsMain(Function *f, int argc, char **argv,
         if (kfunction->getName().compare("reach_error") == 0) {
           KBlock *kCallBlock = kfunction->entryKBlock;
           llvm::Optional<uint64_t> callBlockLine =
-              kCallBlock->getFirstInstruction()->info->assemblyLine;
+              kCallBlock->getFirstInstruction()->info->line;
           if (callBlockLine.hasValue()) {
             unsigned int callBlockLineValue =
                 static_cast<unsigned int>(callBlockLine.getValue());
