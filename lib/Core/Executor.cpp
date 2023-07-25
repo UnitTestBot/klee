@@ -230,6 +230,7 @@ llvm::cl::opt<unsigned> MinNumberElementsLazyInit(
                    "initialization (default 4)"),
     llvm::cl::init(4), llvm::cl::cat(LazyInitCat));
 
+
 cl::opt<ExecutionKind> ExecutionMode(
     "execution-mode",
     cl::values(clEnumValN(ExecutionKind::Forward, "forward",
@@ -238,6 +239,15 @@ cl::opt<ExecutionKind> ExecutionMode(
                           "Use bidirectional execution")),
     cl::init(ExecutionKind::Forward), cl::desc("Execution mode"),
     cl::cat(ExecCat));
+
+cl::OptionCategory
+    TestCompCat("TestComp options",
+                "These options are used in TestComp competition.");
+
+cl::opt<bool> CoverageErrorCall(
+    "cov-error-call", cl::init(false),
+    cl::desc("Marks reach_error() functions as targets for error-guided mode."),
+    cl::cat(TestCompCat));
 
 } // namespace klee
 
@@ -7355,7 +7365,7 @@ void Executor::clearMemory() {
 
 void Executor::runFunctionAsMain(Function *f, int argc, char **argv,
                                  char **envp) {
-  if (guidanceKind == GuidanceKind::ErrorGuidance &&
+  if (!CoverageErrorCall && guidanceKind == GuidanceKind::ErrorGuidance &&
       (!interpreterOpts.Paths.has_value() || interpreterOpts.Paths->empty())) {
     klee_warning("No targets found in error-guided mode");
     return;
@@ -7380,9 +7390,31 @@ void Executor::runFunctionAsMain(Function *f, int argc, char **argv,
     KInstIterator caller;
     state->popFrame();
 
-    auto &paths = interpreterOpts.Paths.value();
-    data = targetedExecutionManager->prepareTargets(kmodule.get(),
-                                                    std::move(paths));
+    if (!CoverageErrorCall) {
+      auto &paths = interpreterOpts.Paths.value();
+      data = targetedExecutionManager->prepareTargets(kmodule.get(),
+                                                      std::move(paths));
+    } else {
+      KFunction *kEntryFunction = kmodule->functionMap.at(f);
+      ref<TargetForest> forest = new TargetForest(kEntryFunction);
+      for (const auto &kfunction : kmodule->functions) {
+        if (kfunction->getName().compare("reach_error") == 0) {
+          KBlock *kCallBlock = kfunction->entryKBlock;
+          llvm::Optional<uint64_t> callBlockLine =
+              kCallBlock->getFirstInstruction()->info->assemblyLine;
+          if (callBlockLine.hasValue()) {
+            unsigned int callBlockLineValue =
+                static_cast<unsigned int>(callBlockLine.getValue());
+            forest->add(ReproduceErrorTarget::create(
+                            {ReachWithError::Reachable}, "",
+                            ErrorLocation{callBlockLineValue, callBlockLineValue},
+                            kCallBlock));
+          }
+        }
+      }
+      data.forwardWhitelists.emplace(kEntryFunction, forest);
+      // ADD BACKWARD TREE, POB and other stuff
+    }
 
     auto forwardTargets = data.forwardWhitelists;
     if (forwardTargets.empty()) {
@@ -7396,7 +7428,7 @@ void Executor::runFunctionAsMain(Function *f, int argc, char **argv,
           kmodule->functionMap.at(startFunctionAndWhiteList.first->function);
       if (startFunctionAndWhiteList.second->empty()) {
         klee_warning("No targets found for %s",
-                     kf->function->getName().str().c_str());
+                    kf->function->getName().str().c_str());
         continue;
       }
       auto whitelist = startFunctionAndWhiteList.second;
