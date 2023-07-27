@@ -21,6 +21,9 @@ ConflictCoreInitializer::selectAction() {
   auto targets = targetMap[KI];
   assert(!targets.empty());
   targetMap.erase(KI);
+  for (auto target : targets) {
+    instructionMap[target].erase(KI);
+  }
   return {KI, targets};
 }
 
@@ -91,9 +94,9 @@ void ConflictCoreInitializer::addConflictInit(const Conflict &conflict,
   std::unordered_set<KFunction *> functions;
 
   for (auto block : blocks) {
-    if (!dismantledFunctions.count(block->parent)) {
-      functions.insert(block->parent);
-      dismantledFunctions.insert(block->parent);
+    if (!dismantledFunctions.count(block.block->parent)) {
+      functions.insert(block.block->parent);
+      dismantledFunctions.insert(block.block->parent);
     }
   }
 
@@ -141,6 +144,7 @@ void ConflictCoreInitializer::addInit(KInstruction *from, ref<Target> to) {
   }
 
   targetMap[from].insert(to);
+  instructionMap[to].insert(from);
   bool awaits =
       (std::find(awaiting.begin(), awaiting.end(), from) != awaiting.end());
   bool enqueued =

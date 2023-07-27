@@ -285,6 +285,7 @@ class ParserImpl : public Parser {
   /* Top level decls */
 
   DeclResult ParseArrayDecl();
+  Path ParsePathDecl();
   DeclResult ParseExprVarDecl();
   DeclResult ParseVersionVarDecl();
   DeclResult ParseCommandDecl();
@@ -474,6 +475,103 @@ DeclResult ParserImpl::ParseArrayDecl() {
   VersionSymTab.insert(std::make_pair(Label, UpdateList(array, NULL)));
 
   return AD;
+}
+
+Path ParserImpl::ParsePathDecl() {
+  unsigned first = 0;
+  unsigned last = 0;
+  std::vector<Path::entry> blocks;
+  KInstruction *next = nullptr;
+
+  ConsumeExpectedToken(Token::KWPath);
+  ConsumeExpectedToken(Token::Colon);
+
+  ConsumeLParen();
+
+  if (Tok.kind == Token::Identifier) {
+    auto tok = Tok.getString();
+    assert(tok == "Empty");
+    ConsumeExpectedToken(Token::Identifier);
+  } else {
+    auto firstExpr = ParseNumber(64);
+    first = dyn_cast<ConstantExpr>(firstExpr.get())->getZExtValue();
+
+    bool firstFunctionParsed = false;
+    std::stack<KFunction *> stack;
+    while (!stack.empty() || !firstFunctionParsed) {
+      if (Tok.kind == Token::LParen) {
+        ConsumeLParen();
+        assert(Tok.kind == Token::Identifier);
+        auto functionaName = Tok.getString();
+        assert(km->functionNameMap.count(functionaName));
+        stack.push(km->functionNameMap.at(functionaName));
+        ConsumeExpectedToken(Token::Identifier);
+        ConsumeExpectedToken(Token::Colon);
+        firstFunctionParsed = true;
+      } else if (Tok.kind == Token::RParen) {
+        ConsumeRParen();
+        stack.pop();
+      } else {
+        // Path entry parsing
+        if (Tok.kind == Token::Arrow) {
+          ConsumeExpectedToken(Token::Arrow);
+          assert(Tok.kind == Token::Identifier);
+          auto label = Tok.getString();
+          assert(stack.top()->getLabelMap().count(label));
+          blocks.push_back({stack.top()->getLabelMap().at(label),
+                            Path::TransitionKind::Out});
+          ConsumeExpectedToken(Token::Identifier);
+        } else {
+          assert(Tok.kind == Token::Identifier);
+          auto label = Tok.getString();
+          assert(stack.top()->getLabelMap().count(label));
+          ConsumeExpectedToken(Token::Identifier);
+          if (Tok.kind == Token::Arrow) {
+            ConsumeExpectedToken(Token::Arrow);
+            blocks.push_back({stack.top()->getLabelMap().at(label),
+                              Path::TransitionKind::In});
+          } else {
+            blocks.push_back({stack.top()->getLabelMap().at(label),
+                              Path::TransitionKind::None});
+          }
+        }
+      }
+    }
+
+    auto lastExpr = ParseNumber(64);
+    last = dyn_cast<ConstantExpr>(lastExpr.get())->getZExtValue();
+  }
+
+  ConsumeRParen();
+
+  ConsumeExpectedToken(Token::At);
+
+  if (Tok.kind == Token::Identifier) {
+    assert(Tok.getString() == "None");
+  } else {
+    ConsumeLSquare();
+    auto nextIndexExpr = ParseNumber(64);
+    ConsumeExpectedToken(Token::Comma);
+    assert(Tok.kind == Token::Identifier);
+    auto blockLabel = Tok.getString();
+    ConsumeExpectedToken(Token::Identifier);
+    ConsumeExpectedToken(Token::Comma);
+    assert(Tok.kind == Token::Identifier);
+    auto functionLabel = Tok.getString();
+    ConsumeExpectedToken(Token::Identifier);
+    ConsumeRSquare();
+
+    assert(km->functionNameMap.count(functionLabel));
+    auto kf = km->functionNameMap.at(functionLabel);
+    assert(kf->getLabelMap().count(blockLabel));
+    auto kb = kf->getLabelMap().at(blockLabel);
+    auto nextIndex =
+        dyn_cast<ConstantExpr>(nextIndexExpr.get())->getZExtValue();
+    assert(nextIndex >= 0 && nextIndex < kb->numInstructions);
+    next = kb->instructions[nextIndex];
+  }
+
+  return Path(first, blocks, last, next);
 }
 
 SourceResult ParserImpl::ParseSource() {
@@ -761,47 +859,7 @@ DeclResult ParserImpl::ParseLemmaCommand() {
 
   ConsumeExpectedToken(Token::KWLemma);
 
-  // -- Parsing path
-  ConsumeLParen();
-  ConsumeExpectedToken(Token::KWPath);
-  ConsumeExpectedToken(Token::Colon);
-  auto firstInstructionExpr = ParseNumber(64);
-
-  std::vector<KBlock *> kblocks;
-  std::stack<KFunction *> stack;
-  bool firstParsed = false;
-  while (!stack.empty() || !firstParsed) {
-    if (Tok.kind == Token::LParen) {
-      ConsumeLParen();
-      assert(Tok.kind == Token::Identifier);
-      auto functionaName = Tok.getString();
-      assert(km->functionNameMap.count(functionaName));
-      stack.push(km->functionNameMap.at(functionaName));
-      ConsumeExpectedToken(Token::Identifier);
-      ConsumeExpectedToken(Token::Colon);
-      firstParsed = true;
-    } else if (Tok.kind == Token::RParen) {
-      ConsumeRParen();
-      stack.pop();
-    } else {
-      assert(Tok.kind == Token::Identifier);
-      auto label = Tok.getString();
-      assert(stack.top()->getLabelMap().count(label));
-      kblocks.push_back(stack.top()->getLabelMap().at(label));
-      ConsumeExpectedToken(Token::Identifier);
-    }
-  }
-
-  auto lastInstructionExpr = ParseNumber(64);
-  ConsumeRParen();
-
-  auto firstInstruction =
-      dyn_cast<ConstantExpr>(firstInstructionExpr.get())->getZExtValue();
-  auto lastInstruction =
-      dyn_cast<ConstantExpr>(lastInstructionExpr.get())->getZExtValue();
-
-  auto path = Path(firstInstruction, kblocks, lastInstruction);
-  // -- Path parsed
+  auto path = ParsePathDecl();
 
   ConsumeLParen();
   while (Tok.kind != Token::RParen) {
@@ -1762,6 +1820,11 @@ Decl::Decl(DeclKind _Kind) : Kind(_Kind) {}
 
 void ArrayDecl::dump() {
   ExprPPrinter::printSignleArray(llvm::outs(), Root);
+  llvm::outs() << "\n";
+}
+
+void PathDecl::dump() {
+  path.print(llvm::outs());
   llvm::outs() << "\n";
 }
 

@@ -1640,7 +1640,6 @@ void Executor::stepInstruction(ExecutionState &state) {
     ++state.steppedMemoryInstructions;
   }
   state.prevPC = state.pc;
-  state.constraints.advancePath(state.pc);
   ++state.pc;
 
   if (stats::instructions == MaxInstructions)
@@ -2459,7 +2458,9 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     // Control flow
   case Instruction::Ret: {
     ReturnInst *ri = cast<ReturnInst>(i);
-    KInstIterator kcaller = state.stack.callStack().back().caller;
+    // Is this OK?
+    auto kcallinst = state.stack.callStack().back().caller;
+    KInstIterator kcaller = kcallinst ? kcallinst->getIterator() : nullptr;
     Instruction *caller = kcaller ? kcaller->inst : nullptr;
     bool isVoidReturn = (ri->getNumOperands() == 0);
     ref<Expr> result = ConstantExpr::alloc(0, Expr::Bool);
@@ -4408,7 +4409,7 @@ Executor::ComposeResult Executor::compose(const ExecutionState &state,
   ComposeHelper helper(this);
   ComposeVisitor composer(state, helper);
   ExprHashMap<ref<Expr>> rebuildMap;
-  unsigned offset = state.constraints.path().KBlockSize();
+  unsigned offset = state.constraints.path().getBlocks().size();
   for (auto &indexConstraints : pob.orderedCS()) {
     Path::PathIndex index = indexConstraints.first;
     index.block += offset;
@@ -4488,9 +4489,10 @@ void Executor::executeAction(ref<BidirectionalAction> action) {
   case BidirectionalAction::Kind::Forward: {
     if (debugPrints.isSet(DebugPrint::Forward) &&
         cast<ForwardAction>(action)->state->isolated) {
-      llvm::errs() << "[forward] State: "
-                   << cast<ForwardAction>(action)->state->pathAndPCToString()
-                   << "\n";
+      llvm::errs()
+          << "[forward] State: "
+          << cast<ForwardAction>(action)->state->constraints.path().toString()
+          << "\n";
       if (debugConstraints.isSet(DebugPrint::Forward)) {
         // TODO
       }
@@ -4500,10 +4502,11 @@ void Executor::executeAction(ref<BidirectionalAction> action) {
   }
   case BidirectionalAction::Kind::Backward: {
     if (debugPrints.isSet(DebugPrint::Backward)) {
-      llvm::errs()
-          << "[backward] State: "
-          << cast<BackwardAction>(action)->prop.state->pathAndPCToString()
-          << "\n";
+      llvm::errs() << "[backward] State: "
+                   << cast<BackwardAction>(action)
+                          ->prop.state->constraints.path()
+                          .toString()
+                   << "\n";
       llvm::errs() << "[backward] Pob: "
                    << cast<BackwardAction>(action)
                           ->prop.pob->constraints.path()
@@ -4586,16 +4589,16 @@ void Executor::goBackward(ref<BackwardAction> action) {
         for (auto f : b->calledFunctions) {
           KFunction *kf = kmodule->functionMap[f];
           for (auto returnBlock : kf->returnKBlocks) {
-            ProofObligation *callPob =
-                new ProofObligation(composeResult.composed, *pob, returnBlock);
-            callPob->propagationCount[state]++;
+            auto callPob =
+                ProofObligation::create(pob, state, composeResult.composed);
+            ProofObligation::propagateToReturn(callPob, b->kcallInstruction,
+                                               returnBlock);
             objectManager->addPob(callPob);
           }
         }
       } else {
-        ProofObligation *newPob =
-            new ProofObligation(composeResult.composed, *pob);
-        newPob->propagationCount[state]++;
+        auto newPob =
+            ProofObligation::create(pob, state, composeResult.composed);
         objectManager->addPob(newPob);
       }
     }
@@ -4603,8 +4606,9 @@ void Executor::goBackward(ref<BackwardAction> action) {
     if (state->isolated && composeResult.conflict.core.size()) {
       summary.addLemma(
           new Lemma(state->constraints.path(), composeResult.conflict.core));
-      if (!summarized.count(state->constraints.path().getBlocks().back())) {
-        summarized.insert(state->constraints.path().getBlocks().back());
+      if (!summarized.count(
+              state->constraints.path().getBlocks().back().block)) {
+        summarized.insert(state->constraints.path().getBlocks().back().block);
         interpreterHandler->incSummarizedLocations();
       }
     }

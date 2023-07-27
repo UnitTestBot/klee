@@ -1157,7 +1157,7 @@ void StatsTracker::computeReachableUncovered() {
       if (next == sf_ie) {
         kii = es->pc;
       } else {
-        kii = next->caller;
+        kii = next->caller->getIterator();
         ++kii;
       }
 

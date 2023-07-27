@@ -17,6 +17,7 @@
 #include "klee/Expr/ExprVisitor.h"
 #include "klee/Expr/Path.h"
 #include "klee/Expr/Symcrete.h"
+#include "klee/Module/KInstruction.h"
 #include "klee/Module/KModule.h"
 #include "klee/Support/OptionCategories.h"
 
@@ -269,7 +270,9 @@ PathConstraints::orderedCS() const {
   return orderedConstraints;
 }
 
-void PathConstraints::advancePath(KInstruction *ki) { _path.advance(ki); }
+void PathConstraints::advancePath(KInstruction *done, KInstruction *next) {
+  _path.stepInstruction(done, next);
+}
 
 void PathConstraints::advancePath(const Path &path) {
   _path = Path::concat(_path, path);
@@ -326,29 +329,6 @@ void PathConstraints::addSymcrete(ref<Symcrete> s,
 
 void PathConstraints::rewriteConcretization(const Assignment &a) {
   constraints.rewriteConcretization(a);
-}
-
-PathConstraints PathConstraints::concat(const PathConstraints &l,
-                                        const PathConstraints &r) {
-  // TODO : How to handle symcretes and concretization?
-  PathConstraints path = l;
-  path._path = Path::concat(l._path, r._path);
-  auto offset = l._path.KBlockSize();
-  for (const auto &i : r._original) {
-    path._original.insert(i);
-    auto index = r.pathIndexes.at(i);
-    index.block += offset;
-    path.pathIndexes.insert({i, index});
-    path.orderedConstraints[index].push_back(i);
-  }
-  for (const auto &i : r.constraints.cs()) {
-    path.constraints.addConstraint(i, {});
-    if (r._simplificationMap.count(i)) {
-      path._simplificationMap.insert({i, r._simplificationMap.at(i)});
-    }
-  }
-  // Run the simplificator on the newly constructed set?
-  return path;
 }
 
 Simplificator::ExprResult

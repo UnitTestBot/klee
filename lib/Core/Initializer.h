@@ -46,6 +46,9 @@ private:
   // Targets collected for each initial instruction
   std::map<KInstruction *, std::set<ref<Target>>> targetMap;
 
+  // Reverse
+  std::map<ref<Target>, std::set<KInstruction *>> instructionMap;
+
   // awaiting until the are proof obligations in one of their targets
   std::list<KInstruction *> awaiting;
 

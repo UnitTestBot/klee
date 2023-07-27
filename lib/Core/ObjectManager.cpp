@@ -102,10 +102,21 @@ ExecutionState *ObjectManager::initializeState(KInstruction *location,
   return state;
 }
 
-void ObjectManager::updateSubscribers() {
+void ObjectManager::updateSubscribers(bool advancePaths) {
   if (statesUpdated) {
     assert(stateUpdateKind != StateKind::None);
     bool isolated = stateUpdateKind == StateKind::Isolated;
+
+    // This should not be there. We need this flag to prevent double advancing
+    // in initital update after seeding
+    if (advancePaths) {
+      if (current) {
+        current->constraints.advancePath(current->prevPC, current->pc);
+      }
+      for (auto i : addedStates) {
+        i->constraints.advancePath(i->prevPC, i->pc);
+      }
+    }
 
     if (isolated) {
       checkReachedStates();
@@ -186,7 +197,7 @@ void ObjectManager::initialUpdate() {
   addedStates.insert(addedStates.begin(), states.begin(), states.end());
   statesUpdated = true;
   stateUpdateKind = StateKind::Regular;
-  updateSubscribers();
+  updateSubscribers(/*advancePaths*/ false);
 }
 
 const states_ty &ObjectManager::getStates() { return states; }
@@ -208,14 +219,14 @@ void ObjectManager::checkReachedStates() {
     }
 
     auto reached = state->getTarget();
-    if (!reached || state->constraints.path().KBlockSize() == 0) {
+    if (!reached || state->constraints.path().getBlocks().size() == 0) {
       continue;
     }
 
     if (state->targets().count(reached)) {
       if (debugPrints.isSet(DebugPrint::Reached)) {
         llvm::errs() << "[reached] Isolated state: "
-                     << state->pathAndPCToString() << "\n";
+                     << state->constraints.path().toString() << "\n";
       }
       auto copy = state->copy();
       reachedStates[reached].insert(copy);
@@ -343,8 +354,8 @@ bool ObjectManager::checkStack(ExecutionState *state, ProofObligation *pob) {
   auto pobIt = pob->stack.rbegin();
 
   for (size_t i = 0; i < range; ++i) {
-    if (stateIt->kf != pobIt->second ||
-        (pobIt->first && &*(stateIt->caller) != pobIt->first)) {
+    if (stateIt->kf != pobIt->kf ||
+        (pobIt->caller && pobIt->caller != stateIt->caller)) {
       return false;
     }
     stateIt++;

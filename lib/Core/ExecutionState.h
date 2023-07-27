@@ -59,20 +59,6 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const MemoryMap &mm);
 
 extern llvm::cl::opt<unsigned long long> MaxCyclesBeforeStuck;
 
-struct CallStackFrame {
-  KInstIterator caller;
-  KFunction *kf;
-
-  CallStackFrame(KInstIterator caller_, KFunction *kf_)
-      : caller(caller_), kf(kf_) {}
-  ~CallStackFrame() = default;
-  CallStackFrame(const CallStackFrame &s);
-
-  bool equals(const CallStackFrame &other) const;
-
-  bool operator==(const CallStackFrame &other) const { return equals(other); }
-};
-
 struct StackFrame {
   KFunction *kf;
   std::vector<IDType> allocas;
@@ -435,8 +421,6 @@ public:
   void addCexPreference(const ref<Expr> &cond);
 
   void dumpStack(llvm::raw_ostream &out) const;
-
-  std::string pathAndPCToString() const;
 
   bool visited(KBlock *block) const;
 

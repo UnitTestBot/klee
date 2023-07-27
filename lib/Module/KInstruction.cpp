@@ -34,6 +34,16 @@ std::string KInstruction::getSourceLocation() const {
 }
 
 std::string KInstruction::toString() const {
-  return llvm::utostr(index) + " at " + parent->toString() + " (" +
-         inst->getOpcodeName() + ")";
+  std::string ret;
+  llvm::raw_string_ostream ss(ret);
+  ss << "[" << index << ", " << parent->getLabel() << ", "
+     << parent->parent->getName() << "]";
+  return ss.str();
+}
+
+CallStackFrame::CallStackFrame(const CallStackFrame &s)
+    : caller(s.caller), kf(s.kf) {}
+
+bool CallStackFrame::equals(const CallStackFrame &other) const {
+  return kf == other.kf && caller == other.caller;
 }

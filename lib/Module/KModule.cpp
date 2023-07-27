@@ -716,7 +716,10 @@ std::string KBlock::getLabel() const {
 }
 
 std::string KBlock::toString() const {
-  return getLabel() + " in function " + parent->function->getName().str();
+  std::string ret;
+  llvm::raw_string_ostream ss(ret);
+  ss << "[" << getLabel() << ", " << parent->getName() << "]";
+  return ret;
 }
 
 bool klee::RegularFunctionPredicate(KBlock *block) {

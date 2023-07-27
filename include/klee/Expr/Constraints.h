@@ -77,7 +77,7 @@ public:
   using path_ordered_constraints_ty =
       std::map<Path::PathIndex, ordered_constraints_ty, Path::PathIndexCompare>;
 
-  void advancePath(KInstruction *ki);
+  void advancePath(KInstruction *done, KInstruction *next);
   void advancePath(const Path &path);
   ExprHashSet addConstraint(ref<Expr> e, const Assignment &delta,
                             Path::PathIndex currIndex);
@@ -93,8 +93,8 @@ public:
   const ExprHashMap<Path::PathIndex> &indexes() const;
   const path_ordered_constraints_ty &orderedCS() const;
 
-  static PathConstraints concat(const PathConstraints &l,
-                                const PathConstraints &r);
+  PathConstraints() = default;
+  PathConstraints(KInstruction *initpc) : _path(initpc) {}
 
 private:
   Path _path;

@@ -12,6 +12,7 @@
 #include "Memory.h"
 
 #include "klee/Expr/ArrayExprVisitor.h"
+#include "klee/Expr/Constraints.h"
 #include "klee/Expr/Expr.h"
 #include "klee/Module/Cell.h"
 #include "klee/Module/InstructionInfoTable.h"
@@ -78,7 +79,7 @@ void ExecutionStack::pushFrame(KInstIterator caller, KFunction *kf) {
 
 void ExecutionStack::popFrame() {
   assert(callStack_.size() > 0);
-  KInstIterator caller = callStack_.back().caller;
+  auto caller = callStack_.back().caller;
   KFunction *kf = callStack_.back().kf;
   valueStack_.pop_back();
   callStack_.pop_back();
@@ -93,10 +94,6 @@ void ExecutionStack::popFrame() {
   assert(valueStack_.size() == infoStack_.size());
 }
 
-bool CallStackFrame::equals(const CallStackFrame &other) const {
-  return kf == other.kf && caller == other.caller;
-}
-
 StackFrame::StackFrame(KFunction *kf) : kf(kf), varargs(0) {
   locals = new Cell[kf->numRegisters];
 }
@@ -109,9 +106,6 @@ StackFrame::StackFrame(const StackFrame &s)
 }
 
 StackFrame::~StackFrame() { delete[] locals; }
-
-CallStackFrame::CallStackFrame(const CallStackFrame &s)
-    : caller(s.caller), kf(s.kf) {}
 
 InfoStackFrame::InfoStackFrame(KFunction *kf) : kf(kf) {}
 
@@ -132,7 +126,7 @@ ExecutionState::ExecutionState()
 
 ExecutionState::ExecutionState(KFunction *kf)
     : initPC(kf->instructions), pc(initPC), prevPC(pc), incomingBBIndex(-1),
-      depth(0), ptreeNode(nullptr), steppedInstructions(0),
+      depth(0), constraints(pc), ptreeNode(nullptr), steppedInstructions(0),
       steppedMemoryInstructions(0), instsSinceCovNew(0),
       roundingMode(llvm::APFloat::rmNearestTiesToEven), coveredNew(false),
       forkDisabled(false), prevHistory_(TargetsHistory::create()),
@@ -143,7 +137,7 @@ ExecutionState::ExecutionState(KFunction *kf)
 
 ExecutionState::ExecutionState(KFunction *kf, KBlock *kb)
     : initPC(kb->instructions), pc(initPC), prevPC(pc), incomingBBIndex(-1),
-      depth(0), ptreeNode(nullptr), steppedInstructions(0),
+      depth(0), constraints(pc), ptreeNode(nullptr), steppedInstructions(0),
       steppedMemoryInstructions(0), instsSinceCovNew(0),
       roundingMode(llvm::APFloat::rmNearestTiesToEven), coveredNew(false),
       forkDisabled(false), prevHistory_(TargetsHistory::create()),
@@ -209,6 +203,7 @@ ExecutionState *ExecutionState::withStackFrame(KInstIterator caller,
   newState->initPC = kf->blockMap[&*kf->function->begin()]->instructions;
   newState->pc = newState->initPC;
   newState->prevPC = newState->pc;
+  newState->constraints = PathConstraints(newState->pc);
   return newState;
 }
 
@@ -224,6 +219,7 @@ ExecutionState *ExecutionState::withKInstruction(KInstruction *ki) const {
   }
   newState->pc = newState->initPC;
   newState->prevPC = newState->pc;
+  newState->constraints = PathConstraints(newState->pc);
   return newState;
 }
 
@@ -441,10 +437,6 @@ void ExecutionState::dumpStack(llvm::raw_ostream &out) const {
   }
 }
 
-std::string ExecutionState::pathAndPCToString() const {
-  return constraints.path().toString() + " at " + pc->toString();
-}
-
 void ExecutionState::addConstraint(ref<Expr> e, const Assignment &delta) {
   constraints.addConstraint(e, delta);
 }
@@ -488,7 +480,7 @@ bool ExecutionState::visited(KBlock *block) const {
 }
 
 bool ExecutionState::reachedTarget(ref<ReachBlockTarget> target) const {
-  if (constraints.path().KBlockSize() == 0) {
+  if (constraints.path().getBlocks().size() == 0) {
     return false;
   }
   if (target->isAtEnd()) {

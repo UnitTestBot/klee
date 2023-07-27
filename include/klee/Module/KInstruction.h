@@ -12,6 +12,8 @@
 
 #include "klee/Config/Version.h"
 #include "klee/Module/InstructionInfoTable.h"
+#include "klee/Module/KInstIterator.h"
+#include "klee/Module/KModule.h"
 
 #include "klee/Support/CompilerWarning.h"
 DISABLE_WARNING_PUSH
@@ -31,6 +33,7 @@ class Executor;
 struct InstructionInfo;
 class KModule;
 struct KBlock;
+struct KFunction;
 
 /// KInstruction - Intermediate instruction representation used
 /// during execution.
@@ -56,6 +59,10 @@ public:
   virtual ~KInstruction();
   std::string getSourceLocation() const;
   std::string toString() const;
+
+  KInstIterator getIterator() const {
+    return (parent->instructions + index);
+  }
 };
 
 struct KGEPInstruction : KInstruction {
@@ -73,6 +80,23 @@ public:
   KGEPInstruction() = default;
   explicit KGEPInstruction(const KGEPInstruction &ki);
 };
+
+struct CallStackFrame {
+  KInstruction *caller;
+  KFunction *kf;
+
+  CallStackFrame(KInstruction *caller_, KFunction *kf_)
+      : caller(caller_), kf(kf_) {}
+  ~CallStackFrame() = default;
+  CallStackFrame(const CallStackFrame &s);
+
+  bool equals(const CallStackFrame &other) const;
+
+  bool operator==(const CallStackFrame &other) const { return equals(other); }
+
+  bool operator!=(const CallStackFrame &other) const { return !equals(other); }
+};
+
 } // namespace klee
 
 #endif /* KLEE_KINSTRUCTION_H */

@@ -17,48 +17,11 @@
 
 namespace klee {
 
-class MemoryObject;
-
 class ProofObligation {
-
-private:
-  static unsigned nextID;
-
 public:
-  const std::uint32_t id;
-  ProofObligation *parent;
-  ProofObligation *root;
-  std::set<ProofObligation *> children;
-  std::vector<stackframe_ty> stack;
-  std::map<ExecutionState *, unsigned, ExecutionStateIDCompare>
-      propagationCount;
-
-  ref<Target> location;
-  PathConstraints constraints;
-
-  std::vector<std::pair<ref<const MemoryObject>, const Array *>>
-      sourcedSymbolics;
-
   ProofObligation(KBlock *_location)
       : id(nextID++), parent(nullptr), root(this),
-        location(ReachBlockTarget::create(_location)) {
-    if (isa<ReachBlockTarget>(location) &&
-        !cast<ReachBlockTarget>(location)->isAtEnd()) {
-      constraints.advancePath(_location->getFirstInstruction());
-    }
-  }
-
-  ProofObligation(PathConstraints &pconstraint, ProofObligation &_parent,
-                  KBlock *_location = nullptr)
-      : id(nextID++), parent(&_parent), root(parent->root),
-        stack(pconstraint.path().getStack(true)),
-        propagationCount(parent->propagationCount),
-        location(_location ? ReachBlockTarget::create(_location)
-                           : ReachBlockTarget::create(
-                                 pconstraint.path().getBlocks().front())),
-        constraints(pconstraint) {
-    parent->children.insert(this);
-  }
+        location(ReachBlockTarget::create(_location)) {}
 
   ~ProofObligation() {
     for (auto pob : children) {
@@ -69,24 +32,42 @@ public:
     }
   }
 
-  std::set<ProofObligation *> getSubtree() {
-    std::set<ProofObligation *> subtree;
-    std::queue<ProofObligation *> queue;
-    queue.push(this);
-    while (!queue.empty()) {
-      auto current = queue.front();
-      queue.pop();
-      subtree.insert(current);
-      for (auto pob : current->children) {
-        queue.push(pob);
-      }
-    }
-    return subtree;
-  }
+  std::set<ProofObligation *> getSubtree();
 
   bool atReturn() const { return isa<KReturnBlock>(location->getBlock()); }
   std::uint32_t getID() const { return id; };
-  std::string print() const;
+
+  static ProofObligation *create(ProofObligation *parent, ExecutionState *state,
+                                 PathConstraints &composed);
+
+  static void propagateToReturn(ProofObligation *pob, KInstruction *callSite,
+                                KBlock *returnBlock);
+
+private:
+  ProofObligation *makeChild() {
+    auto pob = new ProofObligation(nullptr);
+    pob->id = nextID++;
+    pob->parent = this;
+    pob->root = root;
+    pob->propagationCount = propagationCount;
+    children.insert(pob);
+    return pob;
+  }
+
+public:
+  std::uint32_t id;
+  ProofObligation *parent;
+  ProofObligation *root;
+  std::set<ProofObligation *> children;
+  std::vector<CallStackFrame> stack;
+  std::map<ExecutionState *, unsigned, ExecutionStateIDCompare>
+      propagationCount;
+
+  ref<Target> location;
+  PathConstraints constraints;
+
+private:
+  static unsigned nextID;
 };
 
 struct ProofObligationIDCompare {
@@ -96,9 +77,6 @@ struct ProofObligationIDCompare {
 };
 
 using pobs_ty = std::set<ProofObligation *, ProofObligationIDCompare>;
-
-ProofObligation *propagateToReturn(ProofObligation *pob, KInstruction *callSite,
-                                   KBlock *returnBlock);
 
 } // namespace klee
 
