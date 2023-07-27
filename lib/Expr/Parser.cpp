@@ -287,6 +287,7 @@ class ParserImpl : public Parser {
   /* Top level decls */
 
   DeclResult ParseArrayDecl();
+  Path ParsePathDecl();
   DeclResult ParseExprVarDecl();
   DeclResult ParseVersionVarDecl();
   DeclResult ParseCommandDecl();
@@ -294,6 +295,7 @@ class ParserImpl : public Parser {
   /* Commands */
 
   DeclResult ParseQueryCommand();
+  DeclResult ParseLemmaCommand();
 
   /* Etc. */
 
@@ -477,6 +479,103 @@ DeclResult ParserImpl::ParseArrayDecl() {
   return AD;
 }
 
+Path ParserImpl::ParsePathDecl() {
+  unsigned first = 0;
+  unsigned last = 0;
+  std::vector<Path::entry> blocks;
+  KInstruction *next = nullptr;
+
+  ConsumeExpectedToken(Token::KWPath);
+  ConsumeExpectedToken(Token::Colon);
+
+  ConsumeLParen();
+
+  if (Tok.kind == Token::Identifier) {
+    auto tok = Tok.getString();
+    assert(tok == "Empty");
+    ConsumeExpectedToken(Token::Identifier);
+  } else {
+    auto firstExpr = ParseNumber(64);
+    first = dyn_cast<ConstantExpr>(firstExpr.get())->getZExtValue();
+
+    bool firstFunctionParsed = false;
+    std::stack<KFunction *> stack;
+    while (!stack.empty() || !firstFunctionParsed) {
+      if (Tok.kind == Token::LParen) {
+        ConsumeLParen();
+        assert(Tok.kind == Token::Identifier);
+        auto functionaName = Tok.getString();
+        assert(km->functionNameMap.count(functionaName));
+        stack.push(km->functionNameMap.at(functionaName));
+        ConsumeExpectedToken(Token::Identifier);
+        ConsumeExpectedToken(Token::Colon);
+        firstFunctionParsed = true;
+      } else if (Tok.kind == Token::RParen) {
+        ConsumeRParen();
+        stack.pop();
+      } else {
+        // Path entry parsing
+        if (Tok.kind == Token::Arrow) {
+          ConsumeExpectedToken(Token::Arrow);
+          assert(Tok.kind == Token::Identifier);
+          auto label = Tok.getString();
+          assert(stack.top()->getLabelMap().count(label));
+          blocks.push_back({stack.top()->getLabelMap().at(label),
+                            Path::TransitionKind::Out});
+          ConsumeExpectedToken(Token::Identifier);
+        } else {
+          assert(Tok.kind == Token::Identifier);
+          auto label = Tok.getString();
+          assert(stack.top()->getLabelMap().count(label));
+          ConsumeExpectedToken(Token::Identifier);
+          if (Tok.kind == Token::Arrow) {
+            ConsumeExpectedToken(Token::Arrow);
+            blocks.push_back({stack.top()->getLabelMap().at(label),
+                              Path::TransitionKind::In});
+          } else {
+            blocks.push_back({stack.top()->getLabelMap().at(label),
+                              Path::TransitionKind::None});
+          }
+        }
+      }
+    }
+
+    auto lastExpr = ParseNumber(64);
+    last = dyn_cast<ConstantExpr>(lastExpr.get())->getZExtValue();
+  }
+
+  ConsumeRParen();
+
+  ConsumeExpectedToken(Token::At);
+
+  if (Tok.kind == Token::Identifier) {
+    assert(Tok.getString() == "None");
+  } else {
+    ConsumeLSquare();
+    auto nextIndexExpr = ParseNumber(64);
+    ConsumeExpectedToken(Token::Comma);
+    assert(Tok.kind == Token::Identifier);
+    auto blockLabel = Tok.getString();
+    ConsumeExpectedToken(Token::Identifier);
+    ConsumeExpectedToken(Token::Comma);
+    assert(Tok.kind == Token::Identifier);
+    auto functionLabel = Tok.getString();
+    ConsumeExpectedToken(Token::Identifier);
+    ConsumeRSquare();
+
+    assert(km->functionNameMap.count(functionLabel));
+    auto kf = km->functionNameMap.at(functionLabel);
+    assert(kf->getLabelMap().count(blockLabel));
+    auto kb = kf->getLabelMap().at(blockLabel);
+    auto nextIndex =
+        dyn_cast<ConstantExpr>(nextIndexExpr.get())->getZExtValue();
+    assert(nextIndex >= 0 && nextIndex < kb->getNumInstructions());
+    next = kb->instructions[nextIndex];
+  }
+
+  return Path(first, blocks, last, next);
+}
+
 SourceResult ParserImpl::ParseSource() {
   ConsumeLParen();
   // TODO refactor this
@@ -654,6 +753,9 @@ DeclResult ParserImpl::ParseCommandDecl() {
   case Token::KWQuery:
     return ParseQueryCommand();
 
+  case Token::KWLemma:
+    return ParseLemmaCommand();
+
   default:
     Error("malformed command (unexpected keyword).");
     SkipUntilRParen();
@@ -786,6 +888,35 @@ exit:
     ArraySymTab.clear();
 
   return new QueryCommand(Constraints, km, Res.get(), Values, Objects);
+}
+
+DeclResult ParserImpl::ParseLemmaCommand() {
+  ExprSymTab.clear();
+  VersionSymTab.clear();
+  ArraySymTab.clear();
+
+  ConsumeExpectedToken(Token::KWLemma);
+
+  auto path = ParsePathDecl();
+
+  ConsumeLParen();
+  while (Tok.kind != Token::RParen) {
+    ParseArrayDecl();
+  }
+  ConsumeRParen();
+
+  ExprOrderedSet constraints;
+
+  ConsumeLParen();
+  while (Tok.kind != Token::RParen) {
+    auto res = ParseExpr(TypeResult());
+    assert(res.isValid());
+    constraints.insert(res.get());
+  }
+  ConsumeRParen();
+
+  ConsumeRParen();
+  return new LemmaCommand(constraints, path);
 }
 
 /// ParseNumberOrExpr - Parse an expression whose type cannot be
@@ -1727,6 +1858,11 @@ Decl::Decl(DeclKind _Kind) : Kind(_Kind) {}
 
 void ArrayDecl::dump() {
   ExprPPrinter::printSignleArray(llvm::outs(), Root);
+  llvm::outs() << "\n";
+}
+
+void PathDecl::dump() {
+  path.print(llvm::outs());
   llvm::outs() << "\n";
 }
 
