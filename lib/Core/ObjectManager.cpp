@@ -1,7 +1,7 @@
 #include "ObjectManager.h"
 
-#include "PForest.h"
 #include "CoreStats.h"
+#include "PForest.h"
 #include "SearcherUtil.h"
 
 #include "klee/Module/KModule.h"
@@ -23,12 +23,11 @@ void ObjectManager::addSubscriber(Subscriber *s) { subscribers.push_back(s); }
 
 void ObjectManager::addProcessForest(PForest *pf) { processForest = pf; }
 
-void ObjectManager::setEmptyState(ExecutionState *state) {
-  emptyState = state;
-}
+void ObjectManager::setEmptyState(ExecutionState *state) { emptyState = state; }
 
 void ObjectManager::addInitialState(ExecutionState *state) {
-  reachedStates[Target::create(state->pc->parent)].insert(state->copy());
+  reachedStates[ReachBlockTarget::create(state->pc->parent)].insert(
+      state->copy());
   states.insert(state);
   processForest->addRoot(state);
 }
@@ -338,7 +337,8 @@ bool ObjectManager::checkStack(ExecutionState *state, ProofObligation *pob) {
     return true;
   }
 
-  size_t range = std::min(state->stack.callStack().size() - 1, pob->stack.size());
+  size_t range =
+      std::min(state->stack.callStack().size() - 1, pob->stack.size());
   auto stateIt = state->stack.callStack().rbegin();
   auto pobIt = pob->stack.rbegin();
 

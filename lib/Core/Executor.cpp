@@ -486,8 +486,10 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
       inhibitForking(false), haltExecution(HaltExecution::NotHalt),
       ivcEnabled(false), debugLogBuffer(debugBufferString) {
 
+  guidanceKind = opts.Guidance;
 
   objectManager = std::make_unique<ObjectManager>(JointBlockPredicate);
+  seedMap = std::make_unique<SeedMap>();
   objectManager->addSubscriber(seedMap.get());
 
   const time::Span maxTime{MaxTime};
@@ -942,8 +944,8 @@ void Executor::initializeGlobalObjects(ExecutionState &state) {
 bool Executor::branchingPermitted(ExecutionState &state, unsigned N) {
   assert(N);
   if (!state.isolated &&
-  (MaxMemoryInhibit && atMemoryLimit) || state.forkDisabled ||
-      inhibitForking || (MaxForks != ~0u && stats::forks >= MaxForks)) {
+      ((MaxMemoryInhibit && atMemoryLimit) || state.forkDisabled ||
+       inhibitForking || (MaxForks != ~0u && stats::forks >= MaxForks))) {
 
     if (MaxMemoryInhibit && atMemoryLimit)
       klee_warning_once(0, "skipping fork (memory cap exceeded)");
@@ -2368,7 +2370,8 @@ void Executor::increaseProgressVelocity(ExecutionState &state, KBlock *block) {
 
 void Executor::updateConfidenceRates() {
   reportProgressTowardsTargets();
-  decreaseConfidenceFromStoppedStates(objectManager->getStates(), haltExecution);
+  decreaseConfidenceFromStoppedStates(objectManager->getStates(),
+                                      haltExecution);
 
   for (auto &startBlockAndWhiteList : targets) {
     startBlockAndWhiteList.second.reportFalsePositives(
@@ -4192,13 +4195,8 @@ ref<Expr> Executor::fillValue(ExecutionState &state,
       KFunction *kf = ki->parent->parent;
 
       if (state.stack.empty()) {
-#if LLVM_VERSION_CODE >= LLVM_VERSION(8, 0)
         const CallBase &cs = cast<CallBase>(*inst);
         Value *fp = cs.getCalledOperand();
-#else
-        CallSite cs(inst);
-        Value *fp = cs.getCalledValue();
-#endif
         Function *calledf = getTargetFunction(fp);
         KFunction *lastkf = state.pc->parent->parent;
         KBlock *pckb = lastkf->blockMap.at(state.getPCBlock());
@@ -4217,8 +4215,8 @@ ref<Expr> Executor::fillValue(ExecutionState &state,
     } else {
       assert(valueSource->index >= 0);
       assert(!state.stack.empty());
-      StackFrame &frame =
-          state.stack.valueStack().at(state.stack.size() - valueSource->index - 1);
+      StackFrame &frame = state.stack.valueStack().at(state.stack.size() -
+                                                      valueSource->index - 1);
       KFunction *framekf = frame.kf;
 
       if (isa<PHINode>(inst)) {
@@ -4244,8 +4242,8 @@ ref<Expr> Executor::fillValue(ExecutionState &state,
   case SymbolicSource::Kind::Argument: {
     assert(valueSource->index >= 0);
     assert(!state.stack.empty());
-    StackFrame &frame =
-        state.stack.valueStack().at(state.stack.size() - valueSource->index - 1);
+    StackFrame &frame = state.stack.valueStack().at(state.stack.size() -
+                                                    valueSource->index - 1);
     KFunction *framekf = frame.kf;
 
     const Argument *arg = cast<Argument>(&valueSource->value());
@@ -4488,7 +4486,8 @@ Executor::ComposeResult Executor::compose(const ExecutionState &state,
 void Executor::executeAction(ref<BidirectionalAction> action) {
   switch (action->getKind()) {
   case BidirectionalAction::Kind::Forward: {
-    if (debugPrints.isSet(DebugPrint::Forward) && cast<ForwardAction>(action)->state->isolated) {
+    if (debugPrints.isSet(DebugPrint::Forward) &&
+        cast<ForwardAction>(action)->state->isolated) {
       llvm::errs() << "[forward] State: "
                    << cast<ForwardAction>(action)->state->pathAndPCToString()
                    << "\n";
@@ -4542,7 +4541,7 @@ void Executor::goForward(ref<ForwardAction> action) {
     KFunction *kf = prevKI->parent->parent;
 
     if (!fa->state->isolated && prevKI->inst->isTerminator() &&
-        kmodule->inMainModule(kf->function)) {
+        kmodule->inMainModule(*kf->function)) {
       targetCalculator->update(*fa->state);
     }
 
@@ -4617,7 +4616,8 @@ void Executor::closeProofObligation(ProofObligation *pob) {
 }
 
 void Executor::initializeIsolated(ref<InitializeAction> action) {
-  auto state = objectManager->initializeState(action->location, action->targets);
+  auto state =
+      objectManager->initializeState(action->location, action->targets);
   assert(state->isolated);
   prepareSymbolicArgs(*state, state->stack.valueStack().back());
 }
@@ -4775,7 +4775,7 @@ void Executor::run(std::vector<ExecutionState *> initialStates) {
         std::make_unique<ForwardOnlySearcher>(constructUserSearcher(*this));
   } else {
     Searcher *forward = constructUserSearcher(*this);
-    Searcher *branch = constructUserSearcher(*this, false);
+    Searcher *branch = constructUserSearcher(*this, true);
     BackwardSearcher *backward = constructUserBackwardSearcher();
     Initializer *initializer = new ConflictCoreInitializer(
         codeGraphDistance.get(), JointBlockPredicate);
@@ -4850,7 +4850,6 @@ void Executor::initializeTypeManager() {
 //   if (guidanceKind != GuidanceKind::ErrorGuidance)
 //     timers.reset();
 
-  
 //   states.insert(&initialState);
 
 //   TargetedSearcher *targetedSearcher =
@@ -4984,9 +4983,10 @@ void Executor::terminateState(ExecutionState &state,
 
   if (!state.isolated) {
     interpreterHandler->incPathsExplored();
-    targetCalculator->update(state);
   }
 
+  state.pc = state.prevPC;
+  targetCalculator->update(state);
   objectManager->removeState(&state);
 }
 
@@ -5163,8 +5163,8 @@ void Executor::terminateStateOnError(ExecutionState &state,
       getLastNonKleeInternalInstruction(state, &lastInst);
 
   if (!state.isolated &&
-      EmitAllErrors ||
-      emittedErrors.insert(std::make_pair(lastInst, message)).second) {
+      (EmitAllErrors ||
+       emittedErrors.insert(std::make_pair(lastInst, message)).second)) {
     if (!ii.file.empty()) {
       klee_message("ERROR: %s:%d: %s", ii.file.c_str(), ii.line,
                    message.c_str());
@@ -5514,7 +5514,8 @@ void Executor::executeAlloc(ExecutionState &state, ref<Expr> size, bool isLocal,
     allocationAlignment = getAllocationAlignment(allocSite);
   }
 
-  if (!isa<ConstantExpr>(size) && !UseSymbolicSizeAllocation && !state.isolated) {
+  if (!isa<ConstantExpr>(size) && !UseSymbolicSizeAllocation &&
+      !state.isolated) {
     concretizeSize(state, size, isLocal, target, type, zeroMemory, reallocFrom,
                    allocationAlignment, checkOutOfMemory);
     return;
@@ -5883,8 +5884,7 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
       lazyInitializationSource
           ? cast<AddressSymcrete>(
                 new LazyInitializedAddressSymcrete(addressExpr))
-          : cast<AddressSymcrete>(
-                new AllocAddressSymcrete(addressExpr));
+          : cast<AddressSymcrete>(new AllocAddressSymcrete(addressExpr));
   ref<SizeSymcrete> sizeSymcrete =
       lazyInitializationSource
           ? cast<SizeSymcrete>(new LazyInitializedSizeSymcrete(
@@ -6199,7 +6199,8 @@ bool Executor::checkResolvedMemoryObjects(
             baseInBounds, Expr::createIsZero(mo->getOffsetExpr(base)));
       }
 
-      if (hasLazyInitialized && i == mayBeResolvedMemoryObjects.size() - 1 && !state.isolated) {
+      if (hasLazyInitialized && i == mayBeResolvedMemoryObjects.size() - 1 &&
+          !state.isolated) {
         baseInBounds = AndExpr::create(
             baseInBounds, Expr::createIsZero(mo->getOffsetExpr(base)));
       }
@@ -6838,8 +6839,7 @@ IDType Executor::lazyInitializeLocalObject(ExecutionState &state,
   IDType id;
   bool success = lazyInitializeObject(
       state, address, target, typeSystemManager->getWrappedType(ai->getType()),
-      elementSize, true, id,
-      state.isolated || UseSymbolicSizeLazyInit);
+      elementSize, true, id, state.isolated || UseSymbolicSizeLazyInit);
   assert(success);
   assert(id);
   auto op = state.addressSpace.findObject(id);
@@ -6946,7 +6946,7 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
     std::map<ExecutionState *, std::vector<SeedInfo>>::iterator it =
         seedMap->find(&state);
     if (it != seedMap->end()) { // In seed mode we need to add this as a
-                               // binding.
+                                // binding.
       for (std::vector<SeedInfo>::iterator siit = it->second.begin(),
                                            siie = it->second.end();
            siit != siie; ++siit) {
@@ -7146,15 +7146,7 @@ void Executor::runFunctionAsMain(Function *f, int argc, char **argv,
     if (prepTargets.empty()) {
       klee_warning(
           "No targets found in error-guided mode after prepare targets");
-      delete state;
       return;
-    }
-
-    KInstIterator caller;
-    if (kmodule->WithPOSIXRuntime()) {
-      state = prepareStateForPOSIX(caller, state->copy());
-    } else {
-      state->popFrame();
     }
 
     for (auto &startFunctionAndWhiteList : prepTargets) {
@@ -7215,7 +7207,8 @@ void Executor::runFunctionAsMain(Function *f, int argc, char **argv,
 
 // ExecutionState *Executor::prepareStateForPOSIX(KInstIterator &caller,
 //                                                ExecutionState *state) {
-//   Function *mainFn = kmodule->module->getFunction("__klee_posix_wrapped_main");
+//   Function *mainFn =
+//   kmodule->module->getFunction("__klee_posix_wrapped_main");
 
 //   assert(mainFn && "__klee_posix_wrapped_main not found");
 //   KBlock *target = kmodule->functionMap[mainFn]->entryKBlock;

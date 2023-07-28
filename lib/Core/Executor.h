@@ -114,8 +114,8 @@ class Executor : public Interpreter {
   friend class WeightedRandomSearcher;
   friend class SpecialFunctionHandler;
   friend class StatsTracker;
-  friend klee::Searcher *
-  klee::constructUserSearcher(Executor &executor, bool stopAfterReachingTarget);
+  friend klee::Searcher *klee::constructUserSearcher(Executor &executor,
+                                                     bool branchSearcher);
 
   struct ComposeResult {
     bool success;

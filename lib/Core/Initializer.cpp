@@ -104,7 +104,7 @@ void ConflictCoreInitializer::addConflictInit(const Conflict &conflict,
       KInstruction *from =
           (RegularFunctionPredicate(i.first) ? i.first->instructions[1]
                                              : i.first->instructions[0]);
-      addInit(from, Target::create(i.second));
+      addInit(from, ReachBlockTarget::create(i.second));
     }
   }
 
@@ -115,7 +115,7 @@ void ConflictCoreInitializer::addConflictInit(const Conflict &conflict,
         auto call = dyn_cast<KCallBlock>(block.get());
         auto called = call->getKFunction();
         addInit(call->getFirstInstruction(),
-                Target::create(called->entryKBlock));
+                ReachBlockTarget::create(called->entryKBlock));
       }
     }
   }
@@ -125,7 +125,7 @@ void ConflictCoreInitializer::addConflictInit(const Conflict &conflict,
     KInstruction *from =
         (RegularFunctionPredicate(targetB) ? targetB->instructions[1]
                                            : targetB->instructions[0]);
-    addInit(from, Target::create(target));
+    addInit(from, ReachBlockTarget::create(target));
   }
 }
 

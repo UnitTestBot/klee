@@ -733,16 +733,10 @@ bool klee::JointBlockPredicate(KBlock *block) {
     return true;
   }
 
-// #if LLVM_VERSION_CODE >= LLVM_VERSION(9, 0)
-//   if (block->basicBlock->hasNPredecessorsOrMore(2) ||
-//       block->basicBlock->hasNPredecessors(0)) {
-//     return true;
-//   }
-// #else
-//   if (block->basicBlock->hasNUsesOrMore(2) || block->basicBlock->hasNUses(0)) {
-//     return true;
-//   }
-// #endif
+  // if (block->basicBlock->hasNPredecessorsOrMore(2) ||
+  //     block->basicBlock->hasNPredecessors(0)) {
+  //   return true;
+  // }
 
   if (isa<KCallBlock>(block) && dyn_cast<KCallBlock>(block)->internal() &&
       !dyn_cast<KCallBlock>(block)->intrinsic()) {

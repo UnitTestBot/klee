@@ -66,7 +66,8 @@ private:
   StateToDistanceMap distances;
   StatesSet localStates;
   StatesSet changedStates;
-  std::vector<TargetManagerSubscriber *> subscribers;
+  TargetManagerSubscriber *searcher = nullptr;
+  TargetManagerSubscriber *branchSearcher = nullptr;
   TargetHistoryTargetPairToStatesMap addedTStates;
   TargetHistoryTargetPairToStatesMap removedTStates;
   TargetHashSet removedTargets;
@@ -148,8 +149,12 @@ public:
     return state.targetForest;
   }
 
-  void subscribe(TargetManagerSubscriber &subscriber) {
-    subscribers.push_back(&subscriber);
+  void subscribeSearcher(TargetManagerSubscriber &subscriber) {
+    searcher = &subscriber;
+  }
+
+  void subscribeBranchSearcher(TargetManagerSubscriber &subscriber) {
+    branchSearcher = &subscriber;
   }
 
   bool isTargeted(const ExecutionState &state) { return state.isTargeted(); }

@@ -503,10 +503,10 @@ ref<Target> ExecutionState::getTarget() const {
       prevPC == prevPC->parent->getLastInstruction()) {
     // This means we just exited a function and are at the second instruction in
     // a call block (or exited the execution altogether)
-    return Target::create(prevPC->parent);
+    return ReachBlockTarget::create(prevPC->parent);
   } else if (!isa<KReturnBlock>(pc->parent) &&
              pc == pc->parent->getFirstInstruction()) {
-    return Target::create(pc->parent);
+    return ReachBlockTarget::create(pc->parent);
   } else {
     return {};
   }

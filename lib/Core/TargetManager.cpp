@@ -130,7 +130,8 @@ void TargetManager::updateReached(ExecutionState &state) {
 }
 
 void TargetManager::updateTargets(ExecutionState &state) {
-  if (!state.isolated && guidance == Interpreter::GuidanceKind::CoverageGuidance) {
+  if (!state.isolated &&
+      guidance == Interpreter::GuidanceKind::CoverageGuidance) {
     if (targets(state).empty() && state.isStuck(MaxCyclesBeforeStuck)) {
       state.setTargeted(true);
     }
@@ -174,9 +175,15 @@ void TargetManager::updateTargets(ExecutionState &state) {
   }
 }
 
-void TargetManager::update(ExecutionState *current,
-                           const std::vector<ExecutionState *> &addedStates,
-                           const std::vector<ExecutionState *> &removedStates) {
+void TargetManager::update(ref<ObjectManager::Event> e) {
+  if (!isa<ObjectManager::States>(e)) {
+    return;
+  }
+  auto statesEvent = dyn_cast<ObjectManager::States>(e);
+
+  ExecutionState *current = statesEvent->modified;
+  const std::vector<ExecutionState *> &addedStates = statesEvent->added;
+  const std::vector<ExecutionState *> &removedStates = statesEvent->removed;
 
   states.insert(addedStates.begin(), addedStates.end());
 
@@ -212,8 +219,11 @@ void TargetManager::update(ExecutionState *current,
     distances.erase(state);
   }
 
-  for (auto subscriber : subscribers) {
-    subscriber->update(addedTStates, removedTStates);
+  if (statesEvent->isolated && branchSearcher) {
+    branchSearcher->update(addedTStates, removedTStates);
+  }
+  if (!statesEvent->isolated && searcher) {
+    searcher->update(addedTStates, removedTStates);
   }
 
   for (auto &pair : addedTStates) {
@@ -282,10 +292,4 @@ bool TargetManager::isReachedTarget(const ExecutionState &state,
     }
   }
   return false;
-}
-
-void TargetManager::update(ref<ObjectManager::Event> e) {
-  if (auto states = dyn_cast<ObjectManager::States>(e)) {
-    update(states->modified, states->added, states->removed);
-  }
 }

@@ -27,7 +27,7 @@ bool userSearcherRequiresMD2U();
 void initializeSearchOptions();
 
 Searcher *constructUserSearcher(Executor &executor,
-                                bool stopAfterReachingTarget = true);
+                                bool branchSearcher = false);
 
 BackwardSearcher *constructUserBackwardSearcher();
 } // namespace klee

@@ -157,8 +157,7 @@ Searcher *getNewSearcher(Searcher::CoreSearchType type, RNG &rng,
   return searcher;
 }
 
-Searcher *klee::constructUserSearcher(Executor &executor,
-                                      bool stopAfterReachingTarget) {
+Searcher *klee::constructUserSearcher(Executor &executor, bool branchSearcher) {
 
   Searcher *searcher =
       getNewSearcher(CoreSearch[0], executor.theRNG, *executor.processForest);
@@ -186,7 +185,13 @@ Searcher *klee::constructUserSearcher(Executor &executor,
   if (executor.guidanceKind != Interpreter::GuidanceKind::NoGuidance) {
     searcher = new GuidedSearcher(searcher, *executor.distanceCalculator,
                                   executor.theRNG);
-    executor.targetManager->subscribe(*static_cast<GuidedSearcher *>(searcher));
+    if (branchSearcher) {
+      executor.targetManager->subscribeBranchSearcher(
+          *static_cast<GuidedSearcher *>(searcher));
+    } else {
+      executor.targetManager->subscribeSearcher(
+          *static_cast<GuidedSearcher *>(searcher));
+    }
   }
 
   llvm::raw_ostream &os = executor.getHandler().getInfoStream();

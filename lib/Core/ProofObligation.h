@@ -41,8 +41,9 @@ public:
 
   ProofObligation(KBlock *_location)
       : id(nextID++), parent(nullptr), root(this),
-        location(Target::create(_location)) {
-    if (!location->atReturn()) {
+        location(ReachBlockTarget::create(_location)) {
+    if (isa<ReachBlockTarget>(location) &&
+        !cast<ReachBlockTarget>(location)->isAtEnd()) {
       constraints.advancePath(_location->getFirstInstruction());
     }
   }
@@ -52,9 +53,9 @@ public:
       : id(nextID++), parent(&_parent), root(parent->root),
         stack(pconstraint.path().getStack(true)),
         propagationCount(parent->propagationCount),
-        location(_location
-                     ? Target::create(_location)
-                     : Target::create(pconstraint.path().getBlocks().front())),
+        location(_location ? ReachBlockTarget::create(_location)
+                           : ReachBlockTarget::create(
+                                 pconstraint.path().getBlocks().front())),
         constraints(pconstraint) {
     parent->children.insert(this);
   }

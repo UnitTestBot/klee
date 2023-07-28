@@ -905,7 +905,7 @@ uint64_t klee::computeMinDistToUncovered(const KInstruction *ki,
     uint64_t distToReturn =
         sm.getIndexedValue(stats::minDistToReturn, ki->info->id);
 
-    if (distToReturn == 0) {    // return unreachable, best is local
+    if (distToReturn == 0) { // return unreachable, best is local
       return minDistLocal;
     } else if (!minDistLocal) { // no local reachable
       return distToReturn + minDistAtRA;
