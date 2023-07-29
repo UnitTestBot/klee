@@ -22,11 +22,10 @@ std::set<ProofObligation *> ProofObligation::getSubtree() {
 ProofObligation *ProofObligation::create(ProofObligation *parent,
                                          ExecutionState *state,
                                          PathConstraints &composed) {
-  ProofObligation *pob = parent->makeChild();
+  ProofObligation *pob = parent->makeChild(ReachBlockTarget::create(
+      state->constraints.path().getBlocks().front().block));
   pob->constraints = composed;
   pob->propagationCount[state]++;
-  pob->location =
-      Target::create(state->constraints.path().getBlocks().front().block);
   pob->stack = parent->stack;
   auto statestack = state->stack.callStack();
   while (!pob->stack.empty() && !statestack.empty()) {
@@ -48,7 +47,7 @@ void ProofObligation::propagateToReturn(ProofObligation *pob,
                                         KBlock *returnBlock) {
   // Check that location is correct
   pob->stack.push_back({callSite, returnBlock->parent});
-  pob->location = Target::create(returnBlock);
+  pob->location = ReachBlockTarget::create(returnBlock);
 }
 
 } // namespace klee

@@ -988,7 +988,6 @@ void Executor::branch(ExecutionState &state,
   } else {
     if (!state.isolated) {
       stats::forks += N - 1;
-      stats::incBranchStat(reason, N - 1);
     }
 
     // XXX do proper balance or keep random?
@@ -2619,7 +2618,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
               if (!verifingTransitionsTo.count(targeted->target->basicBlock)) {
                 verifingTransitionsTo.insert(targeted->target->basicBlock);
-                ProofObligation *pob = new ProofObligation(targeted->target);
+                ProofObligation *pob = new ProofObligation(
+                    ReachBlockTarget::create(targeted->target));
                 objectManager->addPob(pob);
               }
             }
@@ -4583,16 +4583,16 @@ void Executor::goBackward(ref<BackwardAction> action) {
       }
       closeProofObligation(pob);
     } else {
-      if (state->initPC->parent->getKBlockType() == KBlockType::Call &&
-          state->initPC->inst->getOpcode() == Instruction::Br) {
-        KCallBlock *b = dyn_cast<KCallBlock>(state->initPC->parent);
-        for (auto f : b->calledFunctions) {
+      auto returnPropagation = state->constraints.path().fromOutTransition();
+      if (returnPropagation.first) {
+        auto kCallBlock = returnPropagation.second;
+        for (auto f : kCallBlock->calledFunctions) {
           KFunction *kf = kmodule->functionMap[f];
           for (auto returnBlock : kf->returnKBlocks) {
             auto callPob =
                 ProofObligation::create(pob, state, composeResult.composed);
-            ProofObligation::propagateToReturn(callPob, b->kcallInstruction,
-                                               returnBlock);
+            ProofObligation::propagateToReturn(
+                callPob, kCallBlock->kcallInstruction, returnBlock);
             objectManager->addPob(callPob);
           }
         }
@@ -4815,6 +4815,8 @@ void Executor::run(std::vector<ExecutionState *> initialStates) {
   if (guidanceKind == GuidanceKind::ErrorGuidance) {
     updateConfidenceRates();
   }
+
+  doDumpStates();
 
   haltExecution = HaltExecution::NotHalt;
 }

@@ -736,10 +736,10 @@ bool klee::JointBlockPredicate(KBlock *block) {
     return true;
   }
 
-  // if (block->basicBlock->hasNPredecessorsOrMore(2) ||
-  //     block->basicBlock->hasNPredecessors(0)) {
-  //   return true;
-  // }
+  if (block->basicBlock->hasNPredecessorsOrMore(2) ||
+      block->basicBlock->hasNPredecessors(0)) {
+    return true;
+  }
 
   if (isa<KCallBlock>(block) && dyn_cast<KCallBlock>(block)->internal() &&
       !dyn_cast<KCallBlock>(block)->intrinsic()) {

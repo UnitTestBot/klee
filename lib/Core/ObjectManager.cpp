@@ -94,7 +94,6 @@ ExecutionState *ObjectManager::initializeState(KInstruction *location,
 
   state->setHistory(state->targetForest.getHistory());
   state->setTargets(state->targetForest.getTargets());
-  state->stepTargetsAndHistory();
 
   statesUpdated = true;
   stateUpdateKind = StateKind::Isolated;
@@ -131,12 +130,7 @@ void ObjectManager::updateSubscribers(bool advancePaths) {
       s->update(e);
     }
 
-    if (current) {
-      current->stepTargetsAndHistory();
-    }
-
     for (auto state : addedStates) {
-      state->stepTargetsAndHistory();
       isolated ? isolatedStates.insert(state) : states.insert(state);
     }
 

@@ -19,9 +19,8 @@ namespace klee {
 
 class ProofObligation {
 public:
-  ProofObligation(KBlock *_location)
-      : id(nextID++), parent(nullptr), root(this),
-        location(ReachBlockTarget::create(_location)) {}
+  ProofObligation(ref<Target> _location)
+      : id(nextID++), parent(nullptr), root(this), location(_location) {}
 
   ~ProofObligation() {
     for (auto pob : children) {
@@ -44,8 +43,8 @@ public:
                                 KBlock *returnBlock);
 
 private:
-  ProofObligation *makeChild() {
-    auto pob = new ProofObligation(nullptr);
+  ProofObligation *makeChild(ref<Target> target) {
+    auto pob = new ProofObligation(target);
     pob->id = nextID++;
     pob->parent = this;
     pob->root = root;

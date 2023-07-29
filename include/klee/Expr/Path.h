@@ -78,6 +78,17 @@ public:
     return path.empty() && next;
   }
 
+  std::pair<bool, KCallBlock *> fromOutTransition() const {
+    if (path.empty()) {
+      return {false, nullptr};
+    }
+    if (path.front().kind == TransitionKind::Out) {
+      return {true, dyn_cast<KCallBlock>(path.front().block)};
+    } else {
+      return {false, nullptr};
+    }
+  }
+
   const path_ty &getBlocks() const;
   unsigned getFirstIndex() const;
   KInstruction *getFirstInstruction() const;

@@ -1,57 +1,232 @@
-[pob] New root proof obligation at: Target 0: %9 in function fib
-[close pob] Pob closed due to forward reach at: Target 0: %9 in function fib
+[pob] New root proof obligation at: Target: [%9, fib]
+[initializer] From [0, %1, dec] to Target: [%5, dec] (at the end)
+[initializer] From [0, %1, fib] to Target: [%11, fib]
+[initializer] From [0, %1, fib] to Target: [%26, fib]
+[initializer] From [1, %11, fib] to Target: [%13, fib]
+[initializer] From [0, %26, fib] to Target: [%28, fib] (at the end)
+[initializer] From [1, %13, fib] to Target: [%17, fib]
+[initializer] From [1, %17, fib] to Target: [%19, fib]
+[initializer] From [1, %19, fib] to Target: [%21, fib]
+[initializer] From [1, %21, fib] to Target: [%23, fib]
+[initializer] From [1, %23, fib] to Target: [%26, fib]
+[initializer] From [0, %0, main] to Target: [%16, main]
+[initializer] From [1, %16, main] to Target: [%21, main]
+[initializer] From [1, %21, main] to Target: [%26, main]
+[initializer] From [1, %26, main] to Target: [%35, main]
+[initializer] From [1, %26, main] to Target: [%36, main] (at the end)
+[initializer] From [0, %11, fib] to Target: [%1, dec]
+[initializer] From [0, %13, fib] to Target: [%1, fib]
+[initializer] From [0, %17, fib] to Target: [%1, dec]
+[initializer] From [0, %19, fib] to Target: [%1, dec]
+[initializer] From [0, %21, fib] to Target: [%1, fib]
+[initializer] From [0, %23, fib] to Target: [%2, sum]
+[initializer] From [0, %16, main] to Target: [%1, fib]
+[initializer] From [0, %21, main] to Target: [%1, fib]
+[initializer] From [0, %26, main] to Target: [%1, fib]
+[initializer] From [0, %1, fib] to Target: [%9, fib]
+[reached] Isolated state: path: (0 (fib: %1) 8) @ [0, %9, fib]
+[backward] State: path: (0 (fib: %1) 8) @ [0, %9, fib]
+[backward] Pob: path: (Empty) @ None
+[pob] New root proof obligation at: Target: [%8, fib]
+[close pob] Pob closed due to forward reach at: Target: [%9, fib]
+[initializer] From [0, %2, sum] to Target: [%8, sum] (at the end)
+[initializer] From [0, %1, fib] to Target: [%8, fib]
+[reached] Isolated state: path: (0 (fib: %1 %9) 1) @ [0, %11, fib]
+[reached] Isolated state: path: (0 (fib: %21 ->) 0) @ [0, %1, fib]
+[reached] Isolated state: path: (0 (fib: %13 ->) 0) @ [0, %1, fib]
+[reached] Isolated state: path: (0 (main: %16 ->) 0) @ [0, %1, fib]
+[reached] Isolated state: path: (0 (main: %21 ->) 0) @ [0, %1, fib]
+[reached] Isolated state: path: (0 (main: %26 ->) 0) @ [0, %1, fib]
+[reached] Isolated state: path: (0 (fib: %1 %8) 1) @ [0, %26, fib]
+[close pob] Pob closed due to forward reach at: Target: [%8, fib]
+[reached] Isolated state: path: (0 (fib: %1) 8) @ [0, %8, fib]
+[pob] New root proof obligation at: Target: [%34, main]
+[initializer] From [1, %26, main] to Target: [%34, main]
 KLEE: WARNING: Maximum stack size reached.
-[pob] New root proof obligation at: Target 0: %8 in function fib
-[close pob] Pob closed due to forward reach at: Target 0: %8 in function fib
-[pob] New root proof obligation at: Target 0: %34 in function main
+[reached] Isolated state: path: (1 (main: -> %26 %28) 6) @ [0, %34, main]
+[reached] Isolated state: path: (1 (main: -> %26 %28 %36) 0) @ None
+[backward] State: path: (1 (main: -> %26 %28) 6) @ [0, %34, main]
+[backward] Pob: path: (Empty) @ None
 KLEE: WARNING: Maximum stack size reached.
-KLEE: ERROR: (location information missing) ASSERTION FAIL: f1 + f2 == f3
-KLEE: NOTE: now ignoring this error at this location
-[backward] State: (path: 1 (main: %26 %28) 6) at 0 at %34 in function main (call)
-[backward] Pob: (path: 0 (main: %34) 0)
-[backward] State: (path: 0 (fib: %26 %28) 0) at 0 at %28 in function fib (ret)
-[backward] Pob: (path: 1 (main: %26 %28 %34) 0)
-[backward] State: (path: 0 (fib: %1 %8) 1) at 0 at %26 in function fib (load)
-[backward] Pob: (path: 0(main: (fib: %26 %28) %26 %28 %34) 0)
-[backward] State: (path: 1 (fib: %23 %25) 1) at 0 at %26 in function fib (load)
-[backward] Pob: (path: 0(main: (fib: %26 %28) %26 %28 %34) 0)
-[backward] State: (path: 0 (main: %26) 0) at 0 at %1 in function fib (alloca)
-[backward] Pob: (path: 0(main: (fib: %1 %8 %26 %28) %26 %28 %34) 0)
-[backward] State: (path: 0 (sum: %2 %8) 0) at 0 at %8 in function sum (ret)
-[backward] Pob: (path: 1(main: (fib: %23 %25 %26 %28) %26 %28 %34) 0)
-[backward] State: (path: 1 (main: %21 %23) 3) at 0 at %26 in function main (call)
-[backward] Pob: (path: 0 (main: %26 (fib: %1 %8 %26 %28) %26 %28 %34) 0)
-[backward] State: (path: 0 (fib: %26 %28) 0) at 0 at %28 in function fib (ret)
-[backward] Pob: (path: 1 (main: %21 %23 %26 (fib: %1 %8 %26 %28) %26 %28 %34) 0)
-[backward] State: (path: 1 (fib: %23 %25) 1) at 0 at %26 in function fib (load)
-[backward] Pob: (path: 0(main: (fib: %26 %28) %21 %23 %26 (fib: %1 %8 %26 %28) %26 %28 %34) 0)
-[backward] State: (path: 0 (sum: %2 %8) 0) at 0 at %8 in function sum (ret)
-[backward] Pob: (path: 1(main: (fib: %23 %25 %26 %28) %21 %23 %26 (fib: %1 %8 %26 %28) %26 %28 %34) 0)
-[backward] State: (path: 0 (fib: %1 %8) 1) at 0 at %26 in function fib (load)
-[backward] Pob: (path: 0(main: (fib: %26 %28) %21 %23 %26 (fib: %1 %8 %26 %28) %26 %28 %34) 0)
-[backward] State: (path: 0 (main: %21) 0) at 0 at %1 in function fib (alloca)
-[backward] Pob: (path: 0(main: (fib: %1 %8 %26 %28) %21 %23 %26 (fib: %1 %8 %26 %28) %26 %28 %34) 0)
-[backward] State: (path: 1 (main: %16 %18) 3) at 0 at %21 in function main (call)
-[backward] Pob: (path: 0 (main: %21 (fib: %1 %8 %26 %28) %21 %23 %26 (fib: %1 %8 %26 %28) %26 %28 %34) 0)
-[backward] State: (path: 0 (fib: %26 %28) 0) at 0 at %28 in function fib (ret)
-[backward] Pob: (path: 1 (main: %16 %18 %21 (fib: %1 %8 %26 %28) %21 %23 %26 (fib: %1 %8 %26 %28) %26 %28 %34) 0)
-[backward] State: (path: 1 (fib: %23 %25) 1) at 0 at %26 in function fib (load)
-[backward] Pob: (path: 0(main: (fib: %26 %28) %16 %18 %21 (fib: %1 %8 %26 %28) %21 %23 %26 (fib: %1 %8 %26 %28) %26 %28 %34) 0)
-[backward] State: (path: 0 (sum: %2 %8) 0) at 0 at %8 in function sum (ret)
-[backward] Pob: (path: 1(main: (fib: %23 %25 %26 %28) %16 %18 %21 (fib: %1 %8 %26 %28) %21 %23 %26 (fib: %1 %8 %26 %28) %26 %28 %34) 0)
-[backward] State: (path: 0 (fib: %1 %8) 1) at 0 at %26 in function fib (load)
-[backward] Pob: (path: 0(main: (fib: %26 %28) %16 %18 %21 (fib: %1 %8 %26 %28) %21 %23 %26 (fib: %1 %8 %26 %28) %26 %28 %34) 0)
-[backward] State: (path: 0 (main: %16) 0) at 0 at %1 in function fib (alloca)
-[backward] Pob: (path: 0(main: (fib: %1 %8 %26 %28) %16 %18 %21 (fib: %1 %8 %26 %28) %21 %23 %26 (fib: %1 %8 %26 %28) %26 %28 %34) 0)
-[backward] State: (path: 0 (main: %0 %7 %8 %13 %14) 1) at 0 at %16 in function main (call)
-[backward] Pob: (path: 0 (main: %16 (fib: %1 %8 %26 %28) %16 %18 %21 (fib: %1 %8 %26 %28) %21 %23 %26 (fib: %1 %8 %26 %28) %26 %28 %34) 0)
-[conflict] Conflict in backward: (path: 0 (main: %0 %7 %8 %13 %14 %16 (fib: %1 %8 %26 %28) %16 %18 %21 (fib: %1 %8 %26 %28) %21 %23 %26 (fib: %1 %8 %26 %28) %26 %28 %34) 0)
-KLEE: 0 states remaining
-KLEE: Distances from nearest states to remaining targets:
+[reached] Isolated state: path: (0 (fib: %26 %28) 0) @ None
+[backward] State: path: (0 (fib: %26 %28) 0) @ None
+[backward] Pob: path: (1 (main: -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (fib: %1 %8) 1) @ [0, %26, fib]
+[backward] Pob: path: (0 (main: (fib: %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (main: %26 ->) 0) @ [0, %1, fib]
+[backward] Pob: path: (0 (main: (fib: %1 %8 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[reached] Isolated state: path: (1 (fib: -> %23 %25) 1) @ [0, %26, fib]
+[reached] Isolated state: path: (1 (main: -> %21 %23) 3) @ [0, %26, main]
+[backward] State: path: (1 (fib: -> %23 %25) 1) @ [0, %26, fib]
+[backward] Pob: path: (0 (main: (fib: %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (1 (main: -> %21 %23) 3) @ [0, %26, main]
+[backward] Pob: path: (0 (main: %26 -> (fib: %8 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (fib: %26 %28) 0) @ None
+[backward] Pob: path: (1 (main: -> %21 %23 %26 -> (fib: %8 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (1 (fib: -> %23 %25) 1) @ [0, %26, fib]
+[backward] Pob: path: (0 (main: (fib: %26 %28) -> %21 %23 %26 -> (fib: %8 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (fib: %1 %8) 1) @ [0, %26, fib]
+[backward] Pob: path: (0 (main: (fib: %26 %28) -> %21 %23 %26 -> (fib: %8 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[reached] Isolated state: path: (0 (sum: %2 %8) 0) @ None
+[backward] State: path: (0 (main: %21 ->) 0) @ [0, %1, fib]
+[backward] Pob: path: (0 (main: (fib: %1 %8 %26 %28) -> %21 %23 %26 -> (fib: %8 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (sum: %2 %8) 0) @ None
+[backward] Pob: path: (1 (main: (fib: -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (sum: %2 %8) 0) @ None
+[backward] Pob: path: (1 (main: (fib: -> %23 %25 %26 %28) -> %21 %23 %26 -> (fib: %8 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[reached] Isolated state: path: (0 (fib: %23 ->) 0) @ [0, %2, sum]
+[reached] Isolated state: path: (1 (main: -> %16 %18) 3) @ [0, %21, main]
+[backward] State: path: (0 (fib: %23 ->) 0) @ [0, %2, sum]
+[backward] Pob: path: (0 (main: (fib: (sum: %2 %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (fib: %23 ->) 0) @ [0, %2, sum]
+[backward] Pob: path: (0 (main: (fib: (sum: %2 %8) -> %23 %25 %26 %28) -> %21 %23 %26 -> (fib: %8 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (1 (main: -> %16 %18) 3) @ [0, %21, main]
+[backward] Pob: path: (0 (main: %21 -> (fib: %8 %26 %28) -> %21 %23 %26 -> (fib: %8 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (fib: %26 %28) 0) @ None
+[backward] Pob: path: (1 (main: -> %16 %18 %21 -> (fib: %8 %26 %28) -> %21 %23 %26 -> (fib: %8 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (1 (fib: -> %23 %25) 1) @ [0, %26, fib]
+[backward] Pob: path: (0 (main: (fib: %26 %28) -> %16 %18 %21 -> (fib: %8 %26 %28) -> %21 %23 %26 -> (fib: %8 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[reached] Isolated state: path: (1 (fib: -> %21) 1) @ [0, %23, fib]
+[backward] State: path: (0 (sum: %2 %8) 0) @ None
+[backward] Pob: path: (1 (main: (fib: -> %23 %25 %26 %28) -> %16 %18 %21 -> (fib: %8 %26 %28) -> %21 %23 %26 -> (fib: %8 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (1 (fib: -> %21) 1) @ [0, %23, fib]
+[backward] Pob: path: (0 (main: (fib: %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (1 (fib: -> %21) 1) @ [0, %23, fib]
+[backward] Pob: path: (0 (main: (fib: %23 -> (sum: %8) -> %23 %25 %26 %28) -> %21 %23 %26 -> (fib: %8 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (fib: %23 ->) 0) @ [0, %2, sum]
+[backward] Pob: path: (0 (main: (fib: (sum: %2 %8) -> %23 %25 %26 %28) -> %16 %18 %21 -> (fib: %8 %26 %28) -> %21 %23 %26 -> (fib: %8 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (1 (fib: -> %21) 1) @ [0, %23, fib]
+[backward] Pob: path: (0 (main: (fib: %23 -> (sum: %8) -> %23 %25 %26 %28) -> %16 %18 %21 -> (fib: %8 %26 %28) -> %21 %23 %26 -> (fib: %8 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (fib: %26 %28) 0) @ None
+[backward] Pob: path: (1 (main: (fib: -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (fib: %1 %8) 1) @ [0, %26, fib]
+[backward] Pob: path: (0 (main: (fib: (fib: %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (fib: %21 ->) 0) @ [0, %1, fib]
+[backward] Pob: path: (0 (main: (fib: (fib: %1 %8 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (1 (fib: -> %23 %25) 1) @ [0, %26, fib]
+[backward] Pob: path: (0 (main: (fib: (fib: %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (sum: %2 %8) 0) @ None
+[backward] Pob: path: (1 (main: (fib: (fib: -> %23 %25 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[reached] Isolated state: path: (1 (fib: -> %19) 1) @ [0, %21, fib]
+[backward] State: path: (1 (fib: -> %19) 1) @ [0, %21, fib]
+[backward] Pob: path: (0 (main: (fib: %21 -> (fib: %8 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (fib: %23 ->) 0) @ [0, %2, sum]
+[backward] Pob: path: (0 (main: (fib: (fib: (sum: %2 %8) -> %23 %25 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (1 (fib: -> %21) 1) @ [0, %23, fib]
+[backward] Pob: path: (0 (main: (fib: (fib: %23 -> (sum: %8) -> %23 %25 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (fib: %1 %8) 1) @ [0, %26, fib]
+[backward] Pob: path: (0 (main: (fib: %26 %28) -> %16 %18 %21 -> (fib: %8 %26 %28) -> %21 %23 %26 -> (fib: %8 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (main: %16 ->) 0) @ [0, %1, fib]
+[backward] Pob: path: (0 (main: (fib: %1 %8 %26 %28) -> %16 %18 %21 -> (fib: %8 %26 %28) -> %21 %23 %26 -> (fib: %8 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (fib: %26 %28) 0) @ None
+[backward] Pob: path: (1 (main: (fib: -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %21 %23 %26 -> (fib: %8 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (fib: %1 %8) 1) @ [0, %26, fib]
+[backward] Pob: path: (0 (main: (fib: (fib: %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %21 %23 %26 -> (fib: %8 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (fib: %21 ->) 0) @ [0, %1, fib]
+[backward] Pob: path: (0 (main: (fib: (fib: %1 %8 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %21 %23 %26 -> (fib: %8 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (1 (fib: -> %19) 1) @ [0, %21, fib]
+[backward] Pob: path: (0 (main: (fib: %21 -> (fib: %8 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %21 %23 %26 -> (fib: %8 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (1 (fib: -> %23 %25) 1) @ [0, %26, fib]
+[backward] Pob: path: (0 (main: (fib: (fib: %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %21 %23 %26 -> (fib: %8 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[reached] Isolated state: path: (0 (dec: %1 %5) 0) @ None
+[backward] State: path: (0 (dec: %1 %5) 0) @ None
+[backward] Pob: path: (1 (main: (fib: -> %19 %21 -> (fib: %8 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (dec: %1 %5) 0) @ None
+[backward] Pob: path: (1 (main: (fib: -> %19 %21 -> (fib: %8 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %21 %23 %26 -> (fib: %8 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (sum: %2 %8) 0) @ None
+[backward] Pob: path: (1 (main: (fib: (fib: -> %23 %25 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %21 %23 %26 -> (fib: %8 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (fib: %23 ->) 0) @ [0, %2, sum]
+[backward] Pob: path: (0 (main: (fib: (fib: (sum: %2 %8) -> %23 %25 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %21 %23 %26 -> (fib: %8 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (1 (fib: -> %21) 1) @ [0, %23, fib]
+[backward] Pob: path: (0 (main: (fib: (fib: %23 -> (sum: %8) -> %23 %25 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %21 %23 %26 -> (fib: %8 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[reached] Isolated state: path: (0 (fib: %11 ->) 0) @ [0, %1, dec]
+[reached] Isolated state: path: (0 (fib: %17 ->) 0) @ [0, %1, dec]
+[reached] Isolated state: path: (0 (fib: %19 ->) 0) @ [0, %1, dec]
+[reached] Isolated state: path: (0 (main: %0 %7 %8 %13 %14) 1) @ [0, %16, main]
+[backward] State: path: (0 (fib: %19 ->) 0) @ [0, %1, dec]
+[backward] Pob: path: (0 (main: (fib: (dec: %1 %5) -> %19 %21 -> (fib: %8 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (fib: %19 ->) 0) @ [0, %1, dec]
+[backward] Pob: path: (0 (main: (fib: (dec: %1 %5) -> %19 %21 -> (fib: %8 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %21 %23 %26 -> (fib: %8 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (main: %0 %7 %8 %13 %14) 1) @ [0, %16, main]
+[backward] Pob: path: (0 (main: %16 -> (fib: %8 %26 %28) -> %16 %18 %21 -> (fib: %8 %26 %28) -> %21 %23 %26 -> (fib: %8 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[conflict] Conflict in backward: path: (0 (main: %0 %7 %8 %13 %14 %16 -> (fib: %8 %26 %28) -> %16 %18 %21 -> (fib: %8 %26 %28) -> %21 %23 %26 -> (fib: %8 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (fib: %26 %28) 0) @ None
+[backward] Pob: path: (1 (main: (fib: (fib: -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (fib: %1 %8) 1) @ [0, %26, fib]
+[backward] Pob: path: (0 (main: (fib: (fib: (fib: %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[reached] Isolated state: path: (1 (fib: -> %17) 1) @ [0, %19, fib]
+[backward] State: path: (0 (fib: %21 ->) 0) @ [0, %1, fib]
+[backward] Pob: path: (0 (main: (fib: (fib: (fib: %1 %8 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (1 (fib: -> %17) 1) @ [0, %19, fib]
+[backward] Pob: path: (0 (main: (fib: %19 -> (dec: %5) -> %19 %21 -> (fib: %8 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (1 (fib: -> %17) 1) @ [0, %19, fib]
+[backward] Pob: path: (0 (main: (fib: %19 -> (dec: %5) -> %19 %21 -> (fib: %8 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %21 %23 %26 -> (fib: %8 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (1 (fib: -> %19) 1) @ [0, %21, fib]
+[backward] Pob: path: (0 (main: (fib: (fib: %21 -> (fib: %8 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (dec: %1 %5) 0) @ None
+[backward] Pob: path: (1 (main: (fib: (fib: -> %19 %21 -> (fib: %8 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (fib: %19 ->) 0) @ [0, %1, dec]
+[backward] Pob: path: (0 (main: (fib: (fib: (dec: %1 %5) -> %19 %21 -> (fib: %8 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (1 (fib: -> %17) 1) @ [0, %19, fib]
+[backward] Pob: path: (0 (main: (fib: (fib: %19 -> (dec: %5) -> %19 %21 -> (fib: %8 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (dec: %1 %5) 0) @ None
+[backward] Pob: path: (1 (main: (fib: -> %17 %19 -> (dec: %5) -> %19 %21 -> (fib: %8 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (fib: %17 ->) 0) @ [0, %1, dec]
+[backward] Pob: path: (0 (main: (fib: (dec: %1 %5) -> %17 %19 -> (dec: %5) -> %19 %21 -> (fib: %8 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (dec: %1 %5) 0) @ None
+[backward] Pob: path: (1 (main: (fib: -> %17 %19 -> (dec: %5) -> %19 %21 -> (fib: %8 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %21 %23 %26 -> (fib: %8 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[reached] Isolated state: path: (1 (fib: -> %13 %15) 1) @ [0, %17, fib]
+[backward] State: path: (0 (fib: %17 ->) 0) @ [0, %1, dec]
+[backward] Pob: path: (0 (main: (fib: (dec: %1 %5) -> %17 %19 -> (dec: %5) -> %19 %21 -> (fib: %8 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %21 %23 %26 -> (fib: %8 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (1 (fib: -> %13 %15) 1) @ [0, %17, fib]
+[backward] Pob: path: (0 (main: (fib: %17 -> (dec: %5) -> %17 %19 -> (dec: %5) -> %19 %21 -> (fib: %8 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (1 (fib: -> %13 %15) 1) @ [0, %17, fib]
+[backward] Pob: path: (0 (main: (fib: %17 -> (dec: %5) -> %17 %19 -> (dec: %5) -> %19 %21 -> (fib: %8 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %21 %23 %26 -> (fib: %8 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (dec: %1 %5) 0) @ None
+[backward] Pob: path: (1 (main: (fib: (fib: -> %17 %19 -> (dec: %5) -> %19 %21 -> (fib: %8 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (fib: %17 ->) 0) @ [0, %1, dec]
+[backward] Pob: path: (0 (main: (fib: (fib: (dec: %1 %5) -> %17 %19 -> (dec: %5) -> %19 %21 -> (fib: %8 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (1 (fib: -> %13 %15) 1) @ [0, %17, fib]
+[backward] Pob: path: (0 (main: (fib: (fib: %17 -> (dec: %5) -> %17 %19 -> (dec: %5) -> %19 %21 -> (fib: %8 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (1 (fib: -> %23 %25) 1) @ [0, %26, fib]
+[backward] Pob: path: (0 (main: (fib: (fib: (fib: %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (fib: %26 %28) 0) @ None
+[backward] Pob: path: (1 (main: (fib: -> %13 %15 %17 -> (dec: %5) -> %17 %19 -> (dec: %5) -> %19 %21 -> (fib: %8 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (fib: %1 %8) 1) @ [0, %26, fib]
+[backward] Pob: path: (0 (main: (fib: (fib: %26 %28) -> %13 %15 %17 -> (dec: %5) -> %17 %19 -> (dec: %5) -> %19 %21 -> (fib: %8 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (fib: %13 ->) 0) @ [0, %1, fib]
+[backward] Pob: path: (0 (main: (fib: (fib: %1 %8 %26 %28) -> %13 %15 %17 -> (dec: %5) -> %17 %19 -> (dec: %5) -> %19 %21 -> (fib: %8 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[reached] Isolated state: path: (1 (fib: -> %11) 1) @ [0, %13, fib]
+[backward] State: path: (1 (fib: -> %11) 1) @ [0, %13, fib]
+[backward] Pob: path: (0 (main: (fib: %13 -> (fib: %8 %26 %28) -> %13 %15 %17 -> (dec: %5) -> %17 %19 -> (dec: %5) -> %19 %21 -> (fib: %8 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (1 (fib: -> %23 %25) 1) @ [0, %26, fib]
+[backward] Pob: path: (0 (main: (fib: (fib: %26 %28) -> %13 %15 %17 -> (dec: %5) -> %17 %19 -> (dec: %5) -> %19 %21 -> (fib: %8 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (sum: %2 %8) 0) @ None
+[backward] Pob: path: (1 (main: (fib: (fib: -> %23 %25 %26 %28) -> %13 %15 %17 -> (dec: %5) -> %17 %19 -> (dec: %5) -> %19 %21 -> (fib: %8 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (fib: %23 ->) 0) @ [0, %2, sum]
+[backward] Pob: path: (0 (main: (fib: (fib: (sum: %2 %8) -> %23 %25 %26 %28) -> %13 %15 %17 -> (dec: %5) -> %17 %19 -> (dec: %5) -> %19 %21 -> (fib: %8 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (1 (fib: -> %21) 1) @ [0, %23, fib]
+[backward] Pob: path: (0 (main: (fib: (fib: %23 -> (sum: %8) -> %23 %25 %26 %28) -> %13 %15 %17 -> (dec: %5) -> %17 %19 -> (dec: %5) -> %19 %21 -> (fib: %8 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (sum: %2 %8) 0) @ None
+[backward] Pob: path: (1 (main: (fib: (fib: (fib: -> %23 %25 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (dec: %1 %5) 0) @ None
+[backward] Pob: path: (1 (main: (fib: -> %11 %13 -> (fib: %8 %26 %28) -> %13 %15 %17 -> (dec: %5) -> %17 %19 -> (dec: %5) -> %19 %21 -> (fib: %8 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (fib: %11 ->) 0) @ [0, %1, dec]
+[backward] Pob: path: (0 (main: (fib: (dec: %1 %5) -> %11 %13 -> (fib: %8 %26 %28) -> %13 %15 %17 -> (dec: %5) -> %17 %19 -> (dec: %5) -> %19 %21 -> (fib: %8 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (fib: %1 %9) 1) @ [0, %11, fib]
+[backward] Pob: path: (0 (main: (fib: %11 -> (dec: %5) -> %11 %13 -> (fib: %8 %26 %28) -> %13 %15 %17 -> (dec: %5) -> %17 %19 -> (dec: %5) -> %19 %21 -> (fib: %8 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (main: %26 ->) 0) @ [0, %1, fib]
+[backward] Pob: path: (0 (main: (fib: %1 %9 %11 -> (dec: %5) -> %11 %13 -> (fib: %8 %26 %28) -> %13 %15 %17 -> (dec: %5) -> %17 %19 -> (dec: %5) -> %19 %21 -> (fib: %8 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (1 (main: -> %21 %23) 3) @ [0, %26, main]
+[backward] Pob: path: (0 (main: %26 -> (fib: %9 %11 -> (dec: %5) -> %11 %13 -> (fib: %8 %26 %28) -> %13 %15 %17 -> (dec: %5) -> %17 %19 -> (dec: %5) -> %19 %21 -> (fib: %8 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (0 (fib: %23 ->) 0) @ [0, %2, sum]
+[backward] Pob: path: (0 (main: (fib: (fib: (fib: (sum: %2 %8) -> %23 %25 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
+[backward] State: path: (1 (fib: -> %21) 1) @ [0, %23, fib]
+[backward] Pob: path: (0 (main: (fib: (fib: (fib: %23 -> (sum: %8) -> %23 %25 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %21 %23 -> (sum: %8) -> %23 %25 %26 %28) -> %26 %28) 6) @ [0, %34, main]
 
-KLEE: done: total instructions = 1680
+KLEE: done: total instructions = 1750
 KLEE: done: completed paths = 2
 KLEE: done: partially completed paths = 3
-KLEE: done: generated tests = 6
+KLEE: done: generated tests = 5
 KLEE: done: newly summarized locations = 1
-KLEE: done: queries = 151
+KLEE: done: queries = 727
