@@ -77,14 +77,13 @@ public:
   }
 
   ValueType load(size_t idx) const {
-    assert(idx < capacity && idx >= 0);
+    assert(idx < capacity);
     return contains(idx) ? internalStorage.at(idx) : defaultValue;
   }
 
   size_t size() const { return capacity; }
 
   void resize(size_t newCapacity) {
-    assert(newCapacity >= 0);
     // Free to extend
     if (newCapacity >= capacity) {
       capacity = newCapacity;
