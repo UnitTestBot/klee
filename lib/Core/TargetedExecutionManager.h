@@ -106,13 +106,14 @@ private:
   std::unordered_set<std::string> brokenTraces;
   std::unordered_set<std::string> reportedTraces;
 
-  bool tryResolveLocations(Result &result, LocationToBlocks &locToBlocks) const;
+  bool tryResolveLocations(Result &result,
+                           const LocationToBlocks &locToBlocks) const;
   LocationToBlocks prepareAllLocations(KModule *kmodule,
                                        Locations &locations) const;
   Locations collectAllLocations(const SarifReport &paths) const;
 
   bool canReach(const ref<Location> &from, const ref<Location> &to,
-                LocationToBlocks &locToBlocks) const;
+                const LocationToBlocks &locToBlocks) const;
 
   KFunction *tryResolveEntryFunction(const Result &result,
                                      LocationToBlocks &locToBlocks) const;

@@ -364,11 +364,11 @@ TargetedExecutionManager::collectAllLocations(const SarifReport &paths) const {
   return locations;
 }
 
-bool TargetedExecutionManager::canReach(const ref<Location> &from,
-                                        const ref<Location> &to,
-                                        LocationToBlocks &locToBlocks) const {
-  for (auto fromBlock : locToBlocks[from]) {
-    for (auto toBlock : locToBlocks[to]) {
+bool TargetedExecutionManager::canReach(
+    const ref<Location> &from, const ref<Location> &to,
+    const LocationToBlocks &locToBlocks) const {
+  for (auto fromBlock : locToBlocks.at(from)) {
+    for (auto toBlock : locToBlocks.at(to)) {
       auto fromKf = fromBlock->parent;
       auto toKf = toBlock->parent;
       if (fromKf == toKf) {
@@ -399,7 +399,7 @@ bool TargetedExecutionManager::canReach(const ref<Location> &from,
 }
 
 bool TargetedExecutionManager::tryResolveLocations(
-    Result &result, LocationToBlocks &locToBlocks) const {
+    Result &result, const LocationToBlocks &locToBlocks) const {
   std::vector<ref<Location>> resolvedLocations;
   size_t index = 0;
   for (const auto &location : result.locations) {
