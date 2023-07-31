@@ -62,10 +62,7 @@ public:
                                const char *suffix, bool isError = false) = 0;
 };
 
-enum class ExecutionKind {
-  Forward,
-  Bidirectional
-};
+enum class ExecutionKind { Forward, Bidirectional };
 
 class Interpreter {
 public:

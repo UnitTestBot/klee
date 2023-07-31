@@ -60,9 +60,7 @@ public:
   std::string getSourceLocation() const;
   std::string toString() const;
 
-  KInstIterator getIterator() const {
-    return (parent->instructions + index);
-  }
+  KInstIterator getIterator() const { return (parent->instructions + index); }
 };
 
 struct KGEPInstruction : KInstruction {

@@ -22,6 +22,6 @@ enum class DebugPrint {
 extern cl::bits<DebugPrint> debugPrints;
 extern cl::bits<DebugPrint> debugConstraints;
 
-};
+}; // namespace klee
 
 #endif /* KLEE_DEBUGFLAGS_H */

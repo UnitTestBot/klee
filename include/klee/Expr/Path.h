@@ -70,13 +70,9 @@ public:
                (lhs.last == rhs.last && lhs.next < rhs.next)))));
   }
 
-  bool empty() const {
-    return path.empty() && !next;
-  }
+  bool empty() const { return path.empty() && !next; }
 
-  bool emptyWithNext() const {
-    return path.empty() && next;
-  }
+  bool emptyWithNext() const { return path.empty() && next; }
 
   std::pair<bool, KCallBlock *> fromOutTransition() const {
     if (path.empty()) {
