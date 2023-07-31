@@ -138,9 +138,8 @@ void TargetManager::updateTargets(ExecutionState &state) {
     if (isTargeted(state) && targets(state).empty()) {
       TargetHashSet targets(targetCalculator.calculate(state));
       if (!targets.empty()) {
-        for (auto target : targets) {
-          state.targetForest.add(target);
-        }
+        state.targetForest.add(
+            TargetForest::UnorderedTargetsSet::create(targets));
         setTargets(state, state.targetForest.getTargets());
       }
     }
