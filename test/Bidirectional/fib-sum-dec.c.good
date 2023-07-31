@@ -1,9 +1,9 @@
 [pob] New root proof obligation at: Target: [%9, fib]
 [initializer] From [0, %1, dec] to Target: [%5, dec] (at the end)
-[initializer] From [0, %1, fib] to Target: [%11, fib]
 [initializer] From [0, %1, fib] to Target: [%26, fib]
-[initializer] From [1, %11, fib] to Target: [%13, fib]
+[initializer] From [0, %1, fib] to Target: [%11, fib]
 [initializer] From [0, %26, fib] to Target: [%28, fib] (at the end)
+[initializer] From [1, %11, fib] to Target: [%13, fib]
 [initializer] From [1, %13, fib] to Target: [%17, fib]
 [initializer] From [1, %17, fib] to Target: [%19, fib]
 [initializer] From [1, %19, fib] to Target: [%21, fib]
