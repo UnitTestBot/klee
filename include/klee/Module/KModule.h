@@ -309,6 +309,22 @@ public:
 
   bool WithPOSIXRuntime() { return withPosixRuntime; }
 };
+
+struct KBlockLess {
+  bool operator()(const KBlock *a, const KBlock *b) const {
+    if (a->parent->id != b->parent->id) {
+      return a->parent->id < b->parent->id;
+    }
+    return a->id < b->id;
+  }
+};
+
+struct KFunctionLess {
+  bool operator()(const KFunction *a, const KFunction *b) const {
+    return a->id < b->id;
+  }
+};
+
 } // namespace klee
 
 #endif /* KLEE_KMODULE_H */

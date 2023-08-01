@@ -91,7 +91,7 @@ void ConflictCoreInitializer::removePob(ProofObligation *pob) {
 void ConflictCoreInitializer::addConflictInit(const Conflict &conflict,
                                               KBlock *target) {
   auto &blocks = conflict.path.getBlocks();
-  std::unordered_set<KFunction *> functions;
+  std::set<KFunction *, KFunctionLess> functions;
 
   for (auto block : blocks) {
     if (!dismantledFunctions.count(block.block->parent)) {

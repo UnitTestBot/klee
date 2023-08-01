@@ -67,7 +67,7 @@ public:
   getSortedBackwardDistance(KFunction *kf);
 
   void getNearestPredicateSatisfying(KBlock *from, KBlockPredicate predicate,
-                                     std::set<KBlock *> &result);
+                                     std::set<KBlock *, KBlockLess> &result);
   KBlock *getNearestJoinBlock(KBlock *kb);
   KBlock *getNearestJoinOrCallBlock(KBlock *kb);
   KBlock *getNearestPredicateSatisfying(KBlock *kb, KBlockPredicate predicate,
@@ -79,12 +79,9 @@ public:
   std::vector<std::pair<KBlock *, KBlock *>>
   dismantleFunction(KFunction *kf, KBlockPredicate predicate);
 
-  std::set<KBlock *> getNearestPredicateSatisfying(KBlock *from,
-                                                   KBlockPredicate predicate);
-
   void getNearestPredicateSatisfying(KBlock *from, KBlockPredicate predicate,
                                      std::set<KBlock *> &visited,
-                                     std::set<KBlock *> &result);
+                                     std::set<KBlock *, KBlockLess> &result);
 };
 
 } // namespace klee

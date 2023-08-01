@@ -491,8 +491,7 @@ KFunction *TargetedExecutionManager::tryResolveEntryFunction(
   return resKf;
 }
 
-std::pair<std::map<KFunction *, ref<TargetForest>,
-                   TargetedExecutionManager::KFunctionLess>,
+std::pair<std::map<KFunction *, ref<TargetForest>, KFunctionLess>,
           std::map<std::string, ref<TargetForest>>>
 TargetedExecutionManager::prepareTargets(KModule *kmodule, SarifReport paths) {
   Locations locations = collectAllLocations(paths);

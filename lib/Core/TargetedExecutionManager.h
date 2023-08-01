@@ -123,19 +123,12 @@ private:
   StatesSet localStates;
 
 public:
-  struct KFunctionLess {
-    bool operator()(const KFunction *a, const KFunction *b) const {
-      return a->id < b->id;
-    }
-  };
-
   explicit TargetedExecutionManager(CodeGraphDistance &codeGraphDistance_,
                                     TargetManager &targetManager_)
       : codeGraphDistance(codeGraphDistance_), targetManager(targetManager_) {}
   ~TargetedExecutionManager() = default;
 
-  std::pair<std::map<KFunction *, ref<TargetForest>,
-                     TargetedExecutionManager::KFunctionLess>,
+  std::pair<std::map<KFunction *, ref<TargetForest>, KFunctionLess>,
             std::map<std::string, ref<TargetForest>>>
   prepareTargets(KModule *kmodule, SarifReport paths);
 

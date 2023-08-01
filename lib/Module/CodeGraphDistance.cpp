@@ -180,7 +180,8 @@ CodeGraphDistance::getSortedBackwardDistance(KFunction *kf) {
 }
 
 void CodeGraphDistance::getNearestPredicateSatisfying(
-    KBlock *from, KBlockPredicate predicate, std::set<KBlock *> &result) {
+    KBlock *from, KBlockPredicate predicate,
+    std::set<KBlock *, KBlockLess> &result) {
   std::set<KBlock *> visited;
 
   auto blockMap = from->parent->blockMap;
@@ -274,7 +275,8 @@ CodeGraphDistance::dismantleFunction(KFunction *kf, KBlockPredicate predicate) {
     auto kblock = queue.front();
     queue.pop();
     used.insert(kblock);
-    std::set<KBlock *> visited, nearest;
+    std::set<KBlock *> visited;
+    std::set<KBlock *, KBlockLess> nearest;
     getNearestPredicateSatisfying(kblock, predicate, visited, nearest);
     for (auto to : nearest) {
       dismantled.push_back({kblock, to});
@@ -288,7 +290,7 @@ CodeGraphDistance::dismantleFunction(KFunction *kf, KBlockPredicate predicate) {
 
 void CodeGraphDistance::getNearestPredicateSatisfying(
     KBlock *from, KBlockPredicate predicate, std::set<KBlock *> &visited,
-    std::set<KBlock *> &result) {
+    std::set<KBlock *, KBlockLess> &result) {
   auto kf = from->parent;
   for (auto block : successors(from->basicBlock)) {
     auto kblock = kf->blockMap.at(block);

@@ -151,7 +151,7 @@ TargetHashSet TargetCalculator::calculate(ExecutionState &state) {
        sfi != sfe; sfi++) {
     kf = sfi->kf;
 
-    std::set<KBlock *> blocks;
+    std::set<KBlock *, KBlockLess> blocks;
     using std::placeholders::_1;
     KBlockPredicate func =
         std::bind(&TargetCalculator::uncoveredBlockPredicate, this, &state, _1);
