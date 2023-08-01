@@ -170,6 +170,7 @@ void TargetForest::Layer::unionWith(TargetForest::Layer *other) {
     auto it = targetsToVector.find(kv.first);
     if (it == targetsToVector.end()) {
       targetsToVector.insert(std::make_pair(kv.first, kv.second));
+      targets.insert(kv.first);
       continue;
     }
     it->second.insert(kv.second.begin(), kv.second.end());
@@ -190,6 +191,7 @@ void TargetForest::Layer::block(ref<Target> target) {
           it->second.erase(itf->first);
           if (it->second.empty()) {
             targetsToVector.erase(it);
+            targets.erase(itfTarget);
           }
         }
       }
@@ -210,6 +212,7 @@ void TargetForest::Layer::removeTarget(ref<Target> target) {
   auto targetsVectors = std::move(it->second);
 
   targetsToVector.erase(it);
+  targets.erase(target);
 
   for (auto &targetsVec : targetsVectors) {
     bool shouldDelete = true;
@@ -278,6 +281,7 @@ TargetForest::Layer::removeChild(ref<UnorderedTargetsSet> child) const {
     it->second.erase(child);
     if (it->second.empty()) {
       result->targetsToVector.erase(it);
+      result->targets.erase(target);
     }
   }
   return result;
@@ -292,6 +296,7 @@ TargetForest::Layer *TargetForest::Layer::addChild(ref<Target> child) const {
   result->forest.insert({targetsVec, new Layer()});
 
   result->targetsToVector[child].insert(targetsVec);
+  result->targets.insert(child);
   return result;
 }
 
@@ -401,6 +406,7 @@ TargetForest::Layer *TargetForest::Layer::replaceChildWith(
         it->second.erase(targetsVec);
         if (it->second.empty()) {
           result->targetsToVector.erase(it);
+          result->targets.erase(target);
         }
       }
     }

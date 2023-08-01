@@ -11,6 +11,7 @@
 #define KLEE_DISTANCE_CALCULATOR_H
 
 #include "ExecutionState.h"
+#include "ProofObligation.h"
 
 namespace llvm {
 class BasicBlock;
@@ -50,9 +51,11 @@ public:
 
   DistanceResult getDistance(const ExecutionState &es, KBlock *target);
 
-  DistanceResult getDistance(const KInstruction *prevPC, const KInstruction *pc,
+  DistanceResult getDistance(const ProofObligation &pob, KBlock *target);
+
+  DistanceResult getDistance(KBlock *pcBlock,
                              const ExecutionStack::call_stack_ty &frames,
-                             KBlock *target);
+                             KBlock *target, bool reversed);
 
 private:
   enum TargetKind : std::uint8_t {
@@ -71,7 +74,9 @@ private:
   public:
     KBlock *kb;
     TargetKind kind;
-    SpeculativeState(KBlock *kb_, TargetKind kind_) : kb(kb_), kind(kind_) {
+    bool reversed;
+    SpeculativeState(KBlock *kb_, TargetKind kind_, bool reversed_)
+        : kb(kb_), kind(kind_), reversed(reversed_) {
       computeHash();
     }
     ~SpeculativeState() = default;
@@ -101,32 +106,34 @@ private:
   TargetToSpeculativeStateToDistanceResultMap distanceResultCache;
   StatesSet localStates;
 
-  DistanceResult getDistance(KBlock *kb, TargetKind kind, KBlock *target);
+  DistanceResult getDistance(KBlock *kb, TargetKind kind, KBlock *target,
+                             bool reversed);
 
-  DistanceResult computeDistance(KBlock *kb, TargetKind kind,
-                                 KBlock *target) const;
+  DistanceResult computeDistance(KBlock *kb, TargetKind kind, KBlock *target,
+                                 bool reversed) const;
 
   bool distanceInCallGraph(KFunction *kf, KBlock *kb, unsigned int &distance,
                            const std::unordered_map<KFunction *, unsigned int>
                                &distanceToTargetFunction,
-                           KBlock *target) const;
+                           KBlock *target, bool reversed) const;
   bool distanceInCallGraph(KFunction *kf, KBlock *kb, unsigned int &distance,
                            const std::unordered_map<KFunction *, unsigned int>
                                &distanceToTargetFunction,
-                           KBlock *target, bool strictlyAfterKB) const;
+                           KBlock *target, bool strictlyAfterKB,
+                           bool reversed) const;
 
   WeightResult tryGetLocalWeight(KBlock *kb, weight_type &weight,
                                  const std::vector<KBlock *> &localTargets,
-                                 KBlock *target) const;
+                                 KBlock *target, bool reversed) const;
   WeightResult
   tryGetPreTargetWeight(KBlock *kb, weight_type &weight,
                         const std::unordered_map<KFunction *, unsigned int>
                             &distanceToTargetFunction,
-                        KBlock *target) const;
+                        KBlock *target, bool reversed) const;
   WeightResult tryGetTargetWeight(KBlock *kb, weight_type &weight,
-                                  KBlock *target) const;
+                                  KBlock *target, bool reversed) const;
   WeightResult tryGetPostTargetWeight(KBlock *kb, weight_type &weight,
-                                      KBlock *target) const;
+                                      KBlock *target, bool reversed) const;
 };
 } // namespace klee
 

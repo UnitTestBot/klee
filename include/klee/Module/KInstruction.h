@@ -93,6 +93,21 @@ struct CallStackFrame {
   bool operator==(const CallStackFrame &other) const { return equals(other); }
 
   bool operator!=(const CallStackFrame &other) const { return !equals(other); }
+
+  static void subtractFrames(std::vector<CallStackFrame> &minued,
+                             std::vector<CallStackFrame> subtrahend) {
+    while (!subtrahend.empty() && !minued.empty()) {
+      if (subtrahend.size() == 1) {
+        assert(subtrahend.back().caller == nullptr);
+        break;
+      }
+      auto forwardF = subtrahend.back();
+      auto backwardF = minued.back();
+      assert(forwardF == backwardF);
+      minued.pop_back();
+      subtrahend.pop_back();
+    }
+  }
 };
 
 } // namespace klee

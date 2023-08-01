@@ -438,6 +438,9 @@ private:
   /// Can we reach at least one target of `current` from there?
   bool canReachSomeTargetFromBlock(ExecutionState &current, KBlock *block);
 
+  bool canReachSomeTargetThroughState(ProofObligation &pob,
+                                      ExecutionState &state);
+
   /// Create a new state where each input condition has been added as
   /// a constraint and return the results. The input state is included
   /// as one of the results. Note that the output vector may include

@@ -31,7 +31,14 @@ void TargetManager::updateMiss(ExecutionState &state, ref<Target> target) {
   }
 }
 
+void TargetManager::updateMiss(ProofObligation &pob, ref<Target> target) {
+  auto &stateTargetForest = targetForest(pob);
+  stateTargetForest.remove(target);
+}
+
 void TargetManager::updateContinue(ExecutionState &state, ref<Target> target) {}
+
+void TargetManager::updateContinue(ProofObligation &pob, ref<Target> target) {}
 
 void TargetManager::updateDone(ExecutionState &state, ref<Target> target) {
   auto &stateTargetForest = targetForest(state);
@@ -60,6 +67,11 @@ void TargetManager::updateDone(ExecutionState &state, ref<Target> target) {
       state.setTargeted(false);
     }
   }
+}
+
+void TargetManager::updateDone(ProofObligation &pob, ref<Target> target) {
+  auto &stateTargetForest = targetForest(pob);
+  stateTargetForest.stepTo(target);
 }
 
 void TargetManager::collect(ExecutionState &state) {
@@ -174,16 +186,81 @@ void TargetManager::updateTargets(ExecutionState &state) {
   }
 }
 
-void TargetManager::update(ref<ObjectManager::Event> e) {
-  if (!isa<ObjectManager::States>(e)) {
+void TargetManager::updateTargets(ProofObligation &pob) {
+  if (!isTargeted(pob)) {
     return;
   }
-  auto statesEvent = dyn_cast<ObjectManager::States>(e);
 
-  ExecutionState *current = statesEvent->modified;
-  const std::vector<ExecutionState *> &addedStates = statesEvent->added;
-  const std::vector<ExecutionState *> &removedStates = statesEvent->removed;
+  auto pobTargets = targets(pob);
+  auto &pobTargetForest = targetForest(pob);
 
+  for (auto target : pobTargets) {
+    if (!pobTargetForest.contains(target)) {
+      continue;
+    }
+
+    DistanceResult pobDistance = distance(pob, target);
+    switch (pobDistance.result) {
+    case WeightResult::Continue:
+      updateContinue(pob, target);
+      break;
+    case WeightResult::Miss:
+      updateMiss(pob, target);
+      break;
+    case WeightResult::Done:
+      updateDone(pob, target);
+      break;
+    default:
+      assert(0 && "unreachable");
+    }
+  }
+}
+
+void TargetManager::update(ref<ObjectManager::Event> e) {
+  switch (e->getKind()) {
+  case ObjectManager::Event::Kind::States: {
+    auto statesEvent = cast<ObjectManager::States>(e);
+    update(statesEvent->modified, statesEvent->added, statesEvent->removed,
+           statesEvent->isolated);
+    break;
+  }
+
+  case ObjectManager::Event::Kind::ProofObligations: {
+    auto pobsEvent = cast<ObjectManager::ProofObligations>(e);
+    update(pobsEvent->context, pobsEvent->added, pobsEvent->removed);
+    break;
+  }
+
+  default:
+    break;
+  }
+}
+
+void TargetManager::update(ExecutionState *context, const pobs_ty &addedPobs,
+                           const pobs_ty &removedPobs) {
+  if (!context) {
+    return;
+  }
+
+  for (auto pob : addedPobs) {
+    auto pobTargets = targets(*pob);
+    auto &pobTargetForest = targetForest(*pob);
+
+    auto history = context->history();
+    while (history && history->target) {
+      if (pobTargetForest.contains(history->target)) {
+        updateDone(*pob, history->target);
+      }
+      history = history->next;
+    }
+    updateTargets(*pob);
+  }
+}
+
+void TargetManager::update(ExecutionState *current,
+                           const std::vector<ExecutionState *> &addedStates,
+                           const std::vector<ExecutionState *> &removedStates,
+                           bool isolated) {
   states.insert(addedStates.begin(), addedStates.end());
 
   if (current && (std::find(removedStates.begin(), removedStates.end(),
@@ -218,10 +295,10 @@ void TargetManager::update(ref<ObjectManager::Event> e) {
     distances.erase(state);
   }
 
-  if (statesEvent->isolated && branchSearcher) {
+  if (isolated && branchSearcher) {
     branchSearcher->update(addedTStates, removedTStates);
   }
-  if (!statesEvent->isolated && searcher) {
+  if (!isolated && searcher) {
     searcher->update(addedTStates, removedTStates);
   }
 

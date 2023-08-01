@@ -36,6 +36,7 @@ public:
 
   bool atReturn() const { return isa<KReturnBlock>(location->getBlock()); }
   std::uint32_t getID() const { return id; };
+  bool isTargeted() const { return isTargeted_; };
 
   static ProofObligation *create(ProofObligation *parent, ExecutionState *state,
                                  PathConstraints &composed);
@@ -51,6 +52,7 @@ private:
     pob->root = root;
     pob->propagationCount = propagationCount;
     pob->targetForest = targetForest;
+    pob->isTargeted_ = isTargeted_;
     children.insert(pob);
     return pob;
   }
@@ -70,6 +72,7 @@ public:
 
 private:
   static unsigned nextID;
+  bool isTargeted_ = false;
 };
 
 struct ProofObligationIDCompare {

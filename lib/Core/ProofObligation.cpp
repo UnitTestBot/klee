@@ -28,22 +28,7 @@ ProofObligation *ProofObligation::create(ProofObligation *parent,
   pob->propagationCount[state]++;
   pob->stack = parent->stack;
   auto statestack = state->stack.callStack();
-  while (!pob->stack.empty() && !statestack.empty()) {
-    if (statestack.size() == 1) {
-      assert(statestack.back().caller == nullptr);
-      break;
-    }
-    auto pobF = pob->stack.back();
-    auto stateF = statestack.back();
-    assert(pobF == stateF);
-    pob->stack.pop_back();
-    statestack.pop_back();
-  }
-  auto history = state->history();
-  while (history && history->target) {
-    pob->targetForest.stepTo(history->target);
-    history = history->next;
-  }
+  CallStackFrame::subtractFrames(pob->stack, statestack);
 
   return pob;
 }

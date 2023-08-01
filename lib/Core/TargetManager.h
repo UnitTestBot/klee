@@ -93,6 +93,14 @@ private:
 
   void updateTargets(ExecutionState &state);
 
+  void updateMiss(ProofObligation &pob, ref<Target> target);
+
+  void updateContinue(ProofObligation &pob, ref<Target> target);
+
+  void updateDone(ProofObligation &pob, ref<Target> target);
+
+  void updateTargets(ProofObligation &pob);
+
   void collect(ExecutionState &state);
 
   bool isReachedTarget(const ExecutionState &state, ref<Target> target,
@@ -110,6 +118,12 @@ public:
               const std::vector<ExecutionState *> &removedStates);
 
   void update(ref<ObjectManager::Event> e) override;
+  void update(ExecutionState *current,
+              const std::vector<ExecutionState *> &addedStates,
+              const std::vector<ExecutionState *> &removedStates,
+              bool isolated);
+  void update(ExecutionState *context, const pobs_ty &addedPobs,
+              const pobs_ty &removedPobs);
 
   DistanceResult distance(const ExecutionState &state, ref<Target> target) {
 
@@ -129,8 +143,16 @@ public:
     return result;
   }
 
+  DistanceResult distance(const ProofObligation &pob, ref<Target> target) {
+    return distanceCalculator.getDistance(pob, target->getBlock());
+  }
+
   const TargetHashSet &targets(const ExecutionState &state) {
     return state.targets();
+  }
+
+  const TargetHashSet &targets(const ProofObligation &pob) {
+    return pob.targetForest.getTargets();
   }
 
   ref<const TargetsHistory> history(const ExecutionState &state) {
@@ -149,6 +171,8 @@ public:
     return state.targetForest;
   }
 
+  TargetForest &targetForest(ProofObligation &pob) { return pob.targetForest; }
+
   void subscribeSearcher(TargetManagerSubscriber &subscriber) {
     searcher = &subscriber;
   }
@@ -158,6 +182,8 @@ public:
   }
 
   bool isTargeted(const ExecutionState &state) { return state.isTargeted(); }
+
+  bool isTargeted(const ProofObligation &pob) { return pob.isTargeted(); }
 
   bool isReachedTarget(const ExecutionState &state, ref<Target> target);
 

@@ -226,6 +226,7 @@ private:
                            UnorderedTargetsSetCmp>,
         TargetHash, TargetCmp>;
     TargetsToVector targetsToVector;
+    TargetHashSet targets;
 
     /// @brief Confidence in % that this layer (i.e., parent target node) can be
     /// reached
@@ -234,7 +235,11 @@ private:
     Layer(const InternalLayer &forest, const TargetsToVector &targetsToVector,
           confidence::ty confidence)
         : forest(forest), targetsToVector(targetsToVector),
-          confidence(confidence) {}
+          confidence(confidence) {
+      for (auto &targetVect : targetsToVector) {
+        targets.insert(targetVect.first);
+      }
+    }
 
     explicit Layer(const Layer *layer)
         : Layer(layer->forest, layer->targetsToVector, layer->confidence) {}
@@ -265,6 +270,7 @@ private:
     void insertTargetsToVec(ref<Target> target,
                             ref<UnorderedTargetsSet> targetsVec) {
       targetsToVector[target].insert(targetsVec);
+      targets.insert(target);
     }
     bool empty() const { return forest.empty(); }
     bool deepFind(ref<Target> target) const;
@@ -284,13 +290,7 @@ private:
                             ref<Target> leaf) const;
     Layer *blockLeafInChild(ref<Target> child, ref<Target> leaf) const;
     Layer *blockLeaf(ref<Target> leaf) const;
-    TargetHashSet getTargets() const {
-      TargetHashSet targets;
-      for (auto &targetVect : targetsToVector) {
-        targets.insert(targetVect.first);
-      }
-      return targets;
-    }
+    const TargetHashSet &getTargets() const { return targets; }
 
     void dump(unsigned n) const;
     void addLeafs(
@@ -356,7 +356,7 @@ public:
   void block(const ref<Target> &);
   const ref<TargetsHistory> getHistory() { return history; };
   const ref<Layer> getTopLayer() { return forest; };
-  const TargetHashSet getTargets() const { return forest->getTargets(); }
+  const TargetHashSet &getTargets() const { return forest->getTargets(); }
   void dump() const;
   std::vector<std::pair<ref<UnorderedTargetsSet>, confidence::ty>>
   leafs() const;

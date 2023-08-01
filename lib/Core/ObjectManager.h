@@ -82,11 +82,13 @@ public:
 
   struct ProofObligations : public Event {
     friend class ref<ProofObligations>;
+    ExecutionState *context;
     const pobs_ty &added;
     const pobs_ty &removed;
 
-    ProofObligations(const pobs_ty &added, const pobs_ty &removed)
-        : added(added), removed(removed) {}
+    ProofObligations(ExecutionState *context, const pobs_ty &added,
+                     const pobs_ty &removed)
+        : context(context), added(added), removed(removed) {}
 
     Kind getKind() const { return Kind::ProofObligations; }
     static bool classof(const Event *A) {
@@ -106,6 +108,7 @@ public:
   void clear();
 
   void setCurrentState(ExecutionState *_current);
+  void setContextState(ExecutionState *_context);
   ExecutionState *branchState(ExecutionState *state, BranchType reason);
   void removeState(ExecutionState *state);
   ExecutionState *initializeState(KInstruction *location,
@@ -156,6 +159,7 @@ public:
   std::vector<ExecutionState *> addedStates;
   std::vector<ExecutionState *> removedStates;
 
+  ExecutionState *context = nullptr;
   pobs_ty addedPobs;
   pobs_ty removedPobs;
 

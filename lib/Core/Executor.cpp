@@ -1129,13 +1129,38 @@ bool mustVisitForkBranches(ref<Target> target, KInstruction *instr) {
 bool Executor::canReachSomeTargetFromBlock(ExecutionState &es, KBlock *block) {
   if (interpreterOpts.Guidance != GuidanceKind::ErrorGuidance)
     return true;
-  auto nextInstr = block->getFirstInstruction();
   for (const auto &p : *es.targetForest.getTopLayer()) {
     auto target = p.first;
     if (mustVisitForkBranches(target, es.prevPC))
       return true;
-    auto dist = distanceCalculator->getDistance(
-        es.prevPC, nextInstr, es.stack.callStack(), target->getBlock());
+    auto dist = distanceCalculator->getDistance(block, es.stack.callStack(),
+                                                target->getBlock(), false);
+    if (dist.result != WeightResult::Miss)
+      return true;
+  }
+  return false;
+}
+
+bool Executor::canReachSomeTargetThroughState(ProofObligation &pob,
+                                              ExecutionState &state) {
+  if (interpreterOpts.Guidance != GuidanceKind::ErrorGuidance)
+    return true;
+
+  auto stack = pob.stack;
+  CallStackFrame::subtractFrames(stack, state.stack.callStack());
+  auto pobTargetForest = pob.targetForest;
+
+  auto history = state.history();
+  while (history && history->target) {
+    if (pobTargetForest.contains(history->target)) {
+      pobTargetForest.stepTo(history->target);
+    }
+    history = history->next;
+  }
+
+  for (auto target : pobTargetForest.getTargets()) {
+    auto dist = distanceCalculator->getDistance(state.initPC->parent, stack,
+                                                target->getBlock(), true);
     if (dist.result != WeightResult::Miss)
       return true;
   }
@@ -4566,10 +4591,18 @@ void Executor::goBackward(ref<BackwardAction> action) {
   ExecutionState *state = action->prop.state;
   ProofObligation *pob = action->prop.pob;
 
+  objectManager->setContextState(state);
+
   // Conflict::core_ty conflictCore;
   // ExprHashMap<ref<Expr>> rebuildMap;
 
-  Executor::ComposeResult composeResult = compose(*state, pob->constraints);
+  Executor::ComposeResult composeResult;
+  if (canReachSomeTargetThroughState(*pob, *state)) {
+    composeResult = compose(*state, pob->constraints);
+  } else {
+    composeResult.success = false;
+  }
+
   // ProofObligation *newPob = new ProofObligation(state->initPC->parent, pob);
   // bool success = Composer::tryRebuild(*pob, *state, *newPob, conflictCore,
   // rebuildMap); timers.invoke();

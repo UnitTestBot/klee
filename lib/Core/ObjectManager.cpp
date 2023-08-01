@@ -49,6 +49,11 @@ void ObjectManager::setCurrentState(ExecutionState *_current) {
       (current->isolated ? StateKind::Isolated : StateKind::Regular);
 }
 
+void ObjectManager::setContextState(ExecutionState *_context) {
+  assert(context == nullptr);
+  context = _context;
+}
+
 ExecutionState *ObjectManager::branchState(ExecutionState *state,
                                            BranchType reason) {
   if (statesUpdated) {
@@ -160,10 +165,11 @@ void ObjectManager::updateSubscribers(bool advancePaths) {
     }
     addedPropagations.clear();
     removedPropagations.clear();
+    context = nullptr;
   }
 
   {
-    ref<Event> e = new ProofObligations(addedPobs, removedPobs);
+    ref<Event> e = new ProofObligations(context, addedPobs, removedPobs);
     for (auto s : subscribers) {
       s->update(e);
     }
