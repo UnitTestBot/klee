@@ -27,18 +27,27 @@ public:
   std::pair<KInstruction *, std::set<ref<Target>>> selectAction() override;
   bool empty() override;
 
+  bool initsLeftForTarget(ref<Target> t) {
+    return instructionMap.count(t) && !instructionMap.at(t).empty();
+  }
+
   void addConflictInit(const Conflict &, KBlock *) override;
+
+  void initializeFunctions(std::set<KFunction *> functions);
+  void addErrorInit(ref<Target> errorTarget);
+
   void update(const pobs_ty &added, const pobs_ty &removed) override;
 
   explicit ConflictCoreInitializer(CodeGraphDistance *cgd,
-                                   KBlockPredicate predicate)
-      : cgd(cgd), predicate(predicate){};
+                                   KBlockPredicate predicate, bool errorGuided)
+      : cgd(cgd), predicate(predicate), errorGuided(errorGuided) {};
 
   ~ConflictCoreInitializer() override {}
 
 private:
   CodeGraphDistance *cgd;
   KBlockPredicate predicate;
+  bool errorGuided;
 
   // There are proof obligation in these targets
   std::map<ref<Target>, unsigned> knownTargets;

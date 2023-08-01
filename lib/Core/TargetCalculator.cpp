@@ -155,7 +155,7 @@ TargetHashSet TargetCalculator::calculate(ExecutionState &state) {
     using std::placeholders::_1;
     KBlockPredicate func =
         std::bind(&TargetCalculator::uncoveredBlockPredicate, this, &state, _1);
-    codeGraphDistance.getNearestPredicateSatisfying(kb, func, blocks);
+    codeGraphDistance.getNearestPredicateSatisfying(kb, func, true, blocks);
 
     if (!blocks.empty()) {
       TargetHashSet targets;

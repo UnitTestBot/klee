@@ -3,6 +3,7 @@
 #include "CoreStats.h"
 #include "PForest.h"
 #include "SearcherUtil.h"
+#include "TargetManager.h"
 
 #include "klee/Module/KModule.h"
 #include "klee/Support/Debug.h"
@@ -159,9 +160,12 @@ void ObjectManager::updateSubscribers(bool advancePaths) {
     }
     for (auto prop : addedPropagations) {
       propagations[prop.pob->location].insert(prop);
+      propagationCount[prop.pob]++;
     }
     for (auto prop : removedPropagations) {
       propagations[prop.pob->location].erase(prop);
+      assert(propagationCount[prop.pob] > 0);
+      propagationCount[prop.pob]--;
     }
     addedPropagations.clear();
     removedPropagations.clear();
@@ -175,10 +179,22 @@ void ObjectManager::updateSubscribers(bool advancePaths) {
     }
     for (auto pob : addedPobs) {
       pobs[pob->location].insert(pob);
+      if (pob->parent) {
+        leafPobs.erase(pob->parent);
+      }
+      if (pob->children.empty()) {
+        leafPobs.insert(pob);
+      }
     }
     for (auto pob : removedPobs) {
+      leafPobs.erase(pob);
       pobs[pob->location].erase(pob);
+      auto parent = pob->parent;
       delete pob;
+      if (parent && parent->children.size() == 0 &&
+          !removedPobs.count(parent)) {
+        leafPobs.insert(parent);
+      }
     }
     addedPobs.clear();
     removedPobs.clear();
@@ -204,6 +220,8 @@ const states_ty &ObjectManager::getStates() { return states; }
 
 const states_ty &ObjectManager::getIsolatedStates() { return isolatedStates; }
 
+const pobs_ty &ObjectManager::getLeafPobs() { return leafPobs; }
+
 void ObjectManager::checkReachedStates() {
   assert(statesUpdated && stateUpdateKind == StateKind::Isolated);
   std::set<ExecutionState *> states(addedStates.begin(), addedStates.end());
@@ -218,28 +236,34 @@ void ObjectManager::checkReachedStates() {
       continue;
     }
 
-    auto reached = state->getTarget();
-    if (!reached || state->constraints.path().getBlocks().size() == 0) {
-      continue;
+    std::set<ref<Target>> reached;
+
+    for (auto target : state->targets()) {
+      if (TargetManager::isReachedTarget(*state, target)) {
+        reached.insert(target);
+      }
     }
 
-    if (state->targets().count(reached)) {
+    assert(reached.size() <= 1);
+
+    if (reached.size() == 1) {
+      auto target = *(reached.begin());
       if (debugPrints.isSet(DebugPrint::Reached)) {
         llvm::errs() << "[reached] Isolated state: "
                      << state->constraints.path().toString() << "\n";
       }
       auto copy = state->copy();
-      reachedStates[reached].insert(copy);
-      for (auto pob : pobs[reached]) {
+      reachedStates[target].insert(copy);
+      for (auto pob : pobs[target]) {
         if (checkStack(copy, pob)) {
           addedPropagations.insert({copy, pob});
         }
       }
-      if (predicate(reached->getBlock())) {
-        toRemove.push_back(state);
-      }
+      toRemove.push_back(state);
     } else {
-      if (predicate(reached->getBlock())) {
+      auto loc = state->getLocationTarget();
+      if (loc && predicate(loc->getBlock())) {
+        assert(0);
         toRemove.push_back(state);
       }
     }
@@ -263,7 +287,7 @@ void ObjectManager::checkReachedPobs() {
 
   std::set<ProofObligation *> toRemove;
   for (auto state : states) {
-    auto reached = state->getTarget();
+    auto reached = state->getLocationTarget();
     if (reached && pobs.count(reached)) {
       for (auto pob : pobs.at(reached)) {
         if (!pob->parent) {

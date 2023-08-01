@@ -491,11 +491,17 @@ KFunction *TargetedExecutionManager::tryResolveEntryFunction(
   return resKf;
 }
 
-std::pair<std::map<KFunction *, ref<TargetForest>, KFunctionLess>,
-          std::map<std::string, ref<TargetForest>>>
+TargetedExecutionManager::Data
 TargetedExecutionManager::prepareTargets(KModule *kmodule, SarifReport paths) {
+  Data ret;
   Locations locations = collectAllLocations(paths);
   LocationToBlocks locToBlocks = prepareAllLocations(kmodule, locations);
+
+  for (auto &locblock : locToBlocks) {
+    for (auto block : locblock.second) {
+      ret.specialPoints.insert(block);
+    }
+  }
 
   std::map<KFunction *, ref<TargetForest>, KFunctionLess> forwardWhitelists;
   std::map<std::string, ref<TargetForest>> backwardWhitelists;
@@ -526,7 +532,20 @@ TargetedExecutionManager::prepareTargets(KModule *kmodule, SarifReport paths) {
     backwardWhitelists[result.id]->addTrace(result, locToBlocks, true);
   }
 
-  return {forwardWhitelists, backwardWhitelists};
+  std::set<KFunction *> functionsToDismantle;
+  for (auto wl : forwardWhitelists) {
+    auto kf = wl.first;
+    auto &dist = codeGraphDistance.getDistance(kf);
+    for (auto &reachable : dist) {
+      functionsToDismantle.insert(reachable.first);
+    }
+  }
+
+  ret.forwardWhitelists = forwardWhitelists;
+  ret.backwardWhitelists = backwardWhitelists;
+  ret.functionsToDismantle = std::move(functionsToDismantle);
+
+  return ret;
 }
 
 void TargetedExecutionManager::reportFalseNegative(ExecutionState &state,

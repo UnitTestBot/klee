@@ -490,7 +490,7 @@ bool ExecutionState::reachedTarget(ref<ReachBlockTarget> target) const {
   }
 }
 
-ref<Target> ExecutionState::getTarget() const {
+ref<Target> ExecutionState::getLocationTarget() const {
   if (isa<KReturnBlock>(prevPC->parent) &&
       prevPC == prevPC->parent->getLastInstruction()) {
     // This means we just exited a function and are at the second instruction in

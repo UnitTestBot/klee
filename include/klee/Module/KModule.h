@@ -100,7 +100,7 @@ bool RegularFunctionPredicate(KBlock *);
 bool JointBlockPredicate(KBlock *);
 
 struct TraceVerifyPredicate {
-  TraceVerifyPredicate(std::set<KBlock *> specialPoints)
+  explicit TraceVerifyPredicate(std::set<KBlock *> specialPoints)
       : specialPoints(specialPoints){};
 
   bool operator()(KBlock *block);

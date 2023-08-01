@@ -37,6 +37,7 @@ public:
   bool atReturn() const { return isa<KReturnBlock>(location->getBlock()); }
   std::uint32_t getID() const { return id; };
   bool isTargeted() const { return isTargeted_; };
+  void setTargeted(bool targeted) { isTargeted_ = targeted; }
 
   static ProofObligation *create(ProofObligation *parent, ExecutionState *state,
                                  PathConstraints &composed);

@@ -89,10 +89,12 @@ void TargetManager::collect(ExecutionState &state) {
     for (auto target : prevTargets) {
       removedTStates[{prevHistory, target}].push_back(&state);
       addedTStates[{prevHistory, target}];
+      targetToStates[target].erase(&state);
     }
     for (auto target : targets) {
       addedTStates[{history, target}].push_back(&state);
       removedTStates[{history, target}];
+      targetToStates[target].insert(&state);
     }
   } else {
     addedTargets = targets;
@@ -104,10 +106,12 @@ void TargetManager::collect(ExecutionState &state) {
     for (auto target : removedTargets) {
       removedTStates[{history, target}].push_back(&state);
       addedTStates[{history, target}];
+      targetToStates[target].erase(&state);
     }
     for (auto target : addedTargets) {
       addedTStates[{history, target}].push_back(&state);
       removedTStates[{history, target}];
+      targetToStates[target].insert(&state);
     }
     removedTargets.clear();
     addedTargets.clear();

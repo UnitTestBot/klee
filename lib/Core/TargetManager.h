@@ -73,6 +73,9 @@ private:
   TargetHashSet removedTargets;
   TargetHashSet addedTargets;
 
+  // For guided mode check
+  TargetHashMap<StatesSet> targetToStates;
+
   void setTargets(ExecutionState &state, const TargetHashSet &targets) {
     state.setTargets(targets);
     changedStates.insert(&state);
@@ -103,8 +106,8 @@ private:
 
   void collect(ExecutionState &state);
 
-  bool isReachedTarget(const ExecutionState &state, ref<Target> target,
-                       WeightResult &result);
+  static bool isReachedTarget(const ExecutionState &state, ref<Target> target,
+                              WeightResult &result);
 
 public:
   TargetManager(Interpreter::GuidanceKind _guidance,
@@ -185,9 +188,13 @@ public:
 
   bool isTargeted(const ProofObligation &pob) { return pob.isTargeted(); }
 
-  bool isReachedTarget(const ExecutionState &state, ref<Target> target);
+  static bool isReachedTarget(const ExecutionState &state, ref<Target> target);
 
   void setReached(ref<Target> target) { reachedTargets.insert(target); }
+
+  bool hasTargetedStates(ref<Target> target) {
+    return targetToStates.count(target) && !targetToStates.at(target).empty();
+  }
 };
 
 } // namespace klee

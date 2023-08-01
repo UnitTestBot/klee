@@ -116,6 +116,7 @@ public:
 
   const states_ty &getStates();
   const states_ty &getIsolatedStates();
+  const pobs_ty &getLeafPobs();
 
   void addTargetedConflict(ref<TargetedConflict> conflict);
 
@@ -140,10 +141,12 @@ public:
 
   states_ty states;
   states_ty isolatedStates;
+  pobs_ty leafPobs;
   std::map<ref<Target>, states_ty> reachedStates;
   std::map<ref<Target>, pobs_ty> pobs;
   std::map<std::pair<Path, ref<Target>>, ProofObligation *> pathedPobs;
   std::map<ref<Target>, propagations_ty> propagations;
+  std::map<ProofObligation *, unsigned> propagationCount;
 
   // These are used to buffer execution results and pass the updates to
   // subscribers

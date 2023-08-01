@@ -180,7 +180,7 @@ CodeGraphDistance::getSortedBackwardDistance(KFunction *kf) {
 }
 
 void CodeGraphDistance::getNearestPredicateSatisfying(
-    KBlock *from, KBlockPredicate predicate,
+    KBlock *from, KBlockPredicate predicate, bool forward,
     std::set<KBlock *, KBlockLess> &result) {
   std::set<KBlock *> visited;
 
@@ -195,9 +195,17 @@ void CodeGraphDistance::getNearestPredicateSatisfying(
     if (predicate(currBB) && currBB != from) {
       result.insert(currBB);
     } else {
-      for (auto const &succ : successors(currBB->basicBlock)) {
-        if (visited.count(blockMap[succ]) == 0) {
-          nodes.push_back(blockMap[succ]);
+      if (forward) {
+        for (auto const &succ : successors(currBB->basicBlock)) {
+          if (visited.count(blockMap[succ]) == 0) {
+            nodes.push_back(blockMap[succ]);
+          }
+        }
+      } else {
+        for (auto const &pred : predecessors(currBB->basicBlock)) {
+          if (visited.count(blockMap[pred]) == 0) {
+            nodes.push_back(blockMap[pred]);
+          }
         }
       }
     }

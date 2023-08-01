@@ -90,6 +90,10 @@ void ConflictCoreInitializer::removePob(ProofObligation *pob) {
 
 void ConflictCoreInitializer::addConflictInit(const Conflict &conflict,
                                               KBlock *target) {
+  if (errorGuided) {
+    return;
+  }
+
   auto &blocks = conflict.path.getBlocks();
   std::set<KFunction *, KFunctionLess> functions;
 
@@ -132,6 +136,44 @@ void ConflictCoreInitializer::addConflictInit(const Conflict &conflict,
   }
 }
 
+void ConflictCoreInitializer::initializeFunctions(
+    std::set<KFunction *> functions) {
+  for (auto function : functions) {
+    if (dismantledFunctions.count(function)) {
+      continue;
+    }
+    dismantledFunctions.insert(function);
+
+    auto dismantled = cgd->dismantleFunction(function, predicate);
+    for (auto i : dismantled) {
+      KInstruction *from =
+          (RegularFunctionPredicate(i.first) ? i.first->instructions[1]
+                                             : i.first->instructions[0]);
+      addInit(from, ReachBlockTarget::create(i.second));
+    }
+    for (auto &block : function->blocks) {
+      if (RegularFunctionPredicate(block.get())) {
+        auto call = dyn_cast<KCallBlock>(block.get());
+        auto called = call->getKFunction();
+        addInit(call->getFirstInstruction(),
+                ReachBlockTarget::create(called->entryKBlock));
+      }
+    }
+  }
+}
+
+void ConflictCoreInitializer::addErrorInit(ref<Target> errorTarget) {
+  auto location = errorTarget->getBlock();
+  // Check direction
+  std::set<KBlock *, KBlockLess> nearest;
+  cgd->getNearestPredicateSatisfying(location, predicate, false, nearest);
+  for (auto i : nearest) {
+    KInstruction *from =
+        (RegularFunctionPredicate(i) ? i->instructions[1] : i->instructions[0]);
+    addInit(from, errorTarget);
+  }
+}
+
 void ConflictCoreInitializer::addInit(KInstruction *from, ref<Target> to) {
   if (initialized[from].count(to)) {
     return;
@@ -140,7 +182,7 @@ void ConflictCoreInitializer::addInit(KInstruction *from, ref<Target> to) {
 
   if (debugPrints.isSet(DebugPrint::Init)) {
     llvm::errs() << "[initializer] From " << from->toString() << " to "
-                 << to->toString() << "\n";
+                 << to->toString() << " scheduled\n";
   }
 
   targetMap[from].insert(to);

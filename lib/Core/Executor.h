@@ -259,7 +259,8 @@ private:
   //                  ExecutionState **resultState = nullptr);
 
   void seed(ExecutionState &initialState);
-  void run(std::vector<ExecutionState *> initialStates);
+  void run(std::vector<ExecutionState *> initialStates,
+           TargetedExecutionManager::Data &data);
   // void runWithTarget(ExecutionState &state, KFunction *kf, KBlock *target);
 
   void initializeTypeManager();

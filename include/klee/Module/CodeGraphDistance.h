@@ -67,6 +67,7 @@ public:
   getSortedBackwardDistance(KFunction *kf);
 
   void getNearestPredicateSatisfying(KBlock *from, KBlockPredicate predicate,
+                                     bool forward,
                                      std::set<KBlock *, KBlockLess> &result);
   KBlock *getNearestJoinBlock(KBlock *kb);
   KBlock *getNearestJoinOrCallBlock(KBlock *kb);

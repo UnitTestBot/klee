@@ -23,6 +23,7 @@
 #include "MemoryManager.h"
 #include "PForest.h"
 #include "PTree.h"
+#include "ProofObligation.h"
 #include "Searcher.h"
 #include "SeedInfo.h"
 #include "SpecialFunctionHandler.h"
@@ -2643,9 +2644,11 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
               if (!verifingTransitionsTo.count(targeted->target->basicBlock)) {
                 verifingTransitionsTo.insert(targeted->target->basicBlock);
-                ProofObligation *pob = new ProofObligation(
-                    ReachBlockTarget::create(targeted->target));
-                objectManager->addPob(pob);
+                if (guidanceKind != Interpreter::GuidanceKind::ErrorGuidance) {
+                  ProofObligation *pob = new ProofObligation(
+                      ReachBlockTarget::create(targeted->target));
+                  objectManager->addPob(pob);
+                }
               }
             }
           }
@@ -4614,6 +4617,10 @@ void Executor::goBackward(ref<BackwardAction> action) {
         llvm::errs() << "[close pob] Pob closed due to backward reach at: "
                      << pob->root->location->toString() << "\n";
       }
+      if (pob->root->location->shouldFailOnThisTarget()) {
+        llvm::errs() << "[TRUE POSITIVE] FOUND TRUE POSITIVE AT: "
+                     << pob->root->location->toString() << "\n";
+      }
       closeProofObligation(pob);
     } else {
       auto returnPropagation = state->constraints.path().fromOutTransition();
@@ -4653,6 +4660,12 @@ void Executor::closeProofObligation(ProofObligation *pob) {
 }
 
 void Executor::initializeIsolated(ref<InitializeAction> action) {
+  if (debugPrints.isSet(DebugPrint::Init)) {
+    llvm::errs() << "[initialize, executor] From" << action->location->toString() << " to:\n";
+    for (auto i : action->targets) {
+      llvm::errs() << "[initialize, executor] " << i->toString() << "\n";
+    }
+  }
   auto state =
       objectManager->initializeState(action->location, action->targets);
   assert(state->isolated);
@@ -4795,7 +4808,8 @@ void Executor::reportProgressTowardsTargets() const {
   reportProgressTowardsTargets("", objectManager->getStates());
 }
 
-void Executor::run(std::vector<ExecutionState *> initialStates) {
+void Executor::run(std::vector<ExecutionState *> initialStates,
+                   TargetedExecutionManager::Data &data) {
   // Delay init till now so that ticks don't accrue during optimization and
   // such.
   if (guidanceKind != GuidanceKind::ErrorGuidance)
@@ -4807,6 +4821,10 @@ void Executor::run(std::vector<ExecutionState *> initialStates) {
     seed(*initialState);
   }
 
+  auto errorAndBackward = ExecutionMode == ExecutionKind::Bidirectional &&
+                          guidanceKind == GuidanceKind::ErrorGuidance;
+
+  ConflictCoreInitializer *forCheck = nullptr;
   if (ExecutionMode == ExecutionKind::Forward) {
     searcher =
         std::make_unique<ForwardOnlySearcher>(constructUserSearcher(*this));
@@ -4814,10 +4832,25 @@ void Executor::run(std::vector<ExecutionState *> initialStates) {
     Searcher *forward = constructUserSearcher(*this);
     Searcher *branch = constructUserSearcher(*this, true);
     BackwardSearcher *backward = constructUserBackwardSearcher();
+    auto predicate = errorAndBackward
+                         ? std::function<bool(KBlock *)>(
+                               TraceVerifyPredicate(data.specialPoints))
+                         : JointBlockPredicate;
     Initializer *initializer = new ConflictCoreInitializer(
-        codeGraphDistance.get(), JointBlockPredicate);
+        codeGraphDistance.get(), predicate,
+        errorAndBackward);
+    forCheck = (ConflictCoreInitializer *)initializer;
     searcher = std::make_unique<BidirectionalSearcher>(forward, branch,
                                                        backward, initializer);
+  }
+
+  if (errorAndBackward) {
+    forCheck->initializeFunctions(data.functionsToDismantle);
+    for (auto &backwardlist : data.backwardWhitelists) {
+      for (auto target : backwardlist.second->getTargets()) {
+        forCheck->addErrorInit(target);
+      }
+    }
   }
 
   if (targetManager) {
@@ -4842,6 +4875,30 @@ void Executor::run(std::vector<ExecutionState *> initialStates) {
       // update searchers when states were terminated early due to memory
       // pressure
       objectManager->updateSubscribers();
+    }
+
+
+    if (errorAndBackward) {
+      bool changed = true;
+      while (changed) {
+        changed = false;
+        for (auto pob : objectManager->leafPobs) {
+          if (!targetManager->hasTargetedStates(pob->location) &&
+              !forCheck->initsLeftForTarget(pob->location) &&
+              objectManager->propagationCount[pob] == 0) {
+            if (!pob->parent && pob->location->shouldFailOnThisTarget()) {
+              llvm::errs() << "[FALSE POSITIVE]"
+                           << "FOUND FALSE POSITIVE AT: "
+                           << pob->location->toString() << "\n";
+            }
+            objectManager->removePob(pob);
+            changed = true;
+          }
+        }
+        if (changed) {
+          objectManager->updateSubscribers();
+        }
+      }
     }
   }
 
@@ -7173,23 +7230,27 @@ void Executor::runFunctionAsMain(Function *f, int argc, char **argv,
   objectManager->setEmptyState(emptyState);
   bindModuleConstants(llvm::APFloat::rmNearestTiesToEven);
 
+  TargetedExecutionManager::Data data;
+
   std::vector<ExecutionState *> states;
+  std::vector<ProofObligation *> pobs;
 
   if (guidanceKind == GuidanceKind::ErrorGuidance) {
     KInstIterator caller;
     state->popFrame();
 
     auto &paths = interpreterOpts.Paths.value();
-    auto [forwardTatgets, backwardTargets] =
-        targetedExecutionManager->prepareTargets(kmodule.get(),
-                                                 std::move(paths));
-    if (forwardTatgets.empty()) {
+    data = targetedExecutionManager->prepareTargets(kmodule.get(),
+                                                    std::move(paths));
+
+    auto forwardTargets = data.forwardWhitelists;
+    if (forwardTargets.empty()) {
       klee_warning(
           "No targets found in error-guided mode after prepare targets");
       return;
     }
 
-    for (auto &startFunctionAndWhiteList : forwardTatgets) {
+    for (auto &startFunctionAndWhiteList : forwardTargets) {
       auto kf =
           kmodule->functionMap.at(startFunctionAndWhiteList.first->function);
       if (startFunctionAndWhiteList.second->empty()) {
@@ -7203,6 +7264,16 @@ void Executor::runFunctionAsMain(Function *f, int argc, char **argv,
       prepareSymbolicArgs(*initialState);
       prepareTargetedExecution(*initialState, whitelist);
       states.push_back(initialState);
+    }
+
+    for (auto &backwardList : data.backwardWhitelists) {
+      auto errorTargets = backwardList.second->getTargets();
+      for (auto target : errorTargets) {
+        assert(target->shouldFailOnThisTarget());
+        auto pob = new ProofObligation(target);
+        pob->setTargeted(true);
+        pob->targetForest = *(backwardList.second->deepCopy());
+      }
     }
     delete state;
   } else {
@@ -7231,9 +7302,13 @@ void Executor::runFunctionAsMain(Function *f, int argc, char **argv,
       state->symPathOS = symPathOS;
   }
 
+  for (auto pob : pobs) {
+    objectManager->addPob(pob);
+  }
+
   summary.readFromFile(kmodule.get(), &arrayCache);
 
-  run(states);
+  run(states, data);
 
   summary.dumpToFile(kmodule.get());
   objectManager->clear();

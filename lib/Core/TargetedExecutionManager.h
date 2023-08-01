@@ -87,6 +87,7 @@ public:
   void reportFalsePositives(bool canReachSomeTarget);
 };
 
+
 class TargetedExecutionManager final : public Subscriber {
 private:
   using Blocks = std::unordered_set<KBlock *>;
@@ -123,13 +124,20 @@ private:
   StatesSet localStates;
 
 public:
+
+  struct Data {
+    std::map<KFunction *, ref<TargetForest>, KFunctionLess> forwardWhitelists;
+    std::map<std::string, ref<TargetForest>> backwardWhitelists;
+    std::set<KFunction *> functionsToDismantle;
+    std::set<KBlock *> specialPoints;
+  };
+
   explicit TargetedExecutionManager(CodeGraphDistance &codeGraphDistance_,
                                     TargetManager &targetManager_)
       : codeGraphDistance(codeGraphDistance_), targetManager(targetManager_) {}
   ~TargetedExecutionManager() = default;
 
-  std::pair<std::map<KFunction *, ref<TargetForest>, KFunctionLess>,
-            std::map<std::string, ref<TargetForest>>>
+  Data
   prepareTargets(KModule *kmodule, SarifReport paths);
 
   void reportFalseNegative(ExecutionState &state, ReachWithError error);
