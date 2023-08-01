@@ -234,7 +234,7 @@ private:
   /// Optimizes expressions
   ExprOptimizer optimizer;
 
-  std::unordered_map<KFunction *, TargetedHaltsOnTraces> targets;
+  std::unordered_map<KFunction *, TargetedHaltsOnTraces> targetedHalts;
 
   /// Typeids used during exception handling
   std::vector<ref<Expr>> eh_typeids;
@@ -751,7 +751,7 @@ public:
 
   void setPathWriter(TreeStreamWriter *tsw) override { pathWriter = tsw; }
 
-  bool hasTargetForest() const override { return !targets.empty(); }
+  bool hasTargetForest() const override { return !targetedHalts.empty(); }
 
   void setSymbolicPathWriter(TreeStreamWriter *tsw) override {
     symPathWriter = tsw;

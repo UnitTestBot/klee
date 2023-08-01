@@ -8,6 +8,7 @@
 #include "klee/Module/KInstruction.h"
 #include "klee/Module/KModule.h"
 #include "klee/Module/Target.h"
+#include "klee/Module/TargetForest.h"
 
 #include <queue>
 #include <sstream>
@@ -49,6 +50,7 @@ private:
     pob->parent = this;
     pob->root = root;
     pob->propagationCount = propagationCount;
+    pob->targetForest = targetForest;
     children.insert(pob);
     return pob;
   }
@@ -63,6 +65,7 @@ public:
       propagationCount;
 
   ref<Target> location;
+  TargetForest targetForest;
   PathConstraints constraints;
 
 private:

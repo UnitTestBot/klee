@@ -134,7 +134,9 @@ public:
       : codeGraphDistance(codeGraphDistance_), targetManager(targetManager_) {}
   ~TargetedExecutionManager() = default;
 
-  std::map<KFunction *, ref<TargetForest>, KFunctionLess>
+  std::pair<std::map<KFunction *, ref<TargetForest>,
+                     TargetedExecutionManager::KFunctionLess>,
+            std::map<std::string, ref<TargetForest>>>
   prepareTargets(KModule *kmodule, SarifReport paths);
 
   void reportFalseNegative(ExecutionState &state, ReachWithError error);

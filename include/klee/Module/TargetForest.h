@@ -36,7 +36,7 @@ private:
 
   explicit TargetsHistory(ref<Target> _target,
                           ref<TargetsHistory> _visitedTargets)
-      : target(_target), visitedTargets(_visitedTargets) {
+      : target(_target), next(_visitedTargets) {
     computeHash();
     computeSize();
   }
@@ -46,8 +46,8 @@ private:
     if (target) {
       res = target->hash() * Expr::MAGIC_HASH_CONSTANT;
     }
-    if (visitedTargets) {
-      res ^= visitedTargets->hash() * Expr::MAGIC_HASH_CONSTANT;
+    if (next) {
+      res ^= next->hash() * Expr::MAGIC_HASH_CONSTANT;
     }
     hashValue = res;
   }
@@ -57,8 +57,8 @@ private:
     if (target) {
       ++res;
     }
-    if (visitedTargets) {
-      res += visitedTargets->size();
+    if (next) {
+      res += next->size();
     }
     sizeValue = res;
   }
@@ -101,7 +101,7 @@ protected:
 
 public:
   const ref<Target> target;
-  const ref<TargetsHistory> visitedTargets;
+  const ref<TargetsHistory> next;
 
   static ref<TargetsHistory> create(ref<Target> _target,
                                     ref<TargetsHistory> _visitedTargets);
@@ -309,7 +309,8 @@ private:
     void addTrace(
         const Result &result,
         const std::unordered_map<ref<Location>, std::unordered_set<KBlock *>,
-                                 RefLocationHash, RefLocationCmp> &locToBlocks);
+                                 RefLocationHash, RefLocationCmp> &locToBlocks,
+        bool reversed);
   };
 
   ref<Layer> forest;
@@ -326,8 +327,9 @@ public:
   void addTrace(
       const Result &result,
       const std::unordered_map<ref<Location>, std::unordered_set<KBlock *>,
-                               RefLocationHash, RefLocationCmp> &locToBlocks) {
-    forest->addTrace(result, locToBlocks);
+                               RefLocationHash, RefLocationCmp> &locToBlocks,
+      bool reversed) {
+    forest->addTrace(result, locToBlocks, reversed);
   }
 
   TargetForest(ref<Layer> layer, KFunction *entryFunction)

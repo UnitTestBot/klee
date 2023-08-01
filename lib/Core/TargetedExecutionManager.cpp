@@ -491,13 +491,15 @@ KFunction *TargetedExecutionManager::tryResolveEntryFunction(
   return resKf;
 }
 
-std::map<KFunction *, ref<TargetForest>,
-         TargetedExecutionManager::KFunctionLess>
+std::pair<std::map<KFunction *, ref<TargetForest>,
+                   TargetedExecutionManager::KFunctionLess>,
+          std::map<std::string, ref<TargetForest>>>
 TargetedExecutionManager::prepareTargets(KModule *kmodule, SarifReport paths) {
   Locations locations = collectAllLocations(paths);
   LocationToBlocks locToBlocks = prepareAllLocations(kmodule, locations);
 
-  std::map<KFunction *, ref<TargetForest>, KFunctionLess> whitelists;
+  std::map<KFunction *, ref<TargetForest>, KFunctionLess> forwardWhitelists;
+  std::map<std::string, ref<TargetForest>> backwardWhitelists;
 
   for (auto &result : paths.results) {
     bool isFullyResolved = tryResolveLocations(result, locToBlocks);
@@ -512,14 +514,20 @@ TargetedExecutionManager::prepareTargets(KModule *kmodule, SarifReport paths) {
       continue;
     }
 
-    if (whitelists.count(kf) == 0) {
+    if (forwardWhitelists.count(kf) == 0) {
       ref<TargetForest> whitelist = new TargetForest(kf);
-      whitelists[kf] = whitelist;
+      forwardWhitelists[kf] = whitelist;
     }
-    whitelists[kf]->addTrace(result, locToBlocks);
+    if (backwardWhitelists.count(result.id) == 0) {
+      ref<TargetForest> whitelist = new TargetForest(kf);
+      backwardWhitelists[result.id] = whitelist;
+    }
+
+    forwardWhitelists[kf]->addTrace(result, locToBlocks, false);
+    backwardWhitelists[result.id]->addTrace(result, locToBlocks, true);
   }
 
-  return whitelists;
+  return {forwardWhitelists, backwardWhitelists};
 }
 
 void TargetedExecutionManager::reportFalseNegative(ExecutionState &state,

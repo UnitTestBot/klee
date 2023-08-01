@@ -107,9 +107,11 @@ TargetForest::UnorderedTargetsSet::~UnorderedTargetsSet() {
 void TargetForest::Layer::addTrace(
     const Result &result,
     const std::unordered_map<ref<Location>, std::unordered_set<KBlock *>,
-                             RefLocationHash, RefLocationCmp> &locToBlocks) {
+                             RefLocationHash, RefLocationCmp> &locToBlocks,
+    bool reversed) {
   auto forest = this;
-  for (size_t i = 0; i < result.locations.size(); ++i) {
+  for (size_t count = 0; count < result.locations.size(); ++count) {
+    size_t i = reversed ? result.locations.size() - count - 1 : count;
     const auto &loc = result.locations[i];
     auto it = locToBlocks.find(loc);
     assert(it != locToBlocks.end());
@@ -466,9 +468,9 @@ int TargetsHistory::compare(const TargetsHistory &h) const {
     return (target < h.target) ? -1 : 1;
   }
 
-  assert(visitedTargets && h.visitedTargets);
-  if (visitedTargets != h.visitedTargets) {
-    return (visitedTargets < h.visitedTargets) ? -1 : 1;
+  assert(next && h.next);
+  if (next != h.next) {
+    return (next < h.next) ? -1 : 1;
   }
 
   return 0;
@@ -485,11 +487,11 @@ void TargetsHistory::dump() const {
     llvm::errs() << target->toString() << "\n";
   } else {
     llvm::errs() << "end.\n";
-    assert(!visitedTargets);
+    assert(!next);
     return;
   }
-  if (visitedTargets)
-    visitedTargets->dump();
+  if (next)
+    next->dump();
 }
 
 TargetsHistory::~TargetsHistory() {

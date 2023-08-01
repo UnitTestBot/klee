@@ -2371,7 +2371,7 @@ void Executor::updateConfidenceRates() {
   decreaseConfidenceFromStoppedStates(objectManager->getStates(),
                                       haltExecution);
 
-  for (auto &startBlockAndWhiteList : targets) {
+  for (auto &startBlockAndWhiteList : targetedHalts) {
     startBlockAndWhiteList.second.reportFalsePositives(
         hasStateWhichCanReachSomeTarget);
   }
@@ -4128,7 +4128,7 @@ bool Executor::checkMemoryUsage() {
 
 void Executor::decreaseConfidenceFromStoppedStates(
     const SetOfStates &leftStates, HaltExecution::Reason reason) {
-  if (targets.size() == 0) {
+  if (targetedHalts.size() == 0) {
     return;
   }
   for (auto state : leftStates) {
@@ -4137,8 +4137,8 @@ void Executor::decreaseConfidenceFromStoppedStates(
     hasStateWhichCanReachSomeTarget = true;
     auto realReason = reason ? reason : state->terminationReasonType.load();
     if (state->progressVelocity >= 0) {
-      assert(targets.count(state->targetForest.getEntryFunction()) != 0);
-      targets.at(state->targetForest.getEntryFunction())
+      assert(targetedHalts.count(state->targetForest.getEntryFunction()) != 0);
+      targetedHalts.at(state->targetForest.getEntryFunction())
           .subtractConfidencesFrom(state->targetForest, realReason);
     }
   }
@@ -7147,15 +7147,16 @@ void Executor::runFunctionAsMain(Function *f, int argc, char **argv,
     state->popFrame();
 
     auto &paths = interpreterOpts.Paths.value();
-    auto prepTargets = targetedExecutionManager->prepareTargets(
-        kmodule.get(), std::move(paths));
-    if (prepTargets.empty()) {
+    auto [forwardTatgets, backwardTargets] =
+        targetedExecutionManager->prepareTargets(kmodule.get(),
+                                                 std::move(paths));
+    if (forwardTatgets.empty()) {
       klee_warning(
           "No targets found in error-guided mode after prepare targets");
       return;
     }
 
-    for (auto &startFunctionAndWhiteList : prepTargets) {
+    for (auto &startFunctionAndWhiteList : forwardTatgets) {
       auto kf =
           kmodule->functionMap.at(startFunctionAndWhiteList.first->function);
       if (startFunctionAndWhiteList.second->empty()) {
@@ -7164,7 +7165,7 @@ void Executor::runFunctionAsMain(Function *f, int argc, char **argv,
         continue;
       }
       auto whitelist = startFunctionAndWhiteList.second;
-      targets.emplace(kf, TargetedHaltsOnTraces(whitelist));
+      targetedHalts.emplace(kf, TargetedHaltsOnTraces(whitelist));
       ExecutionState *initialState = state->withStackFrame(caller, kf);
       prepareSymbolicArgs(*initialState);
       prepareTargetedExecution(*initialState, whitelist);

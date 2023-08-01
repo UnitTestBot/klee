@@ -39,6 +39,12 @@ ProofObligation *ProofObligation::create(ProofObligation *parent,
     pob->stack.pop_back();
     statestack.pop_back();
   }
+  auto history = state->history();
+  while (history && history->target) {
+    pob->targetForest.stepTo(history->target);
+    history = history->next;
+  }
+
   return pob;
 }
 
