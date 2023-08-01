@@ -7273,6 +7273,7 @@ void Executor::runFunctionAsMain(Function *f, int argc, char **argv,
         auto pob = new ProofObligation(target);
         pob->setTargeted(true);
         pob->targetForest = *(backwardList.second->deepCopy());
+        pobs.push_back(pob);
       }
     }
     delete state;

@@ -166,7 +166,11 @@ void ConflictCoreInitializer::addErrorInit(ref<Target> errorTarget) {
   auto location = errorTarget->getBlock();
   // Check direction
   std::set<KBlock *, KBlockLess> nearest;
-  cgd->getNearestPredicateSatisfying(location, predicate, false, nearest);
+  if (predicate(errorTarget->getBlock())) {
+    nearest.insert(errorTarget->getBlock()); // HOT FIX
+  } else {
+    cgd->getNearestPredicateSatisfying(location, predicate, false, nearest);
+  }
   for (auto i : nearest) {
     KInstruction *from =
         (RegularFunctionPredicate(i) ? i->instructions[1] : i->instructions[0]);
