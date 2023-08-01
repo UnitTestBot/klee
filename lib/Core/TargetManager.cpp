@@ -24,6 +24,11 @@ void TargetManager::updateMiss(ExecutionState &state, ref<Target> target) {
   auto &stateTargetForest = targetForest(state);
   stateTargetForest.remove(target);
   setTargets(state, stateTargetForest.getTargets());
+
+  if (state.isolated) {
+    return;
+  }
+
   if (guidance == Interpreter::GuidanceKind::CoverageGuidance) {
     if (targets(state).size() == 0) {
       state.setTargeted(false);
@@ -46,6 +51,11 @@ void TargetManager::updateDone(ExecutionState &state, ref<Target> target) {
   stateTargetForest.stepTo(target);
   setTargets(state, stateTargetForest.getTargets());
   setHistory(state, stateTargetForest.getHistory());
+
+  if (state.isolated) {
+    return;
+  }
+
   if (guidance == Interpreter::GuidanceKind::CoverageGuidance ||
       target->shouldFailOnThisTarget()) {
     reachedTargets.insert(target);
@@ -119,6 +129,10 @@ void TargetManager::collect(ExecutionState &state) {
 }
 
 void TargetManager::updateReached(ExecutionState &state) {
+  if (state.isolated) {
+    return;
+  }
+
   auto prevKI = state.prevPC;
   auto kf = prevKI->parent->parent;
   auto kmodule = kf->parent;
@@ -287,6 +301,7 @@ void TargetManager::update(ExecutionState *current,
   }
 
   for (auto state : changedStates) {
+    assert(state->isolated == isolated);
     if (std::find(addedStates.begin(), addedStates.end(), state) ==
         addedStates.end()) {
       collect(*state);
