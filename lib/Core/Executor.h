@@ -121,6 +121,7 @@ class Executor : public Interpreter {
     bool success;
     PathConstraints composed;
     Conflict conflict;
+    ref<Expr> nullPointerExpr;
   };
 
 public:
@@ -731,8 +732,8 @@ private:
   ref<Expr> fillSizeAddressSymcretes(ExecutionState &state,
                                      ref<Expr> oldAddress, ref<Expr> newAddress,
                                      ref<Expr> size);
-  ComposeResult compose(const ExecutionState &state,
-                        const PathConstraints &pob);
+  ComposeResult compose(const ExecutionState &state, const PathConstraints &pob,
+                        ref<Expr> nullPointerExpr);
 
   void executeAction(ref<BidirectionalAction> action);
 

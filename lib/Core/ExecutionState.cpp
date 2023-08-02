@@ -171,7 +171,8 @@ ExecutionState::ExecutionState(const ExecutionState &state)
                                : nullptr),
       coveredNew(state.coveredNew), forkDisabled(state.forkDisabled),
       isolated(state.isolated), returnValue(state.returnValue),
-      gepExprBases(state.gepExprBases), prevTargets_(state.prevTargets_),
+      gepExprBases(state.gepExprBases), error(state.error),
+      nullPointerExpr(state.nullPointerExpr), prevTargets_(state.prevTargets_),
       targets_(state.targets_), prevHistory_(state.prevHistory_),
       history_(state.history_), isTargeted_(state.isTargeted_) {}
 

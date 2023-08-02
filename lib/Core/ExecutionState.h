@@ -364,6 +364,8 @@ public:
   ExprHashMap<std::pair<ref<Expr>, llvm::Type *>> gepExprBases;
 
   ReachWithError error = ReachWithError::None;
+  ref<Expr> nullPointerExpr = nullptr;
+
   std::atomic<HaltExecution::Reason> terminationReasonType{
       HaltExecution::NotHalt};
 

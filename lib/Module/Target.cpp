@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "klee/Module/Target.h"
+#include "klee/Module/SarifReport.h"
 #include "klee/Module/TargetHash.h"
 
 #include "klee/Module/CodeGraphDistance.h"
@@ -31,6 +32,9 @@ std::string ReproduceErrorTarget::toString() const {
   repr << "Target " << getId() << ": ";
   repr << "error in ";
   repr << block->toString();
+  for (auto error : errors) {
+    repr << " " << errorToString(error);
+  }
   return repr.str();
 }
 

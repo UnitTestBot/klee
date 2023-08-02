@@ -12,6 +12,7 @@
 #include "TargetCalculator.h"
 
 #include "klee/Module/KInstruction.h"
+#include "klee/Module/SarifReport.h"
 
 #include <cassert>
 
@@ -358,6 +359,11 @@ bool TargetManager::isReachedTarget(const ExecutionState &state,
         }
         return true;
       }
+    } else {
+      if (state.pc == target->getBlock()->getFirstInstruction()) {
+        result = Done;
+        return true;
+      }
     }
   }
 
@@ -381,7 +387,15 @@ bool TargetManager::isReachedTarget(const ExecutionState &state,
           cast<ReproduceErrorTarget>(target)->isThatError(state.error)) {
         result = Done;
       } else {
-        result = Continue;
+        if (state.isolated &&
+            cast<ReproduceErrorTarget>(target)->isTheSameAsIn(state.prevPC) &&
+            state.error == klee::MayBeNullPointerException &&
+            cast<ReproduceErrorTarget>(target)->isThatError(
+                klee::MustBeNullPointerException)) {
+          result = Done;
+        } else {
+          result = Continue;
+        }
       }
       return true;
     }

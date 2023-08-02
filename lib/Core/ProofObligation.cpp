@@ -21,7 +21,8 @@ std::set<ProofObligation *> ProofObligation::getSubtree() {
 
 ProofObligation *ProofObligation::create(ProofObligation *parent,
                                          ExecutionState *state,
-                                         PathConstraints &composed) {
+                                         PathConstraints &composed,
+                                         ref<Expr> nullPointerExpr) {
   ProofObligation *pob = parent->makeChild(ReachBlockTarget::create(
       state->constraints.path().getBlocks().front().block));
   pob->constraints = composed;
@@ -29,6 +30,7 @@ ProofObligation *ProofObligation::create(ProofObligation *parent,
   pob->stack = parent->stack;
   auto statestack = state->stack.callStack();
   CallStackFrame::subtractFrames(pob->stack, statestack);
+  pob->nullPointerExpr = nullPointerExpr;
 
   return pob;
 }

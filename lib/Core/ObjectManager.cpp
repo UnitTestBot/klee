@@ -75,6 +75,11 @@ void ObjectManager::removeState(ExecutionState *state) {
       std::find(removedStates.begin(), removedStates.end(), state);
   assert(itr == removedStates.end());
 
+  // if (state->isolated) {
+  //   llvm::errs() << "REMOVING ISOLATED: "
+  //                << state->constraints.path().toString() << "\n";
+  // }
+
   if (!statesUpdated) {
     statesUpdated = true;
     stateUpdateKind =
@@ -123,6 +128,9 @@ void ObjectManager::updateSubscribers(bool advancePaths) {
       }
     }
 
+    ref<Event> ee = new States(current, addedStates, removedStates, isolated);
+    tgms->update(ee);
+
     if (isolated) {
       checkReachedStates();
     }
@@ -169,7 +177,6 @@ void ObjectManager::updateSubscribers(bool advancePaths) {
     }
     addedPropagations.clear();
     removedPropagations.clear();
-    context = nullptr;
   }
 
   {
@@ -198,6 +205,7 @@ void ObjectManager::updateSubscribers(bool advancePaths) {
     }
     addedPobs.clear();
     removedPobs.clear();
+    context = nullptr;
   }
 
   {
@@ -229,6 +237,10 @@ void ObjectManager::checkReachedStates() {
     states.insert(current);
   }
 
+  for (auto i : removedStates) {
+    states.insert(i);
+  }
+
   std::vector<ExecutionState *> toRemove;
   for (auto state : states) {
     if (!isOKIsolatedState(state)) {
@@ -236,9 +248,14 @@ void ObjectManager::checkReachedStates() {
       continue;
     }
 
+    if (state->constraints.path().getBlocks().empty()) {
+      continue;
+    }
+
     std::set<ref<Target>> reached;
 
-    for (auto target : state->targets()) {
+    if (state->history() && state->history()->target) {
+      auto target = state->history()->target;
       if (TargetManager::isReachedTarget(*state, target)) {
         reached.insert(target);
       }

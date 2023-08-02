@@ -53,6 +53,25 @@ enum ReachWithError {
   None,
 };
 
+inline std::string errorToString(ReachWithError error) {
+  switch (error) {
+  case DoubleFree:
+    return "DoubleFree";
+  case UseAfterFree:
+    return "UseAfterFree";
+  case MayBeNullPointerException:
+    return "MayBeNullPointerException";
+  case MustBeNullPointerException:
+    return "MustBeNullPointerException";
+  case NullCheckAfterDerefException:
+    return "NullCheckAfterDerefException";
+  case Reachable:
+    return "Reachable";
+  case None:
+    return "None";
+  }
+}
+
 const char *getErrorString(ReachWithError error);
 std::string getErrorsString(const std::vector<ReachWithError> &errors);
 

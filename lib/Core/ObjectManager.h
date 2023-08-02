@@ -135,6 +135,7 @@ private:
   KBlockPredicate predicate;
 
 public:
+  Subscriber *tgms;
   ExecutionState *emptyState;
 
   std::set<KFunction *> entrypoints;

@@ -21,7 +21,8 @@ namespace klee {
 class ProofObligation {
 public:
   ProofObligation(ref<Target> _location)
-      : id(nextID++), parent(nullptr), root(this), location(_location) {}
+      : id(nextID++), parent(nullptr), root(this), location(_location),
+        nullPointerExpr(nullptr) {}
 
   ~ProofObligation() {
     for (auto pob : children) {
@@ -40,7 +41,7 @@ public:
   void setTargeted(bool targeted) { isTargeted_ = targeted; }
 
   static ProofObligation *create(ProofObligation *parent, ExecutionState *state,
-                                 PathConstraints &composed);
+                                 PathConstraints &composed, ref<Expr> nullPointerExpr);
 
   static void propagateToReturn(ProofObligation *pob, KInstruction *callSite,
                                 KBlock *returnBlock);
@@ -70,6 +71,8 @@ public:
   ref<Target> location;
   TargetForest targetForest;
   PathConstraints constraints;
+
+  ref<Expr> nullPointerExpr;
 
 private:
   static unsigned nextID;

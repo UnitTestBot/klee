@@ -1147,6 +1147,10 @@ bool Executor::canReachSomeTargetThroughState(ProofObligation &pob,
   if (interpreterOpts.Guidance != GuidanceKind::ErrorGuidance)
     return true;
 
+  if (!state.isolated) {
+    return true;
+  }
+
   auto stack = pob.stack;
   CallStackFrame::subtractFrames(stack, state.stack.callStack());
   auto pobTargetForest = pob.targetForest;
@@ -4432,7 +4436,8 @@ Executor::getSymbolicSizeConstantSizeAddressPair(
 }
 
 Executor::ComposeResult Executor::compose(const ExecutionState &state,
-                                          const PathConstraints &pob) {
+                                          const PathConstraints &pob,
+                                          ref<Expr> nullPointerExpr) {
   ComposeResult result;
   ComposeHelper helper(this);
   ComposeVisitor composer(state, helper);
@@ -4504,6 +4509,12 @@ Executor::ComposeResult Executor::compose(const ExecutionState &state,
         rebuildMap.insert({expr, constraint});
       }
     }
+  }
+
+  if (nullPointerExpr) {
+    auto composedNPE = composer.compose(nullPointerExpr);
+    assert(!composedNPE.first->isFalse());
+    result.nullPointerExpr = composedNPE.second;
   }
 
   result.success = true;
@@ -4601,7 +4612,9 @@ void Executor::goBackward(ref<BackwardAction> action) {
 
   Executor::ComposeResult composeResult;
   if (canReachSomeTargetThroughState(*pob, *state)) {
-    composeResult = compose(*state, pob->constraints);
+    auto nullPointerExpr =
+        state->nullPointerExpr ? state->nullPointerExpr : pob->nullPointerExpr;
+    composeResult = compose(*state, pob->constraints, nullPointerExpr);
   } else {
     composeResult.success = false;
   }
@@ -4613,15 +4626,35 @@ void Executor::goBackward(ref<BackwardAction> action) {
   if (composeResult.success) {
     // Final composition states are not isolated, others are
     if (!state->isolated) {
-      if (debugPrints.isSet(DebugPrint::ClosePob)) {
-        llvm::errs() << "[close pob] Pob closed due to backward reach at: "
-                     << pob->root->location->toString() << "\n";
-      }
-      if (pob->root->location->shouldFailOnThisTarget()) {
+      if (auto error = dyn_cast<ReproduceErrorTarget>(pob->root->location)) {
+        if (error->isThatError(klee::MustBeNullPointerException) &&
+            !error->isThatError(klee::MayBeNullPointerException)) {
+          ref<Expr> result = composeResult.nullPointerExpr;
+          solver->setTimeout(coreSolverTimeout);
+          solver->tryGetUnique(composeResult.composed.cs(),
+                               composeResult.nullPointerExpr, result,
+                               state->queryMetaData);
+          solver->setTimeout(time::Span());
+          if (!isReadFromSymbolicArray(result)) {
+            if (debugPrints.isSet(DebugPrint::ClosePob)) {
+              llvm::errs()
+                  << "[close pob] Pob closed due to backward reach at: "
+                  << pob->root->location->toString() << "\n";
+            }
+            llvm::errs() << "[TRUE POSITIVE] FOUND TRUE POSITIVE AT: "
+                         << pob->root->location->toString() << "\n";
+            closeProofObligation(pob);
+          }
+        }
+      } else {
+        if (debugPrints.isSet(DebugPrint::ClosePob)) {
+          llvm::errs() << "[close pob] Pob closed due to backward reach at: "
+                       << pob->root->location->toString() << "\n";
+        }
         llvm::errs() << "[TRUE POSITIVE] FOUND TRUE POSITIVE AT: "
                      << pob->root->location->toString() << "\n";
+        closeProofObligation(pob);
       }
-      closeProofObligation(pob);
     } else {
       auto returnPropagation = state->constraints.path().fromOutTransition();
       if (returnPropagation.first) {
@@ -4630,15 +4663,16 @@ void Executor::goBackward(ref<BackwardAction> action) {
           KFunction *kf = kmodule->functionMap[f];
           for (auto returnBlock : kf->returnKBlocks) {
             auto callPob =
-                ProofObligation::create(pob, state, composeResult.composed);
+                ProofObligation::create(pob, state, composeResult.composed,
+                                        composeResult.nullPointerExpr);
             ProofObligation::propagateToReturn(
                 callPob, kCallBlock->kcallInstruction, returnBlock);
             objectManager->addPob(callPob);
           }
         }
       } else {
-        auto newPob =
-            ProofObligation::create(pob, state, composeResult.composed);
+        auto newPob = ProofObligation::create(
+            pob, state, composeResult.composed, composeResult.nullPointerExpr);
         objectManager->addPob(newPob);
       }
     }
@@ -4855,6 +4889,7 @@ void Executor::run(std::vector<ExecutionState *> initialStates,
 
   if (targetManager) {
     objectManager->addSubscriber(targetManager.get());
+    objectManager->tgms = (Subscriber *)targetManager.get();
   }
 
   if (guidanceKind == GuidanceKind::ErrorGuidance && targetedExecutionManager) {
@@ -4886,13 +4921,13 @@ void Executor::run(std::vector<ExecutionState *> initialStates,
           if (!targetManager->hasTargetedStates(pob->location) &&
               !forCheck->initsLeftForTarget(pob->location) &&
               objectManager->propagationCount[pob] == 0) {
-            if (!pob->parent && pob->location->shouldFailOnThisTarget()) {
-              llvm::errs() << "[FALSE POSITIVE]"
-                           << "FOUND FALSE POSITIVE AT: "
-                           << pob->location->toString() << "\n";
-            }
-            objectManager->removePob(pob);
-            changed = true;
+            // if (!pob->parent && pob->location->shouldFailOnThisTarget()) {
+            //   llvm::errs() << "[FALSE POSITIVE] "
+            //                << "FOUND FALSE POSITIVE AT: "
+            //                << pob->location->toString() << "\n";
+            // }
+            // objectManager->removePob(pob);
+            // changed = true;
           }
         }
         if (changed) {
@@ -5217,7 +5252,7 @@ void Executor::reportStateOnTargetError(ExecutionState &state,
 void Executor::terminateStateOnTargetError(ExecutionState &state,
                                            ReachWithError error) {
   reportStateOnTargetError(state, error);
-
+  state.error = error;
   // Proceed with normal `terminateStateOnError` call
   std::string messaget;
   StateTerminationType terminationType;
@@ -5753,6 +5788,7 @@ bool Executor::resolveExact(ExecutionState &estate, ref<Expr> address,
     auto error = isReadFromSymbolicArray(uniqueBase)
                      ? ReachWithError::MayBeNullPointerException
                      : ReachWithError::MustBeNullPointerException;
+    bound->nullPointerExpr = base;
     terminateStateOnTargetError(*bound, error);
   }
   if (!branches.second) {
@@ -6541,6 +6577,7 @@ void Executor::executeMemoryOperation(
     auto error = isReadFromSymbolicArray(uniqueBase)
                      ? ReachWithError::MayBeNullPointerException
                      : ReachWithError::MustBeNullPointerException;
+    bound->nullPointerExpr = base;
     terminateStateOnTargetError(*bound, error);
   }
   if (!branches.second)

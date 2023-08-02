@@ -528,8 +528,8 @@ TargetedExecutionManager::prepareTargets(KModule *kmodule, SarifReport paths) {
       backwardWhitelists[result.id] = whitelist;
     }
 
-    forwardWhitelists[kf]->addTrace(result, locToBlocks, false);
-    backwardWhitelists[result.id]->addTrace(result, locToBlocks, true);
+    forwardWhitelists[kf]->addTrace(result, kf, locToBlocks, false);
+    backwardWhitelists[result.id]->addTrace(result, kf, locToBlocks, true);
   }
 
   std::set<KFunction *> functionsToDismantle;
