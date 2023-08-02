@@ -122,7 +122,7 @@ void ConflictCoreInitializer::addConflictInit(const Conflict &conflict,
         auto call = dyn_cast<KCallBlock>(block.get());
         auto called = call->getKFunction();
         addInit(call->getFirstInstruction(),
-                ReachBlockTarget::create(called->entryKBlock));
+                ReachBlockTarget::create(called->entryKBlock, false));
       }
     }
   }
@@ -156,7 +156,7 @@ void ConflictCoreInitializer::initializeFunctions(
         auto call = dyn_cast<KCallBlock>(block.get());
         auto called = call->getKFunction();
         addInit(call->getFirstInstruction(),
-                ReachBlockTarget::create(called->entryKBlock));
+                ReachBlockTarget::create(called->entryKBlock, false));
       }
     }
   }

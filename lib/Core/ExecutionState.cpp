@@ -172,9 +172,11 @@ ExecutionState::ExecutionState(const ExecutionState &state)
       coveredNew(state.coveredNew), forkDisabled(state.forkDisabled),
       isolated(state.isolated), returnValue(state.returnValue),
       gepExprBases(state.gepExprBases), error(state.error),
-      nullPointerExpr(state.nullPointerExpr), prevTargets_(state.prevTargets_),
-      targets_(state.targets_), prevHistory_(state.prevHistory_),
-      history_(state.history_), isTargeted_(state.isTargeted_) {}
+      nullPointerExpr(state.nullPointerExpr),
+      someExecutionHappened(state.someExecutionHappened),
+      prevTargets_(state.prevTargets_), targets_(state.targets_),
+      prevHistory_(state.prevHistory_), history_(state.history_),
+      isTargeted_(state.isTargeted_) {}
 
 ExecutionState *ExecutionState::branch() {
   depth++;

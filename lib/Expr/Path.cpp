@@ -13,7 +13,8 @@ DISABLE_WARNING_POP
 using namespace klee;
 using namespace llvm;
 
-void Path::stepInstruction(KInstruction *done, KInstruction *pc) {
+void Path::stepInstruction(KInstruction *done, KInstruction *pc,
+                           bool someExecutionHappened) {
 
   // deleted states
   if (done == pc && done != next) {
@@ -25,12 +26,14 @@ void Path::stepInstruction(KInstruction *done, KInstruction *pc) {
 
   if (path.empty()) {
     if (done == pc) {
-      return;
+      if (!someExecutionHappened) {
+        return;
+      }
     }
     first = done->index;
     last = done->index;
     path.push_back({done->parent, getTransitionKindFromInst(done)});
-    next = pc;
+    next = (done == pc) ? nullptr : pc;
     return;
   }
 

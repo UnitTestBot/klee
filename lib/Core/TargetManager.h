@@ -77,6 +77,16 @@ private:
   TargetHashMap<StatesSet> targetToStates;
 
   void setTargets(ExecutionState &state, const TargetHashSet &targets) {
+    for (auto i : state.targets()) {
+      if (!targets.count(i) && state.isolated) {
+        targetToStates[i].erase(&state);
+      }
+    }
+    for (auto i : targets) {
+      if (state.isolated) {
+        targetToStates[i].insert(&state);
+      }
+    }
     state.setTargets(targets);
     changedStates.insert(&state);
   }

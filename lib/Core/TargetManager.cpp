@@ -100,12 +100,12 @@ void TargetManager::collect(ExecutionState &state) {
     for (auto target : prevTargets) {
       removedTStates[{prevHistory, target}].push_back(&state);
       addedTStates[{prevHistory, target}];
-      targetToStates[target].erase(&state);
+      // targetToStates[target].erase(&state);
     }
     for (auto target : targets) {
       addedTStates[{history, target}].push_back(&state);
       removedTStates[{history, target}];
-      targetToStates[target].insert(&state);
+      // targetToStates[target].insert(&state);
     }
   } else {
     addedTargets = targets;
@@ -117,12 +117,12 @@ void TargetManager::collect(ExecutionState &state) {
     for (auto target : removedTargets) {
       removedTStates[{history, target}].push_back(&state);
       addedTStates[{history, target}];
-      targetToStates[target].erase(&state);
+      // targetToStates[target].erase(&state);
     }
     for (auto target : addedTargets) {
       addedTStates[{history, target}].push_back(&state);
       removedTStates[{history, target}];
-      targetToStates[target].insert(&state);
+      // targetToStates[target].insert(&state);
     }
     removedTargets.clear();
     addedTargets.clear();
@@ -288,6 +288,11 @@ void TargetManager::update(ExecutionState *current,
   }
   for (const auto state : addedStates) {
     localStates.insert(state);
+    for (auto target : state->targets()) {
+      if (state->isolated) {
+        targetToStates[target].insert(state);
+      }
+    }
   }
   for (const auto state : removedStates) {
     localStates.insert(state);
@@ -311,6 +316,11 @@ void TargetManager::update(ExecutionState *current,
   }
 
   for (const auto state : removedStates) {
+    for (auto target : state->targets()) {
+      if (state->isolated) {
+        targetToStates[target].erase(state);
+      }
+    }
     states.erase(state);
     distances.erase(state);
   }
@@ -352,7 +362,8 @@ bool TargetManager::isReachedTarget(const ExecutionState &state,
     if (cast<ReachBlockTarget>(target)->isAtEnd()) {
       if (state.prevPC->parent == target->getBlock() ||
           state.pc->parent == target->getBlock()) {
-        if (state.prevPC == target->getBlock()->getLastInstruction()) {
+        if (state.constraints.path().getLastInstruction() ==
+            target->getBlock()->getLastInstruction()) {
           result = Done;
         } else {
           result = Continue;

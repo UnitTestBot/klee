@@ -722,6 +722,10 @@ std::string KBlock::toString() const {
   return ret;
 }
 
+bool klee::FalsePredicate(KBlock *) {
+  return false;
+}
+
 bool klee::RegularFunctionPredicate(KBlock *block) {
   return (isa<KCallBlock>(block) && dyn_cast<KCallBlock>(block)->internal() &&
           !dyn_cast<KCallBlock>(block)->intrinsic());

@@ -51,7 +51,7 @@ public:
     unsigned long last;
   };
 
-  void stepInstruction(KInstruction *done, KInstruction *pc);
+  void stepInstruction(KInstruction *done, KInstruction *pc, bool someExecutionHappened);
 
   friend bool operator==(const Path &lhs, const Path &rhs) {
     return lhs.path == rhs.path && lhs.first == rhs.first &&

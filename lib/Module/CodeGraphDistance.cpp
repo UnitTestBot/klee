@@ -278,6 +278,11 @@ CodeGraphDistance::dismantleFunction(KFunction *kf, KBlockPredicate predicate) {
   std::queue<KBlock *> queue;
   std::set<KBlock *> used;
 
+  // triple check!
+  if (kf->finalKBlocks.count(kf->entryKBlock)) {
+    return {{kf->entryKBlock, kf->entryKBlock}};
+  }
+
   queue.push(kf->entryKBlock);
   while (!queue.empty()) {
     auto kblock = queue.front();

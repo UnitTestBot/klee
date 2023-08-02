@@ -24,7 +24,7 @@ ProofObligation *ProofObligation::create(ProofObligation *parent,
                                          PathConstraints &composed,
                                          ref<Expr> nullPointerExpr) {
   ProofObligation *pob = parent->makeChild(ReachBlockTarget::create(
-      state->constraints.path().getBlocks().front().block));
+      state->constraints.path().getBlocks().front().block, false));
   pob->constraints = composed;
   pob->propagationCount[state]++;
   pob->stack = parent->stack;

@@ -75,10 +75,10 @@ void ObjectManager::removeState(ExecutionState *state) {
       std::find(removedStates.begin(), removedStates.end(), state);
   assert(itr == removedStates.end());
 
-  // if (state->isolated) {
-  //   llvm::errs() << "REMOVING ISOLATED: "
-  //                << state->constraints.path().toString() << "\n";
-  // }
+  if (state->isolated) {
+    llvm::errs() << "REMOVING ISOLATED: "
+                 << state->constraints.path().toString() << "\n";
+  }
 
   if (!statesUpdated) {
     statesUpdated = true;
@@ -121,10 +121,11 @@ void ObjectManager::updateSubscribers(bool advancePaths) {
     // in initital update after seeding
     if (advancePaths) {
       if (current) {
-        current->constraints.advancePath(current->prevPC, current->pc);
+        current->constraints.advancePath(current->prevPC, current->pc,
+                                         current->someExecutionHappened);
       }
       for (auto i : addedStates) {
-        i->constraints.advancePath(i->prevPC, i->pc);
+        i->constraints.advancePath(i->prevPC, i->pc, i->someExecutionHappened);
       }
     }
 
@@ -197,11 +198,11 @@ void ObjectManager::updateSubscribers(bool advancePaths) {
       leafPobs.erase(pob);
       pobs[pob->location].erase(pob);
       auto parent = pob->parent;
-      delete pob;
-      if (parent && parent->children.size() == 0 &&
+      if (parent && parent->children.size() == 1 &&
           !removedPobs.count(parent)) {
         leafPobs.insert(parent);
       }
+      delete pob;
     }
     addedPobs.clear();
     removedPobs.clear();

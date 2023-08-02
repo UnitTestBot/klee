@@ -96,6 +96,7 @@ public:
 
 typedef std::function<bool(KBlock *)> KBlockPredicate;
 
+bool FalsePredicate(KBlock *);
 bool RegularFunctionPredicate(KBlock *);
 bool JointBlockPredicate(KBlock *);
 

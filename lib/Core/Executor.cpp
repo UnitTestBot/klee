@@ -489,7 +489,7 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
 
   guidanceKind = opts.Guidance;
 
-  objectManager = std::make_unique<ObjectManager>(JointBlockPredicate);
+  objectManager = std::make_unique<ObjectManager>(FalsePredicate);
   seedMap = std::make_unique<SeedMap>();
   objectManager->addSubscriber(seedMap.get());
 
@@ -2468,6 +2468,7 @@ void Executor::checkNullCheckAfterDeref(ref<Expr> cond, ExecutionState &state,
 }
 
 void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
+  state.someExecutionHappened = true;
   Instruction *i = ki->inst;
 
   if (guidanceKind == GuidanceKind::ErrorGuidance) {
@@ -4870,6 +4871,7 @@ void Executor::run(std::vector<ExecutionState *> initialStates,
                          ? std::function<bool(KBlock *)>(
                                TraceVerifyPredicate(data.specialPoints))
                          : JointBlockPredicate;
+    objectManager->setPredicate(predicate);
     Initializer *initializer = new ConflictCoreInitializer(
         codeGraphDistance.get(), predicate,
         errorAndBackward);
@@ -4921,13 +4923,13 @@ void Executor::run(std::vector<ExecutionState *> initialStates,
           if (!targetManager->hasTargetedStates(pob->location) &&
               !forCheck->initsLeftForTarget(pob->location) &&
               objectManager->propagationCount[pob] == 0) {
-            // if (!pob->parent && pob->location->shouldFailOnThisTarget()) {
-            //   llvm::errs() << "[FALSE POSITIVE] "
-            //                << "FOUND FALSE POSITIVE AT: "
-            //                << pob->location->toString() << "\n";
-            // }
-            // objectManager->removePob(pob);
-            // changed = true;
+            if (!pob->parent && pob->location->shouldFailOnThisTarget()) {
+              llvm::errs() << "[FALSE POSITIVE] "
+                           << "FOUND FALSE POSITIVE AT: "
+                           << pob->location->toString() << "\n";
+            }
+            objectManager->removePob(pob);
+            changed = true;
           }
         }
         if (changed) {

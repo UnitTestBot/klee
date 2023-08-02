@@ -365,6 +365,7 @@ public:
 
   ReachWithError error = ReachWithError::None;
   ref<Expr> nullPointerExpr = nullptr;
+  bool someExecutionHappened = false;
 
   std::atomic<HaltExecution::Reason> terminationReasonType{
       HaltExecution::NotHalt};

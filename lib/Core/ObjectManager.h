@@ -182,6 +182,10 @@ public:
   bool pobExists(ProofObligation *pob) {
     return pathedPobs.count({pob->constraints.path(), pob->location});
   }
+
+  void setPredicate(KBlockPredicate predicate_) {
+    predicate = predicate_;
+  }
 };
 
 class Subscriber {
