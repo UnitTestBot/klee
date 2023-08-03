@@ -134,6 +134,15 @@ public:
     return executor->fillMakeSymbolic(state, makeSymbolicSource, size,
                                       concreteSize);
   }
+
+  ref<ObjectState>
+  fillIrreproducible(ExecutionState &state,
+                     ref<IrreproducibleSource> irreproducibleSource,
+                     ref<Expr> size, unsigned concreteSize) {
+    return executor->fillIrreproducible(state, irreproducibleSource, size,
+                                      concreteSize);
+  }
+
   ref<ObjectState> fillConstant(ExecutionState &state,
                                 ref<ConstantSource> constanSource,
                                 ref<Expr> size) {

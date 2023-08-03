@@ -690,7 +690,7 @@ bool KCallBlock::intrinsic() const {
 
 bool KCallBlock::internal() const {
   return calledFunctions.size() == 1 &&
-         parent->parent->functionMap[*calledFunctions.begin()] != nullptr;
+         !(*calledFunctions.begin())->isDeclaration();
 }
 
 KFunction *KCallBlock::getKFunction() const {

@@ -714,6 +714,12 @@ private:
   ref<ObjectState> fillMakeSymbolic(ExecutionState &state,
                                     ref<MakeSymbolicSource> makeSymbolicSource,
                                     ref<Expr> size, unsigned concreteSize);
+
+  ref<ObjectState>
+  fillIrreproducible(ExecutionState &state,
+                     ref<IrreproducibleSource> makeSymbolicSource,
+                     ref<Expr> size, unsigned concreteSize);
+
   ref<ObjectState> fillConstant(ExecutionState &state,
                                 ref<ConstantSource> constanSource,
                                 ref<Expr> size);

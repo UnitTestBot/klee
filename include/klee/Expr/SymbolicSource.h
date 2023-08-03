@@ -329,7 +329,10 @@ public:
 class IrreproducibleSource : public SymbolicSource {
 public:
   const std::string name;
-  IrreproducibleSource(const std::string &_name) : name(_name) {}
+  const unsigned version;
+
+  IrreproducibleSource(const std::string &_name, unsigned _version)
+      : name(_name), version(_version) {}
 
   Kind getKind() const override { return Kind::Irreproducible; }
   virtual std::string getName() const override { return "irreproducible"; }
@@ -340,7 +343,7 @@ public:
   static bool classof(const IrreproducibleSource *) { return true; }
 
   virtual unsigned computeHash() override {
-    unsigned res = getKind();
+    unsigned res = (getKind() * SymbolicSource::MAGIC_HASH_CONSTANT) + version;
     for (unsigned i = 0, e = name.size(); i != e; ++i) {
       res = (res * SymbolicSource::MAGIC_HASH_CONSTANT) + name[i];
     }
@@ -354,6 +357,9 @@ public:
     }
     const IrreproducibleSource &irb =
         static_cast<const IrreproducibleSource &>(b);
+    if (version != irb.version) {
+      return version < irb.version ? -1 : 1;
+    }
     if (name != irb.name) {
       return name < irb.name ? -1 : 1;
     }

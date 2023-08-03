@@ -913,7 +913,10 @@ void Executor::initializeGlobalObjects(ExecutionState &state) {
       if (MockAllExternals && !addr) {
         executeMakeSymbolic(
             state, mo, typeSystemManager->getWrappedType(v.getType()),
-            SourceBuilder::irreproducible("mockExternGlobalObject"), false);
+            SourceBuilder::irreproducible(
+                "mockExternGlobalObject",
+                updateNameVersion(state, "mockExternGlobalObject")),
+            false);
       } else if (!addr) {
         klee_error("Unable to load symbol(%.*s) while initializing globals",
                    static_cast<int>(v.getName().size()), v.getName().data());
@@ -927,7 +930,10 @@ void Executor::initializeGlobalObjects(ExecutionState &state) {
           MockMutableGlobals == MockMutableGlobalsPolicy::All) {
         executeMakeSymbolic(
             state, mo, typeSystemManager->getWrappedType(v.getType()),
-            SourceBuilder::irreproducible("mockMutableGlobalObject"), false);
+            SourceBuilder::irreproducible(
+                "mockMutableGlobalObject",
+                updateNameVersion(state, "mockMutableGlobalObject")),
+            false);
       } else {
         initializeGlobalObject(state, os, v.getInitializer(), 0);
         if (v.isConstant()) {
@@ -4311,6 +4317,21 @@ Executor::fillMakeSymbolic(ExecutionState &state,
                          typeSystemManager->getUnknownType());
 }
 
+ref<ObjectState>
+Executor::fillIrreproducible(ExecutionState &state,
+                             ref<IrreproducibleSource> irreproducibleSource,
+                             ref<Expr> size, unsigned concreteSize) {
+  unsigned stateNameVersion =
+      state.arrayNames.count(irreproducibleSource->name)
+          ? state.arrayNames.at(irreproducibleSource->name)
+          : 0;
+  unsigned newVersion = irreproducibleSource->version + stateNameVersion;
+  const Array *newArray = makeArray(
+      size, SourceBuilder::irreproducible(irreproducibleSource->name, newVersion));
+  return new ObjectState(concreteSize, newArray,
+                         typeSystemManager->getUnknownType());
+}
+
 ref<ObjectState> Executor::fillConstant(ExecutionState &state,
                                         ref<ConstantSource> constanSource,
                                         ref<Expr> size) {
@@ -5613,9 +5634,9 @@ ref<Expr> Executor::replaceReadWithSymbolic(ExecutionState &state,
 
 ref<Expr> Executor::makeMockValue(ExecutionState &state,
                                   const std::string &name, Expr::Width width) {
-  const Array *array =
-      makeArray(Expr::createPointer(Expr::getMinBytesForWidth(width)),
-                SourceBuilder::irreproducible(name));
+  const Array *array = makeArray(
+      Expr::createPointer(Expr::getMinBytesForWidth(width)),
+      SourceBuilder::irreproducible(name, updateNameVersion(state, name)));
   ref<Expr> result = Expr::createTempRead(array, width);
   return result;
 }

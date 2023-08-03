@@ -263,6 +263,12 @@ ref<Expr> ComposeVisitor::processRead(const Array *root,
     shareUpdates(os, updates);
     return os->read(index, width);
   }
+  case SymbolicSource::Kind::Irreproducible: {
+    ref<ObjectState> os = helper.fillIrreproducible(
+        state, cast<IrreproducibleSource>(root->source), size, concreteSize);
+    shareUpdates(os, updates);
+    return os->read(index, width);
+  }
   case SymbolicSource::Kind::Constant: {
     ref<ObjectState> os =
         helper.fillConstant(state, cast<ConstantSource>(root->source), size);
