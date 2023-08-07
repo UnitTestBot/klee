@@ -134,9 +134,7 @@ bool ConcretizingSolver::relaxSymcreteConstraints(const Query &query,
                 currentlyBrokenSymcretizedArrays);
 
     std::queue<const Array *> arrayQueue;
-    std::queue<const Array *> addressQueue;
 
-    bool addressArrayPresent = false;
     for (const Array *array : currentlyBrokenSymcretizedArrays) {
       if (symcretesDependentFromArrays.count(array) &&
           (kindsOfSymcretesForArrays.at(array).count(
@@ -145,31 +143,6 @@ bool ConcretizingSolver::relaxSymcreteConstraints(const Query &query,
                Symcrete::SymcreteKind::SK_LI_SIZE)) &&
           usedSymcretizedArrays.insert(array).second) {
         arrayQueue.push(array);
-      }
-      if (symcretesDependentFromArrays.count(array) &&
-          (kindsOfSymcretesForArrays.at(array).count(
-               Symcrete::SymcreteKind::SK_ALLOC_ADDRESS) ||
-           kindsOfSymcretesForArrays.at(array).count(
-               Symcrete::SymcreteKind::SK_LI_ADDRESS)) &&
-          !usedSymcretizedArrays.count(array)) {
-        addressArrayPresent = true;
-        addressQueue.push(array);
-      }
-    }
-
-    if (arrayQueue.empty() && addressArrayPresent) {
-      while (!addressQueue.empty()) {
-        assignment.bindings.erase(addressQueue.front());
-        addressQueue.pop();
-      }
-      if (!solver->impl->check(constructConcretizedQuery(query, assignment),
-                               result)) {
-        return false;
-      } else {
-        if (isa<InvalidResponse>(result)) {
-          result = new UnknownResponse({});
-        }
-        return true;
       }
     }
 
@@ -221,6 +194,34 @@ bool ConcretizingSolver::relaxSymcreteConstraints(const Query &query,
   }
 
   if (isa<ValidResponse>(result)) {
+    ValidityCore validityCore;
+    bool success = result->tryGetValidityCore(validityCore);
+    assert(success);
+
+    constraints_ty allValidityCoreConstraints = validityCore.constraints;
+    allValidityCoreConstraints.insert(validityCore.expr);
+    std::vector<const Array *> currentlyBrokenSymcretizedArrays;
+    findObjects(allValidityCoreConstraints.begin(),
+                allValidityCoreConstraints.end(),
+                currentlyBrokenSymcretizedArrays);
+
+    std::queue<const Array *> arrayQueue;
+
+    for (const Array *array : currentlyBrokenSymcretizedArrays) {
+      if (symcretesDependentFromArrays.count(array) &&
+          (kindsOfSymcretesForArrays.at(array).count(
+               Symcrete::SymcreteKind::SK_ALLOC_ADDRESS) ||
+           kindsOfSymcretesForArrays.at(array).count(
+               Symcrete::SymcreteKind::SK_LI_ADDRESS)) &&
+          !usedSymcretizedArrays.count(array)) {
+        arrayQueue.push(array);
+      }
+    }
+
+    if (!arrayQueue.empty()) {
+      result = new UnknownResponse();
+    }
+
     return true;
   }
 

@@ -95,7 +95,6 @@ bool ValidatingSolver::computeInitialValues(
     const Query &query, const std::vector<const Array *> &objects,
     std::vector<SparseStorage<unsigned char>> &values, bool &hasSolution) {
   bool answer;
-  assert(!query.containsSymcretes());
 
   if (!solver->impl->computeInitialValues(query, objects, values, hasSolution))
     return false;

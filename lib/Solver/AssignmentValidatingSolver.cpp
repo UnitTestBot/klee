@@ -67,7 +67,6 @@ void AssignmentValidatingSolver::validateAssigment(
   // we can't compute a constant and flag this as a problem.
   Assignment assignment(objects, values, /*_allowFreeValues=*/true);
   // Check computed assignment satisfies query
-  assert(!query.containsSymcretes());
   for (const auto &constraint : query.constraints.cs()) {
     ref<Expr> constraintEvaluated = assignment.evaluate(constraint);
     ConstantExpr *CE = dyn_cast<ConstantExpr>(constraintEvaluated);
@@ -143,7 +142,6 @@ bool AssignmentValidatingSolver::check(const Query &query,
   }
 
   ExprHashSet expressions;
-  assert(!query.containsSymcretes());
   expressions.insert(query.constraints.cs().begin(),
                      query.constraints.cs().end());
   expressions.insert(query.expr);
@@ -173,7 +171,6 @@ void AssignmentValidatingSolver::dumpAssignmentQuery(
   auto constraints = assignment.createConstraintsFromAssignment();
 
   // Add Constraints from `query`
-  assert(!query.containsSymcretes());
   for (const auto &constraint : query.constraints.cs())
     constraints.addConstraint(constraint, {});
 
