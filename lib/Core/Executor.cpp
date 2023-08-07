@@ -6745,7 +6745,7 @@ void Executor::executeMemoryOperation(
   }
 
   ExecutionState *unbound = nullptr;
-  if (MergedPointerDereference) {
+  if (state->isolated || MergedPointerDereference) {
     ref<Expr> guard;
     std::vector<Assignment> resolveConcretizations;
     bool mayBeInBounds;
