@@ -5124,7 +5124,7 @@ void Executor::terminateState(ExecutionState &state,
                               StateTerminationType terminationType) {
   state.terminationReasonType = fromStateTerminationType(terminationType);
   if (terminationType >= StateTerminationType::MaxDepth &&
-      terminationType <= StateTerminationType::EARLY) {
+      terminationType <= StateTerminationType::EARLY && !state.isolated) {
     SetOfStates states = {&state};
     decreaseConfidenceFromStoppedStates(states, state.terminationReasonType);
   }
