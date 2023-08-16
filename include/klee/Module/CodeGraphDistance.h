@@ -48,6 +48,10 @@ private:
   void calculateDistance(KFunction *kf);
   void calculateBackwardDistance(KFunction *kf);
 
+  // void getNearestPredicateSatisfying(KBlock *from, KBlockPredicate predicate,
+  //                                    std::set<KBlock *> &visited,
+  //                                    std::set<KBlock *, KBlockLess> &result);
+
 public:
   const std::unordered_map<KBlock *, unsigned int> &getDistance(KBlock *kb);
   const std::unordered_map<KBlock *, unsigned int> &
@@ -69,21 +73,23 @@ public:
   void getNearestPredicateSatisfying(KBlock *from, KBlockPredicate predicate,
                                      bool forward,
                                      std::set<KBlock *, KBlockLess> &result);
-  KBlock *getNearestJoinBlock(KBlock *kb);
-  KBlock *getNearestJoinOrCallBlock(KBlock *kb);
-  KBlock *getNearestPredicateSatisfying(KBlock *kb, KBlockPredicate predicate,
-                                        bool forward);
 
-  std::vector<std::pair<KBlock *, KBlock *>>
-  dismantle(KBlock *from, std::set<KBlock *> to, KBlockPredicate predicate);
+  std::set<KBlock *, KBlockLess>
+  getNearestPredicateSatisfying(KBlock *from, KBlockPredicate predicate,
+                                bool forward);
+
+  // KBlock *getNearestJoinBlock(KBlock *kb);
+  // KBlock *getNearestJoinOrCallBlock(KBlock *kb);
+  // KBlock *getNearestPredicateSatisfying(KBlock *kb, KBlockPredicate predicate,
+  //                                       bool forward);
+
+  // std::vector<std::pair<KBlock *, KBlock *>>
+  // dismantle(KBlock *from, std::set<KBlock *> to, KBlockPredicate predicate);
 
   std::vector<std::pair<KBlock *, KBlock *>>
   dismantleFunction(KFunction *kf, KBlockPredicate predicate);
-
-  void getNearestPredicateSatisfying(KBlock *from, KBlockPredicate predicate,
-                                     std::set<KBlock *> &visited,
-                                     std::set<KBlock *, KBlockLess> &result);
 };
+
 
 } // namespace klee
 

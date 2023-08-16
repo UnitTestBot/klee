@@ -213,64 +213,71 @@ void CodeGraphDistance::getNearestPredicateSatisfying(
   }
 }
 
-KBlock *CodeGraphDistance::getNearestJoinBlock(KBlock *kb) {
-  for (auto &kbd : getSortedBackwardDistance(kb)) {
-    if (kbd.first->basicBlock->hasNPredecessorsOrMore(2) ||
-        kbd.first->basicBlock->hasNPredecessors(0))
-      return kbd.first;
-  }
-  return nullptr;
+std::set<KBlock *, KBlockLess> CodeGraphDistance::getNearestPredicateSatisfying(
+    KBlock *from, KBlockPredicate predicate, bool forward) {
+  std::set<KBlock *, KBlockLess> result;
+  getNearestPredicateSatisfying(from, predicate, forward, result);
+  return result;
 }
 
-KBlock *CodeGraphDistance::getNearestPredicateSatisfying(
-    KBlock *kb, KBlockPredicate predicate, bool forward) {
-  auto sortedDistance =
-      forward ? getSortedDistance(kb) : getSortedBackwardDistance(kb);
-  for (auto &kbd : sortedDistance) {
-    if (predicate(kbd.first)) {
-      return kbd.first;
-    }
-  }
-  return nullptr;
-}
+// KBlock *CodeGraphDistance::getNearestJoinBlock(KBlock *kb) {
+//   for (auto &kbd : getSortedBackwardDistance(kb)) {
+//     if (kbd.first->basicBlock->hasNPredecessorsOrMore(2) ||
+//         kbd.first->basicBlock->hasNPredecessors(0))
+//       return kbd.first;
+//   }
+//   return nullptr;
+// }
 
-std::vector<std::pair<KBlock *, KBlock *>>
-CodeGraphDistance::dismantle(KBlock *from, std::set<KBlock *> to,
-                             KBlockPredicate predicate) {
-  for (auto block : to) {
-    assert(from->parent == block->parent &&
-           "to and from KBlocks are from different functions.");
-  }
-  auto kf = from->parent;
+// KBlock *CodeGraphDistance::getNearestPredicateSatisfying(
+//     KBlock *kb, KBlockPredicate predicate, bool forward) {
+//   auto sortedDistance =
+//       forward ? getSortedDistance(kb) : getSortedBackwardDistance(kb);
+//   for (auto &kbd : sortedDistance) {
+//     if (predicate(kbd.first)) {
+//       return kbd.first;
+//     }
+//   }
+//   return nullptr;
+// }
 
-  auto distance = getDistance(from);
-  std::vector<std::pair<KBlock *, KBlock *>> dismantled;
-  std::queue<KBlock *> queue;
-  std::unordered_set<KBlock *> used;
-  for (auto block : to) {
-    used.insert(block);
-    queue.push(block);
-  }
-  while (!queue.empty()) {
-    auto block = queue.front();
-    queue.pop();
-    for (auto const &pred : predecessors(block->basicBlock)) {
-      auto nearest =
-          getNearestPredicateSatisfying(kf->blockMap[pred], predicate, false);
-      if (distance.count(nearest)) {
-        if (!used.count(nearest)) {
-          used.insert(nearest);
-          queue.push(nearest);
-        }
-        if (std::find(dismantled.begin(), dismantled.end(),
-                      std::make_pair(nearest, block)) == dismantled.end()) {
-          dismantled.push_back(std::make_pair(nearest, block));
-        }
-      }
-    }
-  }
-  return dismantled;
-}
+// std::vector<std::pair<KBlock *, KBlock *>>
+// CodeGraphDistance::dismantle(KBlock *from, std::set<KBlock *> to,
+//                              KBlockPredicate predicate) {
+//   for (auto block : to) {
+//     assert(from->parent == block->parent &&
+//            "to and from KBlocks are from different functions.");
+//   }
+//   auto kf = from->parent;
+
+//   auto distance = getDistance(from);
+//   std::vector<std::pair<KBlock *, KBlock *>> dismantled;
+//   std::queue<KBlock *> queue;
+//   std::unordered_set<KBlock *> used;
+//   for (auto block : to) {
+//     used.insert(block);
+//     queue.push(block);
+//   }
+//   while (!queue.empty()) {
+//     auto block = queue.front();
+//     queue.pop();
+//     for (auto const &pred : predecessors(block->basicBlock)) {
+//       auto nearest =
+//           getNearestPredicateSatisfying(kf->blockMap[pred], predicate, false);
+//       if (distance.count(nearest)) {
+//         if (!used.count(nearest)) {
+//           used.insert(nearest);
+//           queue.push(nearest);
+//         }
+//         if (std::find(dismantled.begin(), dismantled.end(),
+//                       std::make_pair(nearest, block)) == dismantled.end()) {
+//           dismantled.push_back(std::make_pair(nearest, block));
+//         }
+//       }
+//     }
+//   }
+//   return dismantled;
+// }
 
 std::vector<std::pair<KBlock *, KBlock *>>
 CodeGraphDistance::dismantleFunction(KFunction *kf, KBlockPredicate predicate) {
@@ -290,7 +297,7 @@ CodeGraphDistance::dismantleFunction(KFunction *kf, KBlockPredicate predicate) {
     used.insert(kblock);
     std::set<KBlock *> visited;
     std::set<KBlock *, KBlockLess> nearest;
-    getNearestPredicateSatisfying(kblock, predicate, visited, nearest);
+    getNearestPredicateSatisfying(kblock, predicate, true, nearest);
     for (auto to : nearest) {
       dismantled.push_back({kblock, to});
       if (!used.count(to)) {
@@ -301,20 +308,20 @@ CodeGraphDistance::dismantleFunction(KFunction *kf, KBlockPredicate predicate) {
   return dismantled;
 }
 
-void CodeGraphDistance::getNearestPredicateSatisfying(
-    KBlock *from, KBlockPredicate predicate, std::set<KBlock *> &visited,
-    std::set<KBlock *, KBlockLess> &result) {
-  auto kf = from->parent;
-  for (auto block : successors(from->basicBlock)) {
-    auto kblock = kf->blockMap.at(block);
-    if (visited.count(kblock)) {
-      continue;
-    }
-    visited.insert(kblock);
-    if (predicate(kblock)) {
-      result.insert(kblock);
-    } else {
-      getNearestPredicateSatisfying(kblock, predicate, visited, result);
-    }
-  }
-}
+// void CodeGraphDistance::getNearestPredicateSatisfying(
+//     KBlock *from, KBlockPredicate predicate, std::set<KBlock *> &visited,
+//     std::set<KBlock *, KBlockLess> &result) {
+//   auto kf = from->parent;
+//   for (auto block : successors(from->basicBlock)) {
+//     auto kblock = kf->blockMap.at(block);
+//     if (visited.count(kblock)) {
+//       continue;
+//     }
+//     visited.insert(kblock);
+//     if (predicate(kblock)) {
+//       result.insert(kblock);
+//     } else {
+//       getNearestPredicateSatisfying(kblock, predicate, visited, result);
+//     }
+//   }
+// }

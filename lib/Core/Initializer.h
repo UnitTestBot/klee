@@ -72,6 +72,8 @@ private:
   // Already dismantled functions don't need to be dismantled again
   std::unordered_set<KFunction *> dismantledFunctions;
 
+  std::set<KFunction *> allowed;
+
   void addInit(KInstruction *from, ref<Target> to);
   void addPob(ProofObligation *pob);
   void removePob(ProofObligation *pob);

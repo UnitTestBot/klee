@@ -2,6 +2,7 @@
 #include "ProofObligation.h"
 #include "klee/Module/KInstruction.h"
 #include "klee/Module/KModule.h"
+#include "klee/Module/Target.h"
 #include "klee/Support/DebugFlags.h"
 
 #include "llvm/IR/Instructions.h"
@@ -44,6 +45,39 @@ void ConflictCoreInitializer::addPob(ProofObligation *pob) {
   knownTargets[target]++;
   if (knownTargets[target] > 1) {
     return; // There has been such a target already
+  }
+
+  if (pob->location->getBlock()->parent->entryKBlock !=
+      pob->location->getBlock()) {
+    auto backstep = cgd->getNearestPredicateSatisfying(
+        pob->location->getBlock(), predicate, false);
+
+    for (auto from : backstep) {
+      auto toBlocks = cgd->getNearestPredicateSatisfying(from, predicate, true);
+      for (auto to : toBlocks) {
+        KInstruction *fromInst =
+            (RegularFunctionPredicate(from) ? from->instructions[1]
+                                            : from->instructions[0]);
+        addInit(fromInst, ReachBlockTarget::create(to));
+      }
+    }
+  } else {
+    if (!pob->stack.empty()) {
+      auto frame = pob->stack.front();
+      assert(frame.kf == pob->location->getBlock()->parent);
+      addInit(frame.caller,
+              ReachBlockTarget::create(pob->location->getBlock()));
+    } else {
+      for (auto i : allowed) {
+        for (auto kcallblock : i->kCallBlocks) {
+          if (kcallblock->calledFunctions.count(
+                  pob->location->getBlock()->parent->function)) {
+            addInit(kcallblock->getFirstInstruction(),
+                    ReachBlockTarget::create(pob->location->getBlock()));
+          }
+        }
+      }
+    }
   }
 
   std::list<KInstruction *> enqueue;
@@ -94,72 +128,73 @@ void ConflictCoreInitializer::addConflictInit(const Conflict &conflict,
     return;
   }
 
-  auto &blocks = conflict.path.getBlocks();
-  std::set<KFunction *, KFunctionLess> functions;
+  // auto &blocks = conflict.path.getBlocks();
+  // std::set<KFunction *, KFunctionLess> functions;
 
-  for (auto block : blocks) {
-    if (!dismantledFunctions.count(block.block->parent)) {
-      functions.insert(block.block->parent);
-      dismantledFunctions.insert(block.block->parent);
-    }
-  }
+  // for (auto block : blocks) {
+  //   if (!dismantledFunctions.count(block.block->parent)) {
+  //     functions.insert(block.block->parent);
+  //     dismantledFunctions.insert(block.block->parent);
+  //   }
+  // }
 
-  // Dismantle all functions present in the path
-  for (auto function : functions) {
-    auto dismantled = cgd->dismantleFunction(function, predicate);
-    for (auto i : dismantled) {
-      KInstruction *from =
-          (RegularFunctionPredicate(i.first) ? i.first->instructions[1]
-                                             : i.first->instructions[0]);
-      addInit(from, ReachBlockTarget::create(i.second));
-    }
-  }
+  // // Dismantle all functions present in the path
+  // for (auto function : functions) {
+  //   auto dismantled = cgd->dismantleFunction(function, predicate);
+  //   for (auto i : dismantled) {
+  //     KInstruction *from =
+  //         (RegularFunctionPredicate(i.first) ? i.first->instructions[1]
+  //                                            : i.first->instructions[0]);
+  //     addInit(from, ReachBlockTarget::create(i.second));
+  //   }
+  // }
 
-  // Bridge calls
-  for (auto function : functions) {
-    for (auto &block : function->blocks) {
-      if (RegularFunctionPredicate(block.get())) {
-        auto call = dyn_cast<KCallBlock>(block.get());
-        auto called = call->getKFunction();
-        addInit(call->getFirstInstruction(),
-                ReachBlockTarget::create(called->entryKBlock, false));
-      }
-    }
-  }
+  // // Bridge calls
+  // for (auto function : functions) {
+  //   for (auto &block : function->blocks) {
+  //     if (RegularFunctionPredicate(block.get())) {
+  //       auto call = dyn_cast<KCallBlock>(block.get());
+  //       auto called = call->getKFunction();
+  //       addInit(call->getFirstInstruction(),
+  //               ReachBlockTarget::create(called->entryKBlock, false));
+  //     }
+  //   }
+  // }
 
-  auto targetB = cgd->getNearestPredicateSatisfying(target, predicate, false);
-  if (target != targetB) {
-    KInstruction *from =
-        (RegularFunctionPredicate(targetB) ? targetB->instructions[1]
-                                           : targetB->instructions[0]);
-    addInit(from, ReachBlockTarget::create(target));
-  }
+  // auto targetB = cgd->getNearestPredicateSatisfying(target, predicate, false);
+  // if (target != targetB) {
+  //   KInstruction *from =
+  //       (RegularFunctionPredicate(targetB) ? targetB->instructions[1]
+  //                                          : targetB->instructions[0]);
+  //   addInit(from, ReachBlockTarget::create(target));
+  // }
 }
 
 void ConflictCoreInitializer::initializeFunctions(
     std::set<KFunction *> functions) {
-  for (auto function : functions) {
-    if (dismantledFunctions.count(function)) {
-      continue;
-    }
-    dismantledFunctions.insert(function);
+  allowed = functions;
+  // for (auto function : functions) {
+  //   if (dismantledFunctions.count(function)) {
+  //     continue;
+  //   }
+  //   dismantledFunctions.insert(function);
 
-    auto dismantled = cgd->dismantleFunction(function, predicate);
-    for (auto i : dismantled) {
-      KInstruction *from =
-          (RegularFunctionPredicate(i.first) ? i.first->instructions[1]
-                                             : i.first->instructions[0]);
-      addInit(from, ReachBlockTarget::create(i.second));
-    }
-    for (auto &block : function->blocks) {
-      if (RegularFunctionPredicate(block.get())) {
-        auto call = dyn_cast<KCallBlock>(block.get());
-        auto called = call->getKFunction();
-        addInit(call->getFirstInstruction(),
-                ReachBlockTarget::create(called->entryKBlock, false));
-      }
-    }
-  }
+  //   auto dismantled = cgd->dismantleFunction(function, predicate);
+  //   for (auto i : dismantled) {
+  //     KInstruction *from =
+  //         (RegularFunctionPredicate(i.first) ? i.first->instructions[1]
+  //                                            : i.first->instructions[0]);
+  //     addInit(from, ReachBlockTarget::create(i.second));
+  //   }
+  //   for (auto &block : function->blocks) {
+  //     if (RegularFunctionPredicate(block.get())) {
+  //       auto call = dyn_cast<KCallBlock>(block.get());
+  //       auto called = call->getKFunction();
+  //       addInit(call->getFirstInstruction(),
+  //               ReachBlockTarget::create(called->entryKBlock, false));
+  //     }
+  //   }
+  // }
 }
 
 void ConflictCoreInitializer::addErrorInit(ref<Target> errorTarget) {
@@ -174,6 +209,10 @@ void ConflictCoreInitializer::addErrorInit(ref<Target> errorTarget) {
   for (auto i : nearest) {
     KInstruction *from =
         (RegularFunctionPredicate(i) ? i->instructions[1] : i->instructions[0]);
+    auto toBlocks = cgd->getNearestPredicateSatisfying(i, predicate, true);
+    for (auto to : toBlocks) {
+      addInit(from, ReachBlockTarget::create(to));
+    }
     addInit(from, errorTarget);
   }
 }
