@@ -219,7 +219,12 @@ bool ConcretizingSolver::relaxSymcreteConstraints(const Query &query,
     }
 
     if (!arrayQueue.empty()) {
-      result = new UnknownResponse();
+      if (!solver->impl->check(query, result)) {
+        return false;
+      }
+      if (isa<InvalidResponse>(result)) {
+        result = new UnknownResponse();
+      }
     }
 
     return true;
@@ -301,9 +306,9 @@ bool ConcretizingSolver::relaxSymcreteConstraints(const Query &query,
 
     /* Receive address array linked with this size array to request address
      * concretization. */
-    ref<Expr> condcretized = assignment.evaluate(symcrete->symcretized);
+    ref<Expr> concretized = assignment.evaluate(symcrete->symcretized);
 
-    uint64_t newSize = cast<ConstantExpr>(condcretized)->getZExtValue();
+    uint64_t newSize = cast<ConstantExpr>(concretized)->getZExtValue();
 
     void *address = addressGenerator->allocate(
         sizeSymcrete->addressSymcrete.symcretized, newSize);

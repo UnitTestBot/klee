@@ -125,7 +125,7 @@ bool AddressSpace::resolveOneIfUnique(ExecutionState &state,
   ref<Expr> uniqueAddress =
       state.constraints.cs().concretization().evaluate(base);
   if (!isa<ConstantExpr>(uniqueAddress) &&
-      !solver->tryGetUnique(state.constraints.cs(), base, uniqueAddress,
+      !solver->tryGetUnique(state.constraints.withAssumtions(state.assumptions), base, uniqueAddress,
                             state.queryMetaData)) {
     return false;
   }
@@ -137,7 +137,7 @@ bool AddressSpace::resolveOneIfUnique(ExecutionState &state,
       const MemoryObject *mo = res->first;
       ref<Expr> inBounds = mo->getBoundsCheckPointer(address);
 
-      if (!solver->mayBeTrue(state.constraints.cs(), inBounds, success,
+      if (!solver->mayBeTrue(state.constraints.withAssumtions(state.assumptions), inBounds, success,
                              state.queryMetaData)) {
         return false;
       }
@@ -208,7 +208,7 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
   // try cheap search, will succeed for any inbounds pointer
 
   ref<ConstantExpr> cex;
-  if (!solver->getValue(state.constraints.cs(), address, cex,
+  if (!solver->getValue(state.constraints.withAssumtions(state.assumptions), address, cex,
                         state.queryMetaData))
     return false;
   uint64_t example = cex->getZExtValue();
@@ -245,7 +245,7 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
     }
 
     bool mayBeTrue;
-    if (!solver->mayBeTrue(state.constraints.cs(),
+    if (!solver->mayBeTrue(state.constraints.withAssumtions(state.assumptions),
                            mo->getBoundsCheckPointer(address), mayBeTrue,
                            state.queryMetaData))
       return false;
@@ -271,7 +271,7 @@ int AddressSpace::checkPointerInObject(ExecutionState &state,
   ref<Expr> inBounds = mo->getBoundsCheckPointer(p);
 
   bool mayBeTrue;
-  if (!solver->mayBeTrue(state.constraints.cs(), inBounds, mayBeTrue,
+  if (!solver->mayBeTrue(state.constraints.withAssumtions(state.assumptions), inBounds, mayBeTrue,
                          state.queryMetaData)) {
     return 1;
   }
@@ -283,7 +283,7 @@ int AddressSpace::checkPointerInObject(ExecutionState &state,
     auto size = rl.size();
     if (size == 1) {
       bool mustBeTrue;
-      if (!solver->mustBeTrue(state.constraints.cs(), inBounds, mustBeTrue,
+      if (!solver->mustBeTrue(state.constraints.withAssumtions(state.assumptions), inBounds, mustBeTrue,
                               state.queryMetaData))
         return 1;
       if (mustBeTrue)

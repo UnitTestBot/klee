@@ -61,7 +61,7 @@ void TargetManager::updateDone(ExecutionState &state, ref<Target> target) {
       target->shouldFailOnThisTarget()) {
     reachedTargets.insert(target);
     for (auto es : states) {
-      if (isTargeted(*es)) {
+      if (isTargeted(*es) && !es->isolated) {
         auto &esTargetForest = targetForest(*es);
         esTargetForest.block(target);
         setTargets(*es, esTargetForest.getTargets());

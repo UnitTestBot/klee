@@ -90,6 +90,7 @@ public:
   const constraints_ty &original() const;
   const ExprHashMap<ExprHashSet> &simplificationMap() const;
   const ConstraintSet &cs() const;
+  ConstraintSet withAssumtions(const ExprHashSet &assumptions) const;
   const Path &path() const;
   const ExprHashMap<Path::PathIndex> &indexes() const;
   const path_ordered_constraints_ty &orderedCS() const;

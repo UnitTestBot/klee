@@ -24,7 +24,7 @@ public:
                    SolverQueryMetaData &metaData) {
     executor->solver->setTimeout(executor->coreSolverTimeout);
     bool success = executor->solver->getResponse(
-        state.constraints.cs(), expr, queryResult, state.queryMetaData);
+        state.constraints.withAssumtions(state.assumptions), expr, queryResult, state.queryMetaData);
     executor->solver->setTimeout(time::Span());
     return success;
   }
@@ -32,7 +32,17 @@ public:
   bool evaluate(const ExecutionState &state, ref<Expr> expr,
                 PartialValidity &res, SolverQueryMetaData &metaData) {
     executor->solver->setTimeout(executor->coreSolverTimeout);
-    bool success = executor->solver->evaluate(state.constraints.cs(), expr, res,
+    bool success = executor->solver->evaluate(state.constraints.withAssumtions(state.assumptions), expr, res,
+                                              state.queryMetaData);
+    executor->solver->setTimeout(time::Span());
+    return success;
+  }
+
+  bool evaluate(const ExecutionState &state, ref<Expr> expr,
+                ref<SolverResponse> &queryResult,
+                ref<SolverResponse> &negateQueryResult, SolverQueryMetaData &metaData) {
+    executor->solver->setTimeout(executor->coreSolverTimeout);
+    bool success = executor->solver->evaluate(state.constraints.withAssumtions(state.assumptions), expr, queryResult, negateQueryResult,
                                               state.queryMetaData);
     executor->solver->setTimeout(time::Span());
     return success;
@@ -84,6 +94,13 @@ public:
         state, resolveConditions, unboundConditions, resolvedMemoryObjects,
         checkOutOfBounds, hasLazyInitialized, guard, resolveConcretizations,
         mayBeInBounds);
+  }
+
+
+  Assignment computeConcretization(const ConstraintSet &constraints,
+                                   ref<Expr> condition,
+                                   SolverQueryMetaData &queryMetaData) {
+    return executor->computeConcretization(constraints, condition, queryMetaData);
   }
 
   bool collectMemoryObjects(ExecutionState &state, ref<Expr> address,

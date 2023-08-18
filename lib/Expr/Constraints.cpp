@@ -265,6 +265,14 @@ const ExprHashMap<ExprHashSet> &PathConstraints::simplificationMap() const {
 
 const ConstraintSet &PathConstraints::cs() const { return constraints; }
 
+ConstraintSet PathConstraints::withAssumtions(const ExprHashSet &assumptions) const {
+  auto result = constraints;
+  for (auto assump : assumptions) {
+    result.addConstraint(assump, {});
+  }
+  return result;
+}
+
 const PathConstraints::path_ordered_constraints_ty &
 PathConstraints::orderedCS() const {
   return orderedConstraints;

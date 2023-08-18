@@ -367,6 +367,8 @@ public:
   ref<Expr> nullPointerExpr = nullptr;
   bool someExecutionHappened = false;
 
+  ExprHashSet assumptions;
+
   std::atomic<HaltExecution::Reason> terminationReasonType{
       HaltExecution::NotHalt};
 
