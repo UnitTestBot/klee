@@ -1153,7 +1153,7 @@ bool Executor::canReachSomeTargetThroughState(ProofObligation &pob,
   if (interpreterOpts.Guidance != GuidanceKind::ErrorGuidance)
     return true;
 
-  if (!state.isolated) {
+  if (state.finalComposing) {
     return true;
   }
 
@@ -4654,7 +4654,8 @@ void Executor::goBackward(ref<BackwardAction> action) {
 
   if (composeResult.success) {
     // Final composition states are not isolated, others are
-    if (!state->isolated) {
+    llvm::errs() << "[backward] Composition sucessful.\n";
+    if (state->finalComposing) {
       if (auto error = dyn_cast<ReproduceErrorTarget>(pob->root->location)) {
         if (error->isThatError(klee::MustBeNullPointerException) &&
             !error->isThatError(klee::MayBeNullPointerException)) {
@@ -4706,6 +4707,7 @@ void Executor::goBackward(ref<BackwardAction> action) {
       }
     }
   } else {
+    llvm::errs() << "[backward] Composition failed.\n";
     if (state->isolated && composeResult.conflict.core.size()) {
       summary.addLemma(
           new Lemma(state->constraints.path(), composeResult.conflict.core));

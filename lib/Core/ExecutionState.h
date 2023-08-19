@@ -357,6 +357,7 @@ public:
   bool forkDisabled = false;
 
   bool isolated = false;
+  bool finalComposing = false;
 
   /// Needed for composition
   ref<Expr> returnValue;

@@ -27,8 +27,11 @@ void ObjectManager::addProcessForest(PForest *pf) { processForest = pf; }
 void ObjectManager::setEmptyState(ExecutionState *state) { emptyState = state; }
 
 void ObjectManager::addInitialState(ExecutionState *state) {
+  auto isolatedCopy = state->copy();
+  isolatedCopy->isolated = true;
+  isolatedCopy->finalComposing = true;
   reachedStates[ReachBlockTarget::create(state->pc->parent)].insert(
-      state->copy());
+      isolatedCopy);
   states.insert(state);
   processForest->addRoot(state);
 }

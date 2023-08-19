@@ -170,9 +170,9 @@ ExecutionState::ExecutionState(const ExecutionState &state)
                                ? state.unwindingInformation->clone()
                                : nullptr),
       coveredNew(state.coveredNew), forkDisabled(state.forkDisabled),
-      isolated(state.isolated), returnValue(state.returnValue),
-      gepExprBases(state.gepExprBases), error(state.error),
-      nullPointerExpr(state.nullPointerExpr),
+      isolated(state.isolated), finalComposing(state.finalComposing),
+      returnValue(state.returnValue), gepExprBases(state.gepExprBases),
+      error(state.error), nullPointerExpr(state.nullPointerExpr),
       someExecutionHappened(state.someExecutionHappened),
       prevTargets_(state.prevTargets_), targets_(state.targets_),
       prevHistory_(state.prevHistory_), history_(state.history_),
