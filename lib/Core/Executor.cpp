@@ -1677,7 +1677,7 @@ void Executor::stepInstruction(ExecutionState &state) {
   state.prevPC = state.pc;
   ++state.pc;
 
-  if (stats::instructions == MaxInstructions)
+  if (stats::instructions == MaxInstructions && MaxInstructions != 0)
     haltExecution = HaltExecution::MaxInstructions;
 
   if (MaxSteppedInstructions &&
@@ -5274,6 +5274,10 @@ void Executor::reportStateOnTargetError(ExecutionState &state,
   if (guidanceKind == GuidanceKind::ErrorGuidance) {
     bool reportedTruePositive =
         targetedExecutionManager->reportTruePositive(state, error);
+    if (reportedTruePositive) {
+      llvm::errs() << "[Error path:] " << state.constraints.path().toString()
+                   << "\n";
+    }
     if (!reportedTruePositive) {
       targetedExecutionManager->reportFalseNegative(state, error);
     }
@@ -5282,7 +5286,9 @@ void Executor::reportStateOnTargetError(ExecutionState &state,
 
 void Executor::terminateStateOnTargetError(ExecutionState &state,
                                            ReachWithError error) {
-  reportStateOnTargetError(state, error);
+  if (!state.isolated) {
+    reportStateOnTargetError(state, error);
+  }
   state.error = error;
   // Proceed with normal `terminateStateOnError` call
   std::string messaget;
