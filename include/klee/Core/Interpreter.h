@@ -20,10 +20,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
-
-#include <nonstd/optional.hpp>
-
-using nonstd::optional;
+#include <optional>
 
 struct KTest;
 
@@ -112,9 +109,9 @@ public:
     /// symbolic execution on concrete programs.
     unsigned MakeConcreteSymbolic;
     GuidanceKind Guidance;
-    nonstd::optional<SarifReport> Paths;
+    std::optional<SarifReport> Paths;
 
-    InterpreterOptions(nonstd::optional<SarifReport> Paths)
+    InterpreterOptions(std::optional<SarifReport> Paths)
         : MakeConcreteSymbolic(false), Guidance(GuidanceKind::NoGuidance),
           Paths(std::move(Paths)) {}
   };

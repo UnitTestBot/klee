@@ -34,13 +34,12 @@ DISABLE_WARNING_POP
 #include <vector>
 
 namespace klee {
-using nonstd::optional;
 
 struct ErrorLocation {
   unsigned int startLine;
   unsigned int endLine;
-  optional<unsigned int> startColumn;
-  optional<unsigned int> endColumn;
+  std::optional<unsigned int> startColumn;
+  std::optional<unsigned int> endColumn;
 };
 
 class ReproduceErrorTarget;
