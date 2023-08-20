@@ -37,7 +37,7 @@ public:
   Target location;
   PathConstraints constraints;
 
-  PathTree pathTree;
+  PathTree pathTree = PathTree(false);
 
   std::vector<std::pair<ref<const MemoryObject>, const Array *>>
       sourcedSymbolics;

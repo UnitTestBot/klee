@@ -320,7 +320,7 @@ public:
   unsigned backwardStepsLeftCounter;
   unsigned failedBackwardStepsCounter;
 
-  PathTree pathTree;
+  PathTree pathTree = PathTree(true);
 
 public:
 #ifdef KLEE_UNITTEST
