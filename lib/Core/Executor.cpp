@@ -4571,22 +4571,22 @@ void Executor::executeAction(ref<BidirectionalAction> action) {
   }
   case BidirectionalAction::Kind::Backward: {
     if (debugPrints.isSet(DebugPrint::Backward)) {
+      auto prop = cast<BackwardAction>(action)->prop;
       llvm::errs() << "[backward] State: "
-                   << cast<BackwardAction>(action)
-                          ->prop.state->constraints.path()
-                          .toString()
-                   << "\n";
+                   << prop.state->constraints.path().toString() << "\n";
       llvm::errs() << "[backward] Pob: "
-                   << cast<BackwardAction>(action)
-                          ->prop.pob->constraints.path()
+                   << prop.pob->constraints.path().toString() << "\n";
+      llvm::errs() << "[backward] To-be pob: "
+                   << Path::concat(prop.state->constraints.path(),
+                                   prop.pob->constraints.path())
                           .toString()
                    << "\n";
       if (debugConstraints.isSet(DebugPrint::Backward)) {
         llvm::errs() << "[backward] State: ";
-        cast<BackwardAction>(action)->prop.state->constraints.cs().dump();
+        prop.state->constraints.cs().dump();
         llvm::errs() << "\n";
         llvm::errs() << "[backward] Pob: ";
-        cast<BackwardAction>(action)->prop.pob->constraints.cs().dump();
+        prop.pob->constraints.cs().dump();
         llvm::errs() << "\n";
       }
     }
@@ -4640,12 +4640,6 @@ void Executor::goBackward(ref<BackwardAction> action) {
   ExecutionState *state = action->prop.state;
   ProofObligation *pob = action->prop.pob;
 
-  llvm::errs() << "[backward ] To-be pob: "
-               << Path::concat(state->constraints.path(),
-                               pob->constraints.path())
-                      .toString()
-               << "\n";
-
   objectManager->setContextState(state);
 
   // Conflict::core_ty conflictCore;
@@ -4666,7 +4660,9 @@ void Executor::goBackward(ref<BackwardAction> action) {
 
   if (composeResult.success) {
     // Final composition states are not isolated, others are
-    llvm::errs() << "[backward] Composition sucessful.\n";
+    if (debugPrints.isSet(DebugPrint::Backward)) {
+      llvm::errs() << "[backward] Composition sucessful.\n";
+    }
     if (state->finalComposing) {
       if (auto error = dyn_cast<ReproduceErrorTarget>(pob->root->location)) {
         if (error->isThatError(klee::MustBeNullPointerException) &&
@@ -4727,7 +4723,9 @@ void Executor::goBackward(ref<BackwardAction> action) {
       }
     }
   } else {
-    llvm::errs() << "[backward] Composition failed.\n";
+    if (debugPrints.isSet(DebugPrint::Backward)) {
+      llvm::errs() << "[backward] Composition failed.\n";
+    }
     if (state->isolated && composeResult.conflict.core.size()) {
       summary.addLemma(
           new Lemma(state->constraints.path(), composeResult.conflict.core));
