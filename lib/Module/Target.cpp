@@ -79,14 +79,19 @@ ReproduceErrorTarget::create(const std::vector<ReachWithError> &_errors,
   return createCachedTarget(target);
 }
 
+ref<Target> ReachBlockTarget::createStop(KBlock *_block) {
+  ReachBlockTarget *target = new ReachBlockTarget(_block, isa<KReturnBlock>(_block), false);
+  return createCachedTarget(target);
+}
+
 ref<Target> ReachBlockTarget::create(KBlock *_block, bool _atEnd) {
-  ReachBlockTarget *target = new ReachBlockTarget(_block, _atEnd);
+  ReachBlockTarget *target = new ReachBlockTarget(_block, _atEnd, true);
   return createCachedTarget(target);
 }
 
 ref<Target> ReachBlockTarget::create(KBlock *_block) {
   ReachBlockTarget *target =
-      new ReachBlockTarget(_block, isa<KReturnBlock>(_block));
+      new ReachBlockTarget(_block, isa<KReturnBlock>(_block), true);
   return createCachedTarget(target);
 }
 
@@ -127,6 +132,10 @@ int ReachBlockTarget::internalCompare(const Target &b) const {
 
   if (atEnd != other.atEnd) {
     return !atEnd ? -1 : 1;
+  }
+
+  if (stopping != other.stopping) {
+    return !stopping ? -1 : 1;
   }
 
   return 0;

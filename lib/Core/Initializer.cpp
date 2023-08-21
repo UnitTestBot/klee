@@ -60,10 +60,16 @@ void ConflictCoreInitializer::addPob(ProofObligation *pob) {
                                             : from->instructions[0]);
         addInit(fromInst, ReachBlockTarget::create(to));
       }
+      if (!pob->parent) {
+        KInstruction *fromInst =
+            (RegularFunctionPredicate(from) ? from->instructions[1]
+             : from->instructions[0]);
+        addInit(fromInst, ReachBlockTarget::createStop(pob->location->getBlock()));
+      }
     }
   } else {
     if (!pob->stack.empty()) {
-      auto frame = pob->stack.front();
+      auto frame = pob->stack.back();
       assert(frame.kf == pob->location->getBlock()->parent);
       addInit(frame.caller,
               ReachBlockTarget::create(pob->location->getBlock()));

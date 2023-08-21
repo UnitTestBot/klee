@@ -75,7 +75,12 @@ bool Path::blockCompleted(unsigned index) const {
     return true;
   }
   assert(index + 1 == path.size());
-  return last == path.at(index).block->getLastInstruction()->index;
+  auto block = path.at(index);
+  if (block.kind == TransitionKind::In) {
+    return last == path.at(index).block->getFirstInstruction()->index;
+      } else {
+    return last == path.at(index).block->getLastInstruction()->index;
+  }
 }
 
 KFunction *Path::getCalledFunction(unsigned index) const {
@@ -207,7 +212,7 @@ void Path::print(llvm::raw_ostream &ss) const {
     }
   }
 
-  assert(understack.empty() || stack.empty());
+  // assert(understack.empty() || stack.empty());
 
   ss << "path: (";
 

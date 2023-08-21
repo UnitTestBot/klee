@@ -6,6 +6,7 @@
 #include "TargetManager.h"
 
 #include "klee/Module/KModule.h"
+#include "klee/Module/Target.h"
 #include "klee/Support/Debug.h"
 #include "klee/Support/DebugFlags.h"
 
@@ -280,7 +281,13 @@ void ObjectManager::checkReachedStates() {
           addedPropagations.insert({copy, pob});
         }
       }
-      toRemove.push_back(state);
+      if (auto rb = dyn_cast<ReachBlockTarget>(target)) {
+        if (rb->stopping) {
+          toRemove.push_back(state);
+        }
+      } else {
+        toRemove.push_back(state);
+      }
     } else {
       auto loc = state->getLocationTarget();
       if (loc && predicate(loc->getBlock())) {

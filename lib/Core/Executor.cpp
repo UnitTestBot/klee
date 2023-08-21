@@ -2657,7 +2657,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
                 verifingTransitionsTo.insert(targeted->target->basicBlock);
                 if (guidanceKind != Interpreter::GuidanceKind::ErrorGuidance) {
                   ProofObligation *pob = new ProofObligation(
-                      ReachBlockTarget::create(targeted->target));
+                      ReachBlockTarget::createStop(targeted->target));
                   objectManager->addPob(pob);
                 }
               }
@@ -4313,6 +4313,12 @@ Executor::fillMakeSymbolic(ExecutionState &state,
   unsigned newVersion = makeSymbolicSource->version + stateNameVersion;
   const Array *newArray = makeArray(
       size, SourceBuilder::makeSymbolic(makeSymbolicSource->name, newVersion));
+  // JUST TO CHECK
+  if (isa<ConstantExpr>(size)) {
+    concreteSize = dyn_cast<ConstantExpr>(size)->getZExtValue();
+  } else {
+    assert(0);
+  }
   return new ObjectState(concreteSize, newArray,
                          typeSystemManager->getUnknownType());
 }
@@ -4634,6 +4640,12 @@ void Executor::goBackward(ref<BackwardAction> action) {
   ExecutionState *state = action->prop.state;
   ProofObligation *pob = action->prop.pob;
 
+  llvm::errs() << "[backward ] To-be pob: "
+               << Path::concat(state->constraints.path(),
+                               pob->constraints.path())
+                      .toString()
+               << "\n";
+
   objectManager->setContextState(state);
 
   // Conflict::core_ty conflictCore;
@@ -4675,6 +4687,14 @@ void Executor::goBackward(ref<BackwardAction> action) {
                          << pob->root->location->toString() << "\n";
             closeProofObligation(pob);
           }
+        } else {
+          if (debugPrints.isSet(DebugPrint::ClosePob)) {
+            llvm::errs() << "[close pob] Pob closed due to backward reach at: "
+                         << pob->root->location->toString() << "\n";
+          }
+          llvm::errs() << "[TRUE POSITIVE] FOUND TRUE POSITIVE AT: "
+                       << pob->root->location->toString() << "\n";
+          closeProofObligation(pob);
         }
       } else {
         if (debugPrints.isSet(DebugPrint::ClosePob)) {
@@ -4917,6 +4937,12 @@ void Executor::run(std::vector<ExecutionState *> initialStates,
         forCheck->addErrorInit(target);
       }
     }
+  } else {
+    std::set<KFunction *> allowed;
+    for (auto &i : kmodule->functions) {
+      allowed.insert(i.get());
+    }
+    forCheck->initializeFunctions(allowed);
   }
 
   if (targetManager) {
