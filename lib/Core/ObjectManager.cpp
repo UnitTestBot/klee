@@ -17,7 +17,7 @@ using namespace llvm;
 using namespace klee;
 
 ObjectManager::ObjectManager(KBlockPredicate predicate)
-    : predicate(predicate), emptyState(nullptr) {}
+    : predicate(predicate), tgms(nullptr), emptyState(nullptr) {}
 
 ObjectManager::~ObjectManager() {}
 
@@ -134,7 +134,9 @@ void ObjectManager::updateSubscribers(bool advancePaths) {
     }
 
     ref<Event> ee = new States(current, addedStates, removedStates, isolated);
-    tgms->update(ee);
+    if (tgms) {
+      tgms->update(ee);
+    }
 
     if (isolated) {
       checkReachedStates();

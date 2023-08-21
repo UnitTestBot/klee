@@ -4936,11 +4936,13 @@ void Executor::run(std::vector<ExecutionState *> initialStates,
       }
     }
   } else {
-    std::set<KFunction *> allowed;
-    for (auto &i : kmodule->functions) {
-      allowed.insert(i.get());
+    if (ExecutionMode == ExecutionKind::Bidirectional) {
+      std::set<KFunction *> allowed;
+      for (auto &i : kmodule->functions) {
+        allowed.insert(i.get());
+      }
+      forCheck->initializeFunctions(allowed);
     }
-    forCheck->initializeFunctions(allowed);
   }
 
   if (targetManager) {
