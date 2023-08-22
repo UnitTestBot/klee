@@ -79,11 +79,6 @@ void ObjectManager::removeState(ExecutionState *state) {
       std::find(removedStates.begin(), removedStates.end(), state);
   assert(itr == removedStates.end());
 
-  if (state->isolated) {
-    llvm::errs() << "REMOVING ISOLATED: "
-                 << state->constraints.path().toString() << "\n";
-  }
-
   if (!statesUpdated) {
     statesUpdated = true;
     stateUpdateKind =
