@@ -141,6 +141,9 @@ DistanceCalculator::getDistance(KBlock *pcBlock,
     if (distanceToTargetFunction.count(pcBlock->parent)) {
       minCallWeight = 2 * distanceToTargetFunction.at(pcBlock->parent) + sfNum;
       minSfNum = sfNum;
+      if (minSfNum == 0) {
+        minSfNum = 1;
+      }
     }
   }
 
