@@ -60,7 +60,7 @@ void ConflictCoreInitializer::addPob(ProofObligation *pob) {
                                             : from->instructions[0]);
         addInit(fromInst, ReachBlockTarget::create(to));
       }
-      if (!pob->parent) {
+      if (!pob->parent && !predicate(pob->location->getBlock())) {
         KInstruction *fromInst =
             (RegularFunctionPredicate(from) ? from->instructions[1]
              : from->instructions[0]);
