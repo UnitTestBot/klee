@@ -4750,7 +4750,7 @@ void Executor::closeProofObligation(ProofObligation *pob) {
 
 void Executor::initializeIsolated(ref<InitializeAction> action) {
   if (debugPrints.isSet(DebugPrint::Init)) {
-    llvm::errs() << "[initialize, executor] From"
+    llvm::errs() << "[initialize, executor] From "
                  << action->location->toString() << " to:\n";
     for (auto i : action->targets) {
       llvm::errs() << "[initialize, executor] " << i->toString() << "\n";
