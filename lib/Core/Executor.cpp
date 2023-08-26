@@ -75,6 +75,8 @@
 #include "klee/System/Time.h"
 
 #include "klee/Support/CompilerWarning.h"
+#include <bits/chrono.h>
+#include <chrono>
 DISABLE_WARNING_PUSH
 DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/ADT/SmallPtrSet.h"
@@ -4590,7 +4592,11 @@ void Executor::executeAction(ref<BidirectionalAction> action) {
         llvm::errs() << "\n";
       }
     }
+    auto t1 = std::chrono::high_resolution_clock::now();
     goBackward(cast<BackwardAction>(action));
+    auto t2 = std::chrono::high_resolution_clock::now();
+    auto ms_int = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1);
+    llvm::errs() << "[backward] It took: " << ms_int.count() << " ms\n";
     break;
   }
   case BidirectionalAction::Kind::Initialize: {

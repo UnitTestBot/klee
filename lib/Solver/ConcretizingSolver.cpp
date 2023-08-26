@@ -509,7 +509,7 @@ bool ConcretizingSolver::computeValidityCore(const Query &query,
     }
   }
 
-  if (isValid) {
+  if (isValid && query.containsSizeSymcretes()) {
     ref<SolverResponse> result;
     if (!relaxSymcreteConstraints(query, result)) {
       return false;

@@ -407,19 +407,35 @@ ref<Expr> ComposeVisitor::processSelect(ref<Expr> cond, ref<Expr> trueExpr,
     return ConstantExpr::create(0, trueExpr->getWidth());
   }
   switch (res) {
-  case PValidity::MustBeTrue: {
+  case PValidity::MustBeTrue:
+  case PValidity::MayBeTrue: {
     return visit(trueExpr);
   }
 
-  case PValidity::MustBeFalse: {
+  case PValidity::MustBeFalse:
+  case PValidity::MayBeFalse: {
     return visit(falseExpr);
   }
 
-  default: {
+  case PValidity::TrueOrFalse: {
     ExprHashSet savedAssumtions = state.assumptions;
 
     ExprOrderedSet savedSafetyConstraints = safetyConstraints;
     safetyConstraints.clear();
+
+    {
+      Assignment concretization = helper.computeConcretization(
+          state.constraints.withAssumtions(state.assumptions), cond,
+          state.queryMetaData);
+
+      if (!concretization.isEmpty()) {
+        // Update memory objects if arrays have affected them.
+        Assignment delta =
+            state.constraints.cs().concretization().diffWith(concretization);
+        helper.updateStateWithSymcretes(state, delta);
+        state.constraints.rewriteConcretization(delta);
+      }
+    }
 
     state.assumptions.insert(cond);
     visited.pushFrame();
@@ -432,6 +448,20 @@ ref<Expr> ComposeVisitor::processSelect(ref<Expr> cond, ref<Expr> trueExpr,
     ref<Expr> trueSafe = Expr::createTrue();
     for (auto sc : trueSafetyConstraints) {
       trueSafe = AndExpr::create(trueSafe, sc);
+    }
+
+    {
+      Assignment concretization = helper.computeConcretization(
+          state.constraints.withAssumtions(state.assumptions),
+          Expr::createIsZero(cond), state.queryMetaData);
+
+      if (!concretization.isEmpty()) {
+        // Update memory objects if arrays have affected them.
+        Assignment delta =
+            state.constraints.cs().concretization().diffWith(concretization);
+        helper.updateStateWithSymcretes(state, delta);
+        state.constraints.rewriteConcretization(delta);
+      }
     }
 
     state.assumptions.insert(Expr::createIsZero(cond));
@@ -453,5 +483,9 @@ ref<Expr> ComposeVisitor::processSelect(ref<Expr> cond, ref<Expr> trueExpr,
     ref<Expr> result = SelectExpr::create(cond, trueExpr, falseExpr);
     return result;
   }
+  default:
+    {
+      assert(0);
+    }
   }
 }

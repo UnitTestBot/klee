@@ -288,8 +288,12 @@ void ObjectManager::checkReachedStates() {
     } else {
       auto loc = state->getLocationTarget();
       if (loc && predicate(loc->getBlock())) {
+        if (state->pc == state->prevPC && state->pc == state->constraints.path().getFirstInstruction()) {
+          // State failed on the first instruction of the block that is special but it was not nullptr
+        } else {
         assert(0);
         toRemove.push_back(state);
+        }
       }
     }
   }

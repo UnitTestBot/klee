@@ -103,6 +103,11 @@ public:
     return executor->computeConcretization(constraints, condition, queryMetaData);
   }
 
+  void updateStateWithSymcretes(ExecutionState &state,
+                                const Assignment &assignment) {
+    return executor->updateStateWithSymcretes(state, assignment);
+  }
+
   bool collectMemoryObjects(ExecutionState &state, ref<Expr> address,
                             KType *targetType, KInstruction *target,
                             ref<Expr> &guard,

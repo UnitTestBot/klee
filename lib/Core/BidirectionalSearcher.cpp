@@ -131,7 +131,7 @@ BidirectionalSearcher::BidirectionalSearcher(Searcher *_forward,
                                              Searcher *_branch,
                                              BackwardSearcher *_backward,
                                              Initializer *_initializer)
-    : ticker({80, 10, 5, 5}), forward(_forward), branch(_branch),
+    : ticker({30, 30, 20, 10}), forward(_forward), branch(_branch),
       backward(_backward), initializer(_initializer) {}
 
 BidirectionalSearcher::~BidirectionalSearcher() {

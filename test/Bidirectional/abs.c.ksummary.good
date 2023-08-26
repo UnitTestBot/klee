@@ -1,0 +1,19 @@
+(lemma
+  path: (0 (abs: %1 %7) 1) @ [0, %10, abs]
+
+  (instruction6 : (array (w64 8) (instruction 0 %1 abs 0))
+   lazyInitializationContent8 : (array (w64 4) (lazyInitializationContent N0:(ReadLSB w64 0 instruction6))))
+
+  ((Not (Slt (ReadLSB w32 0 lazyInitializationContent8)
+             0))))
+
+(lemma
+  path: (0 (abs: %1 %8) 2) @ [0, %10, abs]
+
+  (instruction6 : (array (w64 8) (instruction 0 %1 abs 0))
+   lazyInitializationContent8 : (array (w64 4) (lazyInitializationContent N0:(ReadLSB w64 0 instruction6))))
+
+  ((Not (Slt N1:(ReadLSB w32 0 lazyInitializationContent8)
+             0))
+   (Eq 2147483648 N1)))
+
