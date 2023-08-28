@@ -1551,27 +1551,27 @@ int main(int argc, char **argv, char **envp) {
   std::unique_ptr<InstructionInfoTable> origInfos;
   std::unique_ptr<llvm::raw_fd_ostream> assemblyFS;
 
-  if (UseGuidedSearch == Interpreter::GuidanceKind::ErrorGuidance) {
-    std::vector<llvm::Type *> args;
-    origInfos = std::make_unique<InstructionInfoTable>(
-        *mainModule, std::move(assemblyFS), true);
-    args.push_back(llvm::Type::getInt32Ty(ctx)); // argc
-    args.push_back(llvm::PointerType::get(
-        Type::getInt8PtrTy(ctx),
-        mainModule->getDataLayout().getAllocaAddrSpace())); // argv
-    args.push_back(llvm::PointerType::get(
-        Type::getInt8PtrTy(ctx),
-        mainModule->getDataLayout().getAllocaAddrSpace())); // envp
-    std::string stubEntryPoint = "__klee_entry_point_main";
-    Function *stub = Function::Create(
-        llvm::FunctionType::get(llvm::Type::getInt32Ty(ctx), args, false),
-        GlobalVariable::ExternalLinkage, stubEntryPoint, mainModule);
-    BasicBlock *bb = BasicBlock::Create(ctx, "entry", stub);
+  // if (UseGuidedSearch == Interpreter::GuidanceKind::ErrorGuidance) {
+  //   std::vector<llvm::Type *> args;
+  //   origInfos = std::make_unique<InstructionInfoTable>(
+  //       *mainModule, std::move(assemblyFS), true);
+  //   args.push_back(llvm::Type::getInt32Ty(ctx)); // argc
+  //   args.push_back(llvm::PointerType::get(
+  //       Type::getInt8PtrTy(ctx),
+  //       mainModule->getDataLayout().getAllocaAddrSpace())); // argv
+  //   args.push_back(llvm::PointerType::get(
+  //       Type::getInt8PtrTy(ctx),
+  //       mainModule->getDataLayout().getAllocaAddrSpace())); // envp
+  //   std::string stubEntryPoint = "__klee_entry_point_main";
+  //   Function *stub = Function::Create(
+  //       llvm::FunctionType::get(llvm::Type::getInt32Ty(ctx), args, false),
+  //       GlobalVariable::ExternalLinkage, stubEntryPoint, mainModule);
+  //   BasicBlock *bb = BasicBlock::Create(ctx, "entry", stub);
 
-    llvm::IRBuilder<> Builder(bb);
-    Builder.CreateRet(ConstantInt::get(Type::getInt32Ty(ctx), 0));
-    EntryPoint = stubEntryPoint;
-  }
+  //   llvm::IRBuilder<> Builder(bb);
+  //   Builder.CreateRet(ConstantInt::get(Type::getInt32Ty(ctx), 0));
+  //   EntryPoint = stubEntryPoint;
+  // }
 
   std::unordered_set<std::string> mainModuleFunctions;
   for (auto &Function : *mainModule) {
