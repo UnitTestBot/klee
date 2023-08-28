@@ -354,11 +354,11 @@ bool TargetManager::isReachedTarget(const ExecutionState &state,
 
 bool TargetManager::isReachedTarget(const ExecutionState &state,
                                     ref<Target> target, WeightResult &result) {
-  if (state.constraints.path().getBlocks().size() == 0) {
-    return false;
-  }
 
   if (isa<ReachBlockTarget>(target)) {
+    if (state.constraints.path().getBlocks().empty()) {
+      return false;
+    }
     if (cast<ReachBlockTarget>(target)->isAtEnd()) {
       if (state.prevPC->parent == target->getBlock() ||
           state.pc->parent == target->getBlock()) {
@@ -374,6 +374,20 @@ bool TargetManager::isReachedTarget(const ExecutionState &state,
       if (state.pc == target->getBlock()->getFirstInstruction()) {
         result = Done;
         return true;
+      }
+    }
+  }
+
+  if (auto errorT = dyn_cast<ReproduceErrorTarget>(target)) {
+    auto errors = errorT->getErrors();
+    if (errors.size() == 1 && errors.front() == Reachable) {
+      auto block = errorT->getBlock();
+      if (state.pc == block->getFirstInstruction() &&
+          state.constraints.path().emptyWithNext()) {
+        result = Done;
+        return true;
+      } else {
+        return false;
       }
     }
   }

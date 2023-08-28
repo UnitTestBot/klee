@@ -312,6 +312,8 @@ private:
         const std::unordered_map<ref<Location>, std::unordered_set<KBlock *>,
                                  RefLocationHash, RefLocationCmp> &locToBlocks,
         bool reversed);
+
+    void addTrace(const KBlockTrace &trace, bool reversed);
   };
 
   ref<Layer> forest;
@@ -332,6 +334,10 @@ public:
                                RefLocationHash, RefLocationCmp> &locToBlocks,
       bool reversed) {
     forest->addTrace(result, entryKF, locToBlocks, reversed);
+  }
+
+  void addTrace(const KBlockTrace &trace, bool reversed) {
+    forest->addTrace(trace, reversed);
   }
 
   TargetForest(ref<Layer> layer, KFunction *entryFunction)

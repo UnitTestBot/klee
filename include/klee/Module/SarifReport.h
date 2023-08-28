@@ -291,6 +291,8 @@ struct SarifReport {
   bool empty() const { return results.empty(); }
 };
 
+using KBlockTrace = std::vector<std::unordered_set<KBlock *>>;
+
 SarifReport convertAndFilterSarifJson(const SarifReportJson &reportJson);
 
 } // namespace klee

@@ -548,6 +548,56 @@ TargetedExecutionManager::prepareTargets(KModule *kmodule, SarifReport paths) {
   return ret;
 }
 
+TargetedExecutionManager::Data
+TargetedExecutionManager::prepareTargets(KModule *kmodule,
+                                         std::vector<KBlockTrace> paths) {
+  Data ret;
+
+  for (auto &path : paths) {
+    for (auto &layer : path) {
+      for (auto block : layer) {
+        ret.specialPoints.insert(block);
+      }
+    }
+  }
+
+  std::map<KFunction *, ref<TargetForest>, KFunctionLess> forwardWhitelists;
+  std::map<std::string, ref<TargetForest>> backwardWhitelists;
+
+  unsigned id = 0; // Why need ID in backward?
+  for (auto &path : paths) {
+    auto kf = (*(path.front().begin()))->parent;
+    auto traceID = llvm::itostr(id++);
+
+    if (forwardWhitelists.count(kf) == 0) {
+      ref<TargetForest> whitelist = new TargetForest(kf);
+      forwardWhitelists[kf] = whitelist;
+    }
+    if (backwardWhitelists.count(traceID) == 0) {
+      ref<TargetForest> whitelist = new TargetForest(kf);
+      backwardWhitelists[traceID] = whitelist;
+    }
+
+    forwardWhitelists[kf]->addTrace(path, false);
+    backwardWhitelists[traceID]->addTrace(path, true);
+  }
+
+  std::set<KFunction *> functionsToDismantle;
+  for (auto wl : forwardWhitelists) {
+    auto kf = wl.first;
+    auto &dist = codeGraphDistance.getDistance(kf);
+    for (auto &reachable : dist) {
+      functionsToDismantle.insert(reachable.first);
+    }
+  }
+
+  ret.forwardWhitelists = forwardWhitelists;
+  ret.backwardWhitelists = backwardWhitelists;
+  ret.functionsToDismantle = std::move(functionsToDismantle);
+
+  return ret;
+}
+
 void TargetedExecutionManager::reportFalseNegative(ExecutionState &state,
                                                    ReachWithError error) {
   klee_warning("100.00%% %s False Negative at: %s", getErrorString(error),

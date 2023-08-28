@@ -140,6 +140,9 @@ public:
   Data
   prepareTargets(KModule *kmodule, SarifReport paths);
 
+  Data
+  prepareTargets(KModule *kmodule, std::vector<KBlockTrace> paths);
+
   void reportFalseNegative(ExecutionState &state, ReachWithError error);
 
   // Return true if report is successful

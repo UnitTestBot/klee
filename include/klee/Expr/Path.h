@@ -86,6 +86,9 @@ public:
   }
 
   const path_ty &getBlocks() const;
+  KInstruction *getPC() const {
+    return next;
+  }
   unsigned getFirstIndex() const;
   KInstruction *getFirstInstruction() const;
   unsigned getLastIndex() const;

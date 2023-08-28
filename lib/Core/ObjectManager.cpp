@@ -250,10 +250,6 @@ void ObjectManager::checkReachedStates() {
       continue;
     }
 
-    if (state->constraints.path().getBlocks().empty()) {
-      continue;
-    }
-
     std::set<ref<Target>> reached;
 
     if (state->history() && state->history()->target) {
@@ -287,7 +283,7 @@ void ObjectManager::checkReachedStates() {
       }
     } else {
       auto loc = state->getLocationTarget();
-      if (loc && predicate(loc->getBlock())) {
+      if (loc && predicate(loc->getBlock()) && state->someExecutionHappened) {
         if (state->pc == state->prevPC && state->pc == state->constraints.path().getFirstInstruction()) {
           // State failed on the first instruction of the block that is special but it was not nullptr
         } else {

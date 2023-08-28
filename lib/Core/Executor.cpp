@@ -7396,24 +7396,17 @@ void Executor::runFunctionAsMain(Function *f, int argc, char **argv,
                                                       std::move(paths));
     } else {
       KFunction *kEntryFunction = kmodule->functionMap.at(f);
-      ref<TargetForest> forest = new TargetForest(kEntryFunction);
+      KBlockTrace trace;
+      trace.push_back({kEntryFunction->entryKBlock});
+
       for (const auto &kfunction : kmodule->functions) {
         if (kfunction->getName().compare("reach_error") == 0) {
           KBlock *kCallBlock = kfunction->entryKBlock;
-          llvm::Optional<uint64_t> callBlockLine =
-              kCallBlock->getFirstInstruction()->info->line;
-          if (callBlockLine.hasValue()) {
-            unsigned int callBlockLineValue =
-                static_cast<unsigned int>(callBlockLine.getValue());
-            forest->add(ReproduceErrorTarget::create(
-                            {ReachWithError::Reachable}, "",
-                            ErrorLocation{callBlockLineValue, callBlockLineValue},
-                            kCallBlock));
-          }
+          trace.push_back({kCallBlock});
         }
       }
-      data.forwardWhitelists.emplace(kEntryFunction, forest);
-      // ADD BACKWARD TREE, POB and other stuff
+
+      data = targetedExecutionManager->prepareTargets(kmodule.get(), {trace});
     }
 
     auto forwardTargets = data.forwardWhitelists;

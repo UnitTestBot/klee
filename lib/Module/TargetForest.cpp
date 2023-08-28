@@ -13,6 +13,8 @@
 #include "klee/Expr/Expr.h"
 #include "klee/Module/KInstruction.h"
 #include "klee/Module/KModule.h"
+#include "klee/Module/SarifReport.h"
+#include "klee/Module/Target.h"
 #include "klee/Module/TargetHash.h"
 
 #include "klee/Support/ErrorHandling.h"
@@ -158,6 +160,52 @@ void TargetForest::Layer::addTrace(
     }
 
     forest = forest->forest[targetsVec].get();
+  }
+}
+
+void TargetForest::Layer::addTrace(const KBlockTrace &trace, bool reversed) {
+  auto forest = this;
+  auto entryKF = (*(trace.front().begin()))->parent;
+  for (unsigned count = 0; count < trace.size(); count++) {
+    unsigned i = reversed ? trace.size() - count - 1 : count;
+    TargetHashSet targets;
+    for (auto block : trace.at(i)) {
+      if (i == trace.size() - 1) {
+        targets.insert(ReproduceErrorTarget::create({ReachWithError::Reachable},
+                                                    "", {}, block));
+      } else {
+        targets.insert(ReachBlockTarget::create(block));
+      }
+    }
+
+    ref<UnorderedTargetsSet> targetsVec = UnorderedTargetsSet::create(targets);
+    if (forest->forest.count(targetsVec) == 0) {
+      ref<TargetForest::Layer> next = new TargetForest::Layer();
+      forest->insert(targetsVec, next);
+    }
+
+    for (auto &target : targetsVec->getTargets()) {
+      forest->insertTargetsToVec(target, targetsVec);
+    }
+
+    forest = forest->forest[targetsVec].get();
+
+    if (reversed) {
+      TargetHashSet targets;
+      targets.insert(ReachBlockTarget::create(entryKF->entryKBlock));
+      ref<UnorderedTargetsSet> targetsVec =
+          UnorderedTargetsSet::create(targets);
+      if (forest->forest.count(targetsVec) == 0) {
+        ref<TargetForest::Layer> next = new TargetForest::Layer();
+        forest->insert(targetsVec, next);
+      }
+
+      for (auto &target : targetsVec->getTargets()) {
+        forest->insertTargetsToVec(target, targetsVec);
+      }
+
+      forest = forest->forest[targetsVec].get();
+    }
   }
 }
 
