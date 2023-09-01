@@ -31,8 +31,7 @@ void ObjectManager::addInitialState(ExecutionState *state) {
   auto isolatedCopy = state->copy();
   isolatedCopy->isolated = true;
   isolatedCopy->finalComposing = true;
-  reachedStates[ReachBlockTarget::create(state->pc->parent)].insert(
-      isolatedCopy);
+  reachedStates[state->getLocationTarget()].insert(isolatedCopy);
   states.insert(state);
   processForest->addRoot(state);
 }
@@ -88,7 +87,6 @@ void ObjectManager::removeState(ExecutionState *state) {
     assert(kind == stateUpdateKind);
   }
 
-  state->pc = state->prevPC;
   removedStates.push_back(state);
 }
 
@@ -111,22 +109,10 @@ ExecutionState *ObjectManager::initializeState(KInstruction *location,
   return state;
 }
 
-void ObjectManager::updateSubscribers(bool advancePaths) {
+void ObjectManager::updateSubscribers() {
   if (statesUpdated) {
     assert(stateUpdateKind != StateKind::None);
     bool isolated = stateUpdateKind == StateKind::Isolated;
-
-    // This should not be there. We need this flag to prevent double advancing
-    // in initital update after seeding
-    if (advancePaths) {
-      if (current) {
-        current->constraints.advancePath(current->prevPC, current->pc,
-                                         current->someExecutionHappened);
-      }
-      for (auto i : addedStates) {
-        i->constraints.advancePath(i->prevPC, i->pc, i->someExecutionHappened);
-      }
-    }
 
     ref<Event> ee = new States(current, addedStates, removedStates, isolated);
     if (tgms) {
@@ -223,7 +209,7 @@ void ObjectManager::initialUpdate() {
   addedStates.insert(addedStates.begin(), states.begin(), states.end());
   statesUpdated = true;
   stateUpdateKind = StateKind::Regular;
-  updateSubscribers(/*advancePaths*/ false);
+  updateSubscribers();
 }
 
 const states_ty &ObjectManager::getStates() { return states; }
@@ -274,23 +260,14 @@ void ObjectManager::checkReachedStates() {
           addedPropagations.insert({copy, pob});
         }
       }
-      if (auto rb = dyn_cast<ReachBlockTarget>(target)) {
-        if (rb->stopping) {
-          toRemove.push_back(state);
-        }
-      } else {
-        toRemove.push_back(state);
+    }
+
+    auto loc = state->getLocationTarget();
+    if (loc && predicate(loc->getBlock()) && !state->constraints.path().empty()) {
+      if (reached.size() == 0) {
+        assert(0 && "No reached but at special point");
       }
-    } else {
-      auto loc = state->getLocationTarget();
-      if (loc && predicate(loc->getBlock()) && state->someExecutionHappened) {
-        if (state->pc == state->prevPC && state->pc == state->constraints.path().getFirstInstruction()) {
-          // State failed on the first instruction of the block that is special but it was not nullptr
-        } else {
-        assert(0);
-        toRemove.push_back(state);
-        }
-      }
+      toRemove.push_back(state);
     }
   }
 

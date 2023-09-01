@@ -126,10 +126,6 @@ public:
       : guidance(_guidance), distanceCalculator(_distanceCalculator),
         targetCalculator(_targetCalculator){};
 
-  void update(ExecutionState *current,
-              const std::vector<ExecutionState *> &addedStates,
-              const std::vector<ExecutionState *> &removedStates);
-
   void update(ref<ObjectManager::Event> e) override;
   void update(ExecutionState *current,
               const std::vector<ExecutionState *> &addedStates,

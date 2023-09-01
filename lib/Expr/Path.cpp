@@ -13,42 +13,51 @@ DISABLE_WARNING_POP
 using namespace klee;
 using namespace llvm;
 
-void Path::stepInstruction(KInstruction *done, KInstruction *pc,
-                           bool someExecutionHappened) {
-
-  // deleted states
-  if (done == pc && done != next) {
-    return;
-  }
-
-  // We actually executed the to-be-previous next
-  assert(done && done == next);
+void Path::stepInstruction(KInstruction *prevPC, KInstruction *pc) {
+  // We actually executed the previous pc
+  assert(next == prevPC);
 
   if (path.empty()) {
-    if (done == pc) {
-      if (!someExecutionHappened) {
-        return;
-      }
+    path.push_back({prevPC->parent, getTransitionKindFromInst(prevPC)});
+    first = prevPC->index;
+    last = prevPC->index;
+    next = pc;
+  } else {
+    auto lastEntry = path.back();
+    if (prevPC->parent != lastEntry.block) {
+      path.push_back({prevPC->parent, getTransitionKindFromInst(prevPC)});
     }
-    first = done->index;
-    last = done->index;
-    path.push_back({done->parent, getTransitionKindFromInst(done)});
-    next = (done == pc) ? nullptr : pc;
-    return;
+    last = prevPC->index;
+    next = pc;
   }
+}
 
-  auto lastEntry = path.back();
-  if (done->parent != lastEntry.block) {
-    path.push_back({done->parent, getTransitionKindFromInst(done)});
+void Path::retractInstruction() {
+  assert(!path.empty());
+  auto lastExecuted = getLastInstruction();
+
+  if (path.size() == 1 && first == last) {
+    // Only one instruction executed
+    path.pop_back();
+    first = 0;
+    last = 0;
+    next = lastExecuted;
+  } else {
+    // Get before last instruction (and retract bb if needed)
+    auto transitionKind = getTransitionKindFromInst(lastExecuted);
+    if (transitionKind == TransitionKind::In ||
+        transitionKind == TransitionKind::Out ||
+        lastExecuted->parent->getFirstInstruction() == lastExecuted) {
+      path.pop_back();
+      last = getLastInstructionFromPathEntry(path.back())->index;
+    } else {
+      assert(last > 0);
+      last--;
+      assert(last < lastExecuted->parent->numInstructions);
+      assert(last == lastExecuted->parent->instructions[last]->index);
+    }
+    next = lastExecuted;
   }
-  last = done->index;
-  next = pc;
-
-  if (done == pc) {
-    next = nullptr;
-  }
-
-  return;
 }
 
 const Path::path_ty &Path::getBlocks() const { return path; }
@@ -275,4 +284,14 @@ Path::TransitionKind klee::getTransitionKindFromInst(KInstruction *ki) {
                           : Path::TransitionKind::Out;
   }
   return Path::TransitionKind::None;
+}
+
+KInstruction *klee::getLastInstructionFromPathEntry(Path::entry entry) {
+  switch (entry.kind) {
+  case Path::TransitionKind::In:
+    return entry.block->getFirstInstruction();
+  case Path::TransitionKind::Out:
+  case Path::TransitionKind::None:
+    return entry.block->getLastInstruction();
+  }
 }

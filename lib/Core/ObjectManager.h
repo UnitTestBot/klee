@@ -125,7 +125,7 @@ public:
 
   void removePropagation(Propagation prop);
 
-  void updateSubscribers(bool advancePaths = true);
+  void updateSubscribers();
   void initialUpdate();
 
 private:

@@ -278,9 +278,12 @@ PathConstraints::orderedCS() const {
   return orderedConstraints;
 }
 
-void PathConstraints::advancePath(KInstruction *done, KInstruction *next,
-                                  bool someExecutionHappened) {
-  _path.stepInstruction(done, next, someExecutionHappened);
+void PathConstraints::advancePath(KInstruction *prevPC, KInstruction *pc) {
+  _path.stepInstruction(prevPC, pc);
+}
+
+void PathConstraints::retractPath() {
+  _path.retractInstruction();
 }
 
 void PathConstraints::advancePath(const Path &path) {

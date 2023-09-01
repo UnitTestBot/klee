@@ -18,28 +18,24 @@ namespace klee {
 
 class CodeGraphDistance {
 
-  using blockDistanceMap =
-      std::unordered_map<KBlock *, std::unordered_map<KBlock *, unsigned>>;
-  using blockDistanceList =
-      std::unordered_map<KBlock *, std::vector<std::pair<KBlock *, unsigned>>>;
+  using BlockDistance = std::unordered_map<KBlock *, unsigned>;
+  using SortedBlockDistance = std::vector<std::pair<KBlock *, unsigned>>;
 
-  using functionDistanceMap =
-      std::unordered_map<KFunction *,
-                         std::unordered_map<KFunction *, unsigned>>;
-  using functionDistanceList =
-      std::unordered_map<KFunction *,
-                         std::vector<std::pair<KFunction *, unsigned>>>;
+  using FunctionDistance = std::unordered_map<KFunction *, unsigned>;
+  using SortedFunctionDistance = std::vector<std::pair<KFunction *, unsigned>>;
 
 private:
-  blockDistanceMap blockDistance;
-  blockDistanceMap blockBackwardDistance;
-  blockDistanceList blockSortedDistance;
-  blockDistanceList blockSortedBackwardDistance;
+  // For basic blocks
+  std::unordered_map<KBlock *, BlockDistance> blockDistance;
+  std::unordered_map<KBlock *, BlockDistance> blockBackwardDistance;
+  std::unordered_map<KBlock *, SortedBlockDistance> blockSortedDistance;
+  std::unordered_map<KBlock *, SortedBlockDistance> blockSortedBackwardDistance;
 
-  functionDistanceMap functionDistance;
-  functionDistanceMap functionBackwardDistance;
-  functionDistanceList functionSortedDistance;
-  functionDistanceList functionSortedBackwardDistance;
+  // For functions
+  std::unordered_map<KFunction *, FunctionDistance> functionDistance;
+  std::unordered_map<KFunction *, FunctionDistance> functionBackwardDistance;
+  std::unordered_map<KFunction *, SortedFunctionDistance> functionSortedDistance;
+  std::unordered_map<KFunction *, SortedFunctionDistance> functionSortedBackwardDistance;
 
 private:
   void calculateDistance(KBlock *bb);
@@ -48,43 +44,25 @@ private:
   void calculateDistance(KFunction *kf);
   void calculateBackwardDistance(KFunction *kf);
 
-  // void getNearestPredicateSatisfying(KBlock *from, KBlockPredicate predicate,
-  //                                    std::set<KBlock *> &visited,
-  //                                    std::set<KBlock *, KBlockLess> &result);
-
-public:
-  const std::unordered_map<KBlock *, unsigned int> &getDistance(KBlock *kb);
-  const std::unordered_map<KBlock *, unsigned int> &
-  getBackwardDistance(KBlock *kb);
-  const std::vector<std::pair<KBlock *, unsigned int>> &
-  getSortedDistance(KBlock *kb);
-  const std::vector<std::pair<KBlock *, unsigned int>> &
-  getSortedBackwardDistance(KBlock *kb);
-
-  const std::unordered_map<KFunction *, unsigned int> &
-  getDistance(KFunction *kf);
-  const std::unordered_map<KFunction *, unsigned int> &
-  getBackwardDistance(KFunction *kf);
-  const std::vector<std::pair<KFunction *, unsigned int>> &
-  getSortedDistance(KFunction *kf);
-  const std::vector<std::pair<KFunction *, unsigned int>> &
-  getSortedBackwardDistance(KFunction *kf);
-
   void getNearestPredicateSatisfying(KBlock *from, KBlockPredicate predicate,
                                      bool forward,
                                      std::set<KBlock *, KBlockLess> &result);
 
+public:
+
+  const BlockDistance &getDistance(KBlock *kb);
+  const BlockDistance &getBackwardDistance(KBlock *kb);
+  const SortedBlockDistance &getSortedDistance(KBlock *kb);
+  const SortedBlockDistance &getSortedBackwardDistance(KBlock *kb);
+
+  const FunctionDistance &getDistance(KFunction *kf);
+  const FunctionDistance &getBackwardDistance(KFunction *kf);
+  const SortedFunctionDistance &getSortedDistance(KFunction *kf);
+  const SortedFunctionDistance &getSortedBackwardDistance(KFunction *kf);
+
   std::set<KBlock *, KBlockLess>
   getNearestPredicateSatisfying(KBlock *from, KBlockPredicate predicate,
                                 bool forward);
-
-  // KBlock *getNearestJoinBlock(KBlock *kb);
-  // KBlock *getNearestJoinOrCallBlock(KBlock *kb);
-  // KBlock *getNearestPredicateSatisfying(KBlock *kb, KBlockPredicate predicate,
-  //                                       bool forward);
-
-  // std::vector<std::pair<KBlock *, KBlock *>>
-  // dismantle(KBlock *from, std::set<KBlock *> to, KBlockPredicate predicate);
 
   std::vector<std::pair<KBlock *, KBlock *>>
   dismantleFunction(KFunction *kf, KBlockPredicate predicate);

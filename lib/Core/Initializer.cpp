@@ -64,7 +64,7 @@ void ConflictCoreInitializer::addPob(ProofObligation *pob) {
         KInstruction *fromInst =
             (RegularFunctionPredicate(from) ? from->instructions[1]
              : from->instructions[0]);
-        addInit(fromInst, ReachBlockTarget::createStop(pob->location->getBlock()));
+        addInit(fromInst, ReachBlockTarget::create(pob->location->getBlock()));
       }
     }
   } else {
@@ -204,13 +204,14 @@ void ConflictCoreInitializer::initializeFunctions(
 }
 
 void ConflictCoreInitializer::addErrorInit(ref<Target> errorTarget) {
+  auto errorT = dyn_cast<ReproduceErrorTarget>(errorTarget);
   auto location = errorTarget->getBlock();
   // Check direction
   std::set<KBlock *, KBlockLess> nearest;
-  if (predicate(errorTarget->getBlock())) {
+  if (predicate(errorTarget->getBlock()) && !errorT->isThatError(Reachable)) {
     nearest.insert(errorTarget->getBlock()); // HOT FIX
   } else {
-    cgd->getNearestPredicateSatisfying(location, predicate, false, nearest);
+    nearest = cgd->getNearestPredicateSatisfying(location, predicate, false);
   }
   for (auto i : nearest) {
     KInstruction *from =
@@ -219,7 +220,11 @@ void ConflictCoreInitializer::addErrorInit(ref<Target> errorTarget) {
     for (auto to : toBlocks) {
       addInit(from, ReachBlockTarget::create(to));
     }
-    addInit(from, errorTarget);
+    if (errorT->isThatError(Reachable)) {
+      addInit(from, ReachBlockTarget::create(location));
+    } else {
+      addInit(from, errorTarget);
+    }
   }
 }
 

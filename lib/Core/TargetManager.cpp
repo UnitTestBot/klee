@@ -134,20 +134,20 @@ void TargetManager::updateReached(ExecutionState &state) {
     return;
   }
 
-  auto prevKI = state.prevPC;
+  auto prevKI = state.prevPC ? state.prevPC : state.pc;
   auto kf = prevKI->parent->parent;
   auto kmodule = kf->parent;
 
   if (prevKI->inst->isTerminator() && kmodule->inMainModule(*kf->function)) {
     ref<Target> target;
 
-    if (state.getPrevPCBlock()->getTerminator()->getNumSuccessors() == 0) {
-      target = ReachBlockTarget::create(state.prevPC->parent, true);
+    if (state.getPrevPCBlock()->basicBlock->getTerminator()->getNumSuccessors() == 0) {
+      target = ReachBlockTarget::create(state.getPrevPCBlock(), true);
     } else {
       unsigned index = 0;
-      for (auto succ : successors(state.getPrevPCBlock())) {
-        if (succ == state.getPCBlock()) {
-          target = CoverBranchTarget::create(state.prevPC->parent, index);
+      for (auto succ : successors(state.getPrevPCBlock()->basicBlock)) {
+        if (succ == state.getPCBlock()->basicBlock) {
+          target = CoverBranchTarget::create(state.getPrevPCBlock(), index);
           break;
         }
         ++index;
@@ -355,10 +355,11 @@ bool TargetManager::isReachedTarget(const ExecutionState &state,
 bool TargetManager::isReachedTarget(const ExecutionState &state,
                                     ref<Target> target, WeightResult &result) {
 
+  if (state.constraints.path().empty() && state.error == None) {
+    return false;
+  }
+
   if (isa<ReachBlockTarget>(target)) {
-    if (state.constraints.path().getBlocks().empty()) {
-      return false;
-    }
     if (cast<ReachBlockTarget>(target)->isAtEnd()) {
       if (state.prevPC->parent == target->getBlock() ||
           state.pc->parent == target->getBlock()) {
@@ -374,20 +375,6 @@ bool TargetManager::isReachedTarget(const ExecutionState &state,
       if (state.pc == target->getBlock()->getFirstInstruction()) {
         result = Done;
         return true;
-      }
-    }
-  }
-
-  if (auto errorT = dyn_cast<ReproduceErrorTarget>(target)) {
-    auto errors = errorT->getErrors();
-    if (errors.size() == 1 && errors.front() == Reachable) {
-      auto block = errorT->getBlock();
-      if (state.pc == block->getFirstInstruction() &&
-          state.constraints.path().emptyWithNext()) {
-        result = Done;
-        return true;
-      } else {
-        return false;
       }
     }
   }
@@ -408,12 +395,12 @@ bool TargetManager::isReachedTarget(const ExecutionState &state,
 
   if (target->shouldFailOnThisTarget()) {
     if (state.pc->parent == target->getBlock()) {
-      if (cast<ReproduceErrorTarget>(target)->isTheSameAsIn(state.prevPC) &&
+      if (cast<ReproduceErrorTarget>(target)->isTheSameAsIn(state.pc) &&
           cast<ReproduceErrorTarget>(target)->isThatError(state.error)) {
         result = Done;
       } else {
         if (state.isolated &&
-            cast<ReproduceErrorTarget>(target)->isTheSameAsIn(state.prevPC) &&
+            cast<ReproduceErrorTarget>(target)->isTheSameAsIn(state.pc) &&
             state.error == klee::MayBeNullPointerException &&
             cast<ReproduceErrorTarget>(target)->isThatError(
                 klee::MustBeNullPointerException)) {

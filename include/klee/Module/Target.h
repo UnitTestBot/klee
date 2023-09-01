@@ -126,14 +126,11 @@ protected:
   bool atEnd;
 
   explicit ReachBlockTarget(KBlock *_block, bool _atEnd, bool stopping)
-      : Target(_block), atEnd(_atEnd), stopping(stopping) {}
+      : Target(_block), atEnd(_atEnd) {}
 
 public:
-  static ref<Target> createStop(KBlock *_block);
   static ref<Target> create(KBlock *_block, bool _atEnd);
   static ref<Target> create(KBlock *_block);
-
-  bool stopping;
 
   Kind getKind() const override { return Kind::ReachBlock; }
 

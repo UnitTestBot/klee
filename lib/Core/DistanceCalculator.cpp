@@ -51,6 +51,7 @@ unsigned DistanceCalculator::SpeculativeState::computeHash() {
 
 DistanceResult DistanceCalculator::getDistance(const ExecutionState &state,
                                                KBlock *target) {
+  assert(state.pc);
   return getDistance(state.pc->parent, state.stack.callStack(), target, false);
 }
 
@@ -105,8 +106,6 @@ DistanceResult
 DistanceCalculator::getDistance(KBlock *pcBlock,
                                 const ExecutionStack::call_stack_ty &frames,
                                 KBlock *target, bool reversed) {
-  weight_type weight = 0;
-
   KBlock *kb = pcBlock;
   const auto &distanceToTargetFunction =
       reversed ? codeGraphDistance.getDistance(target->parent)

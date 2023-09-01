@@ -125,9 +125,9 @@ ExecutionState::ExecutionState()
 }
 
 ExecutionState::ExecutionState(KFunction *kf)
-    : initPC(kf->instructions), pc(initPC), prevPC(pc), incomingBBIndex(-1),
-      depth(0), constraints(pc), ptreeNode(nullptr), steppedInstructions(0),
-      steppedMemoryInstructions(0), instsSinceCovNew(0),
+    : initPC(kf->instructions), pc(initPC), prevPC(nullptr),
+      incomingBBIndex(-1), depth(0), constraints(pc), ptreeNode(nullptr),
+      steppedInstructions(0), steppedMemoryInstructions(0), instsSinceCovNew(0),
       roundingMode(llvm::APFloat::rmNearestTiesToEven), coveredNew(false),
       forkDisabled(false), prevHistory_(TargetsHistory::create()),
       history_(TargetsHistory::create()) {
@@ -136,9 +136,9 @@ ExecutionState::ExecutionState(KFunction *kf)
 }
 
 ExecutionState::ExecutionState(KFunction *kf, KBlock *kb)
-    : initPC(kb->instructions), pc(initPC), prevPC(pc), incomingBBIndex(-1),
-      depth(0), constraints(pc), ptreeNode(nullptr), steppedInstructions(0),
-      steppedMemoryInstructions(0), instsSinceCovNew(0),
+    : initPC(kb->instructions), pc(initPC), prevPC(nullptr),
+      incomingBBIndex(-1), depth(0), constraints(pc), ptreeNode(nullptr),
+      steppedInstructions(0), steppedMemoryInstructions(0), instsSinceCovNew(0),
       roundingMode(llvm::APFloat::rmNearestTiesToEven), coveredNew(false),
       forkDisabled(false), prevHistory_(TargetsHistory::create()),
       history_(TargetsHistory::create()) {
@@ -205,7 +205,7 @@ ExecutionState *ExecutionState::withStackFrame(KInstIterator caller,
   newState->pushFrame(caller, kf);
   newState->initPC = kf->blockMap[&*kf->function->begin()]->instructions;
   newState->pc = newState->initPC;
-  newState->prevPC = newState->pc;
+  newState->prevPC = nullptr;
   newState->constraints = PathConstraints(newState->pc);
   return newState;
 }
@@ -221,7 +221,7 @@ ExecutionState *ExecutionState::withKInstruction(KInstruction *ki) const {
     ++newState->initPC;
   }
   newState->pc = newState->initPC;
-  newState->prevPC = newState->pc;
+  newState->prevPC = nullptr;
   newState->constraints = PathConstraints(newState->pc);
   return newState;
 }
@@ -399,7 +399,7 @@ llvm::raw_ostream &klee::operator<<(llvm::raw_ostream &os,
 }
 
 void ExecutionState::dumpStack(llvm::raw_ostream &out) const {
-  const KInstruction *target = prevPC;
+  const KInstruction *target = constraints.path().getNext();
   for (unsigned i = 0; i < stack.size(); ++i) {
     unsigned ri = stack.size() - 1 - i;
     const CallStackFrame &csf = stack.callStack().at(ri);
@@ -448,19 +448,21 @@ void ExecutionState::addCexPreference(const ref<Expr> &cond) {
   cexPreferences = cexPreferences.insert(cond);
 }
 
-BasicBlock *ExecutionState::getInitPCBlock() const {
-  return initPC->inst->getParent();
+KBlock *ExecutionState::getInitPCBlock() const {
+  return initPC->parent;
 }
 
-BasicBlock *ExecutionState::getPrevPCBlock() const {
-  return prevPC->inst->getParent();
+KBlock *ExecutionState::getPrevPCBlock() const {
+  return prevPC ? prevPC->parent : pc->parent;
 }
 
-BasicBlock *ExecutionState::getPCBlock() const { return pc->inst->getParent(); }
+KBlock *ExecutionState::getPCBlock() const {
+  return pc ? pc->parent : prevPC->parent;
+}
 
 void ExecutionState::increaseLevel() {
-  llvm::BasicBlock *srcbb = getPrevPCBlock();
-  llvm::BasicBlock *dstbb = getPCBlock();
+  auto srcbb = getPrevPCBlock();
+  auto dstbb = getPCBlock();
   KFunction *kf = prevPC->parent->parent;
   KModule *kmodule = kf->parent;
 
@@ -479,30 +481,24 @@ bool ExecutionState::isGEPExpr(ref<Expr> expr) const {
 }
 
 bool ExecutionState::visited(KBlock *block) const {
-  return level.count(block->basicBlock) != 0;
-}
-
-bool ExecutionState::reachedTarget(ref<ReachBlockTarget> target) const {
-  if (constraints.path().getBlocks().size() == 0) {
-    return false;
-  }
-  if (target->isAtEnd()) {
-    return prevPC == target->getBlock()->getLastInstruction();
-  } else {
-    return pc == target->getBlock()->getFirstInstruction();
-  }
+  return level.count(block) != 0;
 }
 
 ref<Target> ExecutionState::getLocationTarget() const {
-  if (isa<KReturnBlock>(prevPC->parent) &&
-      prevPC == prevPC->parent->getLastInstruction()) {
-    // This means we just exited a function and are at the second instruction in
-    // a call block (or exited the execution altogether)
-    return ReachBlockTarget::create(prevPC->parent);
-  } else if (!isa<KReturnBlock>(pc->parent) &&
-             pc == pc->parent->getFirstInstruction()) {
-    return ReachBlockTarget::create(pc->parent);
+  if (pc) {
+    if (!isa<KReturnBlock>(pc->parent) &&
+        pc == pc->parent->getFirstInstruction()) {
+      return ReachBlockTarget::create(pc->parent);
+    } else {
+      return {};
+    }
   } else {
-    return {};
+    assert(prevPC);
+    if (isa<KReturnBlock>(prevPC->parent) &&
+        prevPC == prevPC->parent->getLastInstruction()) {
+      return ReachBlockTarget::create(prevPC->parent);
+    } else {
+      return {};
+    }
   }
 }

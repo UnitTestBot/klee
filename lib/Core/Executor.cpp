@@ -1235,7 +1235,6 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
       res = PartialValidity::MayBeTrue;
   }
   if (terminateEverything) {
-    current.pc = current.prevPC;
     terminateStateEarlyAlgorithm(current, "State missed all it's targets.",
                                  StateTerminationType::MissedAllTargets);
     return StatePair(nullptr, nullptr);
@@ -1247,7 +1246,6 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
                                current.queryMetaData);
   solver->setTimeout(time::Span());
   if (!success) {
-    current.pc = current.prevPC;
     terminateStateOnSolverError(current, "Query timed out (fork).");
     return StatePair(nullptr, nullptr);
   }
@@ -1565,8 +1563,8 @@ ref<klee::ConstantExpr> Executor::toConstant(ExecutionState &state, ref<Expr> e,
   std::string str;
   llvm::raw_string_ostream os(str);
   os << "silently concretizing (reason: " << reason << ") expression " << e
-     << " to value " << value << " (" << (*(state.pc)).info->file << ":"
-     << (*(state.pc)).info->line << ")";
+     << " to value " << value << " (" << (*(state.prevPC)).info->file << ":"
+     << (*(state.prevPC)).info->line << ")";
 
   if (AllExternalWarnings)
     klee_warning("%s", os.str().c_str());
@@ -1688,6 +1686,7 @@ void Executor::stepInstruction(ExecutionState &state) {
   }
   state.prevPC = state.pc;
   ++state.pc;
+  state.constraints.advancePath(state.prevPC, state.pc);
 
   if (stats::instructions == MaxInstructions && MaxInstructions != 0)
     haltExecution = HaltExecution::MaxInstructions;
@@ -1883,6 +1882,8 @@ void Executor::unwindToNextLandingpad(ExecutionState &state) {
 
         state.pushFrame(state.prevPC, kf);
         state.pc = kf->instructions;
+        state.constraints.retractPath();
+        state.constraints.advancePath(state.prevPC, state.pc);
         state.increaseLevel();
         bindArgument(kf, 0, state, sui->exceptionObject);
         bindArgument(kf, 1, state, clauses_mo->getSizeExpr());
@@ -2263,8 +2264,8 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
     KFunction *kf = kmodule->functionMap[f];
 
     state.pushFrame(state.prevPC, kf);
-    transferToBasicBlock(&*kf->function->begin(), state.getPrevPCBlock(),
-                         state);
+    transferToBasicBlock(&*kf->function->begin(),
+                         state.getPrevPCBlock()->basicBlock, state);
 
     if (statsTracker && !state.isolated)
       statsTracker->framePushed(
@@ -2444,6 +2445,8 @@ void Executor::transferToBasicBlock(KBlock *kdst, BasicBlock *src,
 
   // XXX this lookup has to go ?
   state.pc = kdst->instructions;
+  state.constraints.retractPath();
+  state.constraints.advancePath(state.prevPC, state.pc);
   state.increaseLevel();
   if (state.pc->inst->getOpcode() == Instruction::PHI) {
     PHINode *first = static_cast<PHINode *>(state.pc->inst);
@@ -2519,7 +2522,9 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
     if (state.stack.size() <= 1) {
       assert(!caller && "caller set on initial stack frame");
-      state.pc = state.prevPC;
+      state.pc = nullptr;
+      state.constraints.retractPath();
+      state.constraints.advancePath(state.prevPC, state.pc);
       state.increaseLevel();
       if (state.isolated) {
         state.popFrame();
@@ -2537,8 +2542,10 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
         transferToBasicBlock(ii->getNormalDest(), caller->getParent(), state);
       } else {
         state.pc = kcaller;
-        state.increaseLevel();
         ++state.pc;
+        state.increaseLevel();
+        state.constraints.retractPath();
+        state.constraints.advancePath(state.prevPC, state.pc);
       }
 
 #ifdef SUPPORT_KLEE_EH_CXX
@@ -2669,7 +2676,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
                 verifingTransitionsTo.insert(targeted->target->basicBlock);
                 if (guidanceKind != Interpreter::GuidanceKind::ErrorGuidance) {
                   ProofObligation *pob = new ProofObligation(
-                      ReachBlockTarget::createStop(targeted->target));
+                      ReachBlockTarget::create(targeted->target));
                   objectManager->addPob(pob);
                 }
               }
@@ -4250,8 +4257,9 @@ ref<Expr> Executor::fillValue(ExecutionState &state,
         const CallBase &cs = cast<CallBase>(*inst);
         Value *fp = cs.getCalledOperand();
         Function *calledf = getTargetFunction(fp);
-        KFunction *lastkf = state.pc->parent->parent;
-        KBlock *pckb = lastkf->blockMap.at(state.getPCBlock());
+        KFunction *lastkf =
+            state.pc ? state.pc->parent->parent : state.prevPC->parent->parent;
+        KBlock *pckb = state.pc ? state.pc->parent : state.prevPC->parent;
         bool isFinalPCKB = std::find(lastkf->returnKBlocks.begin(),
                                      lastkf->returnKBlocks.end(),
                                      pckb) != lastkf->returnKBlocks.end();
@@ -4273,7 +4281,7 @@ ref<Expr> Executor::fillValue(ExecutionState &state,
 
       if (isa<PHINode>(inst)) {
         assert(framekf->function == inst->getParent()->getParent());
-        if (inst->getParent() == state.getPCBlock()) {
+        if (inst->getParent() == state.getPCBlock()->basicBlock) {
           result = eval(ki, state.incomingBBIndex, state, frame).value;
         } else {
           result = readDest(state, frame, ki);
@@ -4620,7 +4628,7 @@ void Executor::goForward(ref<ForwardAction> action) {
   ref<ForwardAction> fa = cast<ForwardAction>(action);
   objectManager->setCurrentState(fa->state);
 
-  KInstruction *prevKI = fa->state->prevPC;
+  KInstruction *prevKI = (fa->state->prevPC ? fa->state->prevPC : fa->state->pc);
 
   if (targetManager->isTargeted(*fa->state) && fa->state->targets().empty()) {
     terminateStateEarly(*fa->state, "State missed all it's targets.",
@@ -4630,7 +4638,7 @@ void Executor::goForward(ref<ForwardAction> action) {
     terminateStateEarly(*fa->state, "max-cycles exceeded.",
                         StateTerminationType::MaxCycles);
   } else {
-    KInstruction *prevKI = fa->state->prevPC;
+    KInstruction *prevKI = (fa->state->prevPC ? fa->state->prevPC : fa->state->pc);
     KFunction *kf = prevKI->parent->parent;
 
     if (!fa->state->isolated && prevKI->inst->isTerminator() &&
@@ -4675,7 +4683,6 @@ void Executor::goBackward(ref<BackwardAction> action) {
   // rebuildMap); timers.invoke();
 
   if (composeResult.success) {
-    // Final composition states are not isolated, others are
     if (debugPrints.isSet(DebugPrint::Backward)) {
       llvm::errs() << "[backward] Composition sucessful.\n";
     }
@@ -5183,13 +5190,10 @@ void Executor::terminateState(ExecutionState &state,
                       "replay did not consume all objects in test input.");
   }
 
-  state.pc = state.prevPC;
-
   if (!state.isolated) {
     interpreterHandler->incPathsExplored();
   }
 
-  state.pc = state.prevPC;
   targetCalculator->update(state);
   objectManager->removeState(&state);
 }
@@ -5366,6 +5370,10 @@ void Executor::terminateStateOnError(ExecutionState &state,
                                      StateTerminationType terminationType,
                                      const llvm::Twine &info,
                                      const char *suffix) {
+
+  // Last instruction was not successfully executed
+  state.constraints.retractPath();
+
   std::string message = messaget.str();
   static std::set<std::pair<Instruction *, std::string>> emittedErrors;
   Instruction *lastInst;
@@ -5479,7 +5487,7 @@ void Executor::callExternalFunction(ExecutionState &state, KInstruction *target,
       if (i != arguments.size() - 1)
         os << ", ";
     }
-    os << ") at " << state.pc->getSourceLocation();
+    os << ") at " << state.prevPC->getSourceLocation();
 
     if (AllExternalWarnings)
       klee_warning("%s", os.str().c_str());
@@ -5598,7 +5606,7 @@ void Executor::callExternalFunction(ExecutionState &state, KInstruction *target,
       if (i != arguments.size() - 1)
         os << ", ";
     }
-    os << ") at " << state.pc->getSourceLocation();
+    os << ") at " << state.prevPC->getSourceLocation();
 
     if (AllExternalWarnings)
       klee_warning("%s", os.str().c_str());
@@ -6748,7 +6756,6 @@ void Executor::executeMemoryOperation(
                                        response, state->queryMetaData);
     solver->setTimeout(time::Span());
     if (!success) {
-      state->pc = state->prevPC;
       terminateStateOnSolverError(*state, "Query timed out (bounds check).");
       return;
     }
@@ -7436,9 +7443,16 @@ void Executor::runFunctionAsMain(Function *f, int argc, char **argv,
       auto errorTargets = backwardList.second->getTargets();
       for (auto target : errorTargets) {
         assert(target->shouldFailOnThisTarget());
-        auto pob = new ProofObligation(target);
+        auto errorT = dyn_cast<ReproduceErrorTarget>(target);
+        auto pob = new ProofObligation(
+            errorT->isThatError(Reachable)
+                ? ReachBlockTarget::create(errorT->getBlock())
+                : target);
         pob->setTargeted(true);
         pob->targetForest = *(backwardList.second->deepCopy());
+        if (errorT->isThatError(Reachable)) {
+          pob->targetForest.stepTo(ReachBlockTarget::create(errorT->getBlock()));
+        }
         pobs.push_back(pob);
       }
     }

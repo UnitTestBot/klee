@@ -231,8 +231,6 @@ struct MemorySubobjectCompare {
   }
 };
 
-typedef std::pair<llvm::BasicBlock *, llvm::BasicBlock *> Transition;
-
 /// @brief ExecutionState representing a path under exploration
 class ExecutionState {
 #ifdef KLEE_UNITTEST
@@ -270,9 +268,9 @@ public:
   std::uint32_t depth = 0;
 
   /// @brief Exploration level, i.e., number of times KLEE cycled for this state
-  std::unordered_map<llvm::BasicBlock *, unsigned long long> multilevel;
+  std::unordered_map<KBlock *, unsigned long long> multilevel;
   unsigned long multilevelCount = 0;
-  std::unordered_set<llvm::BasicBlock *> level;
+  std::unordered_set<KBlock *> level;
   std::unordered_set<Transition, TransitionHash> transitionLevel;
 
   /// @brief Address space used by this state (e.g. Global and Heap)
@@ -432,9 +430,11 @@ public:
 
   std::uint32_t getID() const { return id; };
   void setID() { id = nextID++; };
-  llvm::BasicBlock *getInitPCBlock() const;
-  llvm::BasicBlock *getPrevPCBlock() const;
-  llvm::BasicBlock *getPCBlock() const;
+
+  KBlock *getInitPCBlock() const;
+  KBlock *getPrevPCBlock() const;
+  KBlock *getPCBlock() const;
+
   void increaseLevel();
 
   inline bool isTransfered() const { return getPrevPCBlock() != getPCBlock(); }
@@ -471,13 +471,11 @@ public:
     areTargetsChanged_ = true;
   }
 
-  bool reachedTarget(ref<ReachBlockTarget> target) const;
   static std::uint32_t getLastID() { return nextID - 1; };
   ref<Target> getLocationTarget() const;
 
   inline bool isStuck(unsigned long long bound) {
-    KInstruction *prevKI = prevPC;
-    return (prevKI->inst->isTerminator() &&
+    return (prevPC && prevPC->inst->isTerminator() &&
             multilevel[getPCBlock()] > bound - 1);
   }
 };

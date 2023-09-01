@@ -528,6 +528,14 @@ bool ConcretizingSolver::computeValidityCore(const Query &query,
     }
   }
 
+  if (isValid) {
+    for (auto i : validityCore.constraints) {
+      if (!query.constraints.cs().count(i)) {
+        return false;
+      }
+    }
+  }
+
   if (!isValid) {
     validityCore = ValidityCore();
   }

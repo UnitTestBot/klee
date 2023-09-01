@@ -51,7 +51,9 @@ public:
     unsigned long last;
   };
 
-  void stepInstruction(KInstruction *done, KInstruction *pc, bool someExecutionHappened);
+public:
+  void stepInstruction(KInstruction *prevPC, KInstruction *pc);
+  void retractInstruction();
 
   friend bool operator==(const Path &lhs, const Path &rhs) {
     return lhs.path == rhs.path && lhs.first == rhs.first &&
@@ -70,8 +72,7 @@ public:
                (lhs.last == rhs.last && lhs.next < rhs.next)))));
   }
 
-  bool empty() const { return path.empty() && !next; }
-
+  bool empty() const { return path.empty(); }
   bool emptyWithNext() const { return path.empty() && next; }
 
   std::pair<bool, KCallBlock *> fromOutTransition() const {
@@ -86,13 +87,13 @@ public:
   }
 
   const path_ty &getBlocks() const;
-  KInstruction *getPC() const {
-    return next;
-  }
   unsigned getFirstIndex() const;
   KInstruction *getFirstInstruction() const;
   unsigned getLastIndex() const;
   KInstruction *getLastInstruction() const;
+  KInstruction *getNext() const {
+    return next;
+  }
 
   bool blockCompleted(unsigned index) const;
   KFunction *getCalledFunction(unsigned index) const;
@@ -138,6 +139,7 @@ private:
 };
 
 Path::TransitionKind getTransitionKindFromInst(KInstruction *ki);
+KInstruction *getLastInstructionFromPathEntry(Path::entry entry);
 
 }; // namespace klee
 

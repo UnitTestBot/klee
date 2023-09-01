@@ -25,7 +25,7 @@ ProofObligation *ProofObligation::create(ProofObligation *parent,
                                          ref<Expr> nullPointerExpr) {
   auto &statePath = state->constraints.path();
   auto place = statePath.getBlocks().empty()
-                   ? statePath.getPC()->parent
+                   ? statePath.getNext()->parent
                    : statePath.getBlocks().front().block;
   ProofObligation *pob = parent->makeChild(ReachBlockTarget::create(place, false));
   pob->constraints = composed;
