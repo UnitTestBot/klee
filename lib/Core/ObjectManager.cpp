@@ -78,6 +78,10 @@ void ObjectManager::removeState(ExecutionState *state) {
       std::find(removedStates.begin(), removedStates.end(), state);
   assert(itr == removedStates.end());
 
+  // if (state->isolated) {
+  //   llvm::errs() << "Removing isolated: " << state->constraints.path().toString() << "\n";
+  // }
+
   if (!statesUpdated) {
     statesUpdated = true;
     stateUpdateKind =
@@ -265,9 +269,10 @@ void ObjectManager::checkReachedStates() {
     auto loc = state->getLocationTarget();
     if (loc && predicate(loc->getBlock()) && !state->constraints.path().empty()) {
       if (reached.size() == 0) {
-        assert(0 && "No reached but at special point");
+        // assert(0 && "No reached but at special point");
+      } else {
+        toRemove.push_back(state);
       }
-      toRemove.push_back(state);
     }
   }
 
@@ -298,6 +303,10 @@ void ObjectManager::checkReachedPobs() {
                          << pob->location->toString() << "\n";
           }
           toRemove.insert(pob);
+          llvm::errs() << "[TRUE POSITIVE] FOUND TRUE POSITIVE VIA FORWARD AT: "
+                       << pob->root->location->toString() << "\n";
+          llvm::errs() << "[TRUE POSITIVE] State path: "
+                       << state->constraints.path().toString() << "\n";
         }
       }
     }

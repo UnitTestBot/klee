@@ -1476,9 +1476,9 @@ void Executor::addConstraint(ExecutionState &state, ref<Expr> condition) {
 
   if (!concretization.isEmpty()) {
     // Update memory objects if arrays have affected them.
+    updateStateWithSymcretes(state, concretization);
     Assignment delta =
         state.constraints.cs().concretization().diffWith(concretization);
-    updateStateWithSymcretes(state, delta);
     state.addConstraint(condition, delta);
   } else {
     state.addConstraint(condition, {});
@@ -5001,7 +5001,7 @@ void Executor::run(std::vector<ExecutionState *> initialStates,
           if (!targetManager->hasTargetedStates(pob->location) &&
               !forCheck->initsLeftForTarget(pob->location) &&
               objectManager->propagationCount[pob] == 0) {
-            if (!pob->parent && pob->location->shouldFailOnThisTarget()) {
+            if (!pob->parent) {
               llvm::errs() << "[FALSE POSITIVE] "
                            << "FOUND FALSE POSITIVE AT: "
                            << pob->location->toString() << "\n";
@@ -7451,7 +7451,7 @@ void Executor::runFunctionAsMain(Function *f, int argc, char **argv,
         pob->setTargeted(true);
         pob->targetForest = *(backwardList.second->deepCopy());
         if (errorT->isThatError(Reachable)) {
-          pob->targetForest.stepTo(ReachBlockTarget::create(errorT->getBlock()));
+          pob->targetForest.stepTo(errorT);
         }
         pobs.push_back(pob);
       }

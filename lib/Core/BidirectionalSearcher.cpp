@@ -122,16 +122,19 @@ void BidirectionalSearcher::update(ref<ObjectManager::Event> e) {
   }
 }
 
-bool BidirectionalSearcher::empty() {
-  return forward->empty() && branch->empty() && backward->empty() &&
-         initializer->empty();
+bool BidirectionalSearcher::empty() {;
+  auto &ticks = ticker.getTicks();
+  return (forward->empty() || (ticks.at(0) == 0)) &&
+         (branch->empty() || (ticks.at(1) == 0)) &&
+         (backward->empty() || (ticks.at(2) == 0)) &&
+         (initializer->empty() || (ticks.at(3) == 0));
 }
 
 BidirectionalSearcher::BidirectionalSearcher(Searcher *_forward,
                                              Searcher *_branch,
                                              BackwardSearcher *_backward,
                                              Initializer *_initializer)
-    : ticker({30, 30, 20, 10}), forward(_forward), branch(_branch),
+    : ticker({10, 30, 30, 30}), forward(_forward), branch(_branch),
       backward(_backward), initializer(_initializer) {}
 
 BidirectionalSearcher::~BidirectionalSearcher() {

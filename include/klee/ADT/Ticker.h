@@ -45,6 +45,10 @@ public:
       index = (index + 1) % ticks.size();
     }
   }
+
+  const std::vector<unsigned> &getTicks() {
+    return ticks;
+  }
 };
 
 #endif

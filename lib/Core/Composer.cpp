@@ -62,9 +62,7 @@ bool ComposeHelper::tryResolveAddress(ExecutionState &state, ref<Expr> address,
 
     if (!concretization.isEmpty()) {
       // Update memory objects if arrays have affected them.
-      Assignment delta =
-          state.constraints.cs().concretization().diffWith(concretization);
-      executor->updateStateWithSymcretes(state, delta);
+      executor->updateStateWithSymcretes(state, concretization);
     }
     state.assumptions.insert(guard);
     ref<Expr> resultAddress =
@@ -107,9 +105,7 @@ bool ComposeHelper::tryResolveSize(ExecutionState &state, ref<Expr> address,
 
     if (!concretization.isEmpty()) {
       // Update memory objects if arrays have affected them.
-      Assignment delta =
-          state.constraints.cs().concretization().diffWith(concretization);
-      executor->updateStateWithSymcretes(state, delta);
+      executor->updateStateWithSymcretes(state, concretization);
     }
     state.assumptions.insert(guard);
     ref<Expr> resultSize =
@@ -184,9 +180,7 @@ bool ComposeHelper::tryResolveContent(
 
     if (!concretization.isEmpty()) {
       // Update memory objects if arrays have affected them.
-      Assignment delta =
-          state.constraints.cs().concretization().diffWith(concretization);
-      executor->updateStateWithSymcretes(state, delta);
+      executor->updateStateWithSymcretes(state, concretization);
     }
     state.assumptions.insert(guard);
   }

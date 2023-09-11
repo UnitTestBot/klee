@@ -189,23 +189,22 @@ void TargetForest::Layer::addTrace(const KBlockTrace &trace, bool reversed) {
     }
 
     forest = forest->forest[targetsVec].get();
+  }
 
-    if (reversed) {
-      TargetHashSet targets;
-      targets.insert(ReachBlockTarget::create(entryKF->entryKBlock));
-      ref<UnorderedTargetsSet> targetsVec =
-          UnorderedTargetsSet::create(targets);
-      if (forest->forest.count(targetsVec) == 0) {
-        ref<TargetForest::Layer> next = new TargetForest::Layer();
-        forest->insert(targetsVec, next);
-      }
-
-      for (auto &target : targetsVec->getTargets()) {
-        forest->insertTargetsToVec(target, targetsVec);
-      }
-
-      forest = forest->forest[targetsVec].get();
+  if (reversed) {
+    TargetHashSet targets;
+    targets.insert(ReachBlockTarget::create(entryKF->entryKBlock));
+    ref<UnorderedTargetsSet> targetsVec = UnorderedTargetsSet::create(targets);
+    if (forest->forest.count(targetsVec) == 0) {
+      ref<TargetForest::Layer> next = new TargetForest::Layer();
+      forest->insert(targetsVec, next);
     }
+
+    for (auto &target : targetsVec->getTargets()) {
+      forest->insertTargetsToVec(target, targetsVec);
+    }
+
+    forest = forest->forest[targetsVec].get();
   }
 }
 

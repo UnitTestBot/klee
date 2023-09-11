@@ -68,19 +68,19 @@ void ConflictCoreInitializer::addPob(ProofObligation *pob) {
       }
     }
   } else {
-    if (!pob->stack.empty()) {
-      auto frame = pob->stack.back();
-      assert(frame.kf == pob->location->getBlock()->parent);
-      addInit(frame.caller,
-              ReachBlockTarget::create(pob->location->getBlock()));
-    } else {
+    // if (!pob->stack.empty()) {
+    //   auto frame = pob->stack.back();
+    //   assert(frame.kf == pob->location->getBlock()->parent);
+    //   addInit(frame.caller,
+    //           ReachBlockTarget::create(pob->location->getBlock()));
+    // } else {
       for (auto i : allowed) {
         for (auto kcallblock : i->kCallBlocks) {
           if (kcallblock->calledFunctions.count(
                   pob->location->getBlock()->parent->function)) {
             addInit(kcallblock->getFirstInstruction(),
                     ReachBlockTarget::create(pob->location->getBlock()));
-          }
+          // }
         }
       }
     }
