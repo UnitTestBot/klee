@@ -176,9 +176,6 @@ public:
   void checkReachedStates();
   void checkReachedPobs();
 
-  // Check that the state has not entered a different function
-  // unless it is a 'bridge' state
-  bool isOKIsolatedState(ExecutionState *state);
   bool pobExists(ProofObligation *pob) {
     return pathedPobs.count({pob->constraints.path(), pob->location});
   }

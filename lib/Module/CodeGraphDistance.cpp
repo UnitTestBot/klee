@@ -186,13 +186,16 @@ void CodeGraphDistance::getNearestPredicateSatisfying(
 
   auto blockMap = from->parent->blockMap;
   std::deque<KBlock *> nodes;
+  bool firstIteration = true;
   nodes.push_back(from);
 
   while (!nodes.empty()) {
     KBlock *currBB = nodes.front();
-    visited.insert(currBB);
+    if (!firstIteration) {
+      visited.insert(currBB);
+    }
 
-    if (predicate(currBB) && currBB != from) {
+    if (predicate(currBB) && !firstIteration) {
       result.insert(currBB);
     } else {
       if (forward) {
@@ -210,6 +213,7 @@ void CodeGraphDistance::getNearestPredicateSatisfying(
       }
     }
     nodes.pop_front();
+    firstIteration = false;
   }
 }
 

@@ -147,8 +147,8 @@ public:
           &result);
 
   ref<Expr> fillValue(ExecutionState &state, ref<ValueSource> valueSource,
-                      ref<Expr> size, Expr::Width width) {
-    return executor->fillValue(state, valueSource, size, width);
+                      ref<Expr> size) {
+    return executor->fillValue(state, valueSource, size);
   }
   ref<ObjectState> fillMakeSymbolic(ExecutionState &state,
                                     ref<MakeSymbolicSource> makeSymbolicSource,

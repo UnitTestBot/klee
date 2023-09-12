@@ -281,8 +281,10 @@ ref<Expr> ComposeVisitor::processRead(const Array *root,
   case SymbolicSource::Kind::Argument:
   case SymbolicSource::Kind::Instruction: {
     assert(updates.getSize() == 0);
-    return helper.fillValue(state, cast<ValueSource>(root->source), size,
-                            width);
+    auto value = helper.fillValue(state, cast<ValueSource>(root->source), size);
+    assert(isa<ConstantExpr>(index));
+    auto concreteIndex = dyn_cast<ConstantExpr>(index)->getZExtValue();
+    return ExtractExpr::create(value, concreteIndex * 8, width);
   }
 
   case SymbolicSource::Kind::MakeSymbolic: {

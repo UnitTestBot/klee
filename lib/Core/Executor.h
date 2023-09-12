@@ -419,7 +419,7 @@ private:
 
   bool lazyInitializeObject(ExecutionState &state, ref<Expr> address,
                             const KInstruction *target, KType *targetType,
-                            uint64_t size, bool isLocal, IDType &id,
+                            uint64_t concreteSize, ref<Expr> size, bool isLocal, IDType &id,
                             bool isConstant = true);
 
   IDType lazyInitializeLocalObject(ExecutionState &state, StackFrame &sf,
@@ -710,7 +710,7 @@ private:
   void dumpPForest();
 
   ref<Expr> fillValue(ExecutionState &state, ref<ValueSource> valueSource,
-                      ref<Expr> size, Expr::Width width);
+                      ref<Expr> size);
   ref<ObjectState> fillMakeSymbolic(ExecutionState &state,
                                     ref<MakeSymbolicSource> makeSymbolicSource,
                                     ref<Expr> size, unsigned concreteSize);

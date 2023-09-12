@@ -4223,8 +4223,9 @@ void Executor::doDumpStates() {
 }
 
 ref<Expr> Executor::fillValue(ExecutionState &state,
-                              ref<ValueSource> valueSource, ref<Expr> size,
-                              Expr::Width width) {
+                              ref<ValueSource> valueSource, ref<Expr> size) {
+  assert(isa<ConstantExpr>(size));
+  auto concreteSize = dyn_cast<ConstantExpr>(size)->getZExtValue();
   int diffLevel = -state.stack.stackBalance();
   if ((valueSource->index >= 0 && diffLevel > 0) ||
       (valueSource->index > 0 && valueSource->index + diffLevel > 0)) {
@@ -4232,7 +4233,7 @@ ref<Expr> Executor::fillValue(ExecutionState &state,
     const Array *newArray =
         makeArray(size, SourceBuilder::value(valueSource->value(), reindex,
                                              kmodule.get()));
-    ref<Expr> result = Expr::createTempRead(newArray, width);
+    ref<Expr> result = Expr::createTempRead(newArray, concreteSize * 8);
     if (isa<InstructionSource>(valueSource)) {
       const Instruction *inst = cast<Instruction>(&valueSource->value());
       const KInstruction *target = getKInst(const_cast<Instruction *>(inst));
@@ -4319,7 +4320,7 @@ ref<Expr> Executor::fillValue(ExecutionState &state,
     assert(0 && "unreachable");
     break;
   }
-  return ZExtExpr::create(result, width);
+  return ZExtExpr::create(result, concreteSize * 8);
 }
 
 ref<ObjectState>
@@ -6275,8 +6276,13 @@ bool Executor::resolveMemoryObjects(
       } else if (mayLazyInitialize) {
         IDType idLazyInitialization;
         uint64_t minObjectSize = MinNumberElementsLazyInit * size;
+        const Array *lazyInstantiationSize = makeArray(
+            Expr::createPointer(Context::get().getPointerWidth() / CHAR_BIT),
+            SourceBuilder::lazyInitializationSize(base));
+        auto size = Expr::createTempRead(lazyInstantiationSize,
+                                        Context::get().getPointerWidth());
         if (!lazyInitializeObject(state, base, target, baseTargetType,
-                                  minObjectSize, false, idLazyInitialization,
+                                  minObjectSize, size, false, idLazyInitialization,
                                   state.isolated || UseSymbolicSizeLazyInit)) {
           return false;
         }
@@ -6998,7 +7004,8 @@ void Executor::executeMemoryOperation(
 
 bool Executor::lazyInitializeObject(ExecutionState &state, ref<Expr> address,
                                     const KInstruction *target,
-                                    KType *targetType, uint64_t size,
+                                    KType *targetType, uint64_t concreteSize,
+                                    ref<Expr> size,
                                     bool isLocal, IDType &id, bool isSymbolic) {
   assert(!isa<ConstantExpr>(address));
   const llvm::Value *allocSite = target ? target->inst : nullptr;
@@ -7009,14 +7016,9 @@ bool Executor::lazyInitializeObject(ExecutionState &state, ref<Expr> address,
   }
 
   ref<Expr> sizeExpr;
-  if (size < MaxSymbolicAllocationSize && !isLocal && isSymbolic) {
-    const Array *lazyInstantiationSize = makeArray(
-        Expr::createPointer(Context::get().getPointerWidth() / CHAR_BIT),
-        SourceBuilder::lazyInitializationSize(address));
-    sizeExpr = Expr::createTempRead(lazyInstantiationSize,
-                                    Context::get().getPointerWidth());
-
-    ref<Expr> lowerBound = UgeExpr::create(sizeExpr, Expr::createPointer(size));
+  if (!isa<ConstantExpr>(size) && concreteSize < MaxSymbolicAllocationSize && isSymbolic) {
+    sizeExpr = size;
+    ref<Expr> lowerBound = UgeExpr::create(sizeExpr, Expr::createPointer(concreteSize));
     ref<Expr> upperBound = UleExpr::create(
         sizeExpr, Expr::createPointer(MaxSymbolicAllocationSize));
     bool mayBeInBounds;
@@ -7033,7 +7035,7 @@ bool Executor::lazyInitializeObject(ExecutionState &state, ref<Expr> address,
 
     addConstraint(state, AndExpr::create(lowerBound, upperBound));
   } else {
-    sizeExpr = Expr::createPointer(size);
+    sizeExpr = Expr::createPointer(concreteSize);
   }
 
   ref<Expr> addressExpr = isSymbolic ? address : nullptr;
@@ -7088,12 +7090,18 @@ IDType Executor::lazyInitializeLocalObject(ExecutionState &state,
     size = MulExpr::create(size, count);
     if (isa<ConstantExpr>(size)) {
       elementSize = cast<ConstantExpr>(size)->getZExtValue();
+    } else {
+      const Array *lazyInstantiationSize = makeArray(
+          Expr::createPointer(Context::get().getPointerWidth() / CHAR_BIT),
+          SourceBuilder::lazyInitializationSize(address));
+      size = Expr::createTempRead(lazyInstantiationSize,
+                                  Context::get().getPointerWidth());
     }
   }
   IDType id;
   bool success = lazyInitializeObject(
       state, address, target, typeSystemManager->getWrappedType(ai->getType()),
-      elementSize, true, id, state.isolated || UseSymbolicSizeLazyInit);
+      elementSize, size, true, id, state.isolated || UseSymbolicSizeLazyInit);
   assert(success);
   assert(id);
   auto op = state.addressSpace.findObject(id);

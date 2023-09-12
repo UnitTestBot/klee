@@ -235,11 +235,6 @@ void ObjectManager::checkReachedStates() {
 
   std::vector<ExecutionState *> toRemove;
   for (auto state : states) {
-    if (!isOKIsolatedState(state)) {
-      toRemove.push_back(state);
-      continue;
-    }
-
     std::set<ref<Target>> reached;
 
     if (state->history() && state->history()->target) {
@@ -315,24 +310,6 @@ void ObjectManager::checkReachedPobs() {
   for (auto pob : toRemove) {
     removePob(pob);
   }
-}
-
-bool ObjectManager::isOKIsolatedState(ExecutionState *state) {
-  assert(state->isolated);
-
-  return true;
-
-  if (state->stack.size() < 2) {
-    return true;
-  }
-  if (state->stack.size() == 2) {
-    auto initBlock = state->initPC->parent;
-    if (isa<KCallBlock>(initBlock) &&
-        state->initPC == initBlock->getFirstInstruction()) {
-      return true;
-    }
-  }
-  return false;
 }
 
 void ObjectManager::addTargetedConflict(ref<TargetedConflict> conflict) {
