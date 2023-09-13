@@ -157,6 +157,11 @@ public:
                                       concreteSize);
   }
 
+  ref<ObjectState> fillGlobal(ExecutionState &state,
+                              ref<GlobalSource> globalSource) {
+    return executor->fillGlobal(state, globalSource);
+  }
+
   ref<ObjectState>
   fillIrreproducible(ExecutionState &state,
                      ref<IrreproducibleSource> irreproducibleSource,

@@ -287,6 +287,12 @@ ref<Expr> ComposeVisitor::processRead(const Array *root,
     return ExtractExpr::create(value, concreteIndex * 8, width);
   }
 
+  case SymbolicSource::Kind::Global: {
+    ref<ObjectState> os = helper.fillGlobal(state, cast<GlobalSource>(root->source));
+    shareUpdates(os, updates);
+    return os->read(index, width);
+  }
+
   case SymbolicSource::Kind::MakeSymbolic: {
     ref<ObjectState> os = helper.fillMakeSymbolic(
         state, cast<MakeSymbolicSource>(root->source), size, concreteSize);

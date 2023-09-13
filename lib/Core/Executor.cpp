@@ -4323,6 +4323,13 @@ ref<Expr> Executor::fillValue(ExecutionState &state,
   return ZExtExpr::create(result, concreteSize * 8);
 }
 
+ref<ObjectState> Executor::fillGlobal(ExecutionState &state,
+                                      ref<GlobalSource> globalSource) {
+  auto mo = globalObjects[&globalSource->gv];
+  auto op = state.addressSpace.findObject(mo);
+  return new ObjectState(*op.second);
+}
+
 ref<ObjectState>
 Executor::fillMakeSymbolic(ExecutionState &state,
                            ref<MakeSymbolicSource> makeSymbolicSource,
@@ -7393,6 +7400,17 @@ void Executor::runFunctionAsMain(Function *f, int argc, char **argv,
   auto emptyState = state->copy();
   emptyState->popFrame();
   emptyState->isolated = true;
+  for (const auto &v : kmodule->module->globals()) {
+    if (v.isConstant()) {
+      continue;
+    }
+    auto mo = globalObjects[&v];
+    assert(!mo->sizeExpr);
+    auto array = makeArray(Expr::createPointer(mo->size),
+                           SourceBuilder::global(v));
+    auto type = typeSystemManager->getWrappedType(v.getType());
+    bindObjectInState(*emptyState, mo, type, false, array);
+  }
   objectManager->setEmptyState(emptyState);
   bindModuleConstants(llvm::APFloat::rmNearestTiesToEven);
 

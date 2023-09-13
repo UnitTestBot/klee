@@ -711,6 +711,9 @@ private:
 
   ref<Expr> fillValue(ExecutionState &state, ref<ValueSource> valueSource,
                       ref<Expr> size);
+
+  ref<ObjectState> fillGlobal(ExecutionState &state, ref<GlobalSource> globalSource);
+
   ref<ObjectState> fillMakeSymbolic(ExecutionState &state,
                                     ref<MakeSymbolicSource> makeSymbolicSource,
                                     ref<Expr> size, unsigned concreteSize);

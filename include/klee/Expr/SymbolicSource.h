@@ -4,6 +4,7 @@
 #include "klee/ADT/Ref.h"
 
 #include "klee/Support/CompilerWarning.h"
+#include "llvm/IR/GlobalVariable.h"
 DISABLE_WARNING_PUSH
 DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/ADT/StringExtras.h"
@@ -41,6 +42,7 @@ public:
     LazyInitializationSize,
     Instruction,
     Argument,
+    Global,
     Irreproducible
   };
 
@@ -324,6 +326,45 @@ public:
   virtual unsigned computeHash() override;
 
   virtual int internalCompare(const SymbolicSource &b) const override;
+};
+
+class GlobalSource : public SymbolicSource {
+public:
+  const llvm::GlobalVariable &gv;
+  GlobalSource(const llvm::GlobalVariable &_gv) : gv(_gv) {}
+
+  Kind getKind() const override { return Kind::Global; }
+  virtual std::string getName() const override { return "global"; }
+
+  static bool classof(const SymbolicSource *S) {
+    return S->getKind() == Kind::Global;
+  }
+  static bool classof(const GlobalSource *) { return true; }
+
+  virtual unsigned computeHash() override {
+    auto name = gv.getName();
+    unsigned res = (getKind() * SymbolicSource::MAGIC_HASH_CONSTANT);
+    for (unsigned i = 0, e = name.size(); i != e; ++i) {
+      res = (res * SymbolicSource::MAGIC_HASH_CONSTANT) + name[i];
+    }
+    hashValue = res;
+    return hashValue;
+  }
+
+  virtual int internalCompare(const SymbolicSource &b) const override {
+    if (getKind() != b.getKind()) {
+      return getKind() < b.getKind() ? -1 : 1;
+    }
+    const GlobalSource &gb =
+        static_cast<const GlobalSource &>(b);
+    auto name = gv.getName();
+    auto bName = gb.gv.getName();
+    if (name != bName) {
+      return name < bName ? -1 : 1;
+    }
+    return 0;
+  }
+
 };
 
 class IrreproducibleSource : public SymbolicSource {

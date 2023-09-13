@@ -413,7 +413,9 @@ public:
          << " " << s->index;
     } else if (auto s = dyn_cast<IrreproducibleSource>(source)) {
       PC << s->name;
-    } else {
+    } else if (auto s = dyn_cast<GlobalSource>(source)) {
+      PC << s->gv.getName();
+    } else{
       assert(0 && "Not implemented");
     }
     PC << ")";
