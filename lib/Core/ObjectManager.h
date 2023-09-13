@@ -117,6 +117,7 @@ public:
   const states_ty &getStates();
   const states_ty &getIsolatedStates();
   const pobs_ty &getLeafPobs();
+  const pobs_ty &getRootPobs();
 
   void addTargetedConflict(ref<TargetedConflict> conflict);
 
@@ -143,6 +144,7 @@ public:
   states_ty states;
   states_ty isolatedStates;
   pobs_ty leafPobs;
+  pobs_ty rootPobs;
   std::map<ref<Target>, states_ty> reachedStates;
   std::map<ref<Target>, pobs_ty> pobs;
   std::map<std::pair<Path, ref<Target>>, ProofObligation *> pathedPobs;

@@ -222,6 +222,8 @@ const states_ty &ObjectManager::getIsolatedStates() { return isolatedStates; }
 
 const pobs_ty &ObjectManager::getLeafPobs() { return leafPobs; }
 
+const pobs_ty &ObjectManager::getRootPobs() { return rootPobs; }
+
 void ObjectManager::checkReachedStates() {
   assert(statesUpdated && stateUpdateKind == StateKind::Isolated);
   std::set<ExecutionState *> states(addedStates.begin(), addedStates.end());
@@ -322,6 +324,7 @@ void ObjectManager::addPob(ProofObligation *pob) {
   if (!pob->parent && debugPrints.isSet(DebugPrint::RootPob)) {
     llvm::errs() << "[pob] New root proof obligation at: "
                  << pob->location->toString() << "\n";
+    rootPobs.insert(pob);
   }
 
   // if (pob->parent) {
@@ -341,6 +344,9 @@ void ObjectManager::addPob(ProofObligation *pob) {
 void ObjectManager::removePob(ProofObligation *pob) {
   auto subtree = pob->getSubtree();
   for (auto pob : subtree) {
+    if (!pob->parent) {
+      rootPobs.erase(pob);
+    }
     removedPobs.insert(pob);
     pathedPobs.erase({pob->constraints.path(), pob->location});
     for (auto prop : propagations[pob->location]) {

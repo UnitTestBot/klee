@@ -5023,6 +5023,12 @@ void Executor::run(std::vector<ExecutionState *> initialStates,
         }
       }
     }
+
+    if (guidanceKind == GuidanceKind::ErrorGuidance) {
+      if (objectManager->getRootPobs().empty()) {
+        haltExecution = HaltExecution::Unspecified;
+      }
+    }
   }
 
   if (guidanceKind == GuidanceKind::ErrorGuidance) {
