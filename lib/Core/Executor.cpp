@@ -501,7 +501,7 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
 
   guidanceKind = opts.Guidance;
 
-  objectManager = std::make_unique<ObjectManager>(FalsePredicate);
+  objectManager = std::make_unique<ObjectManager>();
   seedMap = std::make_unique<SeedMap>();
   objectManager->addSubscriber(seedMap.get());
 
@@ -4947,13 +4947,13 @@ void Executor::run(std::vector<ExecutionState *> initialStates,
     Searcher *forward = constructUserSearcher(*this);
     Searcher *branch = constructUserSearcher(*this, true);
     BackwardSearcher *backward = constructUserBackwardSearcher();
-    auto predicate = errorAndBackward
-                         ? std::function<bool(KBlock *)>(
-                               TraceVerifyPredicate(data.specialPoints))
-                         : JointBlockPredicate;
+    InitializerPredicate *predicate =
+        errorAndBackward ? (InitializerPredicate *)new TraceVerifyPredicate(
+                               data.specialPoints)
+                         : (InitializerPredicate *)new JointBlockPredicate;
     objectManager->setPredicate(predicate);
     Initializer *initializer = new ConflictCoreInitializer(
-        codeGraphDistance.get(), predicate, errorAndBackward);
+        codeGraphDistance.get(), *predicate, errorAndBackward);
     forCheck = (ConflictCoreInitializer *)initializer;
     searcher = std::make_unique<BidirectionalSearcher>(forward, branch,
                                                        backward, initializer);

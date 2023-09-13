@@ -731,7 +731,7 @@ bool klee::RegularFunctionPredicate(KBlock *block) {
           !dyn_cast<KCallBlock>(block)->intrinsic());
 }
 
-bool klee::JointBlockPredicate(KBlock *block) {
+bool JointBlockPredicate::operator()(KBlock *block) {
   if (block == block->parent->entryKBlock) {
     return true;
   }
@@ -745,12 +745,15 @@ bool klee::JointBlockPredicate(KBlock *block) {
     return true;
   }
 
-  if (isa<KCallBlock>(block) && dyn_cast<KCallBlock>(block)->internal() &&
-      !dyn_cast<KCallBlock>(block)->intrinsic()) {
+  if (RegularFunctionPredicate(block)) {
     return true;
   }
 
   return false;
+}
+
+bool JointBlockPredicate::isInterestingCallBlock(KBlock *kb) {
+  return RegularFunctionPredicate(kb);
 }
 
 bool TraceVerifyPredicate::operator()(KBlock *block) {
@@ -762,13 +765,7 @@ bool TraceVerifyPredicate::operator()(KBlock *block) {
     return true;
   }
 
-  // if (block->basicBlock->hasNPredecessorsOrMore(2) ||
-  //     block->basicBlock->hasNPredecessors(0)) {
-  //   return true;
-  // }
-
-  if (isa<KCallBlock>(block) && dyn_cast<KCallBlock>(block)->internal() &&
-      !dyn_cast<KCallBlock>(block)->intrinsic()) {
+  if (isInterestingCallBlock(block)) {
     return true;
   }
 
@@ -777,4 +774,43 @@ bool TraceVerifyPredicate::operator()(KBlock *block) {
   }
 
   return false;
+}
+
+bool TraceVerifyPredicate::isInterestingCallBlock(KBlock *kb) {
+  if (RegularFunctionPredicate(kb)) {
+    auto km = kb->parent->parent;
+    auto fns = cast<KCallBlock>(kb)->calledFunctions;
+    bool atLeastOneInteresting = false;
+    for (auto f : fns) {
+      auto kf = km->functionMap.at(f);
+      if (isInterestingFn(kf)) {
+        atLeastOneInteresting = true;
+        break;
+      }
+    }
+    return atLeastOneInteresting;
+  } else {
+    return false;
+  }
+}
+
+bool TraceVerifyPredicate::isInterestingFn(KFunction *kf) {
+  if (uninsterestingFns.count(kf)) {
+    return false;
+  }
+
+  if (interestingFns.count(kf)) {
+    return true;
+  }
+
+  interestingFns.insert(kf);
+  return true;
+  // for (auto sp : specialPoints) {
+  //   // Determine
+  // }
+}
+
+
+bool PredicateAdapter::operator()(KBlock *block) {
+  return predicate(block);
 }

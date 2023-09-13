@@ -98,16 +98,45 @@ typedef std::function<bool(KBlock *)> KBlockPredicate;
 
 bool FalsePredicate(KBlock *);
 bool RegularFunctionPredicate(KBlock *);
-bool JointBlockPredicate(KBlock *);
 
-struct TraceVerifyPredicate {
+struct InitializerPredicate {
+  virtual bool operator()(KBlock *block) = 0;
+  virtual bool isInterestingCallBlock(KBlock *kb) = 0;
+  virtual ~InitializerPredicate() {}
+};
+
+struct JointBlockPredicate : public InitializerPredicate {
+  bool operator()(KBlock *block) override;
+  bool isInterestingCallBlock(KBlock *kb) override;
+  ~JointBlockPredicate() override {}
+};
+
+struct TraceVerifyPredicate : public InitializerPredicate {
   explicit TraceVerifyPredicate(std::set<KBlock *> specialPoints)
       : specialPoints(specialPoints){};
 
-  bool operator()(KBlock *block);
+  bool operator()(KBlock *block) override;
+
+  bool isInterestingCallBlock(KBlock *kb) override;
+
+  ~TraceVerifyPredicate() override {}
 
 private:
   std::set<KBlock *> specialPoints;
+  std::set<KFunction *> interestingFns;
+  std::set<KFunction *> uninsterestingFns;
+
+  bool isInterestingFn(KFunction *kf);
+};
+
+struct PredicateAdapter {
+
+  bool operator()(KBlock *block);
+
+  PredicateAdapter(InitializerPredicate &predicate) : predicate(predicate) {}
+
+private:
+  InitializerPredicate &predicate;
 };
 
 struct KCallBlock : KBlock {

@@ -113,6 +113,7 @@ void BidirectionalSearcher::update(ref<ObjectManager::Event> e) {
     backward->update(props->added, props->removed);
   } else if (auto pobs = dyn_cast<ObjectManager::ProofObligations>(e)) {
     initializer->update(pobs->added, pobs->removed);
+    backward->update(pobs->added, pobs->removed);
   } else if (auto conflicts = dyn_cast<ObjectManager::Conflicts>(e)) {
     for (auto conflict : conflicts->conflicts) {
       initializer->addConflictInit(conflict->conflict, conflict->target);

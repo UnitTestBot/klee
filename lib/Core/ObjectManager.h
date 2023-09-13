@@ -97,7 +97,7 @@ public:
     static bool classof(const ProofObligations *) { return true; }
   };
 
-  ObjectManager(KBlockPredicate predicate);
+  ObjectManager();
   ~ObjectManager();
 
   void addSubscriber(Subscriber *);
@@ -133,7 +133,7 @@ private:
   std::vector<Subscriber *> subscribers;
   PForest *processForest;
 
-  KBlockPredicate predicate;
+  InitializerPredicate *predicate;
 
 public:
   Subscriber *tgms;
@@ -182,7 +182,7 @@ public:
     return pathedPobs.count({pob->constraints.path(), pob->location});
   }
 
-  void setPredicate(KBlockPredicate predicate_) {
+  void setPredicate(InitializerPredicate *predicate_) {
     predicate = predicate_;
   }
 };

@@ -16,8 +16,8 @@
 using namespace llvm;
 using namespace klee;
 
-ObjectManager::ObjectManager(KBlockPredicate predicate)
-    : predicate(predicate), tgms(nullptr), emptyState(nullptr) {}
+ObjectManager::ObjectManager()
+    : tgms(nullptr), emptyState(nullptr) {}
 
 ObjectManager::~ObjectManager() {}
 
@@ -264,7 +264,7 @@ void ObjectManager::checkReachedStates() {
     }
 
     auto loc = state->getLocationTarget();
-    if (loc && predicate(loc->getBlock()) && !state->constraints.path().empty()) {
+    if (loc && (*predicate)(loc->getBlock()) && !state->constraints.path().empty()) {
       if (reached.size() == 0) {
         // assert(0 && "No reached but at special point");
       } else {

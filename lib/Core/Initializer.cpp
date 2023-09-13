@@ -50,19 +50,19 @@ void ConflictCoreInitializer::addPob(ProofObligation *pob) {
   if (pob->location->getBlock()->parent->entryKBlock !=
       pob->location->getBlock()) {
     auto backstep = cgd->getNearestPredicateSatisfying(
-        pob->location->getBlock(), predicate, false);
+        pob->location->getBlock(), PredicateAdapter(predicate), false);
 
     for (auto from : backstep) {
-      auto toBlocks = cgd->getNearestPredicateSatisfying(from, predicate, true);
+      auto toBlocks = cgd->getNearestPredicateSatisfying(from, PredicateAdapter(predicate), true);
       for (auto to : toBlocks) {
         KInstruction *fromInst =
-            (RegularFunctionPredicate(from) ? from->instructions[1]
+            (predicate.isInterestingCallBlock(from) ? from->instructions[1]
                                             : from->instructions[0]);
         addInit(fromInst, ReachBlockTarget::create(to));
       }
       if (!pob->parent && !predicate(pob->location->getBlock())) {
         KInstruction *fromInst =
-            (RegularFunctionPredicate(from) ? from->instructions[1]
+            (predicate.isInterestingCallBlock(from) ? from->instructions[1]
              : from->instructions[0]);
         addInit(fromInst, ReachBlockTarget::create(pob->location->getBlock()));
       }
@@ -211,12 +211,12 @@ void ConflictCoreInitializer::addErrorInit(ref<Target> errorTarget) {
   if (predicate(errorTarget->getBlock()) && !errorT->isThatError(Reachable)) {
     nearest.insert(errorTarget->getBlock()); // HOT FIX
   } else {
-    nearest = cgd->getNearestPredicateSatisfying(location, predicate, false);
+    nearest = cgd->getNearestPredicateSatisfying(location, PredicateAdapter(predicate), false);
   }
   for (auto i : nearest) {
     KInstruction *from =
-        (RegularFunctionPredicate(i) ? i->instructions[1] : i->instructions[0]);
-    auto toBlocks = cgd->getNearestPredicateSatisfying(i, predicate, true);
+        (predicate.isInterestingCallBlock(i) ? i->instructions[1] : i->instructions[0]);
+    auto toBlocks = cgd->getNearestPredicateSatisfying(i, PredicateAdapter(predicate), true);
     for (auto to : toBlocks) {
       addInit(from, ReachBlockTarget::create(to));
     }

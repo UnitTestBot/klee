@@ -39,14 +39,14 @@ public:
   void update(const pobs_ty &added, const pobs_ty &removed) override;
 
   explicit ConflictCoreInitializer(CodeGraphDistance *cgd,
-                                   KBlockPredicate predicate, bool errorGuided)
+                                   InitializerPredicate &predicate, bool errorGuided)
       : cgd(cgd), predicate(predicate), errorGuided(errorGuided) {};
 
   ~ConflictCoreInitializer() override {}
 
 private:
   CodeGraphDistance *cgd;
-  KBlockPredicate predicate;
+  InitializerPredicate &predicate;
   bool errorGuided;
 
   // There are proof obligation in these targets

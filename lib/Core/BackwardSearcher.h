@@ -16,6 +16,8 @@ public:
   virtual Propagation selectAction() = 0;
   virtual void update(const propagations_ty &addedPropagations,
                       const propagations_ty &removedPropagations) = 0;
+  virtual void update(const pobs_ty &addedPobs,
+                      const pobs_ty &removedPobs) = 0;
   virtual bool empty() = 0;
 };
 
@@ -29,11 +31,29 @@ public:
   Propagation selectAction() override;
   void update(const propagations_ty &addedPropagations,
               const propagations_ty &removedPropagations) override;
+  void update(const pobs_ty &addedPobs, const pobs_ty &removedPobs) override;
   bool empty() override;
 
 private:
   std::list<Propagation> propagations;
   std::list<Propagation> pausedPropagations;
+};
+
+class RandomPathBackwardSearcher : public BackwardSearcher {
+public:
+
+  RandomPathBackwardSearcher(RNG &rng) : rng(rng) {}
+  Propagation selectAction() override;
+  void update(const propagations_ty &addedPropagations,
+              const propagations_ty &removedPropagations) override;
+  void update(const pobs_ty &addedPobs, const pobs_ty &removedPobs) override;
+  bool empty() override;
+
+private:
+  unsigned propagationsCount = 0;
+  pobs_ty rootPobs;
+  std::map<ProofObligation *, std::set<ExecutionState *>> propagations;
+  RNG &rng;
 };
 
 }; // namespace klee

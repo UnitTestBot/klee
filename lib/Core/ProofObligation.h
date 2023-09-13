@@ -68,6 +68,8 @@ public:
   std::map<ExecutionState *, unsigned, ExecutionStateIDCompare>
       propagationCount;
 
+  unsigned subtreePropagationCount = 0;
+
   ref<Target> location;
   TargetForest targetForest;
   PathConstraints constraints;

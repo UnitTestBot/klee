@@ -1,6 +1,7 @@
 #include "BackwardSearcher.h"
 #include "ExecutionState.h"
 #include "SearcherUtil.h"
+#include "llvm/Support/ErrorHandling.h"
 #include <algorithm>
 #include <climits>
 #include <cstddef>
@@ -41,6 +42,114 @@ void RecencyRankedSearcher::update(const propagations_ty &addedPropagations,
       pausedPropagations.push_back(propagation);
     }
   }
+}
+
+void RecencyRankedSearcher::update(const pobs_ty &addedPobs,
+                                   const pobs_ty &removedPobs) {}
+
+Propagation RandomPathBackwardSearcher::selectAction() {
+  // Choose tree
+  ProofObligation *current = nullptr;
+  unsigned NPropagatable = 0;
+  for (auto pob : rootPobs) {
+    if (pob->subtreePropagationCount > 0) {
+      NPropagatable++;
+    }
+  }
+  auto choice = rng.getInt32() % NPropagatable;
+  for (auto pob : rootPobs) {
+    if (choice == 0 && pob->subtreePropagationCount > 0) {
+      current = pob;
+      break;
+    } else if (pob->subtreePropagationCount > 0) {
+      choice--;
+    }
+  }
+
+  ProofObligation *chosen = nullptr;
+  // Random path
+  while (true) {
+    unsigned NPropagatable = 0;
+    if (!propagations[current].empty()) {
+      NPropagatable++;
+    }
+    for (auto child : current->children) {
+      if (child->subtreePropagationCount > 0) {
+        NPropagatable++;
+      }
+    }
+    auto choice = rng.getInt32() % NPropagatable;
+    if (choice == 0 && !propagations[current].empty()) {
+      chosen = current;
+      break;
+    }
+    for (auto child : current->children) {
+      if (choice == 0 && child->subtreePropagationCount > 0) {
+        current = child;
+        break;
+      } else if (child->subtreePropagationCount > 0) {
+        choice--;
+      }
+    }
+  }
+  assert(propagations[chosen].size() > 0);
+  choice = rng.getInt32() % propagations[chosen].size();
+  for (auto state : propagations[chosen]) {
+    if (choice == 0) {
+      return {state, chosen};
+    } else {
+      choice--;
+    }
+  }
+  llvm_unreachable("Must have chosen the state in the loop");
+}
+
+void RandomPathBackwardSearcher::update(
+    const propagations_ty &addedPropagations,
+    const propagations_ty &removedPropagations) {
+
+  for (auto prop : removedPropagations) {
+    propagations.at(prop.pob).erase(prop.state);
+    propagationsCount--;
+    if (propagations.at(prop.pob).empty()) {
+      auto cur = prop.pob;
+      while (cur) {
+        cur->subtreePropagationCount--;
+        cur = cur->parent;
+      }
+    }
+  }
+
+  for (auto prop : addedPropagations) {
+    if (propagations.at(prop.pob).empty()) {
+      auto cur = prop.pob;
+      while (cur) {
+        cur->subtreePropagationCount++;
+        cur = cur->parent;
+      }
+    }
+    propagations.at(prop.pob).insert(prop.state);
+    propagationsCount++;
+  }
+}
+
+void RandomPathBackwardSearcher::update(const pobs_ty &addedPobs,
+                                        const pobs_ty &removedPobs) {
+  for (auto pob : addedPobs) {
+    if (!pob->parent) {
+      rootPobs.insert(pob);
+    }
+  }
+
+  for (auto pob : removedPobs) {
+    if (!pob->parent) {
+      rootPobs.erase(pob);
+    }
+  }
+}
+
+bool RandomPathBackwardSearcher::empty() {
+  return propagationsCount == 0;
 }
 
 }; // namespace klee
