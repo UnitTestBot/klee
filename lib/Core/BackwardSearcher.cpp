@@ -109,9 +109,9 @@ void RandomPathBackwardSearcher::update(
     const propagations_ty &removedPropagations) {
 
   for (auto prop : removedPropagations) {
-    propagations.at(prop.pob).erase(prop.state);
+    propagations[prop.pob].erase(prop.state);
     propagationsCount--;
-    if (propagations.at(prop.pob).empty()) {
+    if (propagations[prop.pob].empty()) {
       auto cur = prop.pob;
       while (cur) {
         cur->subtreePropagationCount--;
@@ -121,14 +121,14 @@ void RandomPathBackwardSearcher::update(
   }
 
   for (auto prop : addedPropagations) {
-    if (propagations.at(prop.pob).empty()) {
+    if (propagations[prop.pob].empty()) {
       auto cur = prop.pob;
       while (cur) {
         cur->subtreePropagationCount++;
         cur = cur->parent;
       }
     }
-    propagations.at(prop.pob).insert(prop.state);
+    propagations[prop.pob].insert(prop.state);
     propagationsCount++;
   }
 }
