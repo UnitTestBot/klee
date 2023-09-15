@@ -7,6 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "klee/Module/CodeGraphDistance.h"
 #define DEBUG_TYPE "KModule"
 
 #include "Passes.h"
@@ -45,7 +46,6 @@ DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/Transforms/Utils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 DISABLE_WARNING_POP
-
 #include <sstream>
 
 using namespace llvm;
@@ -96,6 +96,11 @@ cl::opt<bool>
     DontVerify("disable-verify",
                cl::desc("Do not verify the module integrity (default=false)"),
                cl::init(false), cl::cat(klee::ModuleCat));
+
+cl::opt<bool>
+SkipNonInterestingFunctions("tmp-skip-fns-in-init",
+                            cl::desc(""),
+                            cl::init(true), cl::cat(klee::ModuleCat));
 
 cl::opt<bool> UseKleeFERoundInternals(
     "feround-internals",
@@ -795,6 +800,10 @@ bool TraceVerifyPredicate::isInterestingCallBlock(KBlock *kb) {
 }
 
 bool TraceVerifyPredicate::isInterestingFn(KFunction *kf) {
+  if (!SkipNonInterestingFunctions) {
+    return true;
+  }
+
   if (uninsterestingFns.count(kf)) {
     return false;
   }
@@ -803,13 +812,28 @@ bool TraceVerifyPredicate::isInterestingFn(KFunction *kf) {
     return true;
   }
 
-  interestingFns.insert(kf);
-  return true;
-  // for (auto sp : specialPoints) {
-  //   // Determine
-  // }
-}
+  std::unordered_set<KFunction *> specialFunctions;
+  for (auto sp : specialPoints) {
+    specialFunctions.insert(sp->parent);
+  }
 
+  bool atLeastOneInteresting = false;
+  auto &distance = cgd.getDistance(kf);
+  for (auto skf : specialFunctions) {
+    if (distance.count(skf)) {
+      atLeastOneInteresting = true;
+      break;
+    }
+  }
+
+  if (atLeastOneInteresting) {
+    interestingFns.insert(kf);
+    return true;
+  } else {
+    uninsterestingFns.insert(kf);
+    return false;
+  }
+}
 
 bool PredicateAdapter::operator()(KBlock *block) {
   return predicate(block);

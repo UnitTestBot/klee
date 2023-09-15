@@ -4948,7 +4948,7 @@ void Executor::run(std::vector<ExecutionState *> initialStates,
     BackwardSearcher *backward = constructUserBackwardSearcher();
     InitializerPredicate *predicate =
         errorAndBackward ? (InitializerPredicate *)new TraceVerifyPredicate(
-                               data.specialPoints)
+            data.specialPoints, *codeGraphDistance.get())
                          : (InitializerPredicate *)new JointBlockPredicate;
     objectManager->setPredicate(predicate);
     Initializer *initializer = new ConflictCoreInitializer(

@@ -47,6 +47,7 @@ Function *getTargetFunction(Value *calledVal);
 
 namespace klee {
 struct Cell;
+class CodeGraphDistance;
 class Executor;
 class Expr;
 class InterpreterHandler;
@@ -112,8 +113,8 @@ struct JointBlockPredicate : public InitializerPredicate {
 };
 
 struct TraceVerifyPredicate : public InitializerPredicate {
-  explicit TraceVerifyPredicate(std::set<KBlock *> specialPoints)
-      : specialPoints(specialPoints){};
+  explicit TraceVerifyPredicate(std::set<KBlock *> specialPoints, CodeGraphDistance &cgd)
+      : specialPoints(specialPoints), cgd(cgd) {};
 
   bool operator()(KBlock *block) override;
 
@@ -125,6 +126,8 @@ private:
   std::set<KBlock *> specialPoints;
   std::set<KFunction *> interestingFns;
   std::set<KFunction *> uninsterestingFns;
+
+  CodeGraphDistance &cgd;
 
   bool isInterestingFn(KFunction *kf);
 };
