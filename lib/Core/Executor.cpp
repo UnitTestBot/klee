@@ -6287,7 +6287,7 @@ bool Executor::resolveMemoryObjects(
         return false;
       } else if (mayLazyInitialize) {
         IDType idLazyInitialization;
-        uint64_t minObjectSize = MinNumberElementsLazyInit * size;
+        uint64_t minObjectSize = state.isolated ? 0 : MinNumberElementsLazyInit * size;
         const Array *lazyInstantiationSize = makeArray(
             Expr::createPointer(Context::get().getPointerWidth() / CHAR_BIT),
             SourceBuilder::lazyInitializationSize(base));
