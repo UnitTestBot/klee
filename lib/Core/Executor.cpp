@@ -75,7 +75,6 @@
 #include "klee/System/Time.h"
 
 #include "klee/Support/CompilerWarning.h"
-#include <bits/chrono.h>
 #include <chrono>
 DISABLE_WARNING_PUSH
 DISABLE_WARNING_DEPRECATED_DECLARATIONS
