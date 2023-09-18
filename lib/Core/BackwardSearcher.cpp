@@ -152,4 +152,37 @@ bool RandomPathBackwardSearcher::empty() {
   return propagationsCount == 0;
 }
 
+InterleavedBackwardSearcher::InterleavedBackwardSearcher(
+    const std::vector<BackwardSearcher *> &_searchers) {
+  searchers.reserve(_searchers.size());
+  for (auto searcher : _searchers)
+    searchers.emplace_back(searcher);
+}
+
+Propagation InterleavedBackwardSearcher::selectAction() {
+  BackwardSearcher *s = searchers[--index].get();
+  if (index == 0)
+    index = searchers.size();
+  return s->selectAction();
+}
+
+void InterleavedBackwardSearcher::update(const propagations_ty &addedPropagations,
+                                         const propagations_ty &removedPropagations) {
+  for (auto &searcher : searchers) {
+    searcher->update(addedPropagations, removedPropagations);
+  }
+  propagationCount += addedPropagations.size();
+  propagationCount -= removedPropagations.size();
+}
+
+void InterleavedBackwardSearcher::update(const pobs_ty &addedPobs, const pobs_ty &removedPobs) {
+  for (auto &searcher : searchers) {
+    searcher->update(addedPobs, removedPobs);
+  }
+}
+
+bool InterleavedBackwardSearcher::empty() {
+  return propagationCount == 0;
+}
+
 }; // namespace klee

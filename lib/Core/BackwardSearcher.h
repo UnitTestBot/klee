@@ -56,6 +56,21 @@ private:
   RNG &rng;
 };
 
+class InterleavedBackwardSearcher : public BackwardSearcher {
+  unsigned propagationCount = 0;
+  std::vector<std::unique_ptr<BackwardSearcher>> searchers;
+  unsigned index{1};
+
+public:
+  explicit InterleavedBackwardSearcher(const std::vector<BackwardSearcher *> &searchers);
+  ~InterleavedBackwardSearcher() override = default;
+  Propagation selectAction() override;
+  void update(const propagations_ty &addedPropagations,
+              const propagations_ty &removedPropagations) override;
+  void update(const pobs_ty &addedPobs, const pobs_ty &removedPobs) override;
+  bool empty() override;
+};
+
 }; // namespace klee
 
 #endif
