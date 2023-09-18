@@ -60,12 +60,16 @@ void ConflictCoreInitializer::addPob(ProofObligation *pob) {
                                             : from->instructions[0]);
         addInit(fromInst, ReachBlockTarget::create(to));
       }
-      if (!pob->parent && !predicate(pob->location->getBlock())) {
-        KInstruction *fromInst =
-            (predicate.isInterestingCallBlock(from) ? from->instructions[1]
-             : from->instructions[0]);
-        addInit(fromInst, ReachBlockTarget::create(pob->location->getBlock()));
-      }
+      KInstruction *fromInst =
+          (predicate.isInterestingCallBlock(from) ? from->instructions[1]
+                                                  : from->instructions[0]);
+      addInit(fromInst, target);
+      // if (!pob->parent && !predicate(pob->location->getBlock())) {
+      //   KInstruction *fromInst =
+      //       (predicate.isInterestingCallBlock(from) ? from->instructions[1]
+      //        : from->instructions[0]);
+      //   addInit(fromInst, ReachBlockTarget::create(pob->location->getBlock()));
+      // }
     }
   } else {
     // if (!pob->stack.empty()) {
@@ -80,6 +84,8 @@ void ConflictCoreInitializer::addPob(ProofObligation *pob) {
                   pob->location->getBlock()->parent->function)) {
             addInit(kcallblock->getFirstInstruction(),
                     ReachBlockTarget::create(pob->location->getBlock()));
+            addInit(kcallblock->getFirstInstruction(),
+                    target);
           // }
         }
       }

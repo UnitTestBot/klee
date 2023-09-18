@@ -7477,7 +7477,7 @@ void Executor::runFunctionAsMain(Function *f, int argc, char **argv,
         auto errorT = dyn_cast<ReproduceErrorTarget>(target);
         auto pob = new ProofObligation(
             errorT->isThatError(Reachable)
-                ? ReachBlockTarget::create(errorT->getBlock())
+                ? ReachBlockTarget::create(errorT->getBlock(), false)
                 : target);
         pob->setTargeted(true);
         pob->targetForest = *(backwardList.second->deepCopy());
