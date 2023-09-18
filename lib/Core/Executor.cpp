@@ -1684,7 +1684,11 @@ void Executor::stepInstruction(ExecutionState &state) {
     ++state.steppedMemoryInstructions;
   }
   state.prevPC = state.pc;
-  ++state.pc;
+  if (state.pc->inst->isTerminator()) {
+    state.pc = nullptr;
+  } else {
+    ++state.pc;
+  }
   state.constraints.advancePath(state.prevPC, state.pc);
 
   if (stats::instructions == MaxInstructions && MaxInstructions != 0)
