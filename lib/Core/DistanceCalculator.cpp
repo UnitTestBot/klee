@@ -52,6 +52,12 @@ unsigned DistanceCalculator::SpeculativeState::computeHash() {
 DistanceResult DistanceCalculator::getDistance(const ExecutionState &state,
                                                KBlock *target) {
   assert(state.pc);
+  // In "br" inst of call block
+  if (isa<KCallBlock>(state.pc->parent) && state.pc->index == 1) {
+    auto nextBB = state.pc->parent->basicBlock->getTerminator()->getSuccessor(0);
+    auto nextKB = state.pc->parent->parent->blockMap.at(nextBB);
+    return getDistance(nextKB, state.stack.callStack(), target, false);
+  }
   return getDistance(state.pc->parent, state.stack.callStack(), target, false);
 }
 
