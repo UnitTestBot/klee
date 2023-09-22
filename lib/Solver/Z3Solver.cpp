@@ -594,7 +594,6 @@ SolverImpl::SolverRunStatus Z3SolverImpl::handleSolverResponse(
           Z3_get_numeral_uint64(builder->ctx, arraySizeExpr, &arraySize);
       assert(success && "Failed to get size");
 
-      data.resize(arraySize);
       if (usedArrayBytes.count(array)) {
         std::unordered_set<uint64_t> offsetValues;
         for (ref<Expr> offsetExpr : usedArrayBytes.at(array)) {

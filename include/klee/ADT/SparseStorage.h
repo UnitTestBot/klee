@@ -7,65 +7,33 @@
 #include <map>
 #include <vector>
 
+namespace llvm {
+class raw_ostream;
+};
+
 namespace klee {
 
 template <typename ValueType> class SparseStorage {
 private:
-  size_t capacity;
   std::map<size_t, ValueType> internalStorage;
   ValueType defaultValue;
 
   bool contains(size_t key) const { return internalStorage.count(key) != 0; }
 
 public:
-  struct Iterator {
-    using iterator_category = std::input_iterator_tag;
-    using difference_type = std::ptrdiff_t;
-    using value_type = ValueType;
-    using pointer = ValueType *;
-    using reference = ValueType &;
-
-  private:
-    size_t idx;
-    const SparseStorage *owner;
-
-  public:
-    Iterator(size_t idx, const SparseStorage *owner) : idx(idx), owner(owner) {}
-
-    value_type operator*() const { return owner->load(idx); }
-
-    Iterator &operator++() {
-      ++idx;
-      return *this;
-    }
-
-    Iterator operator++(int) {
-      Iterator snap = *this;
-      ++(*this);
-      return snap;
-    }
-
-    bool operator==(const Iterator &other) const { return idx == other.idx; }
-
-    bool operator!=(const Iterator &other) const { return !(*this == other); }
-  };
-
-  SparseStorage(size_t capacity = 0,
-                const ValueType &defaultValue = ValueType())
-      : capacity(capacity), defaultValue(defaultValue) {}
+  SparseStorage(const ValueType &defaultValue = ValueType())
+      : defaultValue(defaultValue) {}
 
   SparseStorage(const std::vector<ValueType> &values,
                 const ValueType &defaultValue = ValueType())
-      : capacity(values.capacity()), defaultValue(defaultValue) {
-    for (size_t idx = 0; idx < values.capacity(); ++idx) {
+      : defaultValue(defaultValue) {
+    for (size_t idx = 0; idx < values.size(); ++idx) {
       internalStorage[idx] = values[idx];
     }
   }
 
   void store(size_t idx, const ValueType &value) {
-    if (idx < capacity) {
       internalStorage[idx] = value;
-    }
   }
 
   template <typename InputIterator>
@@ -77,30 +45,15 @@ public:
   }
 
   ValueType load(size_t idx) const {
-    assert(idx < capacity);
     return contains(idx) ? internalStorage.at(idx) : defaultValue;
   }
 
-  size_t size() const { return capacity; }
-
-  void resize(size_t newCapacity) {
-    // Free to extend
-    if (newCapacity >= capacity) {
-      capacity = newCapacity;
-      return;
-    }
-
-    // Truncate unnessecary elements
-    auto iterOnNewSize = internalStorage.lower_bound(newCapacity);
-    while (iterOnNewSize != internalStorage.end()) {
-      iterOnNewSize = internalStorage.erase(iterOnNewSize);
-    }
-
-    capacity = newCapacity;
+  size_t sizeOfSetRange() const {
+    return internalStorage.empty() ? 0 : internalStorage.rbegin()->first + 1;
   }
 
   bool operator==(const SparseStorage<ValueType> &another) const {
-    return size() == another.size() && defaultValue == another.defaultValue &&
+    return defaultValue == another.defaultValue &&
            internalStorage == another.internalStorage;
   }
 
@@ -116,8 +69,31 @@ public:
     return internalStorage > another.internalStorage;
   }
 
-  Iterator begin() const { return Iterator(0, this); }
-  Iterator end() const { return Iterator(size(), this); }
+  const std::map<size_t, ValueType> &storage() const {
+    return internalStorage;
+  };
+  const ValueType &defaultV() const { return defaultValue; };
+
+  void reset() {
+    internalStorage.clear();
+  }
+
+  void reset(ValueType newDefault) {
+    defaultValue = newDefault;
+    internalStorage.clear();
+  }
+
+  // Get values in range [0, n) as vector
+  std::vector<ValueType> rangeAsVector(size_t n) const {
+    std::vector<ValueType> range(n);
+    for (size_t i = 0; i < n; i++) {
+      range[i] = load(i);
+    }
+    return range;
+  }
+
+  // Specialized for unsigned char in .cpp
+  void print(llvm::raw_ostream &os) const;
 };
 
 template <typename U>

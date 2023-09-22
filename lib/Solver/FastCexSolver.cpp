@@ -1196,7 +1196,6 @@ bool FastCexSolver::computeInitialValues(
         dyn_cast<ConstantExpr>(cd.evaluatePossible(array->size));
     assert(arrayConstantSize &&
            "Array of symbolic size had not receive value for size!");
-    data.resize(arrayConstantSize->getZExtValue());
 
     for (unsigned i = 0; i < arrayConstantSize->getZExtValue(); i++) {
       ref<Expr> read = ReadExpr::create(

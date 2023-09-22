@@ -22,10 +22,9 @@ void Assignment::dump() const {
   }
   for (bindings_ty::const_iterator i = bindings.begin(), e = bindings.end();
        i != e; ++i) {
-    llvm::errs() << (*i).first->getName() << "\n[";
-    for (int j = 0, k = (*i).second.size(); j < k; ++j)
-      llvm::errs() << (int)(*i).second.load(j) << ",";
-    llvm::errs() << "]\n";
+    llvm::errs() << (*i).first->getName() << "\n";
+    (*i).second.print(llvm::errs());
+    llvm::errs() << "\n";
   }
 }
 

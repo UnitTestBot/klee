@@ -12,6 +12,7 @@
 
 #include "MemoryManager.h"
 #include "TimingSolver.h"
+#include "klee/ADT/SparseStorage.h"
 #include "klee/Core/Context.h"
 
 #include "klee/Expr/Assignment.h"
@@ -209,19 +210,24 @@ private:
 
   ref<const MemoryObject> object;
 
+  mutable SparseStorage<uint8_t> concreteStore;
+  mutable SparseStorage<bool> concreteMask;
+  mutable SparseStorage<ref<Expr>> knownSymbolics;
+  mutable SparseStorage<bool> unflushedMask;
+
   /// @brief Holds all known concrete bytes
-  uint8_t *concreteStore;
+  // uint8_t *concreteStore;
 
   /// @brief concreteMask[byte] is set if byte is known to be concrete
-  BitArray *concreteMask;
+  // BitArray *concreteMask;
 
   /// knownSymbolics[byte] holds the symbolic expression for byte,
   /// if byte is known to be symbolic
-  ref<Expr> *knownSymbolics;
+  // ref<Expr> *knownSymbolics;
 
   /// unflushedMask[byte] is set if byte is unflushed
   /// mutable because may need flushed during read of const
-  mutable BitArray *unflushedMask;
+  // mutable BitArray *unflushedMask;
 
   // mutable because we may need flush during read of const
   mutable UpdateList updates;
@@ -233,24 +239,25 @@ private:
   KType *dynamicType;
 
 public:
-  unsigned size;
-
   bool readOnly;
 
 public:
   /// Create a new object state for the given memory object with concrete
-  /// contents. The initial contents are undefined, it is the callers
-  /// responsibility to initialize the object contents appropriately.
+  /// contents. The object might be either symbolic or constant size.
+  /// The initial contents are defined by the array source. The array
+  /// itself is constructed lazily unless UseConstantArrays is unset.
   ObjectState(const MemoryObject *mo, KType *dt);
 
   /// Create a new object state for the given memory object with symbolic
   /// contents.
+
+  // For objects in memory
   ObjectState(const MemoryObject *mo, const Array *array, KType *dt);
-  ObjectState(unsigned size, const Array *array, KType *dt);
-  ObjectState(const MemoryObject *mo, const ObjectState &os);
+  // For symbolic objects not in memory
+  ObjectState(const Array *array, KType *dt);
 
   ObjectState(const ObjectState &os);
-  ~ObjectState();
+  ~ObjectState() = default;
 
   const MemoryObject *getObject() const { return object.get(); }
 
@@ -291,16 +298,12 @@ private:
 
   void makeConcrete();
 
-  void makeSymbolic();
-
   ref<Expr> read8(ref<Expr> offset) const;
   void write8(unsigned offset, ref<Expr> value);
   void write8(ref<Expr> offset, ref<Expr> value);
 
-  void fastRangeCheckOffset(ref<Expr> offset, unsigned *base_r,
-                            unsigned *size_r) const;
-  void flushRangeForRead(unsigned rangeBase, unsigned rangeSize) const;
-  void flushRangeForWrite(unsigned rangeBase, unsigned rangeSize);
+  void flushForRead() const;
+  void flushForWrite();
 
   /// isByteConcrete ==> !isByteKnownSymbolic
   bool isByteConcrete(unsigned offset) const;

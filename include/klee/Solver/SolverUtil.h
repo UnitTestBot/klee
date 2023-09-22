@@ -228,11 +228,12 @@ public:
       if (result.bindings.count(object)) {
         values.push_back(result.bindings.at(object));
       } else {
+        // Why check Constant Size
         ref<ConstantExpr> constantSize =
             dyn_cast<ConstantExpr>(result.evaluate(object->size));
         assert(constantSize);
         values.push_back(
-            SparseStorage<unsigned char>(constantSize->getZExtValue(), 0));
+            SparseStorage<unsigned char>(0));
       }
     }
     return true;

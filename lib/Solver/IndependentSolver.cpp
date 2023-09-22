@@ -190,8 +190,8 @@ bool IndependentSolver::computeInitialValues(
           // so we need to place the answers to the new query into the right
           // spot while avoiding the undetermined values also in the array
           SparseStorage<unsigned char> *tempPtr = &retMap[arraysInFactor[i]];
-          assert(tempPtr->size() == tempValues[i].size() &&
-                 "we're talking about the same array here");
+          // assert(tempPtr->size() == tempValues[i].size() &&
+          //        "we're talking about the same array here");
           klee::DenseSet<unsigned> *ds = &(it->elements[arraysInFactor[i]]);
           for (std::set<unsigned>::iterator it2 = ds->begin(); it2 != ds->end();
                it2++) {
@@ -289,8 +289,8 @@ bool IndependentSolver::check(const Query &query, ref<SolverResponse> &result) {
           // so we need to place the answers to the new query into the right
           // spot while avoiding the undetermined values also in the array
           SparseStorage<unsigned char> *tempPtr = &retMap[arraysInFactor[i]];
-          assert(tempPtr->size() == tempValues[i].size() &&
-                 "we're talking about the same array here");
+          // assert(tempPtr->size() == tempValues[i].size() &&
+          //        "we're talking about the same array here");
           klee::DenseSet<unsigned> *ds = &(it->elements[arraysInFactor[i]]);
           for (std::set<unsigned>::iterator it2 = ds->begin(); it2 != ds->end();
                it2++) {

@@ -368,7 +368,7 @@ void AddressSpace::copyOutConcretes() {
   for (const auto &object : objects) {
     auto &mo = object.first;
     auto &os = object.second;
-    if (!mo->isUserSpecified && !os->readOnly && os->size != 0) {
+    if (!mo->isUserSpecified && !os->readOnly && mo->size != 0) {
       copyOutConcrete(mo, os.get());
     }
   }
@@ -377,7 +377,11 @@ void AddressSpace::copyOutConcretes() {
 void AddressSpace::copyOutConcrete(const MemoryObject *mo,
                                    const ObjectState *os) const {
   auto address = reinterpret_cast<std::uint8_t *>(mo->address);
-  std::memcpy(address, os->concreteStore, mo->size);
+  std::vector<uint8_t> concreteStore(mo->size);
+  for (size_t i = 0; i < mo->size; i++) {
+    concreteStore[i] = os->concreteStore.load(i);
+  }
+  std::memcpy(address, concreteStore.data(), mo->size);
 }
 
 bool AddressSpace::copyInConcretes() {
@@ -398,12 +402,18 @@ bool AddressSpace::copyInConcretes() {
 bool AddressSpace::copyInConcrete(const MemoryObject *mo, const ObjectState *os,
                                   uint64_t src_address) {
   auto address = reinterpret_cast<std::uint8_t *>(src_address);
-  if (memcmp(address, os->concreteStore, mo->size) != 0) {
+  std::vector<uint8_t> concreteStore(mo->size);
+  for (size_t i = 0; i < mo->size; i++) {
+    concreteStore[i] = os->concreteStore.load(i);
+  }
+  if (memcmp(address, concreteStore.data(), mo->size) != 0) {
     if (os->readOnly) {
       return false;
     } else {
       ObjectState *wos = getWriteable(mo, os);
-      memcpy(wos->concreteStore, address, mo->size);
+      for (size_t i = 0; i < mo->size; i++) {
+        wos->concreteStore.store(i, address[i]);
+      }
     }
   }
   return true;

@@ -89,8 +89,11 @@ public:
 inline ref<Expr> Assignment::evaluate(const Array *array,
                                       unsigned index) const {
   assert(array);
+  auto sizeExpr = evaluate(array->size);
+  // size must evaluate to constant
+  auto size = cast<ConstantExpr>(sizeExpr)->getZExtValue();
   bindings_ty::const_iterator it = bindings.find(array);
-  if (it != bindings.end() && index < it->second.size()) {
+  if (it != bindings.end() && index < size) {
     return ConstantExpr::alloc(it->second.load(index), array->getRange());
   } else {
     if (allowFreeValues) {

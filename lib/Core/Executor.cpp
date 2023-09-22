@@ -2386,7 +2386,7 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
             const ObjectState *osarg =
                 state.addressSpace.findObject(idObject).second;
             assert(osarg);
-            for (unsigned i = 0; i < osarg->size; i++)
+            for (unsigned i = 0; i < osarg->getObject()->size; i++)
               os->write(offsets[k] + i, osarg->read8(i));
           }
           if (ati != f->arg_end()) {
@@ -4350,8 +4350,7 @@ Executor::fillMakeSymbolic(ExecutionState &state,
   } else {
     assert(0);
   }
-  return new ObjectState(concreteSize, newArray,
-                         typeSystemManager->getUnknownType());
+  return new ObjectState(newArray, typeSystemManager->getUnknownType());
 }
 
 ref<ObjectState>
@@ -4366,8 +4365,7 @@ Executor::fillIrreproducible(ExecutionState &state,
   const Array *newArray =
       makeArray(size, SourceBuilder::irreproducible(irreproducibleSource->name,
                                                     newVersion));
-  return new ObjectState(concreteSize, newArray,
-                         typeSystemManager->getUnknownType());
+  return new ObjectState(newArray, typeSystemManager->getUnknownType());
 }
 
 ref<ObjectState> Executor::fillConstant(ExecutionState &state,
@@ -4375,8 +4373,7 @@ ref<ObjectState> Executor::fillConstant(ExecutionState &state,
                                         ref<Expr> size) {
   const Array *newArray =
       makeArray(size, SourceBuilder::constant(constanSource->constantValues));
-  return new ObjectState(constanSource->constantValues.size(), newArray,
-                         typeSystemManager->getUnknownType());
+  return new ObjectState(newArray, typeSystemManager->getUnknownType());
 }
 
 ref<ObjectState> Executor::fillSymbolicSizeConstant(
@@ -4386,8 +4383,7 @@ ref<ObjectState> Executor::fillSymbolicSizeConstant(
   const Array *newArray =
       makeArray(size, SourceBuilder::symbolicSizeConstant(
                           symbolicSizeConstantSource->defaultValue));
-  return new ObjectState(concreteSize, newArray,
-                         typeSystemManager->getUnknownType());
+  return new ObjectState(newArray, typeSystemManager->getUnknownType());
 }
 
 ref<Expr> Executor::fillSymbolicSizeConstantAddress(
@@ -5805,7 +5801,8 @@ void Executor::executeAlloc(ExecutionState &state, ref<Expr> size, bool isLocal,
       bindLocal(target, state, address);
 
       if (reallocFrom) {
-        unsigned count = std::min(reallocFrom->size, os->size);
+        unsigned count =
+            std::min(reallocFrom->getObject()->size, os->getObject()->size);
         for (unsigned i = 0; i < count; i++) {
           os->write(i, reallocFrom->read8(i));
         }
@@ -7184,8 +7181,8 @@ void Executor::updateStateWithSymcretes(ExecutionState &state,
      */
 
     /* Order of operations critical here. */
-    state.addressSpace.unbindObject(oldMO.get());
-    state.addressSpace.bindObject(newMO, new ObjectState(newMO, *oldOS.get()));
+    // state.addressSpace.unbindObject(oldMO.get());
+    // state.addressSpace.bindObject(newMO, new ObjectState(newMO, *oldOS.get()));
   }
 }
 
@@ -7215,7 +7212,7 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
 
     if (AlignSymbolicPointers) {
       if (ref<Expr> alignmentRestrictions =
-              type->getContentRestrictions(os->read(0, os->size * CHAR_BIT))) {
+          type->getContentRestrictions(os->read(0, os->getObject()->size * CHAR_BIT))) {
         addConstraint(state, alignmentRestrictions);
       }
     }
@@ -7234,7 +7231,7 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
         if (!obj) {
           if (ZeroSeedExtension) {
             si.assignment.bindings[array] =
-                SparseStorage<unsigned char>(mo->size, 0);
+                SparseStorage<unsigned char>(0);
           } else if (!AllowSeedExtension) {
             terminateStateOnUserError(state,
                                       "ran out of inputs during seeding");
@@ -7256,12 +7253,8 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
           } else {
             SparseStorage<unsigned char> &values =
                 si.assignment.bindings[array];
-            values.resize(std::min(mo->size, obj->numBytes));
             values.store(0, obj->bytes,
                          obj->bytes + std::min(obj->numBytes, mo->size));
-            if (ZeroSeedExtension) {
-              values.resize(mo->size);
-            }
           }
         }
       }
@@ -7929,14 +7922,16 @@ bool Executor::getSymbolicSolution(const ExecutionState &state, KTest &res) {
   res.objects = new KTestObject[state.symbolics.size()];
   res.numObjects = state.symbolics.size();
 
+  // Remove mo->size, evaluate size expr in array
   for (unsigned i = 0; i != state.symbolics.size(); ++i) {
     auto mo = state.symbolics[i].memoryObject;
     KTestObject *o = &res.objects[i];
     o->name = const_cast<char *>(mo->name.c_str());
     o->address = mo->address;
-    o->numBytes = values[i].size();
+    o->numBytes = mo->size;
     o->bytes = new unsigned char[o->numBytes];
-    std::copy(values[i].begin(), values[i].end(), o->bytes);
+    auto bytes = values[i].rangeAsVector(mo->size);
+    std::copy(bytes.begin(), bytes.end(), o->bytes);
     o->numPointers = 0;
     o->pointers = nullptr;
   }
