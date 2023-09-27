@@ -65,8 +65,16 @@ unsigned SymbolicSizeConstantSource::computeHash() {
 
 unsigned SymbolicSizeConstantAddressSource::computeHash() {
   unsigned res =
-      (getKind() * SymbolicSource::MAGIC_HASH_CONSTANT) + defaultValue;
-  res = (res * SymbolicSource::MAGIC_HASH_CONSTANT) + version;
+      (getKind() * SymbolicSource::MAGIC_HASH_CONSTANT) + version;
+  auto function = allocSite.getParent()->getParent();
+  auto kf = km->functionMap.at(function);
+  auto block = allocSite.getParent();
+  res = (res * SymbolicSource::MAGIC_HASH_CONSTANT) +
+        km->functionIDMap.at(function);
+  res = (res * SymbolicSource::MAGIC_HASH_CONSTANT) + kf->blockMap[block]->id;
+  res = (res * SymbolicSource::MAGIC_HASH_CONSTANT) +
+        kf->instructionMap[&allocSite]->index;
+  res = (res * SymbolicSource::MAGIC_HASH_CONSTANT) + size->hash();
   hashValue = res;
   return hashValue;
 }
@@ -135,6 +143,44 @@ int InstructionSource::internalCompare(const SymbolicSource &b) const {
                    kf->instructionMap[&ib.allocSite]->index
                ? -1
                : 1;
+  }
+  return 0;
+}
+
+int SymbolicSizeConstantAddressSource::internalCompare(
+    const SymbolicSource &b) const {
+  if (getKind() != b.getKind()) {
+    return getKind() < b.getKind() ? -1 : 1;
+  }
+  const SymbolicSizeConstantAddressSource &ssb =
+      static_cast<const SymbolicSizeConstantAddressSource &>(b);
+  if (version != ssb.version) {
+    return version < ssb.version ? -1 : 1;
+  }
+
+  assert(km == ssb.km);
+  auto function = allocSite.getParent()->getParent();
+  auto bFunction = ssb.allocSite.getParent()->getParent();
+  if (km->functionIDMap.at(function) != km->functionIDMap.at(bFunction)) {
+    return km->functionIDMap.at(function) < km->functionIDMap.at(bFunction) ? -1
+                                                                            : 1;
+  }
+  auto kf = km->functionMap.at(function);
+  auto block = allocSite.getParent();
+  auto bBlock = ssb.allocSite.getParent();
+  if (kf->blockMap[block]->id != kf->blockMap[bBlock]->id) {
+    return kf->blockMap[block]->id < kf->blockMap[bBlock]->id ? -1 : 1;
+  }
+  if (kf->instructionMap[&allocSite]->index !=
+      kf->instructionMap[&ssb.allocSite]->index) {
+    return kf->instructionMap[&allocSite]->index <
+                   kf->instructionMap[&ssb.allocSite]->index
+               ? -1
+               : 1;
+  }
+
+  if (size != ssb.size) {
+    return size < ssb.size ? -1 : 1;
   }
   return 0;
 }
