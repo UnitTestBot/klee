@@ -13,6 +13,7 @@
 #include "klee/ADT/Bits.h"
 #include "klee/Expr/Expr.h"
 #include "klee/Expr/SymbolicSource.h"
+#include "klee/Module/KModule.h"
 #include "klee/Solver/Solver.h"
 #include "klee/Solver/SolverStats.h"
 #include "klee/Support/ErrorHandling.h"
@@ -257,6 +258,37 @@ Z3ASTHandle Z3Builder::getInitialArray(const Array *root) {
       array_expr = buildConstantArray(unique_name.c_str(), root->getDomain(),
                                       root->getRange(),
                                       symbolicSizeConstantSource->defaultValue);
+    } else if (ref<MockDeterministicSource> mockDeterministicSource =
+                   dyn_cast<MockDeterministicSource>(root->source)) {
+      size_t num_args = mockDeterministicSource->args.size();
+      std::vector<Z3ASTHandle> argsHandled(num_args);
+      std::vector<Z3SortHandle> argsSortHandled(num_args);
+      std::vector<Z3_ast> args(num_args);
+      std::vector<Z3_sort> argsSort(num_args);
+      for (size_t i = 0; i < num_args; i++) {
+        ref<Expr> kid = mockDeterministicSource->args[i];
+        int kidWidth = kid->getWidth();
+        argsHandled[i] = construct(kid, &kidWidth);
+        args[i] = argsHandled[i];
+        argsSortHandled[i] = Z3SortHandle(Z3_get_sort(ctx, args[i]), ctx);
+        argsSort[i] = argsSortHandled[i];
+      }
+
+      Z3SortHandle domainSort = getBvSort(root->getDomain());
+      Z3SortHandle rangeSort = getBvSort(root->getRange());
+      Z3SortHandle retValSort = getArraySort(domainSort, rangeSort);
+
+      Z3FuncDeclHandle func;
+      func = Z3FuncDeclHandle(
+          Z3_mk_func_decl(
+              ctx,
+              Z3_mk_string_symbol(
+                  ctx,
+                  mockDeterministicSource->function.getName().str().c_str()),
+              num_args, argsSort.data(), retValSort),
+          ctx);
+      array_expr =
+          Z3ASTHandle(Z3_mk_app(ctx, func, num_args, args.data()), ctx);
     } else {
       array_expr =
           buildArray(unique_name.c_str(), root->getDomain(), root->getRange());

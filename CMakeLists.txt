@@ -667,8 +667,21 @@ configure_file(${CMAKE_SOURCE_DIR}/include/klee/Config/CompileTimeInfo.h.cmin
 ################################################################################
 include_directories("${CMAKE_BINARY_DIR}/include")
 include_directories("${CMAKE_SOURCE_DIR}/include")
-include_directories("${CMAKE_SOURCE_DIR}/json/include")
-include_directories("${CMAKE_SOURCE_DIR}/optional/include")
+include_directories("${CMAKE_SOURCE_DIR}/submodules/json/include")
+include_directories("${CMAKE_SOURCE_DIR}/submodules/optional/include")
+
+
+option(ENABLE_XML_ANNOTATION "Enable XML annotation" ON)
+
+if (ENABLE_XML_ANNOTATION)
+  message(STATUS "XML annotation is enabled")
+  file(COPY "${CMAKE_SOURCE_DIR}/submodules/pugiconfig.hpp"
+          DESTINATION "${CMAKE_SOURCE_DIR}/submodules/pugixml/src")
+  include_directories("${CMAKE_SOURCE_DIR}/submodules/pugixml/src")
+else()
+  message(STATUS "XML annotation is disabled")
+  set(ENABLE_XML_ANNOTATION 0)
+endif()
 # set(KLEE_INCLUDE_DIRS ${CMAKE_SOURCE_DIR}/include ${CMAKE_BINARY_DIR}/include)
 
 ################################################################################

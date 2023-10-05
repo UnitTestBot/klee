@@ -696,6 +696,9 @@ private:
   const KBlock *getKBlock(const llvm::BasicBlock *bb) const;
   const KFunction *getKFunction(const llvm::Function *f) const;
 
+  std::map<std::string, llvm::Type *>
+  getAllExternals(const std::set<std::string> &ignoredExternals) const;
+
 public:
   Executor(llvm::LLVMContext &ctx, const InterpreterOptions &opts,
            InterpreterHandler *ie);
@@ -723,13 +726,13 @@ public:
     replayPosition = 0;
   }
 
-  llvm::Module *
-  setModule(std::vector<std::unique_ptr<llvm::Module>> &userModules,
-            std::vector<std::unique_ptr<llvm::Module>> &libsModules,
-            const ModuleOptions &opts,
-            std::set<std::string> &&mainModuleFunctions,
-            std::set<std::string> &&mainModuleGlobals,
-            FLCtoOpcode &&origInstructions) override;
+  llvm::Module *setModule(
+      std::vector<std::unique_ptr<llvm::Module>> &userModules,
+      std::vector<std::unique_ptr<llvm::Module>> &libsModules,
+      const ModuleOptions &opts, std::set<std::string> &&mainModuleFunctions,
+      std::set<std::string> &&mainModuleGlobals, FLCtoOpcode &&origInstructions,
+      const std::set<std::string> &ignoredExternals,
+      std::vector<std::pair<std::string, std::string>> redefinitions) override;
 
   void useSeeds(const std::vector<struct KTest *> *seeds) override {
     usingSeeds = seeds;

@@ -20,21 +20,6 @@
 using namespace llvm;
 using namespace klee;
 
-namespace klee {
-llvm::cl::opt<bool> LocationAccuracy(
-    "location-accuracy", cl::init(false),
-    cl::desc("Check location with line and column accuracy (default=false)"));
-}
-
-ErrorLocation::ErrorLocation(const klee::ref<klee::Location> &loc)
-    : startLine(loc->startLine), endLine(loc->endLine),
-      startColumn(loc->startColumn), endColumn(loc->endColumn) {}
-
-ErrorLocation::ErrorLocation(const KInstruction *ki) {
-  startLine = (endLine = ki->getLine());
-  startColumn = (endColumn = ki->getLine());
-}
-
 std::string ReproduceErrorTarget::toString() const {
   std::ostringstream repr;
   repr << "Target " << getId() << ": ";
@@ -75,10 +60,9 @@ ref<Target> Target::createCachedTarget(ref<Target> target) {
   return (ref<Target>)*(success.first);
 }
 
-ref<Target>
-ReproduceErrorTarget::create(const std::vector<ReachWithError> &_errors,
-                             const std::string &_id, ErrorLocation _loc,
-                             KBlock *_block) {
+ref<Target> ReproduceErrorTarget::create(const ReachWithErrors &_errors,
+                                         const std::string &_id,
+                                         LineColumnRange _loc, KBlock *_block) {
   ReproduceErrorTarget *target =
       new ReproduceErrorTarget(_errors, _id, _loc, _block);
   return createCachedTarget(target);
@@ -100,13 +84,8 @@ ref<Target> CoverBranchTarget::create(KBlock *_block, unsigned _branchCase) {
   return createCachedTarget(target);
 }
 
-bool ReproduceErrorTarget::isTheSameAsIn(const KInstruction *instr) const {
-  const auto &errLoc = loc;
-  return instr->getLine() >= errLoc.startLine &&
-         instr->getLine() <= errLoc.endLine &&
-         (!LocationAccuracy || !errLoc.startColumn.has_value() ||
-          (instr->getColumn() >= *errLoc.startColumn &&
-           instr->getColumn() <= *errLoc.endColumn));
+bool ReproduceErrorTarget::isTheSameAsIn(KInstruction *instr) const {
+  return loc.hasInside(instr);
 }
 
 int Target::compare(const Target &b) const { return internalCompare(b); }

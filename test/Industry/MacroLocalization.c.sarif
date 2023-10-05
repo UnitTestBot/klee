@@ -1,0 +1,155 @@
+{
+  "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Cooddy",
+          "version": "v1_101",
+          "properties": {
+            "revisionTag": "bbceeffcbd252fd8a86aa2ed68549f3d713505ac"
+          }
+        }
+      },
+      "invocations": [
+        {
+          "executionSuccessful": true,
+          "exitCode": 0,
+          "commandLine": "build/release/cooddy --scope /home/user/pool --reporter sarif",
+          "executableLocation": {
+            "uri": "file:///home/user/src/cooddy/build/release/cooddy"
+          },
+          "arguments": [
+            "--scope",
+            "/home/user/pool",
+            "--reporter",
+            "sarif"
+          ],
+          "properties": {
+            "profileUri": "file:///home/user/src/cooddy/build/release/.cooddy/default.profile.json",
+            "annotationUris": [
+              "file:///home/user/src/cooddy/build/release/.cooddy/.annotations.json",
+              "file:///home/user/src/cooddy/build/release/.cooddy/.java-annotations.json",
+              "file:///home/user/src/cooddy/build/release/.cooddy/.tinyxml-annotations.json",
+              "file:///home/user/src/cooddy/build/release/.cooddy/.huawei-annotations.json"
+            ]
+          },
+          "startTimeUtc": "2023-07-05T13:43:00.892Z",
+          "endTimeUtc": "2023-07-05T13:50:26.467Z"
+        }
+      ],
+      "columnKind": "unicodeCodePoints",
+      "results": [
+        {
+          "message": {
+            "text": "Dereferencing of \"result\" which can be null"
+          },
+          "level": "error",
+          "ruleId": "NULL.DEREF",
+          "fingerprints": {
+            "cooddy.uid": "bc7beead5f814c9deac02e8e9e6eef08"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Industry/MacroLocalization.c"
+                },
+                "region": {
+                  "startLine": 15,
+                  "endLine": 15,
+                  "startColumn": 11,
+                  "endColumn": 17
+                }
+              }
+            }
+          ],
+          "codeFlows": [
+            {
+              "threadFlows": [
+                {
+                  "locations": [
+                    {
+                      "location": {
+                        "physicalLocation": {
+                          "artifactLocation": {
+                            "uri": "Industry/MacroLocalization.c"
+                          },
+                          "region": {
+                            "startLine": 9,
+                            "endLine": 9,
+                            "startColumn": 3,
+                            "endColumn": 28,
+                            "message": {
+                              "text": "Null pointer source"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "location": {
+                        "physicalLocation": {
+                          "artifactLocation": {
+                            "uri": "Industry/MacroLocalization.c"
+                          },
+                          "region": {
+                            "startLine": 9,
+                            "endLine": 9,
+                            "startColumn": 3,
+                            "endColumn": 28,
+                            "message": {
+                              "text": "Assume return here"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "location": {
+                        "physicalLocation": {
+                          "artifactLocation": {
+                            "uri": "Industry/MacroLocalization.c"
+                          },
+                          "region": {
+                            "startLine": 14,
+                            "endLine": 14,
+                            "startColumn": 17,
+                            "endColumn": 23,
+                            "message": {
+                              "text": "Null pointer returned as the result"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "location": {
+                        "physicalLocation": {
+                          "artifactLocation": {
+                            "uri": "Industry/MacroLocalization.c"
+                          },
+                          "region": {
+                            "startLine": 15,
+                            "endLine": 15,
+                            "startColumn": 11,
+                            "endColumn": 17,
+                            "message": {
+                              "text": "Dereferencing of \"result\" which can be null"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "verdict": "TP"
+        }
+      ]
+    }
+  ]
+}

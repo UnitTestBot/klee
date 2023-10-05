@@ -39,6 +39,7 @@
 #include "klee/Config/Version.h"
 #include "klee/Config/config.h"
 #include "klee/Core/Interpreter.h"
+#include "klee/Core/MockBuilder.h"
 #include "klee/Expr/ArrayExprOptimizer.h"
 #include "klee/Expr/ArrayExprVisitor.h"
 #include "klee/Expr/Assignment.h"
@@ -480,6 +481,11 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
       replayKTest(0), replayPath(0), usingSeeds(0), atMemoryLimit(false),
       inhibitForking(false), haltExecution(HaltExecution::NotHalt),
       ivcEnabled(false), debugLogBuffer(debugBufferString) {
+  if (CoreSolverToUse != Z3_SOLVER &&
+      interpreterOpts.MockStrategy == MockStrategy::Deterministic) {
+    klee_error("Deterministic mocks can be generated with Z3 solver only.\n");
+  }
+
   const time::Span maxTime{MaxTime};
   if (maxTime)
     timers.add(std::make_unique<Timer>(maxTime, [&] {
@@ -539,9 +545,22 @@ llvm::Module *Executor::setModule(
     std::vector<std::unique_ptr<llvm::Module>> &userModules,
     std::vector<std::unique_ptr<llvm::Module>> &libsModules,
     const ModuleOptions &opts, std::set<std::string> &&mainModuleFunctions,
-    std::set<std::string> &&mainModuleGlobals, FLCtoOpcode &&origInstructions) {
+    std::set<std::string> &&mainModuleGlobals, FLCtoOpcode &&origInstructions,
+    const std::set<std::string> &ignoredExternals,
+    std::vector<std::pair<std::string, std::string>> redefinitions) {
   assert(!kmodule && !userModules.empty() &&
          "can only register one module"); // XXX gross
+
+  if (ExternalCalls == ExternalCallPolicy::All &&
+      interpreterOpts.MockStrategy != MockStrategy::None) {
+    llvm::Function *mainFn =
+        userModules.front()->getFunction(opts.MainCurrentName);
+    if (!mainFn) {
+      klee_error("Entry function '%s' not found in module.",
+                 opts.MainCurrentName.c_str());
+    }
+    mainFn->setName(opts.MainNameAfterMock);
+  }
 
   kmodule = std::make_unique<KModule>();
 
@@ -565,6 +584,29 @@ llvm::Module *Executor::setModule(
     }
     kmodule->link(modules, 2);
     kmodule->instrument(opts);
+  }
+
+  if (interpreterOpts.MockStrategy != MockStrategy::None ||
+      !opts.AnnotationsFile.empty()) {
+    MockBuilder mockBuilder(kmodule->module.get(), opts, ignoredExternals,
+                            redefinitions, interpreterHandler);
+    std::unique_ptr<llvm::Module> mockModule = mockBuilder.build();
+
+    std::vector<std::unique_ptr<llvm::Module>> mockModules;
+    mockModules.push_back(std::move(mockModule));
+    kmodule->link(mockModules, 1);
+
+    for (auto &global : kmodule->module->globals()) {
+      if (global.isDeclaration()) {
+        llvm::Constant *zeroInitializer =
+            llvm::Constant::getNullValue(global.getValueType());
+        if (!zeroInitializer) {
+          klee_error("Unable to get zero initializer for '%s'",
+                     global.getName().str().c_str());
+        }
+        global.setInitializer(zeroInitializer);
+      }
+    }
   }
 
   // 3.) Optimise and prepare for KLEE
@@ -5056,7 +5098,7 @@ ObjectState *Executor::bindObjectInState(ExecutionState &state,
   // will put multiple copies on this list, but it doesn't really
   // matter because all we use this list for is to unbind the object
   // on function return.
-  if (isLocal && state.stack.size() > 0) {
+  if (isLocal && !state.stack.empty()) {
     state.stack.valueStack().back().allocas.push_back(mo->id);
   }
   return os;
@@ -6665,7 +6707,7 @@ void Executor::runFunctionAsMain(Function *f, int argc, char **argv,
       KBlock *kCallBlock = kfunction->entryKBlock;
       forest->add(ReproduceErrorTarget::create(
           {ReachWithError::Reachable}, "",
-          ErrorLocation(kCallBlock->getFirstInstruction()), kCallBlock));
+          LineColumnRange(kCallBlock->getFirstInstruction()), kCallBlock));
       prepTargets.emplace(kEntryFunction, forest);
     }
 

@@ -7,6 +7,7 @@
 #include "klee/Expr/ExprUtil.h"
 #include "klee/Expr/SymbolicSource.h"
 #include "klee/Expr/Symcrete.h"
+#include "klee/Module/KModule.h"
 #include "klee/Solver/Solver.h"
 
 #include <list>
@@ -132,6 +133,11 @@ void IndependentConstraintSet::initIndependentConstraintSet(ref<Expr> e) {
     if (re->updates.root->isConstantArray() && !re->updates.head)
       continue;
 
+    if (ref<MockDeterministicSource> mockSource =
+            dyn_cast_or_null<MockDeterministicSource>(array->source)) {
+      uninterpretedFunctions.insert(mockSource->function.getName().str());
+    }
+
     if (!wholeObjects.count(array)) {
       if (ConstantExpr *CE = dyn_cast<ConstantExpr>(re->index)) {
         // if index constant, then add to set of constraints operating
@@ -210,7 +216,8 @@ IndependentConstraintSet::IndependentConstraintSet(
     const IndependentConstraintSet &ics)
     : elements(ics.elements), wholeObjects(ics.wholeObjects), exprs(ics.exprs),
       symcretes(ics.symcretes), concretization(ics.concretization),
-      concretizedSets(ics.concretizedSets) {}
+      concretizedSets(ics.concretizedSets),
+      uninterpretedFunctions(ics.uninterpretedFunctions) {}
 
 void IndependentConstraintSet::print(llvm::raw_ostream &os) const {
   os << "{";
@@ -272,6 +279,13 @@ bool IndependentConstraintSet::intersects(
       if (it->second.intersects(it2->second)) {
         return true;
       }
+    }
+  }
+  for (std::set<std::string>::iterator it = a->uninterpretedFunctions.begin(),
+                                       ie = a->uninterpretedFunctions.end();
+       it != ie; ++it) {
+    if (b->uninterpretedFunctions.count(*it)) {
+      return true;
     }
   }
   // No need to check symcretes here, arrays must be sufficient.

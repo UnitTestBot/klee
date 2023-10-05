@@ -1,6 +1,9 @@
 [submodule "json"]
-	path = json
+	path = submodules/json
 	url = https://github.com/nlohmann/json.git
 [submodule "optional"]
-	path = optional
+	path = submodules/optional
 	url = https://github.com/martinmoene/optional-lite.git
+[submodule "submodules/pugixml"]
+	path = submodules/pugixml
+	url = https://github.com/zeux/pugixml.git

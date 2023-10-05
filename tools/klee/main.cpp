@@ -364,6 +364,45 @@ cl::opt<std::string> XMLMetadataProgramHash(
     llvm::cl::desc("Test-Comp hash sum of original file for xml metadata"),
     llvm::cl::cat(TestCompCat));
 
+/*** Mocking options ***/
+
+cl::OptionCategory MockCat("Mock category");
+
+cl::opt<bool> MockLinkedExternals(
+    "mock-linked-externals",
+    cl::desc("Mock modelled linked externals (default=false)"), cl::init(false),
+    cl::cat(MockCat));
+
+cl::opt<MockStrategy> MockUnlinkedStrategy(
+    "mock-strategy", cl::init(MockStrategy::None),
+    cl::desc("Specify strategy for mocking external calls"),
+    cl::values(
+        clEnumValN(MockStrategy::None, "none",
+                   "External calls are not mocked (default)"),
+        clEnumValN(MockStrategy::Naive, "naive",
+                   "Every time external function is called, new symbolic value "
+                   "is generated for its return value"),
+        clEnumValN(
+            MockStrategy::Deterministic, "deterministic",
+            "NOTE: this option is compatible with Z3 solver only. Each "
+            "external function is treated as a deterministic "
+            "function. Therefore, when function is called many times "
+            "with equal arguments, every time equal values will be returned.")),
+    cl::init(MockStrategy::None), cl::cat(MockCat));
+
+/*** Annotations options ***/
+
+cl::OptionCategory AnnotCat("Annotations category");
+
+cl::opt<std::string>
+    AnnotationsFile("annotations", cl::desc("Path to the annotation JSON file"),
+                    cl::value_desc("path file"), cl::cat(AnnotCat));
+
+cl::opt<bool> AnnotateOnlyExternal(
+    "annotate-only-external",
+    cl::desc("Ignore annotations for defined function (default=false)"),
+    cl::init(false), cl::cat(AnnotCat));
+
 } // namespace
 
 namespace klee {
@@ -851,7 +890,7 @@ std::string KleeHandler::getRunTimeLibraryPath(const char *argv0) {
 
 void KleeHandler::setOutputDirectory(const std::string &directoryName) {
   // create output directory
-  if (directoryName == "") {
+  if (directoryName.empty()) {
     klee_error("Empty name of new directory");
   }
   SmallString<128> directory(directoryName);
@@ -956,7 +995,8 @@ static const char *modelledExternals[] = {
     "klee_check_memory_access", "klee_define_fixed_object", "klee_get_errno",
     "klee_get_valuef", "klee_get_valued", "klee_get_valuel", "klee_get_valuell",
     "klee_get_value_i32", "klee_get_value_i64", "klee_get_obj_size",
-    "klee_is_symbolic", "klee_make_symbolic", "klee_mark_global",
+    "klee_is_symbolic", "klee_make_symbolic", "klee_make_mock",
+    "klee_mark_global", "klee_open_merge", "klee_close_merge",
     "klee_prefer_cex", "klee_posix_prefer_cex", "klee_print_expr",
     "klee_print_range", "klee_report_error", "klee_set_forking",
     "klee_silent_exit", "klee_warning", "klee_warning_once", "klee_stack_trace",
@@ -1050,12 +1090,14 @@ static const char *dontCareExternals[] = {
     "getwd",
     "gettimeofday",
     "uname",
+    "ioctl",
 
     // fp stuff we just don't worry about yet
     "frexp",
     "ldexp",
     "__isnan",
     "__signbit",
+    "llvm.dbg.label",
 };
 
 // Extra symbols we aren't going to warn about with klee-libc
@@ -1579,6 +1621,37 @@ void wait_until_any_child_dies(
   }
 }
 
+void mockLinkedExternals(
+    const Interpreter::ModuleOptions &Opts, llvm::LLVMContext &ctx,
+    llvm::Module *mainModule,
+    std::vector<std::unique_ptr<llvm::Module>> &loadedLibsModules,
+    std::vector<std::pair<std::string, std::string>> &redefinitions) {
+  std::string errorMsg;
+  std::vector<std::unique_ptr<llvm::Module>> mockModules;
+  SmallString<128> Path(Opts.LibraryDir);
+  llvm::sys::path::append(Path,
+                          "libkleeRuntimeMocks" + Opts.OptSuffix + ".bca");
+  klee_message("NOTE: Using mocks model %s for linked externals", Path.c_str());
+  if (!klee::loadFileAsOneModule(Path.c_str(), ctx, loadedLibsModules,
+                                 errorMsg)) {
+    klee_error("error loading mocks model '%s': %s", Path.c_str(),
+               errorMsg.c_str());
+  }
+
+  for (const auto &fmodel : loadedLibsModules.back()->functions()) {
+    if (fmodel.getName().str().substr(0, 15) != "__klee_wrapped_") {
+      continue;
+    }
+    if (llvm::Function *f =
+            mainModule->getFunction(fmodel.getName().str().substr(15))) {
+      klee_message("Renamed symbol %s to %s", f->getName().str().c_str(),
+                   fmodel.getName().str().c_str());
+      redefinitions.emplace_back(f->getName(), fmodel.getName());
+      f->setName(fmodel.getName());
+    }
+  }
+}
+
 int main(int argc, char **argv, char **envp) {
   if (theInterpreter) {
     theInterpreter = nullptr;
@@ -1671,9 +1744,10 @@ int main(int argc, char **argv, char **envp) {
 
   sys::SetInterruptFunction(interrupt_handle);
 
-  // Load the bytecode...
   std::string errorMsg;
   LLVMContext ctx;
+
+  // Load the bytecode...
   std::vector<std::unique_ptr<llvm::Module>> loadedUserModules;
   std::vector<std::unique_ptr<llvm::Module>> loadedLibsModules;
   if (!klee::loadFileAsOneModule(InputFile, ctx, loadedUserModules, errorMsg)) {
@@ -1739,7 +1813,6 @@ int main(int argc, char **argv, char **envp) {
     klee_warning("Module and host target triples do not match: '%s' != '%s'\n"
                  "This may cause unexpected crashes or assertion violations.",
                  module_triple.c_str(), host_triple.c_str());
-
   // Detect architecture
   std::string bit_suffix = "64"; // Fall back to 64bit
   if (module_triple.find("i686") != std::string::npos ||
@@ -1757,13 +1830,18 @@ int main(int argc, char **argv, char **envp) {
   }
 
   std::string LibraryDir = KleeHandler::getRunTimeLibraryPath(argv[0]);
-  Interpreter::ModuleOptions Opts(LibraryDir.c_str(), EntryPoint, opt_suffix,
-                                  /*Optimize=*/OptimizeModule,
-                                  /*Simplify*/ SimplifyModule,
-                                  /*CheckDivZero=*/CheckDivZero,
-                                  /*CheckOvershift=*/CheckOvershift,
-                                  /*WithFPRuntime=*/WithFPRuntime,
-                                  /*WithPOSIXRuntime=*/WithPOSIXRuntime);
+  Interpreter::ModuleOptions Opts(
+      LibraryDir, EntryPoint, opt_suffix,
+      /*MainCurrentName=*/EntryPoint,
+      /*MainNameAfterMock=*/"__klee_mock_wrapped_main",
+      /*AnnotationsFile=*/AnnotationsFile,
+      /*Optimize=*/OptimizeModule,
+      /*Simplify*/ SimplifyModule,
+      /*CheckDivZero=*/CheckDivZero,
+      /*CheckOvershift=*/CheckOvershift,
+      /*AnnotateOnlyExternal=*/AnnotateOnlyExternal,
+      /*WithFPRuntime=*/WithFPRuntime,
+      /*WithPOSIXRuntime=*/WithPOSIXRuntime);
 
   // Get the main function
   for (auto &module : loadedUserModules) {
@@ -1784,6 +1862,15 @@ int main(int argc, char **argv, char **envp) {
 
   if (!entryFn)
     klee_error("Entry function '%s' not found in module.", EntryPoint.c_str());
+
+  std::vector<std::pair<std::string, std::string>> redefinitions;
+  if (MockLinkedExternals) {
+    mockLinkedExternals(Opts, ctx, mainModule, loadedLibsModules,
+                        redefinitions);
+  }
+  if (MockUnlinkedStrategy != MockStrategy::None) {
+    redefinitions.emplace_back(EntryPoint, Opts.MainNameAfterMock);
+  }
 
   if (WithPOSIXRuntime) {
     SmallString<128> Path(Opts.LibraryDir);
@@ -1953,6 +2040,7 @@ int main(int argc, char **argv, char **envp) {
   Interpreter::InterpreterOptions IOpts(paths);
   IOpts.MakeConcreteSymbolic = MakeConcreteSymbolic;
   IOpts.Guidance = UseGuidedSearch;
+  IOpts.MockStrategy = MockUnlinkedStrategy;
   std::unique_ptr<Interpreter> interpreter(
       Interpreter::create(ctx, IOpts, handler.get()));
   theInterpreter = interpreter.get();
@@ -1964,13 +2052,39 @@ int main(int argc, char **argv, char **envp) {
   }
   handler->getInfoStream() << "PID: " << getpid() << "\n";
 
+  std::set<std::string> ignoredExternals;
+  ignoredExternals.insert(modelledExternals,
+                          modelledExternals + NELEMS(modelledExternals));
+  ignoredExternals.insert(dontCareExternals,
+                          dontCareExternals + NELEMS(dontCareExternals));
+  ignoredExternals.insert(unsafeExternals,
+                          unsafeExternals + NELEMS(unsafeExternals));
+
+  switch (Libc) {
+  case LibcType::KleeLibc:
+    ignoredExternals.insert(dontCareKlee, dontCareKlee + NELEMS(dontCareKlee));
+    break;
+  case LibcType::UcLibc:
+    ignoredExternals.insert(dontCareUclibc,
+                            dontCareUclibc + NELEMS(dontCareUclibc));
+    break;
+  case LibcType::FreestandingLibc: /* silence compiler warning */
+    break;
+  }
+
+  if (WithPOSIXRuntime) {
+    ignoredExternals.insert("syscall");
+  }
+
+  Opts.MainCurrentName = entryFn->getName().str();
+
   // Get the desired main function.  klee_main initializes uClibc
   // locale and other data and then calls main.
 
   auto finalModule = interpreter->setModule(
       loadedUserModules, loadedLibsModules, Opts,
       std::move(mainModuleFunctions), std::move(mainModuleGlobals),
-      std::move(origInstructions));
+      std::move(origInstructions), ignoredExternals, redefinitions);
 
   externalsAndGlobalsCheck(finalModule);
   if (InteractiveMode) {

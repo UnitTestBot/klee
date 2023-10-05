@@ -7,6 +7,7 @@
 #
 #===------------------------------------------------------------------------===#
 set(KLEE_MODULE_COMPONENT_SRCS
+  Annotation.cpp
   CallSplitter.cpp
   Checks.cpp
   CodeGraphInfo.cpp
@@ -29,6 +30,13 @@ set(KLEE_MODULE_COMPONENT_SRCS
   TargetHash.cpp
   TargetForest.cpp
 )
+
+if (ENABLE_XML_ANNOTATION)
+    set(KLEE_MODULE_COMPONENT_SRCS
+        ${KLEE_MODULE_COMPONENT_SRCS}
+        ../../submodules/pugixml/src/pugixml.cpp
+    )
+endif()
 
 add_library(kleeModule
   ${KLEE_MODULE_COMPONENT_SRCS}

@@ -152,29 +152,34 @@ void TargetManager::updateTargets(ExecutionState &state) {
     return;
   }
 
-  auto stateTargets = targets(state);
-  auto &stateTargetForest = targetForest(state);
+  bool needRecheck;
+  do {
+    needRecheck = false;
+    auto stateTargets = targets(state);
+    auto &stateTargetForest = targetForest(state);
 
-  for (auto target : stateTargets) {
-    if (!stateTargetForest.contains(target)) {
-      continue;
-    }
+    for (auto target : stateTargets) {
+      if (!stateTargetForest.contains(target)) {
+        continue;
+      }
 
-    DistanceResult stateDistance = distance(state, target);
-    switch (stateDistance.result) {
-    case WeightResult::Continue:
-      updateContinue(state, target);
-      break;
-    case WeightResult::Miss:
-      updateMiss(state, target);
-      break;
-    case WeightResult::Done:
-      updateDone(state, target);
-      break;
-    default:
-      assert(0 && "unreachable");
+      DistanceResult stateDistance = distance(state, target);
+      switch (stateDistance.result) {
+      case WeightResult::Continue:
+        updateContinue(state, target);
+        break;
+      case WeightResult::Miss:
+        updateMiss(state, target);
+        break;
+      case WeightResult::Done:
+        updateDone(state, target);
+        needRecheck = true;
+        break;
+      default:
+        assert(0 && "unreachable");
+      }
     }
-  }
+  } while (needRecheck);
 }
 
 void TargetManager::update(ExecutionState *current,

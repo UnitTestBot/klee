@@ -109,6 +109,8 @@ public:
 
   InnerSetUnion concretizedSets;
 
+  std::set<std::string> uninterpretedFunctions;
+
   ref<const IndependentConstraintSet> addExpr(ref<Expr> e) const;
   ref<const IndependentConstraintSet>
   updateConcretization(const Assignment &delta,

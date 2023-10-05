@@ -182,6 +182,11 @@ cl::opt<unsigned long long>
               cl::desc("stop execution after visiting some basic block this "
                        "amount of times (default=0)."),
               cl::init(0), cl::cat(TerminationCat));
+
+cl::opt<bool> DebugLocalization(
+    "debug-localization", cl::init(false),
+    cl::desc("Debug error traces localization (default=false)."),
+    cl::cat(DebugCat));
 } // namespace klee
 
 TargetedHaltsOnTraces::TargetedHaltsOnTraces(ref<TargetForest> &forest) {
@@ -327,6 +332,8 @@ TargetedExecutionManager::prepareAllLocations(KModule *kmodule,
 
   for (auto it = locations.begin(); it != locations.end(); ++it) {
     auto loc = *it;
+    auto precision = Precision::Line;
+    Blocks blocks;
     for (const auto &[fileName, origInstsInFile] : kmodule->origInstructions) {
       if (kmodule->origInstructions.count(fileName) == 0) {
         continue;
@@ -341,16 +348,29 @@ TargetedExecutionManager::prepareAllLocations(KModule *kmodule,
         const auto kfunc = kmodule->functionMap[func];
 
         for (const auto &kblock : kfunc->blocks) {
-          auto b = kblock.get();
-          if (!loc->isInside(b, origInstsInFile)) {
+          BlockWithPrecision bp(kblock.get(), precision);
+          loc->isInside(bp, origInstsInFile);
+          if (bp.precision < precision) {
             continue;
+          } else if (bp.precision == precision) {
+            blocks.insert(bp.ptr);
+          } else {
+            blocks.clear();
+            blocks.insert(bp.ptr);
+            precision = bp.precision;
           }
-          locToBlocks[loc].insert(b);
         }
       }
     }
+    if (DebugLocalization && !blocks.empty()) {
+      llvm::errs() << loc->toString() << " # " << (int)precision << " ~> ";
+      for (auto b : blocks) {
+        llvm::errs() << b->toString() << "; ";
+      }
+      llvm::errs() << "\n";
+    }
+    locToBlocks.emplace(loc, std::move(blocks));
   }
-
   return locToBlocks;
 }
 
@@ -417,7 +437,7 @@ bool TargetedExecutionManager::tryResolveLocations(
         }
       }
       resolvedLocations.push_back(location);
-    } else if (index == result.locations.size() - 1) {
+    } else if (index + 1 == result.locations.size()) {
       klee_warning(
           "Trace %s is malformed! %s at location %s, so skipping this trace.",
           result.id.c_str(), getErrorsString(result.errors).c_str(),
@@ -519,6 +539,8 @@ TargetedExecutionManager::prepareTargets(KModule *kmodule, SarifReport paths) {
       whitelists[kf] = whitelist;
     }
     whitelists[kf]->addTrace(result, locToBlocks);
+    if (DebugLocalization)
+      whitelists[kf]->dump();
   }
 
   return whitelists;
