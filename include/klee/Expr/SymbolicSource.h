@@ -127,10 +127,15 @@ public:
 
 class SymbolicSizeConstantAddressSource : public SymbolicSource {
 public:
-  const unsigned defaultValue;
   const unsigned version;
-  SymbolicSizeConstantAddressSource(unsigned _defaultValue, unsigned _version)
-      : defaultValue(_defaultValue), version(_version) {}
+  const llvm::Instruction &allocSite;
+  ref<Expr> size;
+  const KModule *km;
+  SymbolicSizeConstantAddressSource(unsigned _version,
+                                    const llvm::Instruction &_allocSite,
+                                    ref<Expr> _size, const KModule *km)
+      : version(_version), allocSite(_allocSite),
+        size(_size), km(km) {}
 
   Kind getKind() const override { return Kind::SymbolicSizeConstantAddress; }
   virtual std::string getName() const override {
@@ -145,21 +150,7 @@ public:
   }
 
   virtual unsigned computeHash() override;
-
-  virtual int internalCompare(const SymbolicSource &b) const override {
-    if (getKind() != b.getKind()) {
-      return getKind() < b.getKind() ? -1 : 1;
-    }
-    const SymbolicSizeConstantAddressSource &ssb =
-        static_cast<const SymbolicSizeConstantAddressSource &>(b);
-    if (defaultValue != ssb.defaultValue) {
-      return defaultValue < ssb.defaultValue ? -1 : 1;
-    }
-    if (version != ssb.version) {
-      return version < ssb.version ? -1 : 1;
-    }
-    return 0;
-  }
+  virtual int internalCompare(const SymbolicSource &b) const override;
 };
 
 class MakeSymbolicSource : public SymbolicSource {

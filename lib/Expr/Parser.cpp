@@ -639,8 +639,9 @@ SourceResult ParserImpl::ParseSymbolicSizeConstantAddressSource() {
   auto value = dyn_cast<ConstantExpr>(valueExpr);
   auto version = dyn_cast<ConstantExpr>(versionExpr);
   assert(value && version);
-  return SourceBuilder::symbolicSizeConstantAddress(value->getZExtValue(),
-                                                    version->getZExtValue());
+  // return SourceBuilder::symbolicSizeConstantAddress(value->getZExtValue(),
+  //                                                   version->getZExtValue());
+  return {}; // 
 }
 
 SourceResult ParserImpl::ParseMakeSymbolicSource() {

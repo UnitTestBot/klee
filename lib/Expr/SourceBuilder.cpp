@@ -19,10 +19,11 @@ ref<SymbolicSource> SourceBuilder::symbolicSizeConstant(unsigned defaultValue) {
 }
 
 ref<SymbolicSource>
-SourceBuilder::symbolicSizeConstantAddress(unsigned defaultValue,
-                                           unsigned version) {
+SourceBuilder::symbolicSizeConstantAddress(unsigned version,
+                                           const llvm::Instruction &allocSite,
+                                           ref<Expr> size, const KModule *km) {
   ref<SymbolicSource> r(
-      new SymbolicSizeConstantAddressSource(defaultValue, version));
+      new SymbolicSizeConstantAddressSource(version, allocSite, size, km));
   r->computeHash();
   return r;
 }

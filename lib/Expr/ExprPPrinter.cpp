@@ -397,9 +397,13 @@ public:
     } else if (auto s = dyn_cast<SymbolicSizeConstantSource>(source)) {
       PC << s->defaultValue;
     } else if (auto s = dyn_cast<SymbolicSizeConstantAddressSource>(source)) {
-      PC << s->defaultValue << " " << s->version;
+      auto kf = s->km->functionMap.at(s->allocSite.getFunction());
+      auto ki = kf->instructionMap.at(&s->allocSite);
+      auto kb = ki->parent;
+      PC << s->version << " " << kb->getLabel() << " " << kf->getName().str()
+         << " " << s->size;
     } else if (auto s = dyn_cast<MakeSymbolicSource>(source)) {
-      PC << s->name << " " << s->version;
+      PC << s->name << " " << s->version; 
     } else if (auto s = dyn_cast<LazyInitializationSource>(source)) {
       print(s->pointer);
     } else if (auto s = dyn_cast<ArgumentSource>(source)) {
