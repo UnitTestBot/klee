@@ -58,3 +58,9 @@ target_include_directories(kleeCore SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS} ${SQLite
 target_include_directories(kleeCore PRIVATE ${KLEE_INCLUDE_DIRS})
 target_compile_options(kleeCore PRIVATE ${KLEE_COMPONENT_CXX_FLAGS})
 target_compile_definitions(kleeCore PRIVATE ${KLEE_COMPONENT_CXX_DEFINES})
+
+install(TARGETS kleeCore
+        EXPORT run_klee
+        DESTINATION "${RUN_KLEE_LIB_DEST}"
+)
+

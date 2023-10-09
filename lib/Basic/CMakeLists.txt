@@ -16,3 +16,8 @@ target_compile_options(kleeBasic PRIVATE ${KLEE_COMPONENT_CXX_FLAGS})
 target_compile_definitions(kleeBasic PRIVATE ${KLEE_COMPONENT_CXX_DEFINES})
 
 target_include_directories(kleeBasic PRIVATE ${KLEE_INCLUDE_DIRS})
+
+install(TARGETS kleeBasic
+        EXPORT run_klee
+        DESTINATION "${RUN_KLEE_LIB_DEST}"
+)

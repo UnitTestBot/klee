@@ -151,6 +151,9 @@ cl::list<std::string>
                 cl::desc("Functions in which to start execution."),
                 cl::cat(StartCat));
 
+cl::opt<bool> UTBotMode("utbot", cl::desc("Klee was launched by utbot"),
+                        cl::init(false), cl::cat(StartCat));
+
 cl::opt<int> TimeoutPerFunction("timeout-per-function",
                                 cl::desc("Timeout per function in klee."),
                                 cl::init(0), cl::cat(StartCat));
@@ -1901,7 +1904,7 @@ tryResolveEntryFunction(llvm::Module *mod,
   return resKF;
 }
 
-int main(int argc, char **argv, char **envp) {
+int run_klee(int argc, char **argv, char **envp) {
   if (theInterpreter) {
     theInterpreter = nullptr;
   }
@@ -2227,7 +2230,10 @@ int main(int argc, char **argv, char **envp) {
     }
 
     mainModuleFunctions.insert("__klee_posix_wrapped_main");
-    preparePOSIX(loadedUserModules, EntryPoint);
+
+    if (!UTBotMode) {
+      preparePOSIX(loadedUserModules, EntryPoint);
+    }
   }
 
   if (WithFPRuntime) {

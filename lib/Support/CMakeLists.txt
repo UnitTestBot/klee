@@ -27,3 +27,8 @@ target_include_directories(kleeSupport PRIVATE ${KLEE_INCLUDE_DIRS})
 target_include_directories(kleeSupport SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS} ${TCMALLOC_INCLUDE_DIR})
 target_compile_options(kleeSupport PRIVATE ${KLEE_COMPONENT_CXX_FLAGS})
 target_compile_definitions(kleeSupport PRIVATE ${KLEE_COMPONENT_CXX_DEFINES})
+
+install(TARGETS kleeSupport
+        EXPORT run_klee
+        DESTINATION "${RUN_KLEE_LIB_DEST}"
+)
