@@ -32,6 +32,7 @@
 #include "TimingSolver.h"
 #include "TypeManager.h"
 #include "UserSearcher.h"
+#include "klee/ADT/SparseStorage.h"
 #include "klee/Core/Context.h"
 
 #include "klee/ADT/KTest.h"
@@ -252,6 +253,13 @@ cl::opt<unsigned> DelayCoverOnTheFly(
     "delay-cover-on-the-fly", cl::init(10000),
     cl::desc("Start on the fly tests generation after this many instructions "
              "(default=10000)"),
+    cl::cat(TestGenCat));
+
+cl::opt<unsigned> UninitMemoryTestMultiplier(
+    "uninit-memory-test-multiplier", cl::init(6),
+    cl::desc("Generate additional number of duplicate tests due to "
+             "irreproducibility of uninitialized memory "
+             "(default=6)"),
     cl::cat(TestGenCat));
 
 /* Constraint solving options */
@@ -743,10 +751,9 @@ void Executor::allocateGlobalObjects(ExecutionState &state) {
                         true, nullptr, 8);
     errnoObj->isFixed = true;
 
-    // TODO: unused variable
-    ObjectState *os = bindObjectInState(
-        state, errnoObj, typeSystemManager->getWrappedType(pointerErrnoAddr),
-        false);
+    bindObjectInState(state, errnoObj,
+                      typeSystemManager->getWrappedType(pointerErrnoAddr),
+                      false);
     errno_addr = reinterpret_cast<int *>(errnoObj->address);
   } else {
     errno_addr = getErrnoLocation(state);
@@ -899,7 +906,8 @@ void Executor::initializeGlobalObjects(ExecutionState &state) {
   for (const GlobalVariable &v : m->globals()) {
     MemoryObject *mo = globalObjects.find(&v)->second;
     ObjectState *os = bindObjectInState(
-        state, mo, typeSystemManager->getWrappedType(v.getType()), false);
+        state, mo, typeSystemManager->getWrappedType(v.getType()), false,
+        nullptr);
 
     if (v.isDeclaration() && mo->size) {
       // Program already running -> object already initialized.
@@ -933,11 +941,9 @@ void Executor::initializeGlobalObjects(ExecutionState &state) {
         if (v.isConstant()) {
           os->setReadOnly(true);
           // initialise constant memory that may be used with external calls
-          state.addressSpace.copyOutConcrete(mo, os);
+          state.addressSpace.copyOutConcrete(mo, os, {});
         }
       }
-    } else {
-      os->initializeToRandom();
     }
   }
 }
@@ -2338,7 +2344,7 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
             const ObjectState *osarg =
                 state.addressSpace.findObject(idObject).second;
             assert(osarg);
-            for (unsigned i = 0; i < osarg->size; i++)
+            for (unsigned i = 0; i < osarg->getObject()->size; i++)
               os->write(offsets[k] + i, osarg->read8(i));
           }
           if (ati != f->arg_end()) {
@@ -4863,19 +4869,7 @@ void Executor::callExternalFunction(ExecutionState &state, KInstruction *target,
       assert(success && "FIXME: Unhandled solver failure");
       (void)success;
       ce->toMemory(&args[wordIndex]);
-      IDType result;
       addConstraint(state, EqExpr::create(ce, *ai));
-      // Checking to see if the argument is a pointer to something
-      llvm::Type *argumentType = nullptr;
-      if (ati != functionType->param_end()) {
-        argumentType = const_cast<llvm::Type *>(*ati);
-      }
-      if (ce->getWidth() == Context::get().getPointerWidth() &&
-          state.addressSpace.resolveOne(
-              ce, typeSystemManager->getWrappedType(argumentType), result)) {
-        state.addressSpace.findObject(result).second->flushToConcreteStore(
-            solver.get(), state);
-      }
       wordIndex += (ce->getWidth() + 63) / 64;
     } else {
       ref<Expr> arg = toUnique(state, *ai);
@@ -4900,7 +4894,12 @@ void Executor::callExternalFunction(ExecutionState &state, KInstruction *target,
   }
 
   // Prepare external memory for invoking the function
-  state.addressSpace.copyOutConcretes();
+  auto arrays = state.constraints.cs().gatherArrays();
+  std::vector<SparseStorage<unsigned char>> values;
+  solver->getInitialValues(state.constraints.cs(), arrays, values,
+                           state.queryMetaData);
+  Assignment assignment(arrays, values);
+  state.addressSpace.copyOutConcretes(assignment);
 #ifndef WINDOWS
   // Update external errno state with local state value
   IDType idResult;
@@ -4972,7 +4971,7 @@ void Executor::callExternalFunction(ExecutionState &state, KInstruction *target,
     return;
   }
 
-  if (!state.addressSpace.copyInConcretes()) {
+  if (!state.addressSpace.copyInConcretes(assignment)) {
     terminateStateOnExecError(state, "external modified read-only object",
                               StateTerminationType::External);
     return;
@@ -4982,7 +4981,7 @@ void Executor::callExternalFunction(ExecutionState &state, KInstruction *target,
   // Update errno memory object with the errno value from the call
   int error = externalDispatcher->getLastErrno();
   state.addressSpace.copyInConcrete(result.first, result.second,
-                                    (uint64_t)&error);
+                                    (uint64_t)&error, assignment);
 #endif
 
   Type *resultType = target->inst->getType();
@@ -5061,6 +5060,7 @@ void Executor::executeAlloc(ExecutionState &state, ref<Expr> size, bool isLocal,
                             KInstruction *target, KType *type, bool zeroMemory,
                             const ObjectState *reallocFrom,
                             size_t allocationAlignment, bool checkOutOfMemory) {
+  static unsigned allocations = 0;
   const llvm::Value *allocSite = state.prevPC->inst;
   if (allocationAlignment == 0) {
     allocationAlignment = getAllocationAlignment(allocSite);
@@ -5102,12 +5102,15 @@ void Executor::executeAlloc(ExecutionState &state, ref<Expr> size, bool isLocal,
     if (!mo) {
       bindLocal(target, state, Expr::createPointer(0));
     } else {
-      ObjectState *os = bindObjectInState(state, mo, type, isLocal);
+      ref<SymbolicSource> source = nullptr;
       if (zeroMemory) {
-        os->initializeToZero();
+        source = SourceBuilder::constant(
+            SparseStorage(ConstantExpr::create(0, Expr::Int8)));
       } else {
-        os->initializeToRandom();
+        source = SourceBuilder::uninitialized(allocations++, target);
       }
+      auto array = makeArray(size, source);
+      ObjectState *os = bindObjectInState(state, mo, type, isLocal, array);
 
       ref<Expr> address = mo->getBaseExpr();
       if (checkOutOfMemory) {
@@ -5121,10 +5124,7 @@ void Executor::executeAlloc(ExecutionState &state, ref<Expr> size, bool isLocal,
       bindLocal(target, state, address);
 
       if (reallocFrom) {
-        unsigned count = std::min(reallocFrom->size, os->size);
-        for (unsigned i = 0; i < count; i++) {
-          os->write(i, reallocFrom->read8(i));
-        }
+        os->write(reallocFrom);
         state.removePointerResolutions(reallocFrom->getObject());
         state.addressSpace.unbindObject(reallocFrom->getObject());
       }
@@ -5420,13 +5420,18 @@ MemoryObject *Executor::allocate(ExecutionState &state, ref<Expr> size,
   Expr::Width pointerWidthInBits = Context::get().getPointerWidth();
 
   /* Create symbol for array */
+  KInstruction *ki = nullptr;
+  if (!lazyInitializationSource) {
+    auto inst = cast<llvm::Instruction>(allocSite);
+    ki = kmodule->getKBlock(inst->getParent())->parent->instructionMap[inst];
+  }
 
   const Array *addressArray = makeArray(
       Expr::createPointer(pointerWidthInBits / CHAR_BIT),
       lazyInitializationSource
           ? SourceBuilder::lazyInitializationAddress(lazyInitializationSource)
           : SourceBuilder::symbolicSizeConstantAddress(
-                0, updateNameVersion(state, "const_arr")));
+                updateNameVersion(state, "const_arr"), ki, size));
   ref<Expr> addressExpr =
       Expr::createTempRead(addressArray, pointerWidthInBits);
 
@@ -6405,19 +6410,21 @@ void Executor::updateStateWithSymcretes(ExecutionState &state,
       continue;
     }
 
-    ObjectPair oldOp = state.addressSpace.findObject(newMO->id);
-    ref<const MemoryObject> oldMO(oldOp.first);
-    ref<const ObjectState> oldOS(oldOp.second);
-    if (!oldOS) {
+    ObjectPair op = state.addressSpace.findObject(newMO->id);
+
+    if (!op.second) {
       continue;
     }
+
     /* Create a new ObjectState with the new size and new owning memory
      * object.
      */
 
-    /* Order of operations critical here. */
-    state.addressSpace.unbindObject(oldMO.get());
-    state.addressSpace.bindObject(newMO, new ObjectState(newMO, *oldOS.get()));
+    auto wos = new ObjectState(
+        *(state.addressSpace.getWriteable(op.first, op.second)));
+    wos->swapObjectHack(newMO);
+    state.addressSpace.unbindObject(op.first);
+    state.addressSpace.bindObject(newMO, wos);
   }
 }
 
@@ -6446,8 +6453,8 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
     ObjectState *os = bindObjectInState(state, mo, type, isLocal, array);
 
     if (AlignSymbolicPointers) {
-      if (ref<Expr> alignmentRestrictions =
-              type->getContentRestrictions(os->read(0, os->size * CHAR_BIT))) {
+      if (ref<Expr> alignmentRestrictions = type->getContentRestrictions(
+              os->read(0, os->getObject()->size * CHAR_BIT))) {
         addConstraint(state, alignmentRestrictions);
       }
     }
@@ -6466,7 +6473,7 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
         if (!obj) {
           if (ZeroSeedExtension) {
             si.assignment.bindings.replace(
-                {array, SparseStorage<unsigned char>(mo->size, 0)});
+                {array, SparseStorage<unsigned char>(0)});
           } else if (!AllowSeedExtension) {
             terminateStateOnUserError(state,
                                       "ran out of inputs during seeding");
@@ -6491,12 +6498,8 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
                 si.assignment.bindings.end()) {
               values = si.assignment.bindings.at(array);
             }
-            values.resize(std::min(mo->size, obj->numBytes));
             values.store(0, obj->bytes,
                          obj->bytes + std::min(obj->numBytes, mo->size));
-            if (ZeroSeedExtension) {
-              values.resize(mo->size);
-            }
             si.assignment.bindings.replace({array, values});
           }
         }
@@ -7107,6 +7110,15 @@ bool isReproducible(const klee::Symbolic &symb) {
   return !bad;
 }
 
+bool isUninitialized(const klee::Array *array) {
+  bool bad = isa<UninitializedSource>(array->source);
+  if (bad)
+    klee_warning_once(array->source.get(),
+                      "A uninitialized array %s reaches a test",
+                      array->getIdentifier().c_str());
+  return bad;
+}
+
 bool Executor::getSymbolicSolution(const ExecutionState &state, KTest &res) {
   solver->setTimeout(coreSolverTimeout);
 
@@ -7143,6 +7155,13 @@ bool Executor::getSymbolicSolution(const ExecutionState &state, KTest &res) {
     }
   }
 
+  std::vector<const Array *> allObjects;
+  findSymbolicObjects(state.constraints.cs().cs().begin(),
+                      state.constraints.cs().cs().end(), allObjects);
+  std::vector<const Array *> uninitObjects;
+  std::copy_if(allObjects.begin(), allObjects.end(),
+               std::back_inserter(uninitObjects), isUninitialized);
+
   std::vector<klee::Symbolic> symbolics;
   std::copy_if(state.symbolics.begin(), state.symbolics.end(),
                std::back_inserter(symbolics), isReproducible);
@@ -7154,6 +7173,7 @@ bool Executor::getSymbolicSolution(const ExecutionState &state, KTest &res) {
   }
   bool success = solver->getInitialValues(extendedConstraints.cs(), objects,
                                           values, state.queryMetaData);
+  Assignment assignment(objects, values);
   solver->setTimeout(time::Span());
   if (!success) {
     klee_warning("unable to compute initial values (invalid constraints?)!");
@@ -7164,20 +7184,24 @@ bool Executor::getSymbolicSolution(const ExecutionState &state, KTest &res) {
 
   res.numObjects = symbolics.size();
   res.objects = new KTestObject[res.numObjects];
+  res.uninitCoeff = uninitObjects.size() * UninitMemoryTestMultiplier;
 
   {
     size_t i = 0;
+    // Remove mo->size, evaluate size expr in array
     for (auto &symbolic : symbolics) {
       auto mo = symbolic.memoryObject;
       KTestObject *o = &res.objects[i];
       o->name = const_cast<char *>(mo->name.c_str());
       o->address = mo->address;
-      o->numBytes = values[i].size();
+      o->numBytes = mo->size;
       o->bytes = new unsigned char[o->numBytes];
-      std::copy(values[i].begin(), values[i].end(), o->bytes);
+      for (size_t j = 0; j < mo->size; j++) {
+        o->bytes[j] = values[i].load(j);
+      }
       o->numPointers = 0;
       o->pointers = nullptr;
-      ++i;
+      i++;
     }
   }
 
