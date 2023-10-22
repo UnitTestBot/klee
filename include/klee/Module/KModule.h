@@ -98,16 +98,22 @@ struct InitializerPredicate {
   virtual ~InitializerPredicate() {}
 };
 
-struct JointBlockPredicate : public InitializerPredicate {
+struct DefaultBlockPredicate : public InitializerPredicate {
+  explicit DefaultBlockPredicate(bool initJoinBlocks)
+      : initJoinBlocks(initJoinBlocks){};
   bool operator()(KBlock *block) override;
   bool isInterestingCallBlock(KBlock *kb) override;
-  ~JointBlockPredicate() override {}
+  ~DefaultBlockPredicate() override {}
+
+private:
+  bool initJoinBlocks;
 };
 
 struct TraceVerifyPredicate : public InitializerPredicate {
   explicit TraceVerifyPredicate(std::set<KBlock *> specialPoints,
-                                CodeGraphInfo &cgd)
-      : specialPoints(specialPoints), cgd(cgd){};
+                                CodeGraphInfo &cgd, bool initJoinBlocks)
+      : specialPoints(specialPoints), cgd(cgd),
+        initJoinBlocks(initJoinBlocks){};
 
   bool operator()(KBlock *block) override;
 
@@ -121,6 +127,7 @@ private:
   std::set<KFunction *> uninsterestingFns;
 
   CodeGraphInfo &cgd;
+  bool initJoinBlocks;
 
   bool isInterestingFn(KFunction *kf);
 };
