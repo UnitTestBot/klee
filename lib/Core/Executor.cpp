@@ -272,6 +272,11 @@ cl::opt<HaltExecution::Reason> DumpStatesOnHalt(
         clEnumValN(HaltExecution::Reason::Unspecified, "all",
                    "Dump test cases for all active states on exit (default)")),
     cl::cat(TestGenCat));
+
+cl::opt<bool> InitializeInJoinBlocks(
+    "initialize-in-join-blocks",
+    cl::desc("Initialize execution in join blocks (default=false)"),
+    cl::init(false), cl::cat(ExecCat));
 } // namespace klee
 
 namespace {
@@ -5158,8 +5163,10 @@ void Executor::run(std::vector<ExecutionState *> initialStates,
     BackwardSearcher *backward = constructUserBackwardSearcher(*this);
     InitializerPredicate *predicate =
         errorAndBackward ? (InitializerPredicate *)new TraceVerifyPredicate(
-                               data.specialPoints, *codeGraphInfo.get())
-                         : (InitializerPredicate *)new JointBlockPredicate;
+                               data.specialPoints, *codeGraphInfo.get(),
+                               InitializeInJoinBlocks)
+                         : (InitializerPredicate *)new DefaultBlockPredicate(
+                               InitializeInJoinBlocks);
     objectManager->setPredicate(predicate);
     Initializer *initializer = new ConflictCoreInitializer(
         codeGraphInfo.get(), *predicate, errorAndBackward);
