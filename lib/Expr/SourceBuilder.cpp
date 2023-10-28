@@ -82,9 +82,15 @@ ref<SymbolicSource> SourceBuilder::value(const llvm::Value &_allocSite,
   assert(0 && "unreachable");
 }
 
-ref<SymbolicSource> SourceBuilder::irreproducible(const std::string &name) {
-  static unsigned id = 0;
-  ref<SymbolicSource> r(new IrreproducibleSource(name + llvm::utostr(++id)));
+ref<SymbolicSource> SourceBuilder::global(const llvm::GlobalVariable &gv) {
+  ref<SymbolicSource> r(new GlobalSource(gv));
+  r->computeHash();
+  return r;
+}
+
+ref<SymbolicSource> SourceBuilder::irreproducible(const std::string &name,
+                                                  unsigned version) {
+  ref<SymbolicSource> r(new IrreproducibleSource(name, version));
   r->computeHash();
   return r;
 }

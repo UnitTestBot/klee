@@ -25,6 +25,7 @@ add_library(kleaverExpr
   ExprVisitor.cpp
   IndependentConstraintSetUnion.cpp
   IndependentSet.cpp
+  Lemma.cpp
   Path.cpp
   SourceBuilder.cpp
   SymbolicSource.cpp

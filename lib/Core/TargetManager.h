@@ -13,6 +13,7 @@
 
 #include "DistanceCalculator.h"
 
+#include "ObjectManager.h"
 #include "klee/Core/Interpreter.h"
 #include "klee/Module/TargetHash.h"
 
@@ -158,7 +159,7 @@ public:
                       const TargetHistoryTargetPairToStatesMap &removed) = 0;
 };
 
-class TargetManager {
+class TargetManager final : public Subscriber {
 private:
   using StatesSet = std::unordered_set<ExecutionState *>;
   using StateToDistanceMap =
@@ -175,13 +176,27 @@ private:
   StateToDistanceMap distances;
   StatesSet localStates;
   StatesSet changedStates;
-  std::vector<TargetManagerSubscriber *> subscribers;
+  TargetManagerSubscriber *searcher = nullptr;
+  TargetManagerSubscriber *branchSearcher = nullptr;
   TargetHistoryTargetPairToStatesMap addedTStates;
   TargetHistoryTargetPairToStatesMap removedTStates;
   TargetHashSet removedTargets;
   TargetHashSet addedTargets;
 
+  // For guided mode check
+  TargetHashMap<StatesSet> targetToStates;
+
   void setTargets(ExecutionState &state, const TargetHashSet &targets) {
+    for (auto i : state.targets()) {
+      if (!targets.count(i) && state.isolated) {
+        targetToStates[i].erase(&state);
+      }
+    }
+    for (auto i : targets) {
+      if (state.isolated) {
+        targetToStates[i].insert(&state);
+      }
+    }
     state.setTargets(targets);
     changedStates.insert(&state);
   }
@@ -201,10 +216,18 @@ private:
 
   void updateTargets(ExecutionState &state);
 
+  void updateMiss(ProofObligation &pob, ref<Target> target);
+
+  void updateContinue(ProofObligation &pob, ref<Target> target);
+
+  void updateDone(ProofObligation &pob, ref<Target> target);
+
+  void updateTargets(ProofObligation &pob);
+
   void collect(ExecutionState &state);
 
-  bool isReachedTarget(const ExecutionState &state, ref<Target> target,
-                       WeightResult &result);
+  static bool isReachedTarget(const ExecutionState &state, ref<Target> target,
+                              WeightResult &result);
 
 public:
   TargetManager(Interpreter::GuidanceKind _guidance,
@@ -213,9 +236,13 @@ public:
       : guidance(_guidance), distanceCalculator(_distanceCalculator),
         targetCalculator(_targetCalculator){};
 
+  void update(ref<ObjectManager::Event> e) override;
   void update(ExecutionState *current,
               const std::vector<ExecutionState *> &addedStates,
-              const std::vector<ExecutionState *> &removedStates);
+              const std::vector<ExecutionState *> &removedStates,
+              bool isolated);
+  void update(ExecutionState *context, const pobs_ty &addedPobs,
+              const pobs_ty &removedPobs);
 
   DistanceResult distance(const ExecutionState &state, ref<Target> target) {
 
@@ -241,8 +268,16 @@ public:
     return result;
   }
 
+  DistanceResult distance(const ProofObligation &pob, ref<Target> target) {
+    return distanceCalculator.getDistance(pob, target->getBlock());
+  }
+
   const PersistentSet<ref<Target>> &targets(const ExecutionState &state) {
     return state.targets();
+  }
+
+  const TargetHashSet &targets(const ProofObligation &pob) {
+    return pob.targetForest.getTargets();
   }
 
   ref<const TargetsHistory> history(const ExecutionState &state) {
@@ -261,15 +296,27 @@ public:
     return state.targetForest;
   }
 
-  void subscribe(TargetManagerSubscriber &subscriber) {
-    subscribers.push_back(&subscriber);
+  TargetForest &targetForest(ProofObligation &pob) { return pob.targetForest; }
+
+  void subscribeSearcher(TargetManagerSubscriber &subscriber) {
+    searcher = &subscriber;
+  }
+
+  void subscribeBranchSearcher(TargetManagerSubscriber &subscriber) {
+    branchSearcher = &subscriber;
   }
 
   bool isTargeted(const ExecutionState &state) { return state.isTargeted(); }
 
-  bool isReachedTarget(const ExecutionState &state, ref<Target> target);
+  bool isTargeted(const ProofObligation &pob) { return pob.isTargeted(); }
+
+  static bool isReachedTarget(const ExecutionState &state, ref<Target> target);
 
   void setReached(ref<Target> target) { reachedTargets.insert(target); }
+
+  bool hasTargetedStates(ref<Target> target) {
+    return targetToStates.count(target) && !targetToStates.at(target).empty();
+  }
 };
 
 } // namespace klee

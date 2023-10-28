@@ -100,8 +100,15 @@ std::string KInstruction::getSourceLocationString() const {
 }
 
 std::string KInstruction::toString() const {
-  return llvm::utostr(getIndex()) + " at " + parent->toString() + " (" +
-         inst->getOpcodeName() + ")";
+  std::string ret;
+  llvm::raw_string_ostream ss(ret);
+  ss << "[" << getIndex() << ", " << parent->getLabel() << ", "
+     << parent->parent->getName() << "]";
+  return ss.str();
+}
+
+bool CallStackFrame::equals(const CallStackFrame &other) const {
+  return kf == other.kf && caller == other.caller;
 }
 
 unsigned KInstruction::getGlobalIndex() const { return globalIndex; }

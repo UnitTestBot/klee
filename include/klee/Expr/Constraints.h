@@ -90,10 +90,12 @@ private:
 
 class PathConstraints {
 public:
-  using ordered_constraints_ty =
-      std::map<Path::PathIndex, constraints_ty, Path::PathIndexCompare>;
+  using ordered_constraints_ty = std::vector<ref<Expr>>;
+  using path_ordered_constraints_ty =
+      std::map<Path::PathIndex, ordered_constraints_ty, Path::PathIndexCompare>;
 
-  void advancePath(KInstruction *ki);
+  void advancePath(KInstruction *prevPC, KInstruction *pc);
+  void retractPath();
   void advancePath(const Path &path);
   ExprHashSet addConstraint(ref<Expr> e, const Assignment &delta,
                             Path::PathIndex currIndex);
@@ -105,19 +107,21 @@ public:
   const constraints_ty &original() const;
   const ExprHashMap<ExprHashSet> &simplificationMap() const;
   const ConstraintSet &cs() const;
+  const ConstraintSet &withAssumtions(const ExprHashSet &assumptions) const;
   const Path &path() const;
   const ExprHashMap<Path::PathIndex> &indexes() const;
-  const ordered_constraints_ty &orderedCS() const;
+  const path_ordered_constraints_ty &orderedCS() const;
 
-  static PathConstraints concat(const PathConstraints &l,
-                                const PathConstraints &r);
+  PathConstraints() = default;
+  PathConstraints(KInstruction *initpc) : _path(initpc) {}
 
 private:
   Path _path;
   constraints_ty _original;
   ConstraintSet constraints;
+  mutable ConstraintSet tmpConstraints;
   ExprHashMap<Path::PathIndex> pathIndexes;
-  ordered_constraints_ty orderedConstraints;
+  path_ordered_constraints_ty orderedConstraints;
   ExprHashMap<ExprHashSet> _simplificationMap;
 };
 

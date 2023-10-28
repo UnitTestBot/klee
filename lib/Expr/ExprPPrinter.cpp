@@ -412,6 +412,8 @@ public:
       PC << s->name;
     } else if (auto s = dyn_cast<AlphaSource>(source)) {
       PC << s->index;
+    } else if (auto s = dyn_cast<GlobalSource>(source)) {
+      PC << s->gv.getName();
     } else {
       assert(0 && "Not implemented");
     }
@@ -657,5 +659,54 @@ void ExprPPrinter::printQuery(
   }
 
   PC << ')';
+  PC.breakLine();
+}
+
+void ExprPPrinter::printLemma(llvm::raw_ostream &os, const Lemma &l) {
+  PPrinter p(os);
+
+  for (const auto &constraint : l.constraints) {
+    p.scan(constraint);
+  }
+
+  PrintContext PC(os);
+
+  PC << "(lemma";
+  PC.breakLine(1);
+
+  // print path
+  PC << l.path.toString();
+
+  PC.breakLine();
+  PC.breakLine(1);
+
+  PC << "(";
+
+  std::vector<const Array *> sortedArray(p.usedArrays.begin(),
+                                         p.usedArrays.end());
+
+  std::sort(sortedArray.begin(), sortedArray.end(), ArrayPtrsByDependency());
+
+  for (auto it = sortedArray.begin(), ie = sortedArray.end(); it != ie; ++it) {
+    const Array *A = *it;
+    PC << A->getIdentifier() << " : ";
+    p.printArrayDecl(A, PC);
+    if (it + 1 != ie) {
+      PC.breakLine(2);
+    }
+  }
+  PC << ")";
+  PC.breakLine();
+  PC.breakLine(1);
+
+  PC << "(";
+  for (auto it = l.constraints.begin(), ie = l.constraints.end(); it != ie;
+       ++it) {
+    if (it != l.constraints.begin()) {
+      PC.breakLine(2);
+    }
+    p.print(*it, PC);
+  }
+  PC << "))";
   PC.breakLine();
 }
