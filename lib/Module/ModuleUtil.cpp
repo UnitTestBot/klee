@@ -363,7 +363,7 @@ bool klee::loadFileAsOneModule(
   bool res = klee::loadFile(libraryName, context, modules2, errorMsg);
   if (res) {
     modules.push_back(std::move(modules2.front()));
-    return linkModules(modules.back().get(), modules2, 0, errorMsg);
+    return linkModules(modules.back().get(), modules2, 1, errorMsg);
   }
   return res;
 }
