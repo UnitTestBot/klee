@@ -751,7 +751,7 @@ bool klee::RegularFunctionPredicate(KBlock *block) {
           !dyn_cast<KCallBlock>(block)->intrinsic());
 }
 
-bool JointBlockPredicate::operator()(KBlock *block) {
+bool DefaultBlockPredicate::operator()(KBlock *block) {
   if (block == block->parent->entryKBlock) {
     return true;
   }
@@ -760,8 +760,8 @@ bool JointBlockPredicate::operator()(KBlock *block) {
     return true;
   }
 
-  if (block->basicBlock->hasNPredecessorsOrMore(2) ||
-      block->basicBlock->hasNPredecessors(0)) {
+  if (initJoinBlocks && (block->basicBlock->hasNPredecessorsOrMore(2) ||
+                         block->basicBlock->hasNPredecessors(0))) {
     return true;
   }
 
@@ -772,7 +772,7 @@ bool JointBlockPredicate::operator()(KBlock *block) {
   return false;
 }
 
-bool JointBlockPredicate::isInterestingCallBlock(KBlock *kb) {
+bool DefaultBlockPredicate::isInterestingCallBlock(KBlock *kb) {
   return RegularFunctionPredicate(kb);
 }
 
@@ -782,6 +782,11 @@ bool TraceVerifyPredicate::operator()(KBlock *block) {
   }
 
   if (block->parent->finalKBlocks.count(block)) {
+    return true;
+  }
+
+  if (initJoinBlocks && (block->basicBlock->hasNPredecessorsOrMore(2) ||
+                         block->basicBlock->hasNPredecessors(0))) {
     return true;
   }
 
