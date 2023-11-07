@@ -65,6 +65,7 @@ bool ComposeHelper::tryResolveAddress(ExecutionState &state, ref<Expr> address,
       // Update memory objects if arrays have affected them.
       executor->updateStateWithSymcretes(state, concretization);
     }
+    state.assumptions.insert(guard);
     ref<Expr> resultAddress =
         state.addressSpace
             .findObject(resolvedMemoryObjects.at(resolveConditions.size() - 1))
@@ -108,6 +109,7 @@ bool ComposeHelper::tryResolveSize(ExecutionState &state, ref<Expr> address,
       // Update memory objects if arrays have affected them.
       executor->updateStateWithSymcretes(state, concretization);
     }
+    state.assumptions.insert(guard);
     ref<Expr> resultSize =
         state.addressSpace
             .findObject(resolvedMemoryObjects.at(resolveConditions.size() - 1))
@@ -127,10 +129,11 @@ bool ComposeHelper::tryResolveSize(ExecutionState &state, ref<Expr> address,
 }
 
 bool ComposeHelper::tryResolveContent(
-    ExecutionState &state, ref<Expr> base, ref<Expr> offset, Expr::Width type,
-    unsigned size,
+    ExecutionState &state, ref<Expr> base, Expr::Width width,
     std::pair<ref<Expr>, std::vector<std::pair<ref<Expr>, ref<ObjectState>>>>
         &result) {
+  // rounded up
+  unsigned byteWidth = width / CHAR_BIT + ((width % CHAR_BIT == 0) ? 0 : 1);
   bool mayBeOutOfBound = true;
   bool hasLazyInitialized = false;
   bool incomplete = false;
@@ -151,7 +154,7 @@ bool ComposeHelper::tryResolveContent(
   ref<Expr> address = base;
 
   if (!checkResolvedMemoryObjects(
-          state, address, target, size, mayBeResolvedMemoryObjects,
+          state, address, target, byteWidth, mayBeResolvedMemoryObjects,
           hasLazyInitialized, resolvedMemoryObjects, resolveConditions,
           unboundConditions, checkOutOfBounds, mayBeOutOfBound)) {
     return false;
@@ -169,8 +172,8 @@ bool ComposeHelper::tryResolveContent(
   }
 
   std::vector<ref<ObjectState>> resolvedObjectStates;
-  collectObjectStates(state, address, type, size, resolvedMemoryObjects,
-                      resolveConcretizations, resolvedObjectStates);
+  collectObjectStates(state, resolvedMemoryObjects, resolveConcretizations,
+                      resolvedObjectStates);
 
   result.first = guard;
 
@@ -183,6 +186,7 @@ bool ComposeHelper::tryResolveContent(
       // Update memory objects if arrays have affected them.
       executor->updateStateWithSymcretes(state, concretization);
     }
+    state.assumptions.insert(guard);
   }
 
   for (unsigned int i = 0; i < resolvedObjectStates.size(); ++i) {
@@ -193,36 +197,34 @@ bool ComposeHelper::tryResolveContent(
 }
 
 std::pair<ref<Expr>, ref<Expr>> ComposeHelper::fillLazyInitializationAddress(
-    ExecutionState &state,
-    ref<LazyInitializationAddressSource> lazyInitializationAddressSource,
-    ref<Expr> pointer, Expr::Width width) {
+    ExecutionState &state, ref<Expr> pointer) {
   std::pair<ref<Expr>, ref<Expr>> result;
   if (!tryResolveAddress(state, pointer, result)) {
-    return std::make_pair(Expr::createFalse(), ConstantExpr::create(0, width));
+    return std::make_pair(
+        Expr::createFalse(),
+        ConstantExpr::create(0, Context::get().getPointerWidth()));
   }
   return result;
 }
 
 std::pair<ref<Expr>, ref<Expr>> ComposeHelper::fillLazyInitializationSize(
-    ExecutionState &state,
-    ref<LazyInitializationSizeSource> lazyInitializationSizeSource,
-    ref<Expr> pointer, Expr::Width width) {
+    ExecutionState &state, ref<Expr> pointer) {
   std::pair<ref<Expr>, ref<Expr>> result;
   if (!tryResolveSize(state, pointer, result)) {
-    return std::make_pair(Expr::createFalse(), ConstantExpr::create(0, width));
+    return std::make_pair(
+        Expr::createFalse(),
+        ConstantExpr::create(0, Context::get().getPointerWidth()));
   }
   return result;
 }
 
 std::pair<ref<Expr>, std::vector<std::pair<ref<Expr>, ref<ObjectState>>>>
-ComposeHelper::fillLazyInitializationContent(
-    ExecutionState &state,
-    ref<LazyInitializationContentSource> lazyInitializationContentSource,
-    ref<Expr> pointer, unsigned concreteSize, ref<Expr> offset,
-    Expr::Width width) {
+ComposeHelper::fillLazyInitializationContent(ExecutionState &state,
+                                             ref<Expr> pointer,
+                                             Expr::Width width) {
   std::pair<ref<Expr>, std::vector<std::pair<ref<Expr>, ref<ObjectState>>>>
       result;
-  if (!tryResolveContent(state, pointer, offset, width, concreteSize, result)) {
+  if (!tryResolveContent(state, pointer, width, result)) {
     return std::make_pair(
         Expr::createFalse(),
         std::vector<std::pair<ref<Expr>, ref<ObjectState>>>());
@@ -250,8 +252,9 @@ ExprVisitor::Action ComposeVisitor::visitSelect(const SelectExpr &select) {
       processSelect(select.cond, select.trueExpr, select.falseExpr));
 }
 
-void ComposeVisitor::shareUpdates(ref<ObjectState> os,
-                                  const UpdateList &updates) {
+ref<ObjectState> ComposeVisitor::shareUpdates(ref<ObjectState> os,
+                                              const UpdateList &updates) {
+  ref<ObjectState> copy(new ObjectState(*os.get()));
   std::stack<ref<UpdateNode>> forward;
 
   for (auto it = updates.head; !it.isNull(); it = it->next) {
@@ -263,132 +266,143 @@ void ComposeVisitor::shareUpdates(ref<ObjectState> os,
     forward.pop();
     ref<Expr> newIndex = visit(UNode->index);
     ref<Expr> newValue = visit(UNode->value);
-    os->write(newIndex, newValue);
+    copy->write(newIndex, newValue);
   }
+
+  return copy;
 }
 
 ref<Expr> ComposeVisitor::processRead(const Array *root,
                                       const UpdateList &updates,
                                       ref<Expr> index, Expr::Width width) {
   index = visit(index);
-  ref<Expr> size = visit(root->getSize());
-  Expr::Width concreteSizeInBits = 0;
-  concreteSizeInBits = width;
-  unsigned concreteSize = concreteSizeInBits / CHAR_BIT;
-  concreteSize += (concreteSizeInBits % CHAR_BIT == 0) ? 0 : 1;
-  ref<Expr> res;
+  auto arraySize = visit(root->getSize());
+
+  ComposedResult composedArray;
+
+  // First compose the array itself, the result of composition is one of:
+  // 1. An Expr that expresses some value such as an llvm register.
+  // 2. An ObjectState that expresses some memory object.
+  // 3. A resolution list with resolution conditions that express a set
+  //    of objects this array might correspond to after composition.
+  if (composedArrays.count(root)) {
+    composedArray = composedArrays.at(root);
+  } else {
+    switch (root->source->getKind()) {
+    case SymbolicSource::Kind::Argument:
+    case SymbolicSource::Kind::Instruction: {
+      composedArray =
+          helper.fillValue(state, cast<ValueSource>(root->source), arraySize);
+      break;
+    }
+    case SymbolicSource::Kind::Global: {
+      composedArray =
+          helper.fillGlobal(state, cast<GlobalSource>(root->source));
+      break;
+    }
+    case SymbolicSource::Kind::MakeSymbolic: {
+      composedArray = helper.fillMakeSymbolic(
+          state, cast<MakeSymbolicSource>(root->source), arraySize);
+      break;
+    }
+    case SymbolicSource::Kind::Irreproducible: {
+      composedArray = helper.fillIrreproducible(
+          state, cast<IrreproducibleSource>(root->source), arraySize);
+      break;
+    }
+    case SymbolicSource::Kind::Constant: {
+      composedArray = helper.fillConstant(
+          state, cast<ConstantSource>(root->source), arraySize);
+      break;
+    }
+    // case SymbolicSource::Kind::SymbolicSizeConstant: {
+    //   composedArray = helper.fillSymbolicSizeConstant(
+    //       state, cast<SymbolicSizeConstantSource>(root->source), arraySize);
+    //   break;
+    // }
+    case SymbolicSource::Kind::SymbolicSizeConstantAddress: {
+      auto source = cast<SymbolicSizeConstantAddressSource>(root->source);
+      auto size = visit(source->size);
+      auto address = helper.fillSymbolicSizeConstantAddress(state, source,
+                                                            arraySize, size);
+      assert(!state.constraints.isSymcretized(address));
+      auto oldAddress =
+          Expr::createTempRead(root, Context::get().getPointerWidth());
+      address =
+          helper.fillSizeAddressSymcretes(state, oldAddress, address, size);
+      composedArray = address;
+      break;
+    }
+    case SymbolicSource::Kind::LazyInitializationAddress: {
+      auto pointer =
+          visit(cast<LazyInitializationSource>(root->source)->pointer);
+      auto guardedAddress =
+          helper.fillLazyInitializationAddress(state, pointer);
+      safetyConstraints.insert(guardedAddress.first);
+      composedArray = guardedAddress.second;
+      break;
+    }
+    case SymbolicSource::Kind::LazyInitializationSize: {
+      auto pointer =
+          visit(cast<LazyInitializationSource>(root->source)->pointer);
+      auto guardedSize = helper.fillLazyInitializationSize(state, pointer);
+      safetyConstraints.insert(guardedSize.first);
+      composedArray = guardedSize.second;
+      break;
+    }
+    case SymbolicSource::Kind::LazyInitializationContent: {
+      auto pointer =
+          visit(cast<LazyInitializationSource>(root->source)->pointer);
+      // index is not used because there are conditions composed before
+      // that act as the index check
+      auto guardedContent =
+          helper.fillLazyInitializationContent(state, pointer, width);
+      safetyConstraints.insert(guardedContent.first);
+      composedArray = guardedContent.second;
+      break;
+    }
+    default: {
+      assert(0 && "not implemented");
+    }
+    }
+
+    // LIContent arrays are not cached for now.
+    if (shouldCacheArray(root)) {
+      composedArrays.insert({root, composedArray});
+    }
+  }
+
+  // Use the array composition result to form the composed
+  // version of the read being composed
   switch (root->source->getKind()) {
   case SymbolicSource::Kind::Argument:
-  case SymbolicSource::Kind::Instruction: {
-    assert(updates.getSize() == 0);
-    auto value = helper.fillValue(state, cast<ValueSource>(root->source), size);
+  case SymbolicSource::Kind::Instruction:
+  case SymbolicSource::Kind::SymbolicSizeConstantAddress:
+  case SymbolicSource::Kind::LazyInitializationAddress:
+  case SymbolicSource::Kind::LazyInitializationSize: {
     assert(isa<ConstantExpr>(index));
-    auto concreteIndex = dyn_cast<ConstantExpr>(index)->getZExtValue();
+    auto value = std::get<ref<Expr>>(composedArray);
+    auto concreteIndex = cast<ConstantExpr>(index)->getZExtValue();
     return ExtractExpr::create(value, concreteIndex * 8, width);
   }
 
-  case SymbolicSource::Kind::Global: {
-    ref<ObjectState> os =
-        helper.fillGlobal(state, cast<GlobalSource>(root->source));
-    shareUpdates(os, updates);
-    return os->read(index, width);
-  }
-
-  case SymbolicSource::Kind::MakeSymbolic: {
-    ref<ObjectState> os = helper.fillMakeSymbolic(
-        state, cast<MakeSymbolicSource>(root->source), size, concreteSize);
-    shareUpdates(os, updates);
-    return os->read(index, width);
-  }
-  case SymbolicSource::Kind::Irreproducible: {
-    ref<ObjectState> os = helper.fillIrreproducible(
-        state, cast<IrreproducibleSource>(root->source), size, concreteSize);
-    shareUpdates(os, updates);
-    return os->read(index, width);
-  }
+  case SymbolicSource::Kind::Global:
+  case SymbolicSource::Kind::MakeSymbolic:
+  case SymbolicSource::Kind::Irreproducible:
   case SymbolicSource::Kind::Constant: {
-    ref<ObjectState> os =
-        helper.fillConstant(state, cast<ConstantSource>(root->source), size);
-    shareUpdates(os, updates);
+    auto os = std::get<ref<ObjectState>>(composedArray);
+    os = shareUpdates(os, updates);
     return os->read(index, width);
   }
-  case SymbolicSource::Kind::SymbolicSizeConstantAddress: {
-    assert(updates.getSize() == 0);
-    ref<Expr> address = helper.fillSymbolicSizeConstantAddress(
-        state, cast<SymbolicSizeConstantAddressSource>(root->source), size,
-        width);
-    if (!state.constraints.isSymcretized(address)) {
-      std::pair<ref<Expr>, ref<Expr>> sizeAddress =
-          helper.getSymbolicSizeConstantSizeAddressPair(
-              state, cast<SymbolicSizeConstantAddressSource>(root->source),
-              size, width);
-      ref<Expr> oldAddress = Expr::createTempRead(root, width);
-      address = helper.fillSizeAddressSymcretes(
-          state, oldAddress, sizeAddress.first, sizeAddress.second);
-    }
-    return address;
-  }
-  case SymbolicSource::Kind::LazyInitializationAddress: {
-    assert(updates.getSize() == 0);
-    ref<Expr> pointer =
-        visit(cast<LazyInitializationSource>(root->source)->pointer);
-    std::pair<ref<Expr>, ref<Expr>> guardedAddress =
-        helper.fillLazyInitializationAddress(
-            state, cast<LazyInitializationAddressSource>(root->source), pointer,
-            width);
-    safetyConstraints.insert(guardedAddress.first);
-    return guardedAddress.second;
-  }
-  case SymbolicSource::Kind::LazyInitializationSize: {
-    assert(updates.getSize() == 0);
-    ref<Expr> pointer =
-        visit(cast<LazyInitializationSource>(root->source)->pointer);
-    std::pair<ref<Expr>, ref<Expr>> guardedSize =
-        helper.fillLazyInitializationSize(
-            state, cast<LazyInitializationSizeSource>(root->source), pointer,
-            width);
-    safetyConstraints.insert(guardedSize.first);
-    return guardedSize.second;
-  }
+
   case SymbolicSource::Kind::LazyInitializationContent: {
-    ref<Expr> pointer =
-        visit(cast<LazyInitializationSource>(root->source)->pointer);
-    std::pair<ref<Expr>, std::vector<std::pair<ref<Expr>, ref<ObjectState>>>>
-        guardedContent = helper.fillLazyInitializationContent(
-            state, cast<LazyInitializationContentSource>(root->source), pointer,
-            concreteSize, Expr::createZExtToPointerWidth(index), width);
-    safetyConstraints.insert(guardedContent.first);
-
-    std::vector<ref<Expr>> results;
-    std::vector<ref<Expr>> guards;
-    for (unsigned int i = 0; i < guardedContent.second.size(); ++i) {
-      ref<Expr> guard = guardedContent.second[i].first;
-      ref<ObjectState> os = guardedContent.second[i].second;
-      shareUpdates(os, updates);
-
-      ref<Expr> result = os->read(index, width);
-      results.push_back(result);
-      guards.push_back(guard);
-    }
-
-    ref<Expr> result;
-    if (results.size() > 0) {
-      result = results[guards.size() - 1];
-      for (unsigned int i = 0; i < guards.size(); ++i) {
-        unsigned int index = guards.size() - 1 - i;
-        result = SelectExpr::create(guards[index], results[index], result);
-      }
-    } else {
-      result = ConstantExpr::create(0, width);
-    }
-
-    return result;
+    auto objects = std::get<ResolutionVector>(composedArray);
+    return formSelectRead(objects, updates, index, width);
   }
-
-  default:
+  default: {
     assert(0 && "not implemented");
   }
-  return res;
+  }
 }
 
 ref<Expr> ComposeVisitor::processSelect(ref<Expr> cond, ref<Expr> trueExpr,
@@ -403,16 +417,12 @@ ref<Expr> ComposeVisitor::processSelect(ref<Expr> cond, ref<Expr> trueExpr,
     return ConstantExpr::create(0, trueExpr->getWidth());
   }
   switch (res) {
-  case PValidity::MustBeTrue: {
-    return visit(trueExpr);
-  }
+  case PValidity::MustBeTrue:
   case PValidity::MayBeTrue: {
     return visit(trueExpr);
   }
 
-  case PValidity::MustBeFalse: {
-    return visit(falseExpr);
-  }
+  case PValidity::MustBeFalse:
   case PValidity::MayBeFalse: {
     return visit(falseExpr);
   }
@@ -483,8 +493,49 @@ ref<Expr> ComposeVisitor::processSelect(ref<Expr> cond, ref<Expr> trueExpr,
     ref<Expr> result = SelectExpr::create(cond, trueExpr, falseExpr);
     return result;
   }
+  default:
+    {
+      assert(0);
+    }
+  }
+}
+
+bool ComposeVisitor::shouldCacheArray(const Array *array) {
+  switch (array->source->getKind()) {
+  case SymbolicSource::Kind::LazyInitializationContent: {
+    return false;
+  }
   default: {
-    assert(0);
+    return true;
   }
   }
+}
+
+ref<Expr> ComposeVisitor::formSelectRead(ResolutionVector &rv,
+                                         const UpdateList &updates,
+                                         ref<Expr> index, Expr::Width width) {
+  std::vector<ref<Expr>> results;
+  std::vector<ref<Expr>> guards;
+  for (unsigned int i = 0; i < rv.size(); ++i) {
+    ref<Expr> guard = rv[i].first;
+    ref<ObjectState> os = rv[i].second;
+    os = shareUpdates(os, updates);
+
+    ref<Expr> result = os->read(index, width);
+    results.push_back(result);
+    guards.push_back(guard);
+  }
+
+  ref<Expr> result;
+  if (results.size() > 0) {
+    result = results[guards.size() - 1];
+    for (unsigned int i = 0; i < guards.size(); ++i) {
+      unsigned int index = guards.size() - 1 - i;
+      result = SelectExpr::create(guards[index], results[index], result);
+    }
+  } else {
+    result = ConstantExpr::create(0, width);
+  }
+
+  return result;
 }

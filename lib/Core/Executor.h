@@ -402,8 +402,7 @@ private:
                               bool &mayBeInBounds);
 
   void
-  collectObjectStates(ExecutionState &state, ref<Expr> address,
-                      Expr::Width type, unsigned bytes,
+  collectObjectStates(ExecutionState &state,
                       const std::vector<IDType> &resolvedMemoryObjects,
                       const std::vector<Assignment> &resolveConcretizations,
                       std::vector<ref<ObjectState>> &results);
@@ -720,12 +719,12 @@ private:
 
   ref<ObjectState> fillMakeSymbolic(ExecutionState &state,
                                     ref<MakeSymbolicSource> makeSymbolicSource,
-                                    ref<Expr> size, unsigned concreteSize);
+                                    ref<Expr> size);
 
   ref<ObjectState>
   fillIrreproducible(ExecutionState &state,
                      ref<IrreproducibleSource> makeSymbolicSource,
-                     ref<Expr> size, unsigned concreteSize);
+                     ref<Expr> size);
 
   ref<ObjectState> fillConstant(ExecutionState &state,
                                 ref<ConstantSource> constanSource,
@@ -734,7 +733,8 @@ private:
   ref<Expr> fillSymbolicSizeConstantAddress(
       ExecutionState &state,
       ref<SymbolicSizeConstantAddressSource> symbolicSizeConstantAddressSource,
-      ref<Expr> size, Expr::Width width);
+      ref<Expr> arraySize, ref<Expr> size);
+
   std::pair<ref<Expr>, ref<Expr>> getSymbolicSizeConstantSizeAddressPair(
       ExecutionState &state,
       ref<SymbolicSizeConstantAddressSource> symbolicSizeConstantAddressSource,
