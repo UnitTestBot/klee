@@ -725,6 +725,11 @@ private:
                                     ref<Expr> size);
 
   ref<ObjectState>
+  fillUninitialized(ExecutionState &state,
+                    ref<UninitializedSource> uninitializedSource,
+                    ref<Expr> size);
+
+  ref<ObjectState>
   fillIrreproducible(ExecutionState &state,
                      ref<IrreproducibleSource> makeSymbolicSource,
                      ref<Expr> size);

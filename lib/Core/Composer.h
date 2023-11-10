@@ -153,10 +153,18 @@ public:
                       ref<Expr> size) {
     return executor->fillValue(state, valueSource, size);
   }
+
   ref<ObjectState> fillMakeSymbolic(ExecutionState &state,
                                     ref<MakeSymbolicSource> makeSymbolicSource,
                                     ref<Expr> size) {
     return executor->fillMakeSymbolic(state, makeSymbolicSource, size);
+  }
+
+  ref<ObjectState>
+  fillUninitialized(ExecutionState &state,
+                    ref<UninitializedSource> uninitializedSource,
+                    ref<Expr> size) {
+    return executor->fillUninitialized(state, uninitializedSource, size);
   }
 
   ref<ObjectState> fillGlobal(ExecutionState &state,

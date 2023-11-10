@@ -4538,6 +4538,18 @@ Executor::fillMakeSymbolic(ExecutionState &state,
 }
 
 ref<ObjectState>
+Executor::fillUninitialized(ExecutionState &state,
+                            ref<UninitializedSource> uninitializedSource,
+                            ref<Expr> size) {
+  auto allocSite = uninitializedSource->allocSite;
+  unsigned newVersion =
+      state.uninitializedAllocations[allocSite] + uninitializedSource->version;
+  const Array *newArray =
+      makeArray(size, SourceBuilder::uninitialized(newVersion, allocSite));
+  return new ObjectState(newArray, typeSystemManager->getUnknownType());
+}
+
+ref<ObjectState>
 Executor::fillIrreproducible(ExecutionState &state,
                              ref<IrreproducibleSource> irreproducibleSource,
                              ref<Expr> size) {
@@ -5892,7 +5904,6 @@ void Executor::executeAlloc(ExecutionState &state, ref<Expr> size, bool isLocal,
                             KInstruction *target, KType *type, bool zeroMemory,
                             const ObjectState *reallocFrom,
                             size_t allocationAlignment, bool checkOutOfMemory) {
-  static unsigned allocations = 0;
   const llvm::Value *allocSite = state.prevPC->inst;
   if (allocationAlignment == 0) {
     allocationAlignment = getAllocationAlignment(allocSite);
@@ -5940,7 +5951,8 @@ void Executor::executeAlloc(ExecutionState &state, ref<Expr> size, bool isLocal,
         source = SourceBuilder::constant(
             SparseStorage(ConstantExpr::create(0, Expr::Int8)));
       } else {
-        source = SourceBuilder::uninitialized(allocations++, target);
+        source = SourceBuilder::uninitialized(
+            state.uninitializedAllocations[target]++, target);
       }
       auto array = makeArray(size, source);
       ObjectState *os = bindObjectInState(state, mo, type, isLocal, array);

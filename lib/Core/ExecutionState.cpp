@@ -165,6 +165,7 @@ ExecutionState::ExecutionState(const ExecutionState &state)
       coveredLines(state.coveredLines), symbolics(state.symbolics),
       resolvedPointers(state.resolvedPointers),
       cexPreferences(state.cexPreferences), arrayNames(state.arrayNames),
+      uninitializedAllocations(state.uninitializedAllocations),
       steppedInstructions(state.steppedInstructions),
       steppedMemoryInstructions(state.steppedMemoryInstructions),
       instsSinceCovNew(state.instsSinceCovNew),
