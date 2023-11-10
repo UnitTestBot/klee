@@ -37,7 +37,7 @@ public:
 
   enum Kind {
     Constant = 3,
-    Uninitialied,
+    Uninitialized,
     SymbolicSizeConstantAddress,
     MakeSymbolic,
     LazyInitializationContent,
@@ -108,12 +108,12 @@ public:
   UninitializedSource(unsigned version, const KInstruction *allocSite)
       : version(version), allocSite(allocSite) {}
 
-  Kind getKind() const override { return Kind::Uninitialied; }
+  Kind getKind() const override { return Kind::Uninitialized; }
 
   std::string getName() const override { return "uninitialized"; }
 
   static bool classof(const SymbolicSource *S) {
-    return S->getKind() == Kind::Uninitialied;
+    return S->getKind() == Kind::Uninitialized;
   }
 
   static bool classof(const UninitializedSource *) { return true; }

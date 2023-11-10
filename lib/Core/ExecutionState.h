@@ -327,6 +327,8 @@ public:
   /// @brief Set of used array names for this state.  Used to avoid collisions.
   std::map<std::string, uint64_t> arrayNames;
 
+  std::map<const KInstruction *, uint64_t> uninitializedAllocations;
+
   /// @brief The numbers of times this state has run through
   /// Executor::stepInstruction
   std::uint64_t steppedInstructions = 0;
