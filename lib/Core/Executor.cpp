@@ -4525,7 +4525,7 @@ ref<ObjectState> Executor::fillGlobal(ExecutionState &state,
 ref<ObjectState>
 Executor::fillMakeSymbolic(ExecutionState &state,
                            ref<MakeSymbolicSource> makeSymbolicSource,
-                           ref<Expr> size, unsigned concreteSize) {
+                           ref<Expr> size) {
   unsigned stateNameVersion =
       state.arrayNames.count(makeSymbolicSource->name)
           ? state.arrayNames.at(makeSymbolicSource->name)
@@ -4533,19 +4533,14 @@ Executor::fillMakeSymbolic(ExecutionState &state,
   unsigned newVersion = makeSymbolicSource->version + stateNameVersion;
   const Array *newArray = makeArray(
       size, SourceBuilder::makeSymbolic(makeSymbolicSource->name, newVersion));
-  // JUST TO CHECK
-  if (isa<ConstantExpr>(size)) {
-    concreteSize = dyn_cast<ConstantExpr>(size)->getZExtValue();
-  } else {
-    assert(0);
-  }
+
   return new ObjectState(newArray, typeSystemManager->getUnknownType());
 }
 
 ref<ObjectState>
 Executor::fillIrreproducible(ExecutionState &state,
                              ref<IrreproducibleSource> irreproducibleSource,
-                             ref<Expr> size, unsigned concreteSize) {
+                             ref<Expr> size) {
   unsigned stateNameVersion =
       state.arrayNames.count(irreproducibleSource->name)
           ? state.arrayNames.at(irreproducibleSource->name)
@@ -4568,17 +4563,17 @@ ref<ObjectState> Executor::fillConstant(ExecutionState &state,
 ref<Expr> Executor::fillSymbolicSizeConstantAddress(
     ExecutionState &state,
     ref<SymbolicSizeConstantAddressSource> symbolicSizeConstantAddressSource,
-    ref<Expr> size, Expr::Width width) {
+    ref<Expr> arraySize, ref<Expr> size) {
   unsigned stateNameVersion = state.arrayNames.count("const_arr")
                                   ? state.arrayNames.at("const_arr")
                                   : 0;
   unsigned newVersion =
       symbolicSizeConstantAddressSource->version + stateNameVersion;
   const Array *newArray = makeArray(
-      size, SourceBuilder::symbolicSizeConstantAddress(
-                newVersion, symbolicSizeConstantAddressSource->allocSite,
-                symbolicSizeConstantAddressSource->size));
-  return Expr::createTempRead(newArray, width);
+      arraySize,
+      SourceBuilder::symbolicSizeConstantAddress(
+          newVersion, symbolicSizeConstantAddressSource->allocSite, size));
+  return Expr::createTempRead(newArray, Context::get().getPointerWidth());
 }
 
 ref<Expr> Executor::fillSizeAddressSymcretes(ExecutionState &state,
@@ -4592,7 +4587,6 @@ ref<Expr> Executor::fillSizeAddressSymcretes(ExecutionState &state,
 
   MemoryObject *mo = nullptr;
   assert(addressManager->isAllocated(oldAddress));
-  addressManager->allocate(oldAddress, 0);
   MemoryObject *oldMO = addressManager->allocateMemoryObject(oldAddress, 0);
 
   /* Constant solution exists. Just return it. */
@@ -4635,7 +4629,6 @@ ref<Expr> Executor::fillSizeAddressSymcretes(ExecutionState &state,
         cast<ConstantExpr>(assignment.evaluate(size))->getZExtValue();
 
     if (addressManager->isAllocated(newAddress)) {
-      addressManager->allocate(newAddress, sizeMemoryObject);
       mo = addressManager->allocateMemoryObject(newAddress, sizeMemoryObject);
     } else {
       mo = memory->allocate(sizeMemoryObject, oldMO->isLocal, oldMO->isGlobal,
@@ -6813,18 +6806,9 @@ void Executor::collectReads(
 }
 
 void Executor::collectObjectStates(
-    ExecutionState &state, ref<Expr> address, Expr::Width type, unsigned bytes,
-    const std::vector<IDType> &resolvedMemoryObjects,
+    ExecutionState &state, const std::vector<IDType> &resolvedMemoryObjects,
     const std::vector<Assignment> &resolveConcretizations,
     std::vector<ref<ObjectState>> &results) {
-  ref<Expr> base = address;
-  unsigned size = bytes;
-  if (state.isGEPExpr(address)) {
-    base = state.gepExprBases[address].first;
-    size = kmodule->targetData->getTypeStoreSize(
-        state.gepExprBases[address].second);
-  }
-
   for (unsigned int i = 0; i < resolvedMemoryObjects.size(); ++i) {
     updateStateWithSymcretes(state, resolveConcretizations[i]);
     state.constraints.rewriteConcretization(resolveConcretizations[i]);
