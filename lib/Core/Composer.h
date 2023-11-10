@@ -10,6 +10,7 @@
 #include "Executor.h"
 #include "Memory.h"
 #include "TimingSolver.h"
+#include <variant>
 
 namespace klee {
 struct ComposeHelper {
@@ -130,23 +131,21 @@ public:
   }
 
   void
-  collectObjectStates(ExecutionState &state, ref<Expr> address,
-                      Expr::Width type, unsigned bytes,
+  collectObjectStates(ExecutionState &state,
                       const std::vector<IDType> &resolvedMemoryObjects,
                       const std::vector<Assignment> &resolveConcretizations,
                       std::vector<ref<ObjectState>> &results) {
-    executor->collectObjectStates(state, address, type, bytes,
-                                  resolvedMemoryObjects, resolveConcretizations,
-                                  results);
+    executor->collectObjectStates(state, resolvedMemoryObjects,
+                                  resolveConcretizations, results);
   }
 
   bool tryResolveAddress(ExecutionState &state, ref<Expr> address,
                          std::pair<ref<Expr>, ref<Expr>> &result);
   bool tryResolveSize(ExecutionState &state, ref<Expr> address,
                       std::pair<ref<Expr>, ref<Expr>> &result);
+
   bool tryResolveContent(
-      ExecutionState &state, ref<Expr> address, ref<Expr> offset,
-      Expr::Width type, unsigned size,
+      ExecutionState &state, ref<Expr> address, Expr::Width width,
       std::pair<ref<Expr>, std::vector<std::pair<ref<Expr>, ref<ObjectState>>>>
           &result);
 
@@ -156,9 +155,8 @@ public:
   }
   ref<ObjectState> fillMakeSymbolic(ExecutionState &state,
                                     ref<MakeSymbolicSource> makeSymbolicSource,
-                                    ref<Expr> size, unsigned concreteSize) {
-    return executor->fillMakeSymbolic(state, makeSymbolicSource, size,
-                                      concreteSize);
+                                    ref<Expr> size) {
+    return executor->fillMakeSymbolic(state, makeSymbolicSource, size);
   }
 
   ref<ObjectState> fillGlobal(ExecutionState &state,
@@ -169,9 +167,8 @@ public:
   ref<ObjectState>
   fillIrreproducible(ExecutionState &state,
                      ref<IrreproducibleSource> irreproducibleSource,
-                     ref<Expr> size, unsigned concreteSize) {
-    return executor->fillIrreproducible(state, irreproducibleSource, size,
-                                        concreteSize);
+                     ref<Expr> size) {
+    return executor->fillIrreproducible(state, irreproducibleSource, size);
   }
 
   ref<ObjectState> fillConstant(ExecutionState &state,
@@ -183,9 +180,9 @@ public:
   ref<Expr> fillSymbolicSizeConstantAddress(
       ExecutionState &state,
       ref<SymbolicSizeConstantAddressSource> symbolicSizeConstantAddressSource,
-      ref<Expr> size, Expr::Width width) {
+      ref<Expr> arraySize, ref<Expr> size) {
     return executor->fillSymbolicSizeConstantAddress(
-        state, symbolicSizeConstantAddressSource, size, width);
+        state, symbolicSizeConstantAddressSource, arraySize, size);
   }
 
   std::pair<ref<Expr>, ref<Expr>> getSymbolicSizeConstantSizeAddressPair(
@@ -203,27 +200,26 @@ public:
                                               size);
   }
 
-  std::pair<ref<Expr>, ref<Expr>> fillLazyInitializationAddress(
-      ExecutionState &state,
-      ref<LazyInitializationAddressSource> lazyInitializationAddressSource,
-      ref<Expr> pointer, Expr::Width width);
-  std::pair<ref<Expr>, ref<Expr>> fillLazyInitializationSize(
-      ExecutionState &state,
-      ref<LazyInitializationSizeSource> lazyInitializationSizeSource,
-      ref<Expr> pointer, Expr::Width width);
+  std::pair<ref<Expr>, ref<Expr>>
+  fillLazyInitializationAddress(ExecutionState &state, ref<Expr> pointer);
+
+  std::pair<ref<Expr>, ref<Expr>>
+  fillLazyInitializationSize(ExecutionState &state, ref<Expr> pointer);
+
   std::pair<ref<Expr>, std::vector<std::pair<ref<Expr>, ref<ObjectState>>>>
-  fillLazyInitializationContent(
-      ExecutionState &state,
-      ref<LazyInitializationContentSource> lazyInitializationContentSource,
-      ref<Expr> pointer, unsigned concreteSize, ref<Expr> offset,
-      Expr::Width width);
+  fillLazyInitializationContent(ExecutionState &state, ref<Expr> pointer,
+                                Expr::Width width);
 };
 
 class ComposeVisitor : public ExprVisitor {
 private:
+  using ResolutionVector = std::vector<std::pair<ref<Expr>, ref<ObjectState>>>;
+  using ComposedResult = std::variant<std::monostate, ref<ObjectState>,
+                                      ref<Expr>, ResolutionVector>;
   const ExecutionState &original;
   ComposeHelper helper;
   ExprOrderedSet safetyConstraints;
+  std::map<const Array *, ComposedResult> composedArrays;
 
 public:
   ExecutionState &state;
@@ -251,7 +247,12 @@ private:
                         ref<Expr> index, Expr::Width width);
   ref<Expr> processSelect(ref<Expr> cond, ref<Expr> trueExpr,
                           ref<Expr> falseExpr);
-  void shareUpdates(ref<ObjectState>, const UpdateList &updates);
+  ref<ObjectState> shareUpdates(ref<ObjectState>, const UpdateList &updates);
+
+  bool shouldCacheArray(const Array *array);
+
+  ref<Expr> formSelectRead(ResolutionVector &rv, const UpdateList &updates,
+                           ref<Expr> index, Expr::Width width);
 };
 } // namespace klee
 
