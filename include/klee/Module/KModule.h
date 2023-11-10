@@ -72,6 +72,9 @@ public:
   KBlock &operator=(const KBlock &) = delete;
   virtual ~KBlock() = default;
 
+  std::set<KBlock *> successors();
+  std::set<KBlock *> predecessors();
+
   virtual KBlockType getKBlockType() const { return KBlockType::Base; }
   static bool classof(const KBlock *) { return true; }
 

@@ -11,9 +11,7 @@
 #define KLEE_DISTANCE_CALCULATOR_H
 
 #include "ExecutionState.h"
-#include "klee/Module/CodeGraphInfo.h"
 #include "ProofObligation.h"
-
 
 namespace llvm {
 class BasicBlock;
@@ -115,14 +113,23 @@ private:
                                  bool reversed) const;
 
   bool distanceInCallGraph(KFunction *kf, KBlock *kb, unsigned int &distance,
-                           const FunctionDistanceMap &distanceToTargetFunction,
-                           KBlock *target, bool strictlyAfterKB) const;
+                           const std::unordered_map<KFunction *, unsigned int>
+                               &distanceToTargetFunction,
+                           KBlock *target, bool reversed) const;
+  bool distanceInCallGraph(KFunction *kf, KBlock *kb, unsigned int &distance,
+                           const std::unordered_map<KFunction *, unsigned int>
+                               &distanceToTargetFunction,
+                           KBlock *target, bool strictlyAfterKB,
+                           bool reversed) const;
 
+  WeightResult tryGetLocalWeight(KBlock *kb, weight_type &weight,
+                                 const std::vector<KBlock *> &localTargets,
+                                 KBlock *target, bool reversed) const;
   WeightResult
-  tryGetLocalWeight(KBlock *kb, weight_type &weight,
-                    const std::vector<KBlock *> &localTargets) const;
-  WeightResult tryGetPreTargetWeight(KBlock *kb, weight_type &weight,
-                                     KBlock *target) const;
+  tryGetPreTargetWeight(KBlock *kb, weight_type &weight,
+                        const std::unordered_map<KFunction *, unsigned int>
+                            &distanceToTargetFunction,
+                        KBlock *target, bool reversed) const;
   WeightResult tryGetTargetWeight(KBlock *kb, weight_type &weight,
                                   KBlock *target, bool reversed) const;
   WeightResult tryGetPostTargetWeight(KBlock *kb, weight_type &weight,

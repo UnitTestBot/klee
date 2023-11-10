@@ -16,22 +16,21 @@
 
 namespace klee {
 
-using Block = llvm::BasicBlock;
-using BlockDistanceMap = std::unordered_map<Block *, unsigned>;
-using FunctionDistanceMap = std::unordered_map<llvm::Function *, unsigned>;
-using SortedBlockDistances = std::vector<std::pair<Block *, unsigned>>;
+using BlockDistanceMap = std::unordered_map<KBlock *, unsigned>;
+using FunctionDistanceMap = std::unordered_map<KFunction *, unsigned>;
+using SortedBlockDistances = std::vector<std::pair<KBlock *, unsigned>>;
 using SortedFunctionDistances =
-    std::vector<std::pair<llvm::Function *, unsigned>>;
+    std::vector<std::pair<KFunction *, unsigned>>;
 
 class CodeGraphInfo {
 
-  using blockToDistanceMap = std::unordered_map<Block *, BlockDistanceMap>;
-  using blockDistanceList = std::unordered_map<Block *, SortedBlockDistances>;
+  using blockToDistanceMap = std::unordered_map<KBlock *, BlockDistanceMap>;
+  using blockDistanceList = std::unordered_map<KBlock *, SortedBlockDistances>;
 
   using functionToDistanceMap =
-      std::unordered_map<llvm::Function *, FunctionDistanceMap>;
+      std::unordered_map<KFunction *, FunctionDistanceMap>;
   using functionDistanceList =
-      std::unordered_map<llvm::Function *, SortedFunctionDistances>;
+      std::unordered_map<KFunction *, SortedFunctionDistances>;
 
   using functionBranchesSet =
       std::unordered_map<KFunction *, std::map<KBlock *, std::set<unsigned>>>;
@@ -39,7 +38,7 @@ class CodeGraphInfo {
 private:
   blockToDistanceMap blockDistance;
   blockToDistanceMap blockBackwardDistance;
-  std::set<Block *> blockCycles;
+  std::set<KBlock *> blockCycles;
   blockDistanceList blockSortedDistance;
   blockDistanceList blockSortedBackwardDistance;
 
@@ -53,8 +52,8 @@ private:
   functionBranchesSet functionBlocks;
 
 private:
-  void calculateDistance(Block *bb);
-  void calculateBackwardDistance(Block *bb);
+  void calculateDistance(KBlock *bb);
+  void calculateBackwardDistance(KBlock *bb);
 
   void calculateDistance(KFunction *f);
   void calculateBackwardDistance(KFunction *f);
@@ -64,8 +63,7 @@ private:
   void calculateFunctionBlocks(KFunction *kf);
 
 public:
-  const BlockDistanceMap &getDistance(Block *b);
-  const BlockDistanceMap &getDistance(KBlock *kb);
+  const BlockDistanceMap &getDistance(KBlock *b);
   const BlockDistanceMap &getBackwardDistance(KBlock *kb);
   bool hasCycle(KBlock *kb);
 
