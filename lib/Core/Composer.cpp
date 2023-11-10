@@ -404,6 +404,9 @@ ref<Expr> ComposeVisitor::processRead(const Array *root,
     assert(0 && "not implemented");
   }
   }
+
+  assert(0 && "Unreachable");
+  return nullptr;
 }
 
 ref<Expr> ComposeVisitor::processSelect(ref<Expr> cond, ref<Expr> trueExpr,

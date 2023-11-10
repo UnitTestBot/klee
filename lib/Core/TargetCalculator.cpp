@@ -193,6 +193,7 @@ TargetHashSet TargetCalculator::calculate(ExecutionState &state) {
   for (auto sfi = state.stack.callStack().rbegin(),
             sfe = state.stack.callStack().rend();
        sfi != sfe; sfi++) {
+    kf = sfi->kf;
 
     using std::placeholders::_1;
     KBlockPredicate func =
