@@ -380,18 +380,18 @@ bool TargetedExecutionManager::canReach(
         }
 
         const auto &blockDist = codeGraphInfo.getDistance(fromBlock);
-        if (blockDist.count(toBlock->basicBlock) != 0) {
+        if (blockDist.count(toBlock) != 0) {
           return true;
         }
       } else {
         const auto &funcDist = codeGraphInfo.getDistance(fromKf);
-        if (funcDist.count(toKf->function) != 0) {
+        if (funcDist.count(toKf) != 0) {
           return true;
         }
 
         const auto &backwardFuncDist =
             codeGraphInfo.getBackwardDistance(fromKf);
-        if (backwardFuncDist.count(toKf->function) != 0) {
+        if (backwardFuncDist.count(toKf) != 0) {
           return true;
         }
       }
@@ -465,9 +465,9 @@ KFunction *TargetedExecutionManager::tryResolveEntryFunction(
           KFunction *curKf = nullptr;
           for (size_t m = 0; m < currKFs.size() && !curKf; ++m) {
             curKf = currKFs.at(m);
-            if (funcDist.count(curKf->function) == 0) {
+            if (funcDist.count(curKf) == 0) {
               const auto &curFuncDist = codeGraphInfo.getDistance(curKf);
-              if (curFuncDist.count(resKf->function) == 0) {
+              if (curFuncDist.count(resKf) == 0) {
                 curKf = nullptr;
               } else {
                 i = j;
@@ -540,7 +540,7 @@ TargetedExecutionManager::prepareTargets(KModule *kmodule, SarifReport paths) {
     auto kf = wl.first;
     auto &dist = codeGraphInfo.getDistance(kf);
     for (auto &reachable : dist) {
-      functionsToDismantle.insert(kmodule->functionMap[reachable.first]);
+      functionsToDismantle.insert(reachable.first);
     }
   }
 
@@ -590,7 +590,7 @@ TargetedExecutionManager::prepareTargets(KModule *kmodule,
     auto kf = wl.first;
     auto &dist = codeGraphInfo.getDistance(kf);
     for (auto &reachable : dist) {
-      functionsToDismantle.insert(kmodule->functionMap[reachable.first]);
+      functionsToDismantle.insert(reachable.first);
     }
   }
 

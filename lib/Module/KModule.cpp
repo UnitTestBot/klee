@@ -7,6 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/IR/CFG.h"
 #define DEBUG_TYPE "KModule"
 
 #include "Passes.h"
@@ -704,6 +705,23 @@ KReturnBlock::KReturnBlock(
     : KBlock::KBlock(_kfunction, block, km, instructionToRegisterMap,
                      instructionsKF, globalIndexInc) {}
 
+
+std::set<KBlock *> KBlock::successors() {
+  std::set<KBlock *> result;
+  for (auto bb : llvm::successors(basicBlock)) {
+    result.insert(parent->blockMap[bb]);
+  }
+  return result;
+}
+
+std::set<KBlock *> KBlock::predecessors() {
+  std::set<KBlock *> result;
+  for (auto bb : llvm::predecessors(basicBlock)) {
+    result.insert(parent->blockMap[bb]);
+  }
+  return result;
+}
+
 std::string KBlock::getLabel() const {
   std::string _label;
   llvm::raw_string_ostream label_stream(_label);
@@ -825,7 +843,7 @@ bool TraceVerifyPredicate::isInterestingFn(KFunction *kf) {
   bool atLeastOneInteresting = false;
   auto &distance = cgd.getDistance(kf);
   for (auto skf : specialFunctions) {
-    if (distance.count(skf->function)) {
+    if (distance.count(skf)) {
       atLeastOneInteresting = true;
       break;
     }
