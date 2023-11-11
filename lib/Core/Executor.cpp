@@ -4676,9 +4676,10 @@ Executor::getSymbolicSizeConstantSizeAddressPair(
   return std::make_pair(address, mo->getSizeExpr());
 }
 
-Executor::ComposeResult Executor::compose(const ExecutionState &state,
-                                          const PathConstraints &pob,
-                                          ref<Expr> nullPointerExpr) {
+Executor::ComposeResult
+Executor::compose(const ExecutionState &state, const PathConstraints &pob,
+                  ref<Expr> nullPointerExpr,
+                  ImmutableList<Symbolic> &pobSymbolics) {
   ComposeResult result;
   ComposeHelper helper(this);
   ComposeVisitor composer(state, helper);
@@ -4764,6 +4765,22 @@ Executor::ComposeResult Executor::compose(const ExecutionState &state,
 
   result.success = true;
   result.composed = composer.state.constraints;
+  for (auto &symbolic : composer.state.symbolics) {
+    if (symbolic.array->source->getKind() == SymbolicSource::MakeSymbolic) {
+      result.symbolics.push_back(Symbolic(symbolic));
+    }
+  }
+
+  for (auto &symbolic : pobSymbolics) {
+    if (symbolic.array->source->getKind() == SymbolicSource::MakeSymbolic) {
+      auto hack = composer.compose(ReadExpr::create(UpdateList(symbolic.array, nullptr), ConstantExpr::create(0, 64)));
+      assert(hack.second);
+      Symbolic _symbolic(symbolic);
+      _symbolic.array = cast<ReadExpr>(hack.second)->updates.root;
+      result.symbolics.push_back(Symbolic(_symbolic));
+    }
+  }
+
   return result;
 }
 
@@ -4900,7 +4917,7 @@ void Executor::goBackward(ref<BackwardAction> action) {
   if (canReachSomeTargetThroughState(*pob, *state)) {
     auto nullPointerExpr =
         state->nullPointerExpr ? state->nullPointerExpr : pob->nullPointerExpr;
-    composeResult = compose(*state, pob->constraints, nullPointerExpr);
+    composeResult = compose(*state, pob->constraints, nullPointerExpr, pob->symbolics);
   } else {
     composeResult.success = false;
   }
@@ -4951,6 +4968,15 @@ void Executor::goBackward(ref<BackwardAction> action) {
                      << pob->root->location->toString() << "\n";
         closeProofObligation(pob);
       }
+
+      klee_warning("GENERATING TEST FROM PROOF OBLIGATION. GENERATION FOR "
+                   "PATHS WITH LAZY INITIALIZATION IS NOT SUPPORTED.");
+
+      auto state = ExecutionState();
+      state.constraints = pob->constraints;
+      state.symbolics = pob->symbolics;
+      interpreterHandler->processTestCase(state, "backward", "reachable.err", false);
+
     } else {
       auto returnPropagation = state->constraints.path().fromOutTransition();
       if (returnPropagation.first) {
@@ -4963,12 +4989,14 @@ void Executor::goBackward(ref<BackwardAction> action) {
                                         composeResult.nullPointerExpr);
             ProofObligation::propagateToReturn(
                 callPob, kCallBlock->kcallInstruction, returnBlock);
+            callPob->symbolics = composeResult.symbolics;
             objectManager->addPob(callPob);
           }
         }
       } else {
         auto newPob = ProofObligation::create(
             pob, state, composeResult.composed, composeResult.nullPointerExpr);
+        newPob->symbolics = composeResult.symbolics;
         objectManager->addPob(newPob);
       }
     }
