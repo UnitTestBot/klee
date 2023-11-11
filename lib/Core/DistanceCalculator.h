@@ -13,6 +13,8 @@
 #include "ExecutionState.h"
 #include "ProofObligation.h"
 
+#include "klee/Module/CodeGraphInfo.h"
+
 namespace llvm {
 class BasicBlock;
 } // namespace llvm
@@ -113,12 +115,7 @@ private:
                                  bool reversed) const;
 
   bool distanceInCallGraph(KFunction *kf, KBlock *kb, unsigned int &distance,
-                           const std::unordered_map<KFunction *, unsigned int>
-                               &distanceToTargetFunction,
-                           KBlock *target, bool reversed) const;
-  bool distanceInCallGraph(KFunction *kf, KBlock *kb, unsigned int &distance,
-                           const std::unordered_map<KFunction *, unsigned int>
-                               &distanceToTargetFunction,
+                           const FunctionDistanceMap &distanceToTargetFunction,
                            KBlock *target, bool strictlyAfterKB,
                            bool reversed) const;
 
