@@ -197,8 +197,9 @@ bool ComposeHelper::tryResolveContent(
   return true;
 }
 
-std::pair<ref<Expr>, ref<Expr>> ComposeHelper::fillLazyInitializationAddress(
-    ExecutionState &state, ref<Expr> pointer) {
+std::pair<ref<Expr>, ref<Expr>>
+ComposeHelper::fillLazyInitializationAddress(ExecutionState &state,
+                                             ref<Expr> pointer) {
   std::pair<ref<Expr>, ref<Expr>> result;
   if (!tryResolveAddress(state, pointer, result)) {
     return std::make_pair(
@@ -208,8 +209,9 @@ std::pair<ref<Expr>, ref<Expr>> ComposeHelper::fillLazyInitializationAddress(
   return result;
 }
 
-std::pair<ref<Expr>, ref<Expr>> ComposeHelper::fillLazyInitializationSize(
-    ExecutionState &state, ref<Expr> pointer) {
+std::pair<ref<Expr>, ref<Expr>>
+ComposeHelper::fillLazyInitializationSize(ExecutionState &state,
+                                          ref<Expr> pointer) {
   std::pair<ref<Expr>, ref<Expr>> result;
   if (!tryResolveSize(state, pointer, result)) {
     return std::make_pair(
@@ -497,10 +499,9 @@ ref<Expr> ComposeVisitor::processSelect(ref<Expr> cond, ref<Expr> trueExpr,
     ref<Expr> result = SelectExpr::create(cond, trueExpr, falseExpr);
     return result;
   }
-  default:
-    {
-      assert(0);
-    }
+  default: {
+    assert(0);
+  }
   }
 }
 

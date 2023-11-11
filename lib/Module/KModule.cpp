@@ -705,7 +705,6 @@ KReturnBlock::KReturnBlock(
     : KBlock::KBlock(_kfunction, block, km, instructionToRegisterMap,
                      instructionsKF, globalIndexInc) {}
 
-
 std::set<KBlock *> KBlock::successors() {
   std::set<KBlock *> result;
   for (auto bb : llvm::successors(basicBlock)) {

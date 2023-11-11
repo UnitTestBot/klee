@@ -54,7 +54,8 @@ DistanceResult DistanceCalculator::getDistance(const ExecutionState &state,
   assert(state.pc);
   // In "br" inst of call block
   if (isa<KCallBlock>(state.pc->parent) && state.pc->getIndex() == 1) {
-    auto nextBB = state.pc->parent->basicBlock->getTerminator()->getSuccessor(0);
+    auto nextBB =
+        state.pc->parent->basicBlock->getTerminator()->getSuccessor(0);
     auto nextKB = state.pc->parent->parent->blockMap.at(nextBB);
     return getDistance(nextKB, state.stack.callStack(), target, false);
   }
