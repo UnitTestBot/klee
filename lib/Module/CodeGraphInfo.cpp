@@ -232,7 +232,6 @@ CodeGraphInfo::getFunctionBranches(KFunction *kf) {
   return functionBranches.at(kf);
 }
 
-
 const std::map<KBlock *, std::set<unsigned>> &
 CodeGraphInfo::getFunctionConditionalBranches(KFunction *kf) {
   if (functionConditionalBranches.count(kf) == 0)
@@ -246,7 +245,6 @@ std::set<KBlock *, KBlockLess> CodeGraphInfo::getNearestPredicateSatisfying(
   getNearestPredicateSatisfying(from, predicate, forward, result);
   return result;
 }
-
 
 const std::map<KBlock *, std::set<unsigned>> &
 CodeGraphInfo::getFunctionBlocks(KFunction *kf) {

@@ -43,7 +43,8 @@ void TargetCalculator::update(const ExecutionState &state) {
         if (!coveredBranches[state.getPrevPC()->parent->parent].count(
                 state.getPrevPC()->parent)) {
           state.coverNew();
-          coveredBranches[state.getPrevPC()->parent->parent][state.getPrevPC()->parent];
+          coveredBranches[state.getPrevPC()->parent->parent]
+                         [state.getPrevPC()->parent];
         }
         if (!fBranches.at(state.getPrevPC()->parent).empty()) {
           unsigned index = 0;
@@ -188,7 +189,8 @@ TargetHashSet TargetCalculator::calculate(ExecutionState &state) {
   KFunction *kf = kb->parent;
   kb = !isa<KCallBlock>(kb) || (kb->getLastInstruction() != state.getPC())
            ? kb
-           : kf->blockMap[state.getPC()->parent->basicBlock->getTerminator()
+           : kf->blockMap[state.getPC()
+                              ->parent->basicBlock->getTerminator()
                               ->getSuccessor(0)];
   for (auto sfi = state.stack.callStack().rbegin(),
             sfe = state.stack.callStack().rend();

@@ -167,7 +167,8 @@ void TargetManager::updateReached(ExecutionState &state) {
 }
 
 void TargetManager::updateTargets(ExecutionState &state) {
-  if (!state.isolated && guidance == Interpreter::GuidanceKind::CoverageGuidance) {
+  if (!state.isolated &&
+      guidance == Interpreter::GuidanceKind::CoverageGuidance) {
     if (targets(state).empty() && state.isStuck(MaxCyclesBeforeStuck)) {
       state.setTargeted(true);
     }
