@@ -270,6 +270,9 @@ ConstraintSet ConstraintSet::getConcretizedVersion() const {
       cs._constraints.insert(cast<ExprOrSymcrete::left>(e)->value());
     }
   }
+  for (auto &e : _concretization.createConstraintsFromAssignment()) {
+    cs._constraints.insert(e);
+  }
   return cs;
 }
 
@@ -280,6 +283,9 @@ ConstraintSet ConstraintSet::getConcretizedVersion(
       _independentElements->getConcretizedVersion(newConcretization));
   for (auto &e : cs._independentElements->is()) {
     cs._constraints.insert(cast<ExprOrSymcrete::left>(e)->value());
+  }
+  for (auto &e : newConcretization.createConstraintsFromAssignment()) {
+    cs._constraints.insert(e);
   }
   return cs;
 }
