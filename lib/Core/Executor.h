@@ -21,6 +21,7 @@
 #include "TargetedExecutionManager.h"
 #include "UserSearcher.h"
 
+#include "klee/ADT/ImmutableList.h"
 #include "klee/ADT/RNG.h"
 #include "klee/Core/BranchTypes.h"
 #include "klee/Core/Interpreter.h"
@@ -121,6 +122,7 @@ class Executor : public Interpreter {
     PathConstraints composed;
     Conflict conflict;
     ref<Expr> nullPointerExpr;
+    ImmutableList<Symbolic> symbolics;
   };
 
 public:
@@ -750,8 +752,10 @@ private:
   ref<Expr> fillSizeAddressSymcretes(ExecutionState &state,
                                      ref<Expr> oldAddress, ref<Expr> newAddress,
                                      ref<Expr> size);
+
   ComposeResult compose(const ExecutionState &state, const PathConstraints &pob,
-                        ref<Expr> nullPointerExpr);
+                        ref<Expr> nullPointerExpr,
+                        ImmutableList<Symbolic> &pobSymbolics);
 
   void executeAction(ref<BidirectionalAction> action);
 
