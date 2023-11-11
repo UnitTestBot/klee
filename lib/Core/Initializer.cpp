@@ -83,7 +83,7 @@ void ConflictCoreInitializer::addPob(ProofObligation *pob) {
     for (auto i : allowed) {
       for (auto kcallblock : i->kCallBlocks) {
         if (kcallblock->calledFunctions.count(
-                pob->location->getBlock()->parent->function)) {
+                pob->location->getBlock()->parent)) {
           addInit(kcallblock->getFirstInstruction(),
                   ReachBlockTarget::create(pob->location->getBlock()));
           addInit(kcallblock->getFirstInstruction(), target);

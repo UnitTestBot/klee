@@ -51,15 +51,17 @@ unsigned DistanceCalculator::SpeculativeState::computeHash() {
 
 DistanceResult DistanceCalculator::getDistance(const ExecutionState &state,
                                                KBlock *target) {
-  assert(state.pc);
+  assert(state.getPC());
   // In "br" inst of call block
-  if (isa<KCallBlock>(state.pc->parent) && state.pc->getIndex() == 1) {
+  if (isa<KCallBlock>(state.getPC()->parent) &&
+      state.getPC()->getIndex() == 1) {
     auto nextBB =
-        state.pc->parent->basicBlock->getTerminator()->getSuccessor(0);
-    auto nextKB = state.pc->parent->parent->blockMap.at(nextBB);
+        state.getPC()->parent->basicBlock->getTerminator()->getSuccessor(0);
+    auto nextKB = state.getPC()->parent->parent->blockMap.at(nextBB);
     return getDistance(nextKB, state.stack.callStack(), target, false);
   }
-  return getDistance(state.pc->parent, state.stack.callStack(), target, false);
+  return getDistance(state.getPC()->parent, state.stack.callStack(), target,
+                     false);
 }
 
 DistanceResult DistanceCalculator::getDistance(const ProofObligation &pob,
@@ -70,12 +72,19 @@ DistanceResult DistanceCalculator::getDistance(const ProofObligation &pob,
 DistanceResult DistanceCalculator::getDistance(KBlock *kb, TargetKind kind,
                                                KBlock *target, bool reversed) {
   SpeculativeState specState(kb, kind, reversed);
-  if (distanceResultCache.count(target) == 0 ||
-      distanceResultCache.at(target).count(specState) == 0) {
-    auto result = computeDistance(kb, kind, target, reversed);
-    distanceResultCache[target][specState] = result;
+  auto it1 = distanceResultCache.find(target);
+  if (it1 == distanceResultCache.end()) {
+    SpeculativeStateToDistanceResultMap m;
+    it1 = distanceResultCache.emplace(target, std::move(m)).first;
   }
-  return distanceResultCache.at(target).at(specState);
+  auto &m = it1->second;
+  auto it2 = m.find(specState);
+  if (it2 == m.end()) {
+    auto result = computeDistance(kb, kind, target, reversed);
+    m.emplace(specState, result);
+    return result;
+  }
+  return it2->second;
 }
 
 DistanceResult DistanceCalculator::computeDistance(KBlock *kb, TargetKind kind,
@@ -121,12 +130,11 @@ DistanceCalculator::getDistance(KBlock *pcBlock,
   auto sfi = frames.rbegin(), sfe = frames.rend();
   bool strictlyAfterKB =
       sfi != sfe && sfi->kf->parent->inMainModule(*sfi->kf->function);
-  for (; sfi != sfe; sfi++) {
+  for (; sfi != sfe; sfi++, sfNum++) {
     unsigned callWeight;
     if (distanceInCallGraph(sfi->kf, kb, callWeight, distanceToTargetFunction,
                             target, strictlyAfterKB && sfNum != 0, reversed)) {
-      callWeight *= 2;
-      callWeight += sfNum;
+      callWeight = 2 * callWeight + sfNum;
 
       if (callWeight < UINT_MAX) {
         minCallWeight = callWeight;
@@ -167,66 +175,26 @@ DistanceCalculator::getDistance(KBlock *pcBlock,
 
 bool DistanceCalculator::distanceInCallGraph(
     KFunction *kf, KBlock *origKB, unsigned int &distance,
-    const std::unordered_map<KFunction *, unsigned int>
-        &distanceToTargetFunction,
-    KBlock *target, bool strictlyAfterKB, bool reversed) const {
+    const FunctionDistanceMap &distanceToTargetFunction, KBlock *targetKB,
+    bool strictlyAfterKB, bool reversed) const {
   distance = UINT_MAX;
-  const std::unordered_map<KBlock *, unsigned> &dist =
-      reversed ? codeGraphInfo.getBackwardDistance(origKB)
-               : codeGraphInfo.getDistance(origKB);
-  KBlock *targetBB = target;
-  KFunction *targetF = targetBB->parent;
+  const auto &dist = reversed ? codeGraphInfo.getBackwardDistance(origKB)
+                              : codeGraphInfo.getDistance(origKB);
 
-  if (kf == targetF && dist.count(targetBB) != 0) {
+  if (kf == targetKB->parent && dist.count(targetKB)) {
     distance = 0;
     return true;
   }
 
-  if (!strictlyAfterKB)
-    return distanceInCallGraph(kf, origKB, distance, distanceToTargetFunction,
-                               target, reversed);
-  auto min_distance = UINT_MAX;
   distance = UINT_MAX;
-  if (reversed) {
-    for (auto bb : (predecessors(origKB->basicBlock))) {
-      auto kb = kf->blockMap[bb];
-      distanceInCallGraph(kf, kb, distance, distanceToTargetFunction, target,
-                          reversed);
-      if (distance < min_distance)
-        min_distance = distance;
-    }
-  } else {
-    for (auto bb : (successors(origKB->basicBlock))) {
-      auto kb = kf->blockMap[bb];
-      distanceInCallGraph(kf, kb, distance, distanceToTargetFunction, target,
-                          reversed);
-      if (distance < min_distance)
-        min_distance = distance;
-    }
-  }
-  distance = min_distance;
-  return distance != UINT_MAX;
-}
-
-bool DistanceCalculator::distanceInCallGraph(
-    KFunction *kf, KBlock *kb, unsigned int &distance,
-    const std::unordered_map<KFunction *, unsigned int>
-        &distanceToTargetFunction,
-    KBlock *target, bool reversed) const {
-  distance = UINT_MAX;
-  const std::unordered_map<KBlock *, unsigned> &dist =
-      reversed ? codeGraphInfo.getBackwardDistance(kb)
-               : codeGraphInfo.getDistance(kb);
-
-  for (auto &kCallBlock : kf->kCallBlocks) {
-    if (dist.count(kCallBlock) == 0)
+  bool cannotReachItself = strictlyAfterKB && !codeGraphInfo.hasCycle(origKB);
+  for (auto kCallBlock : kf->kCallBlocks) {
+    if (!dist.count(kCallBlock) || (cannotReachItself && origKB == kCallBlock))
       continue;
-    for (auto &calledFunction : kCallBlock->calledFunctions) {
-      KFunction *calledKFunction = kf->parent->functionMap[calledFunction];
-      if (distanceToTargetFunction.count(calledKFunction) != 0 &&
-          distance > distanceToTargetFunction.at(calledKFunction) + 1) {
-        distance = distanceToTargetFunction.at(calledKFunction) + 1;
-      }
+    for (auto calledFunction : kCallBlock->calledFunctions) {
+      auto it = distanceToTargetFunction.find(calledFunction);
+      if (it != distanceToTargetFunction.end() && distance > it->second + 1)
+        distance = it->second + 1;
     }
   }
   return distance != UINT_MAX;
@@ -242,11 +210,10 @@ DistanceCalculator::tryGetLocalWeight(KBlock *kb, weight_type &weight,
       reversed ? codeGraphInfo.getBackwardDistance(currentKB)
                : codeGraphInfo.getDistance(currentKB);
   weight = UINT_MAX;
-  for (auto &end : localTargets) {
-    if (dist.count(end) > 0) {
-      unsigned int w = dist.at(end);
-      weight = std::min(w, weight);
-    }
+  for (auto end : localTargets) {
+    auto it = dist.find(end);
+    if (it != dist.end())
+      weight = std::min(it->second, weight);
   }
 
   if (weight == UINT_MAX)
@@ -265,12 +232,11 @@ WeightResult DistanceCalculator::tryGetPreTargetWeight(
     KBlock *target, bool reversed) const {
   KFunction *currentKF = kb->parent;
   std::vector<KBlock *> localTargets;
-  for (auto &kCallBlock : currentKF->kCallBlocks) {
-    for (auto &calledFunction : kCallBlock->calledFunctions) {
-      KFunction *calledKFunction =
-          currentKF->parent->functionMap[calledFunction];
-      if (distanceToTargetFunction.count(calledKFunction) > 0) {
+  for (auto kCallBlock : currentKF->kCallBlocks) {
+    for (auto calledFunction : kCallBlock->calledFunctions) {
+      if (distanceToTargetFunction.count(calledFunction)) {
         localTargets.push_back(kCallBlock);
+        break;
       }
     }
   }

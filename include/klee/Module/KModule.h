@@ -147,14 +147,13 @@ private:
 
 struct KCallBlock : KBlock {
   KInstruction *kcallInstruction;
-  std::set<llvm::Function *> calledFunctions;
+  std::set<KFunction *> calledFunctions;
 
 public:
   KCallBlock() = delete;
   KCallBlock(KFunction *, llvm::BasicBlock *, KModule *,
              const std::unordered_map<llvm::Instruction *, unsigned> &,
-             std::set<llvm::Function *>, KInstruction **,
-             unsigned &globalIndexInc);
+             KInstruction **, unsigned &globalIndexInc);
   static bool classof(const KCallBlock *) { return true; }
   static bool classof(const KBlock *E) {
     return E->getKBlockType() == KBlockType::Call;
@@ -288,13 +287,13 @@ public:
   // Our shadow versions of LLVM structures.
   std::vector<std::unique_ptr<KFunction>> functions;
   std::unordered_map<const llvm::Function *, KFunction *> functionMap;
-  std::unordered_map<llvm::Function *, std::set<llvm::Function *>> callMap;
+  std::unordered_map<KFunction *, std::set<KFunction *>> callMap;
   std::unordered_map<std::string, KFunction *> functionNameMap;
   [[nodiscard]] unsigned getFunctionId(const llvm::Function *) const;
 
   // Functions which escape (may be called indirectly)
   // XXX change to KFunction
-  std::set<llvm::Function *> escapingFunctions;
+  std::set<KFunction *> escapingFunctions;
 
   std::set<std::string> mainModuleFunctions;
   std::set<std::string> mainModuleGlobals;

@@ -389,16 +389,16 @@ void KModule::manifest(InterpreterHandler *ih,
     }
   }
 
-  std::vector<Function *> declarations;
+  std::vector<KFunction *> declarations;
 
   unsigned functionID = 0;
   maxGlobalIndex = 0;
   for (auto &Function : module->functions()) {
-    if (Function.isDeclaration()) {
-      declarations.push_back(&Function);
-    }
-
     auto kf = std::make_unique<KFunction>(&Function, this, maxGlobalIndex);
+
+    if (Function.isDeclaration()) {
+      declarations.push_back(kf.get());
+    }
 
     kf->id = functionID;
     functionID++;
@@ -411,11 +411,11 @@ void KModule::manifest(InterpreterHandler *ih,
 
   for (auto &kf : functions) {
     if (functionEscapes(kf->function))
-      escapingFunctions.insert(kf->function);
+      escapingFunctions.insert(kf.get());
   }
 
   for (auto &declaration : declarations) {
-    if (functionEscapes(declaration))
+    if (functionEscapes(declaration->function))
       escapingFunctions.insert(declaration);
   }
 
@@ -423,6 +423,14 @@ void KModule::manifest(InterpreterHandler *ih,
     for (auto kcb : kfp->kCallBlocks) {
       bool isInlineAsm = false;
       const CallBase &cs = cast<CallBase>(*kcb->kcallInstruction->inst);
+      Value *fp = cs.getCalledOperand();
+      Function *f = getTargetFunction(fp);
+      if (f) {
+        auto kf = functionMap.find(getTargetFunction(fp));
+        if (kf != functionMap.end()) {
+          kcb->calledFunctions.insert(kf->second);
+        }
+      }
       if (isa<InlineAsm>(cs.getCalledOperand())) {
         isInlineAsm = true;
       }
@@ -433,7 +441,7 @@ void KModule::manifest(InterpreterHandler *ih,
                                     escapingFunctions.end());
       }
       for (auto calledFunction : kcb->calledFunctions) {
-        callMap[calledFunction].insert(kfp->function);
+        callMap[calledFunction].insert(kfp.get());
       }
     }
   }
@@ -584,16 +592,8 @@ KFunction::KFunction(llvm::Function *_function, KModule *_km,
     Instruction *fit = &bbit->front();
     Instruction *lit = &bbit->back();
     if (SplitCalls && (isa<CallInst>(fit) || isa<InvokeInst>(fit))) {
-      const CallBase &cs = cast<CallBase>(*fit);
-      Value *fp = cs.getCalledOperand();
-      Function *f = getTargetFunction(fp);
-      std::set<llvm::Function *> calledFunctions;
-      if (f) {
-        calledFunctions.insert(f);
-      }
-      auto *ckb =
-          new KCallBlock(this, &*bbit, parent, instructionToRegisterMap,
-                         calledFunctions, &instructions[n], globalIndexInc);
+      auto *ckb = new KCallBlock(this, &*bbit, parent, instructionToRegisterMap,
+                                 &instructions[n], globalIndexInc);
       kCallBlocks.push_back(ckb);
       kb = ckb;
     } else if (SplitReturns && isa<ReturnInst>(lit)) {
@@ -668,34 +668,30 @@ KBlock::KBlock(
 KCallBlock::KCallBlock(
     KFunction *_kfunction, llvm::BasicBlock *block, KModule *km,
     const std::unordered_map<Instruction *, unsigned> &instructionToRegisterMap,
-    std::set<llvm::Function *> _calledFunctions, KInstruction **instructionsKF,
-    unsigned &globalIndexInc)
+    KInstruction **instructionsKF, unsigned &globalIndexInc)
     : KBlock::KBlock(_kfunction, block, km, instructionToRegisterMap,
                      instructionsKF, globalIndexInc),
-      kcallInstruction(this->instructions[0]),
-      calledFunctions(std::move(_calledFunctions)) {}
+      kcallInstruction(this->instructions[0]) {}
 
 bool KCallBlock::intrinsic() const {
   if (calledFunctions.size() != 1) {
     return false;
   }
-  Function *calledFunction = *calledFunctions.begin();
-  auto kf = parent->parent->functionMap[calledFunction];
-  if (kf && kf->kleeHandled) {
+  KFunction *calledFunction = *calledFunctions.begin();
+  if (calledFunction && calledFunction->kleeHandled) {
     return true;
   }
-  return calledFunction->getIntrinsicID() != llvm::Intrinsic::not_intrinsic;
+  return calledFunction->function->getIntrinsicID() !=
+         llvm::Intrinsic::not_intrinsic;
 }
 
 bool KCallBlock::internal() const {
   return calledFunctions.size() == 1 &&
-         !(*calledFunctions.begin())->isDeclaration();
+         !(*calledFunctions.begin())->function->isDeclaration();
 }
 
 KFunction *KCallBlock::getKFunction() const {
-  return calledFunctions.size() == 1
-             ? parent->parent->functionMap[*calledFunctions.begin()]
-             : nullptr;
+  return calledFunctions.size() == 1 ? *calledFunctions.begin() : nullptr;
 }
 
 KReturnBlock::KReturnBlock(
@@ -809,8 +805,7 @@ bool TraceVerifyPredicate::isInterestingCallBlock(KBlock *kb) {
     auto fns = cast<KCallBlock>(kb)->calledFunctions;
     bool atLeastOneInteresting = false;
     for (auto f : fns) {
-      auto kf = km->functionMap.at(f);
-      if (isInterestingFn(kf)) {
+      if (isInterestingFn(f)) {
         atLeastOneInteresting = true;
         break;
       }

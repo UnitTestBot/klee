@@ -4985,8 +4985,7 @@ void Executor::goBackward(ref<BackwardAction> action) {
       auto returnPropagation = state->constraints.path().fromOutTransition();
       if (returnPropagation.first) {
         auto kCallBlock = returnPropagation.second;
-        for (auto f : kCallBlock->calledFunctions) {
-          KFunction *kf = kmodule->functionMap[f];
+        for (auto kf : kCallBlock->calledFunctions) {
           for (auto returnBlock : kf->returnKBlocks) {
             auto callPob =
                 ProofObligation::create(pob, state, composeResult.composed,
@@ -7696,8 +7695,7 @@ void Executor::runFunctionAsMain(Function *f, int argc, char **argv,
     }
 
     for (auto &startFunctionAndWhiteList : forwardTargets) {
-      auto kf =
-          kmodule->functionMap.at(startFunctionAndWhiteList.first->function);
+      auto kf = startFunctionAndWhiteList.first;
       if (startFunctionAndWhiteList.second->empty()) {
         klee_warning("No targets found for %s",
                      kf->function->getName().str().c_str());

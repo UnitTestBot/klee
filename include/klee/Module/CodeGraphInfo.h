@@ -19,8 +19,7 @@ namespace klee {
 using BlockDistanceMap = std::unordered_map<KBlock *, unsigned>;
 using FunctionDistanceMap = std::unordered_map<KFunction *, unsigned>;
 using SortedBlockDistances = std::vector<std::pair<KBlock *, unsigned>>;
-using SortedFunctionDistances =
-    std::vector<std::pair<KFunction *, unsigned>>;
+using SortedFunctionDistances = std::vector<std::pair<KFunction *, unsigned>>;
 
 class CodeGraphInfo {
 
