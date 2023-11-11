@@ -7306,6 +7306,12 @@ IDType Executor::lazyInitializeLocalObject(ExecutionState &state,
     size = MulExpr::create(size, count);
     if (isa<ConstantExpr>(size)) {
       elementSize = cast<ConstantExpr>(size)->getZExtValue();
+    } else {
+      const Array *lazyInstantiationSize = makeArray(
+          Expr::createPointer(Context::get().getPointerWidth() / CHAR_BIT),
+          SourceBuilder::lazyInitializationSize(address));
+      size = Expr::createTempRead(lazyInstantiationSize,
+                                  Context::get().getPointerWidth());
     }
   }
   IDType id;
