@@ -129,7 +129,7 @@ bool ConcretizingSolver::getBrokenArrays(
   ref<ConstantExpr> CE = dyn_cast<ConstantExpr>(concretizedQuery.expr);
   if (CE && CE->isTrue()) {
     findObjects(query.expr, brokenArrays);
-    result = new UnknownResponse();
+    result = new ValidResponse(ValidityCore().withExpr(query.expr));
     return true;
   }
   const ExprHashMap<ref<Expr>> &reverse =
@@ -159,10 +159,6 @@ bool ConcretizingSolver::getBrokenArrays(
 
 bool ConcretizingSolver::relaxSymcreteConstraints(const Query &query,
                                                   ref<SolverResponse> &result) {
-  if (!query.containsSizeSymcretes()) {
-    result = new UnknownResponse({});
-    return true;
-  }
 
   /* Get initial symcrete solution. We will try to relax them in order to
    * achieve `mayBeTrue` solution. */
@@ -229,15 +225,8 @@ bool ConcretizingSolver::relaxSymcreteConstraints(const Query &query,
         addressQueue.pop();
       }
 
-      if (!solver->impl->check(constructConcretizedQuery(query, assignment),
-                               result)) {
-        return false;
-      } else {
-        if (isa<InvalidResponse>(result)) {
-          result = new UnknownResponse({});
-        }
-        return true;
-      }
+      return solver->impl->check(constructConcretizedQuery(query, assignment),
+                                 result);
     }
 
     while (!arrayQueue.empty()) {
@@ -317,9 +306,6 @@ bool ConcretizingSolver::relaxSymcreteConstraints(const Query &query,
       if (!solver->impl->check(query, result)) {
         return false;
       }
-      if (isa<InvalidResponse>(result)) {
-        result = new UnknownResponse();
-      }
     }
 
     return true;
@@ -388,9 +374,12 @@ bool ConcretizingSolver::relaxSymcreteConstraints(const Query &query,
   }
 
   ExprHashMap<ref<Expr>> concretizations;
+  ExprHashMap<ref<Expr>> concretizationsMod;
 
   for (ref<Symcrete> symcrete : query.constraints.symcretes()) {
     concretizations[symcrete->symcretized] =
+        assignment.evaluate(symcrete->symcretized);
+    concretizationsMod[symcrete->symcretized] =
         assignment.evaluate(symcrete->symcretized);
   }
 
@@ -415,14 +404,14 @@ bool ConcretizingSolver::relaxSymcreteConstraints(const Query &query,
     storage.store(0, charAddressIterator,
                   charAddressIterator + sizeof(address));
 
-    concretizations[sizeSymcrete->addressSymcrete.symcretized] =
+    concretizationsMod[sizeSymcrete->addressSymcrete.symcretized] =
         ConstantExpr::create(
             reinterpret_cast<uint64_t>(address),
             sizeSymcrete->addressSymcrete.symcretized->getWidth());
   }
 
   ref<Expr> concretizationCondition = query.expr;
-  for (const auto &concretization : concretizations) {
+  for (const auto &concretization : concretizationsMod) {
     concretizationCondition =
         OrExpr::create(Expr::createIsZero(EqExpr::create(
                            concretization.first, concretization.second)),
@@ -434,7 +423,14 @@ bool ConcretizingSolver::relaxSymcreteConstraints(const Query &query,
   }
 
   if (isa<ValidResponse>(result)) {
-    result = new UnknownResponse();
+    concretizationCondition = query.expr;
+    for (const auto &concretization : concretizations) {
+      concretizationCondition =
+          OrExpr::create(Expr::createIsZero(EqExpr::create(
+                             concretization.first, concretization.second)),
+                         concretizationCondition);
+    }
+    return solver->impl->check(query.withExpr(concretizationCondition), result);
   }
 
   return true;
@@ -467,7 +463,7 @@ bool ConcretizingSolver::computeValidity(const Query &query,
       result = PValidity::None;
     }
   }
-  return true;
+  return result != PValidity::None;
 }
 
 bool ConcretizingSolver::computeValidity(

@@ -230,6 +230,7 @@ private:
 
 public:
   bool readOnly;
+  bool wasWritten = false;
 
 public:
   /// Create a new object state for the given memory

@@ -178,8 +178,8 @@ Path Path::concat(const Path &l, const Path &r) {
     assert(isa<KReturnBlock>(l.path.back().block));
     assert(r.path.front().kind == TransitionKind::Out);
     auto kf = l.path.back().block->parent;
-    assert(dyn_cast<KCallBlock>(r.path.front().block)
-               ->calledFunctions.count(kf->function));
+    assert(
+        dyn_cast<KCallBlock>(r.path.front().block)->calledFunctions.count(kf));
   } else {
     assert(l.next == r.getFirstInstruction());
   }

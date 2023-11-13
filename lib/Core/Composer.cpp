@@ -241,7 +241,7 @@ ExprVisitor::Action ComposeVisitor::visitRead(const ReadExpr &read) {
 }
 
 ExprVisitor::Action ComposeVisitor::visitConcat(const ConcatExpr &concat) {
-  const ReadExpr *base = ArrayExprHelper::hasOrderedReads(concat);
+  ref<ReadExpr> base = concat.hasOrderedReads();
   if (base) {
     return Action::changeTo(processRead(base->updates.root, base->updates,
                                         base->index, concat.getWidth()));

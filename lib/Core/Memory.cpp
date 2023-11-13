@@ -92,7 +92,7 @@ ObjectState::ObjectState(const ObjectState &os)
     : copyOnWriteOwner(0), object(os.object), knownSymbolics(os.knownSymbolics),
       unflushedMask(os.unflushedMask), updates(os.updates),
       lastUpdate(os.lastUpdate), size(os.size), dynamicType(os.dynamicType),
-      readOnly(os.readOnly) {}
+      readOnly(os.readOnly), wasWritten(os.wasWritten) {}
 
 ArrayCache *ObjectState::getArrayCache() const {
   assert(object && "object was NULL");
@@ -190,9 +190,12 @@ ref<Expr> ObjectState::read8(ref<Expr> offset) const {
 void ObjectState::write8(unsigned offset, uint8_t value) {
   knownSymbolics.store(offset, ConstantExpr::create(value, Expr::Int8));
   unflushedMask.store(offset, true);
+  wasWritten = true;
 }
 
 void ObjectState::write8(unsigned offset, ref<Expr> value) {
+  wasWritten = true;
+
   // can happen when ExtractExpr special cases
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(value)) {
     write8(offset, (uint8_t)CE->getZExtValue(8));
@@ -203,6 +206,8 @@ void ObjectState::write8(unsigned offset, ref<Expr> value) {
 }
 
 void ObjectState::write8(ref<Expr> offset, ref<Expr> value) {
+  wasWritten = true;
+
   assert(!isa<ConstantExpr>(offset) &&
          "constant offset passed to symbolic write8");
   flushForWrite();
@@ -222,6 +227,7 @@ void ObjectState::write8(ref<Expr> offset, ref<Expr> value) {
 }
 
 void ObjectState::write(ref<const ObjectState> os) {
+  wasWritten = true;
   knownSymbolics = os->knownSymbolics;
   unflushedMask = os->unflushedMask;
   updates = UpdateList(updates.root, os->updates.head);

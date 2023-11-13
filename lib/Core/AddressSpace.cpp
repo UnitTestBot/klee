@@ -37,9 +37,15 @@ llvm::cl::opt<bool> SkipNotLazyInitialized(
     llvm::cl::cat(PointerResolvingCat));
 
 llvm::cl::opt<bool> SkipLocal(
-    "skip-local", llvm::cl::init(true),
+    "skip-local", llvm::cl::init(false),
     llvm::cl::desc(
-        "Do not set symbolic pointers on local objects (default=true)"),
+        "Do not set symbolic pointers on local objects (default=false)"),
+    llvm::cl::cat(PointerResolvingCat));
+
+llvm::cl::opt<bool> SkipGlobal(
+    "skip-global", llvm::cl::init(false),
+    llvm::cl::desc(
+        "Do not set symbolic pointers on global objects (default=false)"),
     llvm::cl::cat(PointerResolvingCat));
 
 llvm::cl::opt<bool> UseTimestamps(
@@ -156,15 +162,20 @@ class ResolvePredicate {
   bool skipNotSymbolicObjects;
   bool skipNotLazyInitialized;
   bool skipLocal;
+  bool skipGlobal;
   unsigned timestamp;
   ExecutionState *state;
+  KType *objectType;
+  bool complete;
 
 public:
-  explicit ResolvePredicate(ExecutionState &state, ref<Expr> address)
+  explicit ResolvePredicate(ExecutionState &state, ref<Expr> address,
+                            KType *objectType, bool complete)
       : useTimestamps(UseTimestamps),
         skipNotSymbolicObjects(SkipNotSymbolicObjects),
         skipNotLazyInitialized(SkipNotLazyInitialized), skipLocal(SkipLocal),
-        timestamp(UINT_MAX), state(&state) {
+        skipGlobal(SkipGlobal), timestamp(UINT_MAX), state(&state),
+        objectType(objectType), complete(complete) {
     auto base =
         state.isGEPExpr(address) ? state.gepExprBases[address].first : address;
     if (!isa<ConstantExpr>(address)) {
@@ -175,11 +186,14 @@ public:
     }
   }
 
-  bool operator()(const MemoryObject *mo) const {
+  bool operator()(const MemoryObject *mo, const ObjectState *os) const {
     bool result = !useTimestamps || mo->timestamp <= timestamp;
     result = result && (!skipNotSymbolicObjects || state->inSymbolics(mo));
     result = result && (!skipNotLazyInitialized || mo->isLazyInitialized);
     result = result && (!skipLocal || !mo->isLocal);
+    result = result && (!skipGlobal || !mo->isGlobal);
+    result = result && os->isAccessableFrom(objectType);
+    result = result && (!complete || os->wasWritten);
     return result;
   }
 };
@@ -188,7 +202,7 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
                               ref<Expr> address, KType *objectType,
                               IDType &result, bool &success,
                               const std::atomic_bool &haltExecution) const {
-  ResolvePredicate predicate(state, address);
+  ResolvePredicate predicate(state, address, objectType, complete);
   if (ref<ConstantExpr> CE = dyn_cast<ConstantExpr>(address)) {
     if (resolveOne(CE, objectType, result)) {
       success = true;
@@ -216,7 +230,7 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
   MemoryObject hack(example);
   const auto res = objects.lookup_previous(&hack);
 
-  if (res && predicate(res->first)) {
+  if (res && predicate(res->first, res->second.get())) {
     const MemoryObject *mo = res->first;
     if (ref<ConstantExpr> arrayConstantSize =
             dyn_cast<ConstantExpr>(mo->getSizeExpr())) {
@@ -234,10 +248,7 @@ bool AddressSpace::resolveOne(ExecutionState &state, TimingSolver *solver,
   for (MemoryMap::iterator oi = objects.begin(), oe = objects.end(); oi != oe;
        ++oi) {
     const auto &mo = oi->first;
-    if (!predicate(mo))
-      continue;
-
-    if (!oi->second->isAccessableFrom(objectType)) {
+    if (!predicate(mo, oi->second.get())) {
       continue;
     }
 
@@ -301,7 +312,7 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
                            ref<Expr> p, KType *objectType, ResolutionList &rl,
                            ResolutionList &rlSkipped, unsigned maxResolutions,
                            time::Span timeout) const {
-  ResolvePredicate predicate(state, p);
+  ResolvePredicate predicate(state, p, objectType, complete);
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(p)) {
     IDType res;
     if (resolveOne(CE, objectType, res)) {
@@ -340,10 +351,7 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
   for (MemoryMap::iterator oi = objects.begin(), oe = objects.end(); oi != oe;
        ++oi) {
     const MemoryObject *mo = oi->first;
-    if (!predicate(mo))
-      continue;
-    if (!oi->second->isAccessableFrom(objectType)) {
-      rlSkipped.push_back(mo->id);
+    if (!predicate(mo, oi->second.get())) {
       continue;
     }
 
