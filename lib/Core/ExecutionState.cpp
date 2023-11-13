@@ -286,8 +286,7 @@ bool ExecutionState::getBase(
     return true;
   }
   case Expr::Concat: {
-    ref<ReadExpr> base =
-        ArrayExprHelper::hasOrderedReads(*dyn_cast<ConcatExpr>(expr));
+    ref<ReadExpr> base = expr->hasOrderedReads();
     if (!base) {
       return false;
     }

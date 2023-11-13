@@ -75,9 +75,12 @@ public:
   // if required (e.g. useful for symbolic sizes).
   IDMap idToObjects;
 
+  mutable bool complete = false;
+
   AddressSpace() : cowKey(1) {}
   AddressSpace(const AddressSpace &b)
-      : cowKey(++b.cowKey), objects(b.objects), idToObjects(b.idToObjects) {}
+      : cowKey(++b.cowKey), objects(b.objects), idToObjects(b.idToObjects),
+        complete(b.complete) {}
   ~AddressSpace() {}
 
   /// Resolve address to an ObjectPair in result.

@@ -258,6 +258,7 @@ void ObjectManager::checkReachedStates() {
                      << state->constraints.path().toString() << "\n";
       }
       auto copy = state->copy();
+      copy->addressSpace.complete = true;
       reachedStates[target].insert(copy);
       for (auto pob : pobs[target]) {
         if (checkStack(copy, pob)) {
