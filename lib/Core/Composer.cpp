@@ -3,6 +3,7 @@
 #include "klee/Expr/ArrayExprVisitor.h"
 
 #include "TypeManager.h"
+#include "klee/Expr/SymbolicSource.h"
 
 using namespace klee;
 using namespace llvm;
@@ -295,6 +296,11 @@ ref<Expr> ComposeVisitor::processRead(const Array *root,
           helper.fillValue(state, cast<ValueSource>(root->source), arraySize);
       break;
     }
+    case SymbolicSource::Kind::Uninitialized: {
+      composedArray = helper.fillUninitialized(
+          state, cast<UninitializedSource>(root->source), arraySize);
+      break;
+    }
     case SymbolicSource::Kind::Global: {
       composedArray =
           helper.fillGlobal(state, cast<GlobalSource>(root->source));
@@ -315,11 +321,6 @@ ref<Expr> ComposeVisitor::processRead(const Array *root,
           state, cast<ConstantSource>(root->source), arraySize);
       break;
     }
-    // case SymbolicSource::Kind::SymbolicSizeConstant: {
-    //   composedArray = helper.fillSymbolicSizeConstant(
-    //       state, cast<SymbolicSizeConstantSource>(root->source), arraySize);
-    //   break;
-    // }
     case SymbolicSource::Kind::SymbolicSizeConstantAddress: {
       auto source = cast<SymbolicSizeConstantAddressSource>(root->source);
       auto size = visit(source->size);
