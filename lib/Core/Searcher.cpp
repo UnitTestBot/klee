@@ -181,8 +181,7 @@ weight_type TargetedSearcher::getWeight(ExecutionState *es) {
     return weight;
   }
   auto distRes = distanceCalculator.getDistance(*es, target->getBlock());
-  weight = klee::util::ulog2(distRes.weight + es->steppedMemoryInstructions +
-                             1); // [0, 32)
+  weight = klee::util::ulog2(distRes.weight + 1); // [0, 32)
   if (!distRes.isInsideFunction) {
     weight += 32; // [32, 64)
   }
@@ -193,12 +192,12 @@ weight_type TargetedSearcher::getWeight(ExecutionState *es) {
 
 ExecutionState &GuidedSearcher::selectState() {
   unsigned size = historiesAndTargets.size();
-  index = theRNG.getInt32() % (size + 1);
+  interleave ^= 1;
   ExecutionState *state = nullptr;
-  if (index == size) {
+  if (interleave || !size) {
     state = &baseSearcher->selectState();
   } else {
-    index = index % size;
+    index = theRNG.getInt32() % size;
     auto &historyTargetPair = historiesAndTargets[index];
     ref<const TargetsHistory> history = historyTargetPair.first;
     ref<Target> target = historyTargetPair.second;
@@ -657,7 +656,7 @@ public:
     return state.isCycled(maxCycles);
   }
   void increaseLimit() final {
-    maxCycles *= 2ULL;
+    maxCycles *= 4ULL;
     klee_message("increased max-cycles to %llu", maxCycles);
   }
 };
@@ -762,4 +761,125 @@ void InterleavedSearcher::printName(llvm::raw_ostream &os) {
   for (const auto &searcher : searchers)
     searcher->printName(os);
   os << "</InterleavedSearcher>\n";
+}
+
+///
+
+BlockLevelSearcher::BlockLevelSearcher(RNG &rng) : theRNG{rng} {}
+
+ExecutionState &BlockLevelSearcher::selectState() {
+  unsigned rnd = 0;
+  unsigned index = 0;
+  unsigned mod = 10;
+  unsigned border = 9;
+
+  auto kfi = data.begin();
+  index = theRNG.getInt32() % data.size();
+  std::advance(kfi, index);
+  auto &sizesTo = kfi->second;
+
+  for (auto &sizesSize : sizesTo) {
+    rnd = theRNG.getInt32();
+    if (rnd % mod < border) {
+      for (auto &size : sizesSize.second) {
+        rnd = theRNG.getInt32();
+        if (rnd % mod < border) {
+          auto lbi = size.second.begin();
+          index = theRNG.getInt32() % size.second.size();
+          std::advance(lbi, index);
+          auto &level = *lbi;
+          auto si = level.second.begin();
+          index = theRNG.getInt32() % level.second.size();
+          std::advance(si, index);
+          auto &state = *si;
+          return *state;
+        }
+      }
+    }
+  }
+
+  return **(sizesTo.begin()->second.begin()->second.begin()->second.begin());
+}
+
+void BlockLevelSearcher::clear(ExecutionState &state) {
+  KFunction *kf = state.initPC->parent->parent;
+  BlockLevel &bl = stateToBlockLevel[&state];
+  auto &sizeTo = data[kf];
+  auto &sizesTo = sizeTo[bl.sizeOfLevel];
+  auto &levelTo = sizesTo[bl.sizesOfFrameLevels];
+  auto &states = levelTo[bl.maxMultilevel];
+
+  states.erase(&state);
+  if (states.size() == 0) {
+    levelTo.erase(bl.maxMultilevel);
+  }
+  if (levelTo.size() == 0) {
+    sizesTo.erase(bl.sizesOfFrameLevels);
+  }
+  if (sizesTo.size() == 0) {
+    sizeTo.erase(bl.sizeOfLevel);
+  }
+  if (sizeTo.size() == 0) {
+    data.erase(kf);
+  }
+}
+
+void BlockLevelSearcher::update(ExecutionState *current,
+                                const StateIterable &addedStates,
+                                const StateIterable &removedStates) {
+  if (current && std::find(removedStates.begin(), removedStates.end(),
+                           current) == removedStates.end()) {
+    KFunction *kf = current->initPC->parent->parent;
+    BlockLevel &bl = stateToBlockLevel[current];
+    sizes.clear();
+    unsigned long long maxMultilevel = 0u;
+    for (auto &infoFrame : current->stack.infoStack()) {
+      sizes.push_back(infoFrame.level.size());
+      maxMultilevel = std::max(maxMultilevel, infoFrame.maxMultilevel);
+    }
+    for (auto &kfLevel : current->stack.multilevel) {
+      maxMultilevel = std::max(maxMultilevel, kfLevel.second);
+    }
+    if (sizes != bl.sizesOfFrameLevels ||
+        current->level.size() != bl.sizeOfLevel ||
+        maxMultilevel != bl.maxMultilevel) {
+      clear(*current);
+
+      data[kf][current->level.size()][sizes][maxMultilevel].insert(current);
+
+      stateToBlockLevel[current] =
+          BlockLevel(kf, current->level.size(), sizes, maxMultilevel);
+    }
+  }
+
+  for (const auto state : addedStates) {
+    KFunction *kf = state->initPC->parent->parent;
+
+    sizes.clear();
+    unsigned long long maxMultilevel = 0u;
+    for (auto &infoFrame : state->stack.infoStack()) {
+      sizes.push_back(infoFrame.level.size());
+      maxMultilevel = std::max(maxMultilevel, infoFrame.maxMultilevel);
+    }
+    for (auto &kfLevel : state->stack.multilevel) {
+      maxMultilevel = std::max(maxMultilevel, kfLevel.second);
+    }
+
+    data[kf][state->level.size()][sizes][maxMultilevel].insert(state);
+
+    stateToBlockLevel[state] =
+        BlockLevel(kf, state->level.size(), sizes, maxMultilevel);
+  }
+
+  // remove states
+  for (const auto state : removedStates) {
+    clear(*state);
+    stateToBlockLevel.erase(state);
+  }
+}
+
+bool BlockLevelSearcher::empty() { return stateToBlockLevel.empty(); }
+
+void BlockLevelSearcher::printName(llvm::raw_ostream &os) {
+  os << "BlockLevelSearcher\n";
 }

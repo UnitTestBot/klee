@@ -16,7 +16,7 @@ int main(int argc, char **argv) {
   if (y >= 0) {
     if (y < 2) {
       // Two test cases generated taking this path, one for y == 0 and y == 1
-      // CHECK: srem.c:[[@LINE+1]]: divide by zero
+      // CHECK-DAG: srem.c:[[@LINE+1]]: divide by zero
       assert(1 % y == 0);
     } else {
       assert(1 % y == 1);
@@ -35,7 +35,7 @@ int main(int argc, char **argv) {
 
   // should fail for y == 0 and y == +/-1, but succeed for all others
   // generates one testcase for either y == 1 or y == -1
-  // CHECK: srem.c:[[@LINE+1]]: ASSERTION FAIL
+  // CHECK-DAG: srem.c:[[@LINE+1]]: ASSERTION FAIL
   assert(-1 % y == -1);
 
   // CHECK: KLEE: done: completed paths = 2

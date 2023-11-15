@@ -76,6 +76,7 @@ public:
   enum CoreSearchType : std::uint8_t {
     DFS,
     BFS,
+    BlockLevelSearch,
     RandomState,
     RandomPath,
     NURS_CovNew,
@@ -169,6 +170,7 @@ class GuidedSearcher final : public Searcher, public TargetManagerSubscriber {
   DistanceCalculator &distanceCalculator;
   RNG &theRNG;
   unsigned index{1};
+  bool interleave = true;
 
   TargetForestHistoryTargetSet localHistoryTargets;
   std::vector<ExecutionState *> baseAddedStates;
@@ -356,6 +358,68 @@ public:
   explicit InterleavedSearcher(const std::vector<Searcher *> &searchers);
   ~InterleavedSearcher() override = default;
 
+  ExecutionState &selectState() override;
+  void update(ExecutionState *current, const StateIterable &addedStates,
+              const StateIterable &removedStates) override;
+  bool empty() override;
+  void printName(llvm::raw_ostream &os) override;
+};
+
+class BlockLevelSearcher final : public Searcher {
+private:
+  struct KBlockSetsCompare {
+    bool operator()(const std::set<KBlock *, KBlockCompare> &a,
+                    const std::set<KBlock *, KBlockCompare> &b) const {
+      return a.size() > b.size() || (a.size() == b.size() && a > b);
+    }
+  };
+
+  struct VectorsCompare {
+    bool operator()(const std::vector<unsigned> &a,
+                    const std::vector<unsigned> &b) const {
+      auto ai = a.begin(), ae = a.end(), bi = b.begin(), be = b.end();
+      for (; ai != ae && bi != be; ++ai, ++bi) {
+        if (*ai != *bi) {
+          return *ai > *bi;
+        }
+      }
+      return bi != be;
+    }
+  };
+
+  struct BlockLevel {
+    KFunction *kf;
+    unsigned sizeOfLevel;
+    std::vector<unsigned> sizesOfFrameLevels;
+    unsigned long long maxMultilevel;
+    BlockLevel(KFunction *kf, unsigned sizeOfLevel,
+               const std::vector<unsigned> &sizesOfFrameLevels,
+               unsigned long long maxMultilevel)
+        : kf(kf), sizeOfLevel(sizeOfLevel),
+          sizesOfFrameLevels(sizesOfFrameLevels), maxMultilevel(maxMultilevel) {
+    }
+    BlockLevel() : kf(nullptr), sizeOfLevel(0), maxMultilevel(0){};
+  };
+
+  using states_ty = std::set<ExecutionState *, ExecutionStateIDCompare>;
+  using kblocks_ty = std::set<KBlock *, KBlockCompare>;
+
+  using ThirdLayer =
+      std::map<unsigned long long, states_ty, std::greater<unsigned long long>>;
+  using SecondLayer =
+      std::map<std::vector<unsigned>, ThirdLayer, VectorsCompare>;
+  using FirstLayer = std::map<unsigned, SecondLayer, std::greater<unsigned>>;
+  using Data = std::map<KFunction *, FirstLayer, KFunctionCompare>;
+
+  Data data;
+  std::unordered_map<ExecutionState *, BlockLevel> stateToBlockLevel;
+  std::vector<unsigned> sizes;
+  RNG &theRNG;
+
+  void clear(ExecutionState &state);
+
+public:
+  explicit BlockLevelSearcher(RNG &rng);
   ExecutionState &selectState() override;
   void update(ExecutionState *current, const StateIterable &addedStates,
               const StateIterable &removedStates) override;

@@ -1,7 +1,7 @@
 ; REQUIRES: geq-llvm-12.0
 ; RUN: %llvmas %s -o %t1.bc
 ; RUN: rm -rf %t.klee-out
-; RUN: %klee --output-dir=%t.klee-out --libc=klee --write-kpaths %t1.bc
+; RUN: %klee --output-dir=%t.klee-out --libc=klee --search=dfs --write-kpaths %t1.bc
 ; RUN: grep "(path: 0 (main: %0 %5 %6 %8 (abs: %1 %8 %11 %13) %8 %10 %16 %17 %19" %t.klee-out/test000001.kpath
 ; RUN: grep "(path: 0 (main: %0 %5 %6 %8 (abs: %1 %6 %11 %13) %8 %10 %16 %17 %19" %t.klee-out/test000002.kpath
 

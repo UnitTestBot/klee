@@ -18,11 +18,11 @@ int main() {
   klee_make_symbolic(&d2, sizeof(d2), "divisor2");
 
   // deliberate division by zero possible
-  // CHECK: consecutive_divide_by_zero.c:[[@LINE+1]]: divide by zero
+  // CHECK-DAG: consecutive_divide_by_zero.c:[[@LINE+1]]: divide by zero
   unsigned int result1 = a / d1;
 
   // another deliberate division by zero possible
-  // CHECK: consecutive_divide_by_zero.c:[[@LINE+1]]: divide by zero
+  // CHECK-DAG: consecutive_divide_by_zero.c:[[@LINE+1]]: divide by zero
   unsigned int result2 = b / d2;
 
   // CHECK: completed paths = 1

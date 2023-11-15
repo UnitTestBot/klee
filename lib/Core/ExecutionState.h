@@ -96,6 +96,8 @@ struct InfoStackFrame {
   KFunction *kf;
   CallPathNode *callPathNode = nullptr;
   PersistentMap<llvm::BasicBlock *, unsigned long long> multilevel;
+  unsigned long long maxMultilevel = 0;
+  std::set<KBlock *, KBlockCompare> level;
 
   /// Minimum distance to an uncovered instruction once the function
   /// returns. This is not a good place for this but is used to

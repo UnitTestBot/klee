@@ -38,6 +38,9 @@ cl::list<Searcher::CoreSearchType> CoreSearch(
         clEnumValN(Searcher::BFS, "bfs",
                    "use Breadth First Search (BFS), where scheduling decisions "
                    "are taken at the level of (2-way) forks"),
+        clEnumValN(Searcher::BlockLevelSearch, "bls",
+                   "use Block Level Search (BLS), where selection "
+                   "between states with same level is is carried out randomly"),
         clEnumValN(Searcher::RandomState, "random-state",
                    "randomly select a state to explore"),
         clEnumValN(Searcher::RandomPath, "random-path",
@@ -92,7 +95,7 @@ void klee::initializeSearchOptions() {
   // default values
   if (CoreSearch.empty()) {
     CoreSearch.push_back(Searcher::RandomPath);
-    CoreSearch.push_back(Searcher::NURS_CovNew);
+    CoreSearch.push_back(Searcher::BlockLevelSearch);
   }
 }
 
@@ -118,6 +121,9 @@ Searcher *getNewSearcher(Searcher::CoreSearchType type, RNG &rng,
     break;
   case Searcher::BFS:
     searcher = new BFSSearcher();
+    break;
+  case Searcher::BlockLevelSearch:
+    searcher = new BlockLevelSearcher(rng);
     break;
   case Searcher::RandomState:
     searcher = new RandomSearcher(rng);

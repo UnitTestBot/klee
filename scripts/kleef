@@ -79,6 +79,7 @@ def klee_options(
             "--dump-states-on-halt=false",  # Explicitly do not dump states
             "--exit-on-error-type=Assert",  # Only generate test cases of type assert
             # "--dump-test-case-type=Assert", # Only dump test cases of type assert
+            "--search=bls",
             "--search=dfs",
             #    "--search=nurs:covnew", "--search=random-path","--search=dfs", "--use-batching-search",
             #    "--search=distance","--search=random-path","--use-batching-search",
@@ -100,8 +101,9 @@ def klee_options(
             # "--tc-type=cov",
             "--only-output-states-covering-new",  # Don't generate all test cases
             "--dump-states-on-halt=true",  # Check in case we missed some oncovered instructions
-            "--search=dfs",
+            # "--search=dfs",
             "--search=random-state",
+            "--search=bls",
         ]
         if max_time:
             max_time = float(max_time)

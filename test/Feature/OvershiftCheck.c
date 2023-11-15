@@ -15,12 +15,12 @@ int main() {
 
   /* Overshift if y>= sizeof(x) */
   klee_make_symbolic(&y, sizeof(y), "shift_amount1");
-  // CHECK: OvershiftCheck.c:[[@LINE+1]]: overshift error
+  // CHECK-DAG: OvershiftCheck.c:[[@LINE+1]]: overshift error
   result = x << y;
 
   /* Overshift is z>= sizeof(x) */
   klee_make_symbolic(&z, sizeof(z), "shift_amount2");
-  // CHECK: OvershiftCheck.c:[[@LINE+1]]: overshift error
+  // CHECK-DAG: OvershiftCheck.c:[[@LINE+1]]: overshift error
   result = x >> z;
 
   return 0;

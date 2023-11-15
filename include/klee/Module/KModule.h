@@ -187,6 +187,9 @@ public:
   /// Unique index for KFunction and KInstruction inside KModule
   /// from 0 to [KFunction + KInstruction]
   [[nodiscard]] inline unsigned getGlobalIndex() const { return globalIndex; }
+
+  bool operator<(const KFunction &rhs) const { return id < rhs.id; }
+  bool operator<(const KFunction *rhs) const { return id < rhs->id; }
 };
 
 struct KBlockCompare {
@@ -194,6 +197,12 @@ struct KBlockCompare {
     return a->parent->getGlobalIndex() < b->parent->getGlobalIndex() ||
            (a->parent->getGlobalIndex() == b->parent->getGlobalIndex() &&
             a->getId() < b->getId());
+  }
+};
+
+struct KFunctionCompare {
+  bool operator()(const KFunction *a, const KFunction *b) const {
+    return a->id < b->id;
   }
 };
 

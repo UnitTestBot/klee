@@ -11,13 +11,13 @@ int main() {
   float *ptr;
   klee_make_symbolic(&ptr, sizeof(ptr), "ptr");
 
-  // CHECK: KLEE: ERROR: {{.*}}runtime/Sanitizer/ubsan/ubsan_handlers.cpp:{{[0-9]+}}: null-pointer-use
+  // CHECK-DAG: KLEE: ERROR: {{.*}}runtime/Sanitizer/ubsan/ubsan_handlers.cpp:{{[0-9]+}}: null-pointer-use
   *ptr = 10;
 
   int n = klee_range(1, 4, "n");
   ptr = (float *)(((char *)ptr) + n);
 
-  // CHECK: KLEE: ERROR: {{.*}}runtime/Sanitizer/ubsan/ubsan_handlers.cpp:{{[0-9]+}}: misaligned-pointer-use
+  // CHECK-DAG: KLEE: ERROR: {{.*}}runtime/Sanitizer/ubsan/ubsan_handlers.cpp:{{[0-9]+}}: misaligned-pointer-use
   *ptr = 20;
 
   return 0;

@@ -446,7 +446,10 @@ void ExecutionState::increaseLevel() {
   if (prevPC->inst->isTerminator() && kmodule->inMainModule(*kf->function)) {
     auto srcLevel = stack.infoStack().back().multilevel[srcbb].second;
     stack.infoStack().back().multilevel.replace({srcbb, srcLevel + 1});
+    stack.infoStack().back().maxMultilevel =
+        std::max(stack.infoStack().back().maxMultilevel, srcLevel + 1);
     level.insert(prevPC->parent);
+    stack.infoStack().back().level.insert(prevPC->parent);
   }
 }
 
