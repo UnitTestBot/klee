@@ -4742,6 +4742,11 @@ void Executor::goForward(ref<ForwardAction> action) {
     dumpStates();
   if (::dumpPForest)
     dumpPForest();
+
+  if (targetCalculator && TrackCoverage != TrackCoverageBy::None &&
+      targetCalculator->isCovered(fa->state->initPC->parent->parent)) {
+    haltExecution = HaltExecution::CovCheck;
+  }
 }
 
 void Executor::goBackward(ref<BackwardAction> action) {
