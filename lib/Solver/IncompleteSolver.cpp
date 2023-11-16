@@ -49,15 +49,19 @@ PartialValidity IncompleteSolver::computeValidity(const Query &query) {
 /***/
 
 StagedSolverImpl::StagedSolverImpl(std::unique_ptr<IncompleteSolver> primary,
-                                   std::unique_ptr<Solver> secondary)
-    : primary(std::move(primary)), secondary(std::move(secondary)) {}
+                                   std::unique_ptr<Solver> secondary,
+                                   QueryPredicate predicate)
+    : primary(std::move(primary)), secondary(std::move(secondary)),
+      predicate(predicate) {}
 
 bool StagedSolverImpl::computeTruth(const Query &query, bool &isValid) {
-  PartialValidity trueResult = primary->computeTruth(query);
+  if (predicate(query)) {
+    PartialValidity trueResult = primary->computeTruth(query);
 
-  if (trueResult != PValidity::None) {
-    isValid = (trueResult == PValidity::MustBeTrue);
-    return true;
+    if (trueResult != PValidity::None) {
+      isValid = (trueResult == PValidity::MustBeTrue);
+      return true;
+    }
   }
 
   return secondary->impl->computeTruth(query, isValid);
@@ -65,44 +69,48 @@ bool StagedSolverImpl::computeTruth(const Query &query, bool &isValid) {
 
 bool StagedSolverImpl::computeValidity(const Query &query,
                                        PartialValidity &result) {
-  bool tmp;
+  if (predicate(query)) {
+    bool tmp;
 
-  switch (primary->computeValidity(query)) {
-  case PValidity::MustBeTrue:
-    result = PValidity::MustBeTrue;
-    break;
-  case PValidity::MustBeFalse:
-    result = PValidity::MustBeFalse;
-    break;
-  case PValidity::TrueOrFalse:
-    result = PValidity::TrueOrFalse;
-    break;
-  case PValidity::MayBeTrue:
-    if (secondary->impl->computeTruth(query, tmp)) {
+    switch (primary->computeValidity(query)) {
+    case PValidity::MustBeTrue:
+      result = PValidity::MustBeTrue;
+      break;
+    case PValidity::MustBeFalse:
+      result = PValidity::MustBeFalse;
+      break;
+    case PValidity::TrueOrFalse:
+      result = PValidity::TrueOrFalse;
+      break;
+    case PValidity::MayBeTrue:
+      if (secondary->impl->computeTruth(query, tmp)) {
 
-      result = tmp ? PValidity::MustBeTrue : PValidity::TrueOrFalse;
-    } else {
-      result = PValidity::MayBeTrue;
+        result = tmp ? PValidity::MustBeTrue : PValidity::TrueOrFalse;
+      } else {
+        result = PValidity::MayBeTrue;
+      }
+      break;
+    case PValidity::MayBeFalse:
+      if (secondary->impl->computeTruth(query.negateExpr(), tmp)) {
+        result = tmp ? PValidity::MustBeFalse : PValidity::TrueOrFalse;
+      } else {
+        result = PValidity::MayBeFalse;
+      }
+      break;
+    default:
+      if (!secondary->impl->computeValidity(query, result))
+        return false;
+      break;
     }
-    break;
-  case PValidity::MayBeFalse:
-    if (secondary->impl->computeTruth(query.negateExpr(), tmp)) {
-      result = tmp ? PValidity::MustBeFalse : PValidity::TrueOrFalse;
-    } else {
-      result = PValidity::MayBeFalse;
-    }
-    break;
-  default:
-    if (!secondary->impl->computeValidity(query, result))
-      return false;
-    break;
+  } else {
+    return secondary->impl->computeValidity(query, result);
   }
 
   return true;
 }
 
 bool StagedSolverImpl::computeValue(const Query &query, ref<Expr> &result) {
-  if (primary->computeValue(query, result))
+  if (predicate(query) && primary->computeValue(query, result))
     return true;
 
   return secondary->impl->computeValue(query, result);
@@ -111,7 +119,8 @@ bool StagedSolverImpl::computeValue(const Query &query, ref<Expr> &result) {
 bool StagedSolverImpl::computeInitialValues(
     const Query &query, const std::vector<const Array *> &objects,
     std::vector<SparseStorage<unsigned char>> &values, bool &hasSolution) {
-  if (primary->computeInitialValues(query, objects, values, hasSolution))
+  if (predicate(query) &&
+      primary->computeInitialValues(query, objects, values, hasSolution))
     return true;
 
   return secondary->impl->computeInitialValues(query, objects, values,
@@ -119,17 +128,19 @@ bool StagedSolverImpl::computeInitialValues(
 }
 
 bool StagedSolverImpl::check(const Query &query, ref<SolverResponse> &result) {
-  std::vector<const Array *> objects;
-  findSymbolicObjects(query, objects);
-  std::vector<SparseStorage<unsigned char>> values;
+  if (predicate(query)) {
+    std::vector<const Array *> objects;
+    findSymbolicObjects(query, objects);
+    std::vector<SparseStorage<unsigned char>> values;
 
-  bool hasSolution;
+    bool hasSolution;
 
-  bool primaryResult =
-      primary->computeInitialValues(query, objects, values, hasSolution);
-  if (primaryResult && hasSolution) {
-    result = new InvalidResponse(objects, values);
-    return true;
+    bool primaryResult =
+        primary->computeInitialValues(query, objects, values, hasSolution);
+    if (primaryResult && hasSolution) {
+      result = new InvalidResponse(objects, values);
+      return true;
+    }
   }
 
   return secondary->impl->check(query, result);
@@ -138,6 +149,14 @@ bool StagedSolverImpl::check(const Query &query, ref<SolverResponse> &result) {
 bool StagedSolverImpl::computeValidityCore(const Query &query,
                                            ValidityCore &validityCore,
                                            bool &isValid) {
+  if (predicate(query)) {
+    PartialValidity trueResult = primary->computeTruth(query);
+
+    if (trueResult == PValidity::MayBeFalse) {
+      isValid = false;
+      return true;
+    }
+  }
   return secondary->impl->computeValidityCore(query, validityCore, isValid);
 }
 

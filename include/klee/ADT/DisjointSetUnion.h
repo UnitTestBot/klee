@@ -154,6 +154,27 @@ public:
     }
   }
 
+  void getAllDependentSets(ValueType value,
+                           std::vector<ref<const SetType>> &result) const {
+    ref<const SetType> compare = new SetType(value);
+    for (auto &r : roots) {
+      ref<const SetType> ics = disjointSets.at(r);
+      if (SetType::intersects(ics, compare)) {
+        result.push_back(ics);
+      }
+    }
+  }
+  void getAllIndependentSets(ValueType value,
+                             std::vector<ref<const SetType>> &result) const {
+    ref<const SetType> compare = new SetType(value);
+    for (auto &r : roots) {
+      ref<const SetType> ics = disjointSets.at(r);
+      if (!SetType::intersects(ics, compare)) {
+        result.push_back(ics);
+      }
+    }
+  }
+
   DisjointSetUnion() {}
 
   DisjointSetUnion(const internal_storage_ty &is) {

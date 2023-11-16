@@ -13,6 +13,8 @@
 #include "klee/ADT/Bits.h"
 #include "klee/Expr/Expr.h"
 
+#include "llvm/ADT/APInt.h"
+
 namespace klee {
 
 /*
@@ -90,7 +92,7 @@ T ExprRangeEvaluator<T>::evalRead(const UpdateList &ul, T index) {
 template <class T> T ExprRangeEvaluator<T>::evaluate(const ref<Expr> &e) {
   switch (e->getKind()) {
   case Expr::Constant:
-    return T(cast<ConstantExpr>(e));
+    return T(cast<ConstantExpr>(e)->getAPValue());
 
   case Expr::NotOptimized:
     break;
@@ -109,9 +111,9 @@ template <class T> T ExprRangeEvaluator<T>::evaluate(const ref<Expr> &e) {
     const SelectExpr *se = cast<SelectExpr>(e);
     T cond = evaluate(se->cond);
 
-    if (cond.mustEqual(1)) {
+    if (cond.mustEqual(llvm::APInt(se->cond->getWidth(), 1))) {
       return evaluate(se->trueExpr);
-    } else if (cond.mustEqual(0)) {
+    } else if (cond.mustEqual(llvm::APInt(se->cond->getWidth(), 0))) {
       return evaluate(se->falseExpr);
     } else {
       return evaluate(se->trueExpr).set_union(evaluate(se->falseExpr));
@@ -120,11 +122,9 @@ template <class T> T ExprRangeEvaluator<T>::evaluate(const ref<Expr> &e) {
 
     // XXX these should be unrolled to ensure nice inline
   case Expr::Concat: {
-    const Expr *ep = e.get();
-    T res(0);
-    for (unsigned i = 0; i < ep->getNumKids(); i++)
-      res = res.concat(evaluate(ep->getKid(i)), 8);
-    return res;
+    ref<ConcatExpr> ce = cast<ConcatExpr>(e);
+    return evaluate(ce->getLeft())
+        .concat(evaluate(ce->getRight()), ce->getRight()->getWidth());
   }
 
     // Arithmetic
@@ -206,9 +206,9 @@ template <class T> T ExprRangeEvaluator<T>::evaluate(const ref<Expr> &e) {
     T right = evaluate(be->right);
 
     if (left.mustEqual(right)) {
-      return T(1);
+      return T(llvm::APInt(Expr::Bool, 1));
     } else if (!left.mayEqual(right)) {
-      return T(0);
+      return T(llvm::APInt(Expr::Bool, 0));
     }
     break;
   }
@@ -218,10 +218,10 @@ template <class T> T ExprRangeEvaluator<T>::evaluate(const ref<Expr> &e) {
     T left = evaluate(be->left);
     T right = evaluate(be->right);
 
-    if (left.max() < right.min()) {
-      return T(1);
-    } else if (left.min() >= right.max()) {
-      return T(0);
+    if (left.max().ult(right.min())) {
+      return T(llvm::APInt(Expr::Bool, 1));
+    } else if (left.min().uge(right.max())) {
+      return T(llvm::APInt(Expr::Bool, 0));
     }
     break;
   }
@@ -230,10 +230,10 @@ template <class T> T ExprRangeEvaluator<T>::evaluate(const ref<Expr> &e) {
     T left = evaluate(be->left);
     T right = evaluate(be->right);
 
-    if (left.max() <= right.min()) {
-      return T(1);
-    } else if (left.min() > right.max()) {
-      return T(0);
+    if (left.max().ule(right.min())) {
+      return T(llvm::APInt(Expr::Bool, 1));
+    } else if (left.min().ugt(right.max())) {
+      return T(llvm::APInt(Expr::Bool, 0));
     }
     break;
   }
@@ -243,10 +243,10 @@ template <class T> T ExprRangeEvaluator<T>::evaluate(const ref<Expr> &e) {
     T right = evaluate(be->right);
     unsigned bits = be->left->getWidth();
 
-    if (left.maxSigned(bits) < right.minSigned(bits)) {
-      return T(1);
-    } else if (left.minSigned(bits) >= right.maxSigned(bits)) {
-      return T(0);
+    if (left.maxSigned(bits).ult(right.minSigned(bits))) {
+      return T(llvm::APInt(Expr::Bool, 1));
+    } else if (left.minSigned(bits).uge(right.maxSigned(bits))) {
+      return T(llvm::APInt(Expr::Bool, 0));
     }
     break;
   }
@@ -256,12 +256,20 @@ template <class T> T ExprRangeEvaluator<T>::evaluate(const ref<Expr> &e) {
     T right = evaluate(be->right);
     unsigned bits = be->left->getWidth();
 
-    if (left.maxSigned(bits) <= right.minSigned(bits)) {
-      return T(1);
-    } else if (left.minSigned(bits) > right.maxSigned(bits)) {
-      return T(0);
+    if (left.maxSigned(bits).ule(right.minSigned(bits))) {
+      return T(llvm::APInt(Expr::Bool, 1));
+    } else if (left.minSigned(bits).ugt(right.maxSigned(bits))) {
+      return T(llvm::APInt(Expr::Bool, 0));
     }
     break;
+  }
+  case Expr::ZExt: {
+    ref<CastExpr> ce = cast<CastExpr>(e);
+    return evaluate(e->getKid(0)).zextOrTrunc(ce->getWidth());
+  }
+  case Expr::SExt: {
+    ref<CastExpr> ce = cast<CastExpr>(e);
+    return evaluate(e->getKid(0)).sextOrTrunc(ce->getWidth());
   }
 
   case Expr::Ne:
@@ -275,7 +283,8 @@ template <class T> T ExprRangeEvaluator<T>::evaluate(const ref<Expr> &e) {
     break;
   }
 
-  return T(0, bits64::maxValueOfNBits(e->getWidth()));
+  return T(llvm::APInt(e->getWidth(), 0),
+           llvm::APInt::getAllOnesValue(e->getWidth()));
 }
 
 } // namespace klee

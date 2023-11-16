@@ -58,14 +58,18 @@ public:
 /// StagedSolver - Adapter class for staging an incomplete solver with
 /// a complete secondary solver, to form an (optimized) complete
 /// solver.
+
+typedef std::function<bool(const Query &)> QueryPredicate;
+
 class StagedSolverImpl : public SolverImpl {
 private:
   std::unique_ptr<IncompleteSolver> primary;
   std::unique_ptr<Solver> secondary;
+  QueryPredicate predicate;
 
 public:
   StagedSolverImpl(std::unique_ptr<IncompleteSolver> primary,
-                   std::unique_ptr<Solver> secondary);
+                   std::unique_ptr<Solver> secondary, QueryPredicate predicate);
 
   bool computeTruth(const Query &, bool &isValid);
   bool computeValidity(const Query &, PartialValidity &result);

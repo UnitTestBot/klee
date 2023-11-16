@@ -95,27 +95,13 @@ void IndependentConstraintSetUnion::reEvaluateConcretization(
 void IndependentConstraintSetUnion::getAllIndependentConstraintSets(
     ref<Expr> e,
     std::vector<ref<const IndependentConstraintSet>> &result) const {
-  ref<const IndependentConstraintSet> compare =
-      new IndependentConstraintSet(new ExprEitherSymcrete::left(e));
-  for (auto &r : roots) {
-    ref<const IndependentConstraintSet> ics = disjointSets.at(r);
-    if (!IndependentConstraintSet::intersects(ics, compare)) {
-      result.push_back(ics);
-    }
-  }
+  getAllIndependentSets(new ExprEitherSymcrete::left(e), result);
 }
 
 void IndependentConstraintSetUnion::getAllDependentConstraintSets(
     ref<Expr> e,
     std::vector<ref<const IndependentConstraintSet>> &result) const {
-  ref<const IndependentConstraintSet> compare =
-      new IndependentConstraintSet(new ExprEitherSymcrete::left(e));
-  for (auto &r : roots) {
-    ref<const IndependentConstraintSet> ics = disjointSets.at(r);
-    if (IndependentConstraintSet::intersects(ics, compare)) {
-      result.push_back(ics);
-    }
-  }
+  getAllDependentSets(new ExprEitherSymcrete::left(e), result);
 }
 
 void IndependentConstraintSetUnion::addExpr(ref<Expr> e) {

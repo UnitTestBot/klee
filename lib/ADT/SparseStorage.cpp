@@ -35,7 +35,7 @@ void SparseStorage<unsigned char>::print(llvm::raw_ostream &os,
     }
     os << "] default: ";
   }
-  os << defaultValue;
+  os << ((unsigned)defaultValue);
 }
 
 template <>

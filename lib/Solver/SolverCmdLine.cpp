@@ -43,8 +43,8 @@ cl::OptionCategory SolvingCat("Constraint solving options",
                               "These options impact constraint solving.");
 
 cl::opt<bool> UseFastCexSolver(
-    "use-fast-cex-solver", cl::init(false),
-    cl::desc("Enable an experimental range-based solver (default=false)"),
+    "use-fast-cex-solver", cl::init(true),
+    cl::desc("Enable an experimental range-based solver (default=true)"),
     cl::cat(SolvingCat));
 
 cl::opt<bool>
