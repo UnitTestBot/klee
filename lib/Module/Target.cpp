@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "klee/Module/Target.h"
+#include "klee/Module/SarifReport.h"
 #include "klee/Module/TargetHash.h"
 
 #include "klee/Module/CodeGraphInfo.h"
@@ -40,6 +41,9 @@ std::string ReproduceErrorTarget::toString() const {
   repr << "Target " << getId() << ": ";
   repr << "error in ";
   repr << block->toString();
+  for (auto error : errors) {
+    repr << " " << errorToString(error);
+  }
   return repr.str();
 }
 
@@ -85,13 +89,13 @@ ReproduceErrorTarget::create(const std::vector<ReachWithError> &_errors,
 }
 
 ref<Target> ReachBlockTarget::create(KBlock *_block, bool _atEnd) {
-  ReachBlockTarget *target = new ReachBlockTarget(_block, _atEnd);
+  ReachBlockTarget *target = new ReachBlockTarget(_block, _atEnd, true);
   return createCachedTarget(target);
 }
 
 ref<Target> ReachBlockTarget::create(KBlock *_block) {
   ReachBlockTarget *target =
-      new ReachBlockTarget(_block, isa<KReturnBlock>(_block));
+      new ReachBlockTarget(_block, isa<KReturnBlock>(_block), true);
   return createCachedTarget(target);
 }
 
