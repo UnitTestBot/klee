@@ -392,6 +392,7 @@ ref<Expr> ComposeVisitor::processRead(const Array *root,
   case SymbolicSource::Kind::Global:
   case SymbolicSource::Kind::MakeSymbolic:
   case SymbolicSource::Kind::Irreproducible:
+  case SymbolicSource::Kind::Uninitialized:
   case SymbolicSource::Kind::Constant: {
     auto os = std::get<ref<ObjectState>>(composedArray);
     os = shareUpdates(os, updates);
