@@ -13,6 +13,8 @@
 #include "klee/Expr/Expr.h"
 #include "klee/Module/KInstruction.h"
 #include "klee/Module/KModule.h"
+#include "klee/Module/SarifReport.h"
+#include "klee/Module/Target.h"
 #include "klee/Module/TargetHash.h"
 
 #include "klee/Support/ErrorHandling.h"
@@ -105,26 +107,91 @@ TargetForest::UnorderedTargetsSet::~UnorderedTargetsSet() {
 }
 
 void TargetForest::Layer::addTrace(
-    const Result &result,
+    const Result &result, KFunction *entryKF,
     const std::unordered_map<ref<Location>, std::unordered_set<KBlock *>,
-                             RefLocationHash, RefLocationCmp> &locToBlocks) {
+                             RefLocationHash, RefLocationCmp> &locToBlocks,
+    bool reversed) {
   auto forest = this;
-  for (size_t i = 0; i < result.locations.size(); ++i) {
+  for (size_t count = 0; count < result.locations.size(); ++count) {
+    size_t i = reversed ? result.locations.size() - count - 1 : count;
     const auto &loc = result.locations[i];
     auto it = locToBlocks.find(loc);
     assert(it != locToBlocks.end());
     TargetHashSet targets;
     for (auto block : it->second) {
-      ref<Target> target = nullptr;
       if (i == result.locations.size() - 1) {
-        target = ReproduceErrorTarget::create(result.errors, result.id,
-                                              ErrorLocation(loc), block);
+        targets.insert(ReproduceErrorTarget::create(result.errors, result.id,
+                                                    ErrorLocation(loc), block));
       } else {
-        target = ReachBlockTarget::create(block);
+        targets.insert(ReachBlockTarget::create(block));
+        if (isa<KCallBlock>(block)) {
+          targets.insert(ReachBlockTarget::create(block, true));
+        }
       }
-      targets.insert(target);
     }
 
+    ref<UnorderedTargetsSet> targetsVec = UnorderedTargetsSet::create(targets);
+    if (forest->forest.count(targetsVec) == 0) {
+      ref<TargetForest::Layer> next = new TargetForest::Layer();
+      forest->insert(targetsVec, next);
+    }
+
+    for (auto &target : targetsVec->getTargets()) {
+      forest->insertTargetsToVec(target, targetsVec);
+    }
+
+    forest = forest->forest[targetsVec].get();
+  }
+
+  if (reversed) {
+    TargetHashSet targets;
+    targets.insert(ReachBlockTarget::create(entryKF->entryKBlock));
+    ref<UnorderedTargetsSet> targetsVec = UnorderedTargetsSet::create(targets);
+    if (forest->forest.count(targetsVec) == 0) {
+      ref<TargetForest::Layer> next = new TargetForest::Layer();
+      forest->insert(targetsVec, next);
+    }
+
+    for (auto &target : targetsVec->getTargets()) {
+      forest->insertTargetsToVec(target, targetsVec);
+    }
+
+    forest = forest->forest[targetsVec].get();
+  }
+}
+
+void TargetForest::Layer::addTrace(const KBlockTrace &trace, bool reversed) {
+  auto forest = this;
+  auto entryKF = (*(trace.front().begin()))->parent;
+  for (unsigned count = 0; count < trace.size(); count++) {
+    unsigned i = reversed ? trace.size() - count - 1 : count;
+    TargetHashSet targets;
+    for (auto block : trace.at(i)) {
+      if (i == trace.size() - 1) {
+        targets.insert(ReproduceErrorTarget::create(
+            {ReachWithError::Reachable}, "",
+            ErrorLocation(block->getFirstInstruction()), block));
+      } else {
+        targets.insert(ReachBlockTarget::create(block));
+      }
+    }
+
+    ref<UnorderedTargetsSet> targetsVec = UnorderedTargetsSet::create(targets);
+    if (forest->forest.count(targetsVec) == 0) {
+      ref<TargetForest::Layer> next = new TargetForest::Layer();
+      forest->insert(targetsVec, next);
+    }
+
+    for (auto &target : targetsVec->getTargets()) {
+      forest->insertTargetsToVec(target, targetsVec);
+    }
+
+    forest = forest->forest[targetsVec].get();
+  }
+
+  if (reversed) {
+    TargetHashSet targets;
+    targets.insert(ReachBlockTarget::create(entryKF->entryKBlock));
     ref<UnorderedTargetsSet> targetsVec = UnorderedTargetsSet::create(targets);
     if (forest->forest.count(targetsVec) == 0) {
       ref<TargetForest::Layer> next = new TargetForest::Layer();
@@ -165,6 +232,7 @@ void TargetForest::Layer::unionWith(TargetForest::Layer *other) {
     auto it = targetsToVector.find(kv.first);
     if (it == targetsToVector.end()) {
       targetsToVector.insert(std::make_pair(kv.first, kv.second));
+      targets.insert(kv.first);
       continue;
     }
     it->second.insert(kv.second.begin(), kv.second.end());
@@ -185,6 +253,7 @@ void TargetForest::Layer::block(ref<Target> target) {
           it->second.erase(itf->first);
           if (it->second.empty()) {
             targetsToVector.erase(it);
+            targets.erase(itfTarget);
           }
         }
       }
@@ -205,6 +274,7 @@ void TargetForest::Layer::removeTarget(ref<Target> target) {
   auto targetsVectors = std::move(it->second);
 
   targetsToVector.erase(it);
+  targets.erase(target);
 
   for (auto &targetsVec : targetsVectors) {
     bool shouldDelete = true;
@@ -273,6 +343,7 @@ TargetForest::Layer::removeChild(ref<UnorderedTargetsSet> child) const {
     it->second.erase(child);
     if (it->second.empty()) {
       result->targetsToVector.erase(it);
+      result->targets.erase(target);
     }
   }
   return result;
@@ -287,6 +358,7 @@ TargetForest::Layer *TargetForest::Layer::addChild(ref<Target> child) const {
   result->forest.insert({targetsVec, new Layer()});
 
   result->targetsToVector[child].insert(targetsVec);
+  result->targets.insert(child);
   return result;
 }
 
@@ -396,6 +468,7 @@ TargetForest::Layer *TargetForest::Layer::replaceChildWith(
         it->second.erase(targetsVec);
         if (it->second.empty()) {
           result->targetsToVector.erase(it);
+          result->targets.erase(target);
         }
       }
     }
@@ -463,9 +536,9 @@ int TargetsHistory::compare(const TargetsHistory &h) const {
     return (target < h.target) ? -1 : 1;
   }
 
-  assert(visitedTargets && h.visitedTargets);
-  if (visitedTargets != h.visitedTargets) {
-    return (visitedTargets < h.visitedTargets) ? -1 : 1;
+  assert(next && h.next);
+  if (next != h.next) {
+    return (next < h.next) ? -1 : 1;
   }
 
   return 0;
@@ -482,11 +555,11 @@ void TargetsHistory::dump() const {
     llvm::errs() << target->toString() << "\n";
   } else {
     llvm::errs() << "end.\n";
-    assert(!visitedTargets);
+    assert(!next);
     return;
   }
-  if (visitedTargets)
-    visitedTargets->dump();
+  if (next)
+    next->dump();
 }
 
 TargetsHistory::~TargetsHistory() {
