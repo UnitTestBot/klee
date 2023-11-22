@@ -23,17 +23,17 @@ DISABLE_WARNING_POP
 using namespace klee;
 using namespace llvm;
 
-void CodeGraphInfo::calculateDistance(Block *bb) {
+void CodeGraphInfo::calculateDistance(KBlock *bb) {
   auto &dist = blockDistance[bb];
   auto &sort = blockSortedDistance[bb];
-  std::deque<Block *> nodes;
+  std::deque<KBlock *> nodes;
   nodes.push_back(bb);
   dist[bb] = 0;
   sort.push_back({bb, 0});
   bool hasCycle = false;
   for (; !nodes.empty(); nodes.pop_front()) {
     auto currBB = nodes.front();
-    for (auto succ : successors(currBB)) {
+    for (auto succ : currBB->successors()) {
       if (succ == bb) {
         hasCycle = true;
         continue;
@@ -50,16 +50,16 @@ void CodeGraphInfo::calculateDistance(Block *bb) {
     blockCycles.insert(bb);
 }
 
-void CodeGraphInfo::calculateBackwardDistance(Block *bb) {
+void CodeGraphInfo::calculateBackwardDistance(KBlock *bb) {
   auto &bdist = blockBackwardDistance[bb];
   auto &bsort = blockSortedBackwardDistance[bb];
-  std::deque<Block *> nodes;
+  std::deque<KBlock *> nodes;
   nodes.push_back(bb);
   bdist[bb] = 0;
   bsort.push_back({bb, 0});
   while (!nodes.empty()) {
     auto currBB = nodes.front();
-    for (auto const &pred : predecessors(currBB)) {
+    for (auto const &pred : currBB->predecessors()) {
       if (bdist.count(pred) == 0) {
         bdist[pred] = bdist[currBB] + 1;
         bsort.push_back({pred, bdist[currBB] + 1});
@@ -71,24 +71,24 @@ void CodeGraphInfo::calculateBackwardDistance(Block *bb) {
 }
 
 void CodeGraphInfo::calculateDistance(KFunction *kf) {
-  auto f = kf->function;
   auto &functionMap = kf->parent->functionMap;
-  auto &dist = functionDistance[f];
-  auto &sort = functionSortedDistance[f];
+  auto &dist = functionDistance[kf];
+  auto &sort = functionSortedDistance[kf];
   std::deque<KFunction *> nodes;
   nodes.push_back(kf);
-  dist[f] = 0;
-  sort.push_back({f, 0});
+  dist[kf] = 0;
+  sort.push_back({kf, 0});
   while (!nodes.empty()) {
     auto currKF = nodes.front();
     for (auto callBlock : currKF->kCallBlocks) {
       for (auto calledFunction : callBlock->calledFunctions) {
+        auto kcalledFunction = functionMap[calledFunction];
         if (!calledFunction || calledFunction->isDeclaration())
           continue;
-        if (dist.count(calledFunction) == 0) {
-          auto d = dist[currKF->function] + 1;
-          dist[calledFunction] = d;
-          sort.emplace_back(calledFunction, d);
+        if (dist.count(kcalledFunction) == 0) {
+          auto d = dist[currKF] + 1;
+          dist[kcalledFunction] = d;
+          sort.emplace_back(kcalledFunction, d);
           auto callKF = functionMap[calledFunction];
           nodes.push_back(callKF);
         }
@@ -99,24 +99,24 @@ void CodeGraphInfo::calculateDistance(KFunction *kf) {
 }
 
 void CodeGraphInfo::calculateBackwardDistance(KFunction *kf) {
-  auto f = kf->function;
   auto &callMap = kf->parent->callMap;
-  auto &bdist = functionBackwardDistance[f];
-  auto &bsort = functionSortedBackwardDistance[f];
-  std::deque<llvm::Function *> nodes = {f};
-  bdist[f] = 0;
-  bsort.emplace_back(f, 0);
+  auto &bdist = functionBackwardDistance[kf];
+  auto &bsort = functionSortedBackwardDistance[kf];
+  std::deque<KFunction *> nodes = {kf};
+  bdist[kf] = 0;
+  bsort.emplace_back(kf, 0);
   for (; !nodes.empty(); nodes.pop_front()) {
     auto currKF = nodes.front();
-    for (auto cf : callMap[currKF]) {
+    for (auto cf : callMap[currKF->function]) {
       if (cf->isDeclaration())
         continue;
-      auto it = bdist.find(cf);
+      auto kcf = kf->parent->functionMap[cf];
+      auto it = bdist.find(kcf);
       if (it == bdist.end()) {
         auto d = bdist[currKF] + 1;
-        bdist.emplace_hint(it, cf, d);
-        bsort.emplace_back(cf, d);
-        nodes.push_back(cf);
+        bdist.emplace_hint(it, kcf, d);
+        bsort.emplace_back(kcf, d);
+        nodes.push_back(kcf);
       }
     }
   }
@@ -154,41 +154,34 @@ void CodeGraphInfo::calculateFunctionBlocks(KFunction *kf) {
   }
 }
 
-const BlockDistanceMap &CodeGraphInfo::getDistance(Block *b) {
+const BlockDistanceMap &CodeGraphInfo::getDistance(KBlock *b) {
   if (blockDistance.count(b) == 0)
     calculateDistance(b);
   return blockDistance.at(b);
 }
 
 bool CodeGraphInfo::hasCycle(KBlock *kb) {
-  auto b = kb->basicBlock;
-  if (!blockDistance.count(b))
-    calculateDistance(b);
-  return blockCycles.count(b);
-}
-
-const BlockDistanceMap &CodeGraphInfo::getDistance(KBlock *kb) {
-  return getDistance(kb->basicBlock);
+  if (!blockDistance.count(kb))
+    calculateDistance(kb);
+  return blockCycles.count(kb);
 }
 
 const BlockDistanceMap &CodeGraphInfo::getBackwardDistance(KBlock *kb) {
-  if (blockBackwardDistance.count(kb->basicBlock) == 0)
-    calculateBackwardDistance(kb->basicBlock);
-  return blockBackwardDistance.at(kb->basicBlock);
+  if (blockBackwardDistance.count(kb) == 0)
+    calculateBackwardDistance(kb);
+  return blockBackwardDistance.at(kb);
 }
 
 const FunctionDistanceMap &CodeGraphInfo::getDistance(KFunction *kf) {
-  auto f = kf->function;
-  if (functionDistance.count(f) == 0)
+  if (functionDistance.count(kf) == 0)
     calculateDistance(kf);
-  return functionDistance.at(f);
+  return functionDistance.at(kf);
 }
 
 const FunctionDistanceMap &CodeGraphInfo::getBackwardDistance(KFunction *kf) {
-  auto f = kf->function;
-  if (functionBackwardDistance.count(f) == 0)
+  if (functionBackwardDistance.count(kf) == 0)
     calculateBackwardDistance(kf);
-  return functionBackwardDistance.at(f);
+  return functionBackwardDistance.at(kf);
 }
 
 void CodeGraphInfo::getNearestPredicateSatisfying(
