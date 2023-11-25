@@ -1,5 +1,4 @@
-// REQUIRES: z3, asserts, not-darwin, not-release-build, optimized, geq-llvm-12.0
-// RUN: %clang %s -emit-llvm %O0opt -c -o %t.bc
+// RUN: %clang %s -emit-llvm %O0opt -c -fno-discard-value-names -o %t.bc
 // RUN: rm -rf %t.klee-out
 // RUN: %klee --write-kqueries --output-dir=%t.klee-out --execution-mode=bidirectional --max-propagations=3 --max-stack-frames=4 --skip-not-lazy-initialized --skip-not-symbolic-objects --debug-log=rootpob,backward,conflict,closepob,reached,init %t.bc 2> %t.log
 // RUN: FileCheck %s -input-file=%t.log
