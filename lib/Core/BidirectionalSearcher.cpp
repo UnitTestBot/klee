@@ -15,6 +15,7 @@
 
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/Support/CommandLine.h"
 
 #include <iostream>
 #include <memory>
@@ -26,6 +27,20 @@
 namespace {} // namespace
 
 namespace klee {
+
+llvm::cl::opt<unsigned> ForwardTicks("forward-ticks", llvm::cl::desc(""),
+                                     llvm::cl::init(25),
+                                     llvm::cl::cat(ExecCat));
+
+llvm::cl::opt<unsigned> BranchTicks("branch-ticks", llvm::cl::desc(""),
+                                    llvm::cl::init(25), llvm::cl::cat(ExecCat));
+
+llvm::cl::opt<unsigned> InitTicks("init-ticks", llvm::cl::desc(""),
+                                  llvm::cl::init(25), llvm::cl::cat(ExecCat));
+
+llvm::cl::opt<unsigned> BackwardTicks("backward-ticks", llvm::cl::desc(""),
+                                      llvm::cl::init(25),
+                                      llvm::cl::cat(ExecCat));
 
 BidirectionalSearcher::StepKind BidirectionalSearcher::selectStep() {
   size_t initial_choice = ticker.getCurrent();
@@ -135,8 +150,9 @@ BidirectionalSearcher::BidirectionalSearcher(Searcher *_forward,
                                              Searcher *_branch,
                                              BackwardSearcher *_backward,
                                              Initializer *_initializer)
-    : ticker({0, 30, 30, 30}), forward(_forward), branch(_branch),
-      backward(_backward), initializer(_initializer) {}
+    : ticker({ForwardTicks, BranchTicks, BackwardTicks, InitTicks}),
+      forward(_forward), branch(_branch), backward(_backward),
+      initializer(_initializer) {}
 
 BidirectionalSearcher::~BidirectionalSearcher() {
   delete forward;
