@@ -2,6 +2,8 @@
 #ifndef KLEE_TICKER_H
 #define KLEE_TICKER_H
 
+#include "klee/Support/ErrorHandling.h"
+
 #include <cassert>
 #include <vector>
 
@@ -18,7 +20,10 @@ public:
         atLeastOneNonZero = true;
       }
     }
-    assert(atLeastOneNonZero);
+    if (!atLeastOneNonZero) {
+      klee::klee_warning("All ticker entries are 0, using 1 for every entry");
+      ticks = std::vector<unsigned>(ticks.size(), 1);
+    }
     while (ticks[index] == 0) {
       index += 1;
     }
