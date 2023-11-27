@@ -231,14 +231,12 @@ void ObjectManager::checkReachedStates() {
   assert(statesUpdated && stateUpdateKind == StateKind::Isolated);
   std::set<ExecutionState *> states(addedStates.begin(), addedStates.end());
   if (current) {
-    if (std::find(removedStates.begin(), removedStates.end(), current) == removedStates.end()) {
-      states.insert(current);
-    }
+    states.insert(current);
   }
 
-  // for (auto i : removedStates) {
-  //   states.insert(i);
-  // }
+  for (auto i : removedStates) {
+    states.insert(i);
+  }
 
   std::vector<ExecutionState *> toRemove;
   for (auto state : states) {
@@ -267,6 +265,7 @@ void ObjectManager::checkReachedStates() {
           addedPropagations.insert({copy, pob});
         }
       }
+      toRemove.push_back(state);
     }
 
     auto loc = state->getLocationTarget();
