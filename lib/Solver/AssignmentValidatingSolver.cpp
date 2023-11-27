@@ -98,6 +98,8 @@ void AssignmentValidatingSolver::validateAssigment(
     llvm::errs() << "Evaluated expression:\n" << queryExprEvaluated << "\n";
     llvm::errs() << "Assignment:\n";
     assignment.dump();
+    llvm::errs() << "Query:\n";
+    query.dump();
     dumpAssignmentQuery(query, assignment);
     abort();
   }
