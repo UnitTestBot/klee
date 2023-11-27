@@ -217,8 +217,5 @@ Searcher *klee::constructUserSearcher(Executor &executor, bool branchSearcher) {
 }
 
 BackwardSearcher *klee::constructUserBackwardSearcher(Executor &executor) {
-  std::vector<BackwardSearcher *> s;
-  s.push_back(new RecencyRankedSearcher(MaxPropagations - 1));
-  s.push_back(new RandomPathBackwardSearcher(executor.theRNG));
-  return new InterleavedBackwardSearcher(s);
+  return new RecencyRankedSearcher(MaxPropagations - 1);
 }

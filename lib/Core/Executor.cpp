@@ -2625,6 +2625,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       if (target->shouldFailOnThisTarget() &&
           cast<ReproduceErrorTarget>(target)->isThatError(
               ReachWithError::Reachable) &&
+          target->getBlock() == ki->parent &&
           cast<ReproduceErrorTarget>(target)->isTheSameAsIn(ki)) {
         terminateStateOnTargetError(state, ReachWithError::Reachable);
         return;

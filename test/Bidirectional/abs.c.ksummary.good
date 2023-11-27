@@ -1,19 +1,19 @@
 (lemma
   path: (0 (abs: %entry %if.end) 3) @ [0, %return, abs]
 
-  (instruction5 : (array (w64 8) (instruction 0 %entry abs 0))
-   lazyInitializationContent6 : (array (w64 4) (lazyInitializationContent N0:(ReadLSB w64 0 instruction5))))
+  (instruction2 : (array (w64 8) (instruction 0 %entry abs 0))
+   lazyInitializationContent1 : (array (w64 4) (lazyInitializationContent N0:(ReadLSB w64 0 instruction2))))
 
-  ((Not (Slt N1:(ReadLSB w32 0 lazyInitializationContent6)
+  ((Not (Slt N1:(ReadLSB w32 0 lazyInitializationContent1)
              0))
    (Eq 2147483648 N1)))
 
 (lemma
   path: (0 (abs: %entry %if.then) 2) @ [0, %return, abs]
 
-  (instruction5 : (array (w64 8) (instruction 0 %entry abs 0))
-   lazyInitializationContent6 : (array (w64 4) (lazyInitializationContent N0:(ReadLSB w64 0 instruction5))))
+  (instruction2 : (array (w64 8) (instruction 0 %entry abs 0))
+   lazyInitializationContent1 : (array (w64 4) (lazyInitializationContent N0:(ReadLSB w64 0 instruction2))))
 
-  ((Not (Slt (ReadLSB w32 0 lazyInitializationContent6)
+  ((Not (Slt (ReadLSB w32 0 lazyInitializationContent1)
              0))))
 
