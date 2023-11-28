@@ -118,7 +118,8 @@ private:
 
 public:
   struct Data {
-    std::map<KFunction *, ref<TargetForest>, KFunctionCompare> forwardWhitelists;
+    std::map<KFunction *, ref<TargetForest>, KFunctionCompare>
+        forwardWhitelists;
     std::map<std::string, ref<TargetForest>> backwardWhitelists;
     std::set<KFunction *> functionsToDismantle;
     std::set<KBlock *> specialPoints;

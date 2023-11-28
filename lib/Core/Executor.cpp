@@ -4384,8 +4384,9 @@ void Executor::decreaseConfidenceFromStoppedStates(
 void Executor::doDumpObjects() {
   if (DumpStatesOnHalt == HaltExecution::Reason::NotHalt ||
       (DumpStatesOnHalt == HaltExecution::Reason::UnreachedTarget &&
-       haltExecution == HaltExecution::Reason::ReachedTarget) || (objectManager->getStates().empty() &&
-                            objectManager->getRootPobs().empty())) {
+       haltExecution == HaltExecution::Reason::ReachedTarget) ||
+      (objectManager->getStates().empty() &&
+       objectManager->getRootPobs().empty())) {
     interpreterHandler->incPathsExplored(objectManager->getStates().size());
     return;
   }
