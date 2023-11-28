@@ -773,8 +773,9 @@ public:
   Bitwuzla &getOrInit();
 
   bool isConsistent() const {
-    klee_warning("Empty isConsistent() check");
-    return true;
+    bool constistentItself = frames.framesSize() == env.objects.framesSize();
+    assert(constistentItself);
+    return constistentItself;
   }
 
   void dump() const { ::klee::dump(frames); }
