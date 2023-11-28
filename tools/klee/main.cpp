@@ -781,7 +781,7 @@ void KleeHandler::writeTestCaseXML(bool isError, const KTest &assignments,
       // Pointer types
       v.print(*file, false);
     } else if (name.find("float") == 0) {
-      llvm::APFloat(APFloatBase::IEEEhalf(), v).print(*file);
+      llvm::APFloat(APFloatBase::IEEEsingle(), v).print(*file);
     } else if (name.find("double") == 0) {
       llvm::APFloat(APFloatBase::IEEEdouble(), v).print(*file);
     } else if (name.rfind("_t") != std::string::npos) {

@@ -341,6 +341,7 @@ PathConstraints::withAssumtions(const ExprHashSet &assumptions) const {
     return cs();
   }
   tmpConstraints = constraints;
+  tmpConstraints.fork();
   for (auto assump : assumptions) {
     tmpConstraints.addConstraint(assump, {});
   }

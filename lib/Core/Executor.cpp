@@ -2723,10 +2723,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
           if (X86FPAsX87FP80 && t->isFloatingPointTy() &&
               Context::get().getPointerWidth() == 32) {
-            to = Expr::Fl80;
-          }
-
-          if (from != to) {
+            result = FPToX87FP80Ext(result);
+          } else if (from != to) {
             const CallBase &cb = cast<CallBase>(*caller);
 
             // XXX need to check other param attrs ?
@@ -3945,6 +3943,11 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     FPToUIInst *fi = cast<FPToUIInst>(i);
     Expr::Width resultType = getWidthForLLVMType(fi->getType());
     ref<Expr> arg = eval(ki, 0, state).value;
+    if (X86FPAsX87FP80 && Context::get().getPointerWidth() == 32) {
+      arg = X87FP80ToFPTrunc(arg,
+                             getWidthForLLVMType(fi->getOperand(0)->getType()),
+                             state.roundingMode);
+    }
     if (!fpWidthToSemantics(arg->getWidth()))
       return terminateStateOnExecError(state, "Unsupported FPToUI operation");
     // LLVM IR Ref manual says that it rounds toward zero
@@ -3958,6 +3961,11 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     FPToSIInst *fi = cast<FPToSIInst>(i);
     Expr::Width resultType = getWidthForLLVMType(fi->getType());
     ref<Expr> arg = eval(ki, 0, state).value;
+    if (X86FPAsX87FP80 && Context::get().getPointerWidth() == 32) {
+      arg = X87FP80ToFPTrunc(arg,
+                             getWidthForLLVMType(fi->getOperand(0)->getType()),
+                             state.roundingMode);
+    }
     if (!fpWidthToSemantics(arg->getWidth()))
       return terminateStateOnExecError(state, "Unsupported FPToSI operation");
     // LLVM IR Ref manual says that it rounds toward zero
@@ -7822,7 +7830,12 @@ ref<Expr> Executor::makeSymbolicValue(llvm::Value *value,
                     : SourceBuilder::instruction(*dyn_cast<Instruction>(value),
                                                  index, kmodule.get());
   auto array = makeArray(Expr::createPointer(size), source);
-  return Expr::createTempRead(array, width);
+  ref<Expr> result = Expr::createTempRead(array, width);
+  if (X86FPAsX87FP80 && value->getType()->isFloatingPointTy() &&
+      Context::get().getPointerWidth() == 32) {
+    result = FPToX87FP80Ext(result);
+  }
+  return result;
 }
 
 void Executor::prepareSymbolicValue(ExecutionState &state, StackFrame &frame,
