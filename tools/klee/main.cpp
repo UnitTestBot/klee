@@ -1398,7 +1398,7 @@ static int run_klee_on_function(int pArgc, char **pArgv, char **pEnvp,
     *meta_file << "\t<producer>" << PACKAGE_STRING << "</producer>\n";
 
     // Assume with early exit a bug finding mode and otherwise coverage
-    if (OptExitOnError)
+    if (UseGuidedSearch == Interpreter::GuidanceKind::ErrorGuidance)
       *meta_file << "\t<specification>COVER( init(main()), FQL(COVER "
                     "EDGES(@CALL(__VERIFIER_error))) )</specification>\n";
     else
