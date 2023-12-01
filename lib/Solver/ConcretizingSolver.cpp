@@ -196,37 +196,13 @@ bool ConcretizingSolver::relaxSymcreteConstraints(const Query &query,
     }
 
     std::queue<const Array *> arrayQueue;
-    std::queue<const Array *> addressQueue;
 
     bool addressArrayPresent = false;
     for (const Array *array : currentlyBrokenSymcretizedArrays) {
       if (symcretesDependentFromArrays.count(array) &&
-          (kindsOfSymcretesForArrays.at(array).count(
-               Symcrete::SymcreteKind::SK_ALLOC_SIZE) ||
-           kindsOfSymcretesForArrays.at(array).count(
-               Symcrete::SymcreteKind::SK_LI_SIZE)) &&
           usedSymcretizedArrays.insert(array).second) {
         arrayQueue.push(array);
       }
-      if (symcretesDependentFromArrays.count(array) &&
-          (kindsOfSymcretesForArrays.at(array).count(
-               Symcrete::SymcreteKind::SK_ALLOC_ADDRESS) ||
-           kindsOfSymcretesForArrays.at(array).count(
-               Symcrete::SymcreteKind::SK_LI_ADDRESS)) &&
-          !usedSymcretizedArrays.count(array)) {
-        addressArrayPresent = true;
-        addressQueue.push(array);
-      }
-    }
-
-    if (arrayQueue.empty() && addressArrayPresent) {
-      while (!addressQueue.empty()) {
-        assignment.bindings.remove(addressQueue.front());
-        addressQueue.pop();
-      }
-
-      return solver->impl->check(constructConcretizedQuery(query, assignment),
-                                 result);
     }
 
     while (!arrayQueue.empty()) {
@@ -293,10 +269,6 @@ bool ConcretizingSolver::relaxSymcreteConstraints(const Query &query,
 
     for (const Array *array : currentlyBrokenSymcretizedArrays) {
       if (symcretesDependentFromArrays.count(array) &&
-          (kindsOfSymcretesForArrays.at(array).count(
-               Symcrete::SymcreteKind::SK_ALLOC_ADDRESS) ||
-           kindsOfSymcretesForArrays.at(array).count(
-               Symcrete::SymcreteKind::SK_LI_ADDRESS)) &&
           !usedSymcretizedArrays.count(array)) {
         arrayQueue.push(array);
       }
@@ -324,53 +296,55 @@ bool ConcretizingSolver::relaxSymcreteConstraints(const Query &query,
     }
   }
 
-  assert(!sizeSymcretes.empty());
-  ref<Expr> symbolicSizesSum = createNonOverflowingSumExpr(sizeSymcretes);
-  symbolicSizesSum =
-      Simplificator::simplifyExpr(query.constraints, symbolicSizesSum)
-          .simplified;
+  if (sizeSymcretes.size() > 0) {
+    ref<Expr> symbolicSizesSum = createNonOverflowingSumExpr(sizeSymcretes);
+    symbolicSizesSum =
+        Simplificator::simplifyExpr(query.constraints, symbolicSizesSum)
+            .simplified;
 
-  ref<SolverResponse> response;
+    ref<SolverResponse> response;
 
-  /* Compute assignment for symcretes. */
-  std::vector<const Array *> objects(usedSymcretizedArrays.begin(),
-                                     usedSymcretizedArrays.end());
-  std::vector<SparseStorage<unsigned char>> brokenSymcretizedValues;
+    /* Compute assignment for symcretes. */
+    std::vector<const Array *> objects(usedSymcretizedArrays.begin(),
+                                       usedSymcretizedArrays.end());
+    std::vector<SparseStorage<unsigned char>> brokenSymcretizedValues;
 
-  if (!solver->impl->check(
-          Query(queryConstraints,
-                UgtExpr::create(
-                    symbolicSizesSum,
-                    ConstantExpr::create(SymbolicAllocationThreshold,
-                                         symbolicSizesSum->getWidth())),
-                query.id),
-          response)) {
-    return false;
-  }
-
-  if (!response->tryGetInitialValuesFor(objects, brokenSymcretizedValues)) {
-    ref<ConstantExpr> minimalValueOfSum;
-    /* Receive model with a smallest sum as possible. */
-    if (!solver->impl->computeMinimalUnsignedValue(
-            Query(queryConstraints, symbolicSizesSum, query.id),
-            minimalValueOfSum)) {
-      return false;
-    }
-
-    bool hasSolution = false;
-    if (!solver->impl->computeInitialValues(
+    if (!solver->impl->check(
             Query(queryConstraints,
-                  EqExpr::create(symbolicSizesSum, minimalValueOfSum), query.id)
-                .negateExpr(),
-            objects, brokenSymcretizedValues, hasSolution)) {
+                  UgtExpr::create(
+                      symbolicSizesSum,
+                      ConstantExpr::create(SymbolicAllocationThreshold,
+                                           symbolicSizesSum->getWidth())),
+                  query.id),
+            response)) {
       return false;
     }
-    assert(hasSolution && "Symcretes values should have concretization after "
-                          "computeInitialValues() query.");
-  }
 
-  for (unsigned idx = 0; idx < objects.size(); ++idx) {
-    assignment.bindings.replace({objects[idx], brokenSymcretizedValues[idx]});
+    if (!response->tryGetInitialValuesFor(objects, brokenSymcretizedValues)) {
+      ref<ConstantExpr> minimalValueOfSum;
+      /* Receive model with a smallest sum as possible. */
+      if (!solver->impl->computeMinimalUnsignedValue(
+              Query(queryConstraints, symbolicSizesSum, query.id),
+              minimalValueOfSum)) {
+        return false;
+      }
+
+      bool hasSolution = false;
+      if (!solver->impl->computeInitialValues(
+              Query(queryConstraints,
+                    EqExpr::create(symbolicSizesSum, minimalValueOfSum),
+                    query.id)
+                  .negateExpr(),
+              objects, brokenSymcretizedValues, hasSolution)) {
+        return false;
+      }
+      assert(hasSolution && "Symcretes values should have concretization after "
+                            "computeInitialValues() query.");
+    }
+
+    for (unsigned idx = 0; idx < objects.size(); ++idx) {
+      assignment.bindings.replace({objects[idx], brokenSymcretizedValues[idx]});
+    }
   }
 
   ExprHashMap<ref<Expr>> concretizations;
@@ -502,7 +476,7 @@ bool ConcretizingSolver::check(const Query &query,
     }
   }
   if ((CE && CE->isTrue()) ||
-      (isa<ValidResponse>(result) && query.containsSizeSymcretes())) {
+      (isa<ValidResponse>(result))) {
     if (!relaxSymcreteConstraints(query, result)) {
       return false;
     }
@@ -584,7 +558,7 @@ bool ConcretizingSolver::computeValidityCore(const Query &query,
     }
   }
 
-  if (isValid && query.containsSizeSymcretes()) {
+  if (isValid) {
     ref<SolverResponse> result;
     if (!relaxSymcreteConstraints(query, result)) {
       return false;
