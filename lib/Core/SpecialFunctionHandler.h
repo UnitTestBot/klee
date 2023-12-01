@@ -178,6 +178,10 @@ public:
   HANDLER(handleNonnullArg);
   HANDLER(handleNullabilityArg);
   HANDLER(handlePointerOverflow);
+  HANDLER(handleAddTaint);
+  HANDLER(handleClearTaint);
+  HANDLER(handleCheckTaint);
+  HANDLER(handleTaintSinkHit);
 #undef HANDLER
 };
 } // namespace klee

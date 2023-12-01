@@ -996,6 +996,7 @@ static const char *modelledExternals[] = {
     "klee_get_valuef", "klee_get_valued", "klee_get_valuel", "klee_get_valuell",
     "klee_get_value_i32", "klee_get_value_i64", "klee_get_obj_size",
     "klee_is_symbolic", "klee_make_symbolic", "klee_make_mock",
+    "klee_add_taint", "klee_clear_taint", "klee_check_taint", "klee_taint_sink_hit",
     "klee_mark_global", "klee_open_merge", "klee_close_merge",
     "klee_prefer_cex", "klee_posix_prefer_cex", "klee_print_expr",
     "klee_print_range", "klee_report_error", "klee_set_forking",

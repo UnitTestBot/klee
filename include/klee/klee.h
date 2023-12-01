@@ -12,6 +12,7 @@
 
 #include "stddef.h"
 #include "stdint.h"
+#include "stdbool.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,6 +36,42 @@ void klee_define_fixed_object(void *addr, size_t nbytes);
  * files, etc. If NULL, object is called "unnamed".
  */
 void klee_make_symbolic(void *addr, size_t nbytes, const char *name);
+
+/* klee_add_taint - Add taint \arg taint_type for the contents
+ * of the object pointer to \arg addr.
+ *
+ * \arg addr - The start of the object.
+ * \arg nbytes - The number of bytes to set taint type; currently this *must*
+ * be the entire contents of the object.
+ * \arg taint_type - Taint type.
+ */
+void klee_add_taint(void *array, size_t nbytes, size_t taint_type) {}
+
+/* klee_clear_taint - Clear the contents of the object pointer to \arg addr
+ * of the taint \arg taint_type.
+ *
+ * \arg addr - The start of the object.
+ * \arg nbytes - The number of bytes to set taint type; currently this *must*
+ * be the entire contents of the object.
+ * \arg taint_type - Taint type.
+ */
+void klee_clear_taint(void *array, size_t nbytes, size_t taint_type) {}
+
+/* klee_check_taint - Check that the contents of the object pointer
+ * to \arg addr causes a taint sink \arg taint_sink hit.
+ *
+ * \arg addr - The start of the object.
+ * \arg nbytes - The number of bytes to set taint type; currently this *must*
+ * be the entire contents of the object.
+ * \arg taint_sink - Taint sink.
+ */
+bool klee_check_taint(void *array, size_t nbytes, size_t taint_sink);
+
+/* klee_taint_sink_hit - Execute taint sink \arg taint_sink hit.
+ *
+ * \arg taint_sink - Taint sink.
+ */
+void klee_taint_sink_hit(size_t taint_sink);
 
 /* klee_range - Construct a symbolic value in the signed interval
  * [begin,end).
