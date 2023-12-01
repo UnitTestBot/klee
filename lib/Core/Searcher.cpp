@@ -199,7 +199,7 @@ ExecutionState &GuidedSearcher::selectState() {
   unsigned size = historiesAndTargets.size();
   interleave ^= 1;
   ExecutionState *state = nullptr;
-  if (interleave || !size) {
+  if (interleave || size == 0) {
     state = &baseSearcher->selectState();
   } else {
     index = theRNG.getInt32() % size;

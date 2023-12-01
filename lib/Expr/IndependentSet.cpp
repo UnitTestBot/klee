@@ -43,6 +43,7 @@ IndependentConstraintSet::updateConcretization(
       assert(ce->isTrue() && "Attempt to add invalid constraint");
       continue;
     }
+    concretizedExprs[s->symcretized] = e;
     DSU.addValue(new ExprOrSymcrete::left(e));
   }
   auto concretizationConstraints =
@@ -52,6 +53,7 @@ IndependentConstraintSet::updateConcretization(
       assert(ce->isTrue() && "Attempt to add invalid constraint");
       continue;
     }
+    concretizedExprs[e] = e;
     DSU.addValue(new ExprOrSymcrete::left(e));
   }
   ics->concretizedSets = DSU;
@@ -85,6 +87,7 @@ IndependentConstraintSet::removeConcretization(
       assert(ce->isTrue() && "Attempt to add invalid constraint");
       continue;
     }
+    concretizedExprs[s->symcretized] = e;
     DSU.addValue(new ExprOrSymcrete::left(e));
   }
   auto concretizationConstraints =
@@ -94,6 +97,7 @@ IndependentConstraintSet::removeConcretization(
       assert(ce->isTrue() && "Attempt to add invalid constraint");
       continue;
     }
+    concretizedExprs[e] = e;
     DSU.addValue(new ExprOrSymcrete::left(e));
   }
 

@@ -193,7 +193,8 @@ ConstraintSet::ConstraintSet(ref<const IndependentConstraintSet> ics)
       _independentElements(new IndependentConstraintSetUnion(ics)) {}
 
 ConstraintSet::ConstraintSet(
-    const std::vector<ref<const IndependentConstraintSet>> &factors)
+    const std::vector<ref<const IndependentConstraintSet>> &factors,
+    const ExprHashMap<ref<Expr>>& concretizedExprs)
     : _independentElements(new IndependentConstraintSetUnion(
           _constraints, _symcretes, _concretization)) {
   for (auto ics : factors) {
@@ -205,6 +206,7 @@ ConstraintSet::ConstraintSet(
     _concretization.addIndependentAssignment(ics->concretization);
     _independentElements->addIndependentConstraintSetUnion(icsu);
   }
+  _independentElements->concretizedExprs = concretizedExprs;
 }
 
 ConstraintSet::ConstraintSet(constraints_ty cs) : ConstraintSet(cs, {}, {}) {}
