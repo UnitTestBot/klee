@@ -33,7 +33,7 @@ public:
 
   void addConflictInit(const Conflict &, KBlock *) override;
 
-  void initializeFunctions(std::set<KFunction *> functions);
+  void initializeFunctions(std::set<KFunction *, KFunctionCompare> functions);
   void addErrorInit(ref<Target> errorTarget);
 
   void update(const pobs_ty &added, const pobs_ty &removed) override;
@@ -54,10 +54,12 @@ private:
   std::map<ref<Target>, unsigned> knownTargets;
 
   // Targets collected for each initial instruction
-  std::map<KInstruction *, std::set<ref<Target>>> targetMap;
+  std::map<KInstruction *, std::set<ref<Target>>, KInstructionCompare>
+      targetMap;
 
   // Reverse
-  std::map<ref<Target>, std::set<KInstruction *>> instructionMap;
+  std::map<ref<Target>, std::set<KInstruction *, KInstructionCompare>>
+      instructionMap;
 
   // awaiting until the are proof obligations in one of their targets
   std::list<KInstruction *> awaiting;
@@ -68,12 +70,13 @@ private:
 
   // For every (KI, Target) pair in this map, there is a state that starts
   // at KI and has Target as one of its targets.
-  std::map<KInstruction *, std::set<ref<Target>>> initialized;
+  std::map<KInstruction *, std::set<ref<Target>>, KInstructionCompare>
+      initialized;
 
   // Already dismantled functions don't need to be dismantled again
   std::unordered_set<KFunction *> dismantledFunctions;
 
-  std::set<KFunction *> allowed;
+  std::set<KFunction *, KFunctionCompare> allowed;
 
   void addInit(KInstruction *from, ref<Target> to);
   void addPob(ProofObligation *pob);

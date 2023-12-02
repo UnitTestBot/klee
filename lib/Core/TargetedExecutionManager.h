@@ -121,8 +121,8 @@ public:
     std::map<KFunction *, ref<TargetForest>, KFunctionCompare>
         forwardWhitelists;
     std::map<std::string, ref<TargetForest>> backwardWhitelists;
-    std::set<KFunction *> functionsToDismantle;
-    std::set<KBlock *> specialPoints;
+    std::set<KFunction *, KFunctionCompare> functionsToDismantle;
+    std::set<KBlock *, KBlockCompare> specialPoints;
   };
 
   explicit TargetedExecutionManager(CodeGraphInfo &codeGraphInfo_,

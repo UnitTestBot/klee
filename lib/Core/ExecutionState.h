@@ -276,7 +276,7 @@ public:
   std::uint32_t depth = 0;
 
   /// @brief Exploration level, i.e., number of times KLEE cycled for this state
-  std::set<KBlock *, KBlockLess> level;
+  std::set<KBlock *, KBlockCompare> level;
 
   /// @brief Address space used by this state (e.g. Global and Heap)
   AddressSpace addressSpace;

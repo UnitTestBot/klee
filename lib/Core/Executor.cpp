@@ -5231,7 +5231,7 @@ void Executor::run(std::vector<ExecutionState *> initialStates,
     }
   } else {
     if (ExecutionMode == ExecutionKind::Bidirectional) {
-      std::set<KFunction *> allowed;
+      std::set<KFunction *, KFunctionCompare> allowed;
       for (auto &i : kmodule->functions) {
         allowed.insert(i.get());
       }

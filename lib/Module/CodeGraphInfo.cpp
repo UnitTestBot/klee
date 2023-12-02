@@ -182,7 +182,7 @@ const FunctionDistanceMap &CodeGraphInfo::getBackwardDistance(KFunction *kf) {
 
 void CodeGraphInfo::getNearestPredicateSatisfying(
     KBlock *from, KBlockPredicate predicate, bool forward,
-    std::set<KBlock *, KBlockLess> &result) {
+    std::set<KBlock *, KBlockCompare> &result) {
   std::unordered_set<KBlock *> visited;
   std::unordered_set<KBlock *> queued;
 
@@ -235,9 +235,9 @@ CodeGraphInfo::getFunctionConditionalBranches(KFunction *kf) {
   return functionConditionalBranches.at(kf);
 }
 
-std::set<KBlock *, KBlockLess> CodeGraphInfo::getNearestPredicateSatisfying(
+std::set<KBlock *, KBlockCompare> CodeGraphInfo::getNearestPredicateSatisfying(
     KBlock *from, KBlockPredicate predicate, bool forward) {
-  std::set<KBlock *, KBlockLess> result;
+  std::set<KBlock *, KBlockCompare> result;
   getNearestPredicateSatisfying(from, predicate, forward, result);
   return result;
 }
@@ -266,7 +266,7 @@ CodeGraphInfo::dismantleFunction(KFunction *kf, KBlockPredicate predicate) {
     queue.pop();
     used.insert(kblock);
     std::set<KBlock *> visited;
-    std::set<KBlock *, KBlockLess> nearest;
+    std::set<KBlock *, KBlockCompare> nearest;
     getNearestPredicateSatisfying(kblock, predicate, true, nearest);
     for (auto to : nearest) {
       dismantled.push_back({kblock, to});

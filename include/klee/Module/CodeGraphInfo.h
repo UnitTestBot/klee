@@ -37,7 +37,7 @@ class CodeGraphInfo {
 private:
   blockToDistanceMap blockDistance;
   blockToDistanceMap blockBackwardDistance;
-  std::set<KBlock *> blockCycles;
+  std::set<KBlock *, KBlockCompare> blockCycles;
   blockDistanceList blockSortedDistance;
   blockDistanceList blockSortedBackwardDistance;
 
@@ -71,7 +71,7 @@ public:
 
   void getNearestPredicateSatisfying(KBlock *from, KBlockPredicate predicate,
                                      bool forward,
-                                     std::set<KBlock *, KBlockLess> &result);
+                                     std::set<KBlock *, KBlockCompare> &result);
 
   const std::map<KBlock *, std::set<unsigned>> &
   getFunctionBranches(KFunction *kf);
@@ -81,7 +81,7 @@ public:
   const std::map<KBlock *, std::set<unsigned>> &
   getFunctionBlocks(KFunction *kf);
 
-  std::set<KBlock *, KBlockLess>
+  std::set<KBlock *, KBlockCompare>
   getNearestPredicateSatisfying(KBlock *from, KBlockPredicate predicate,
                                 bool forward);
 

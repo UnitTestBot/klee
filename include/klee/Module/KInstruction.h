@@ -181,6 +181,12 @@ struct CallStackFrame {
   }
 };
 
+struct KInstructionCompare {
+  bool operator()(const KInstruction *a, const KInstruction *b) const {
+    return a->getID() < b->getID();
+  }
+};
+
 } // namespace klee
 
 #endif /* KLEE_KINSTRUCTION_H */
