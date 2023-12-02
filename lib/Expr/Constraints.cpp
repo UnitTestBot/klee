@@ -194,7 +194,7 @@ ConstraintSet::ConstraintSet(ref<const IndependentConstraintSet> ics)
 
 ConstraintSet::ConstraintSet(
     const std::vector<ref<const IndependentConstraintSet>> &factors,
-    const ExprHashMap<ref<Expr>>& concretizedExprs)
+    const ExprHashMap<ref<Expr>> &concretizedExprs)
     : _independentElements(new IndependentConstraintSetUnion(
           _constraints, _symcretes, _concretization)) {
   for (auto ics : factors) {

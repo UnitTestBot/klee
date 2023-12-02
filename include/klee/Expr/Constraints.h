@@ -40,7 +40,7 @@ public:
   explicit ConstraintSet(ref<const IndependentConstraintSet> ics);
   explicit ConstraintSet(
       const std::vector<ref<const IndependentConstraintSet>> &ics,
-    const ExprHashMap<ref<Expr>>& concretizedExprs);
+      const ExprHashMap<ref<Expr>> &concretizedExprs);
   explicit ConstraintSet(constraints_ty cs);
   explicit ConstraintSet();
   void fork();
