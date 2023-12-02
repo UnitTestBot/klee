@@ -1,0 +1,441 @@
+[pob] New root proof obligation at: Target: [%entry, reach_error]
+[initializer] From [0, %if.then, main] to Target: [%entry, reach_error] scheduled
+[initialize, executor] From [0, %if.then, main] to:
+[initialize, executor] Target: [%entry, reach_error]
+[reached] Isolated state: path: (0 (main: %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] State: path: (0 (main: %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Pob: path: (Empty) @ None
+[backward] To-be pob: path: (0 (main: %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[initializer] From [1, %13, main] to Target: [%if.then, main] scheduled
+[initializer] From [1, %13, main] to Target: [%if.end, main] (at the end) scheduled
+[initialize, executor] From [1, %13, main] to:
+[initialize, executor] Target: [%if.then, main]
+[initialize, executor] Target: [%if.end, main] (at the end)
+[reached] Isolated state: path: (1 (main: -> %13 %14) 6) @ [0, %if.then, main]
+[reached] Isolated state: path: (1 (main: -> %13 %14 %if.end) 0) @ None
+[backward] State: path: (1 (main: -> %13 %14) 6) @ [0, %if.then, main]
+[backward] Pob: path: (0 (main: %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (1 (main: -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[initializer] From [0, %return, fib] to Target: [%13, fib] (at the end) scheduled
+[initialize, executor] From [0, %return, fib] to:
+[initialize, executor] Target: [%13, fib] (at the end)
+[reached] Isolated state: path: (0 (fib: %return %13) 0) @ None
+[backward] State: path: (0 (fib: %return %13) 0) @ None
+[backward] Pob: path: (1 (main: -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[initializer] From [0, %entry, fib] to Target: [%3, fib] scheduled
+[initializer] From [0, %entry, fib] to Target: [%return, fib] scheduled
+[initializer] From [1, %10, fib] to Target: [%return, fib] scheduled
+[initialize, executor] From [0, %entry, fib] to:
+[initialize, executor] Target: [%3, fib]
+[initialize, executor] Target: [%return, fib]
+[initialize, executor] From [1, %10, fib] to:
+[initialize, executor] Target: [%return, fib]
+[reached] Isolated state: path: (1 (fib: -> %10 %11) 1) @ [0, %return, fib]
+[reached] Isolated state: path: (0 (fib: %entry %if.then) 1) @ [0, %return, fib]
+[reached] Isolated state: path: (0 (fib: %entry %if.end) 1) @ [0, %3, fib]
+[backward] State: path: (1 (fib: -> %10 %11) 1) @ [0, %return, fib]
+[backward] Pob: path: (0 (main: (fib: %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (1 (main: (fib: -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[initializer] From [0, %entry, sum] to Target: [%2, sum] (at the end) scheduled
+[backward] State: path: (0 (fib: %entry %if.then) 1) @ [0, %return, fib]
+[backward] Pob: path: (0 (main: (fib: %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[initializer] From [0, %7, main] to Target: [%entry, fib] scheduled
+[initializer] From [0, %10, main] to Target: [%entry, fib] scheduled
+[initializer] From [0, %13, main] to Target: [%entry, fib] scheduled
+[initializer] From [0, %4, fib] to Target: [%entry, fib] scheduled
+[initializer] From [0, %9, fib] to Target: [%entry, fib] scheduled
+[initialize, executor] From [0, %entry, sum] to:
+[initialize, executor] Target: [%2, sum] (at the end)
+[initialize, executor] From [0, %7, main] to:
+[initialize, executor] Target: [%entry, fib]
+[initialize, executor] From [0, %10, main] to:
+[initialize, executor] Target: [%entry, fib]
+[initialize, executor] From [0, %13, main] to:
+[initialize, executor] Target: [%entry, fib]
+[initialize, executor] From [0, %4, fib] to:
+[initialize, executor] Target: [%entry, fib]
+[initialize, executor] From [0, %9, fib] to:
+[initialize, executor] Target: [%entry, fib]
+[reached] Isolated state: path: (0 (main: %13 ->) 0) @ [0, %entry, fib]
+[reached] Isolated state: path: (0 (main: %7 ->) 0) @ [0, %entry, fib]
+[reached] Isolated state: path: (0 (main: %10 ->) 0) @ [0, %entry, fib]
+[reached] Isolated state: path: (0 (fib: %9 ->) 0) @ [0, %entry, fib]
+[reached] Isolated state: path: (0 (fib: %4 ->) 0) @ [0, %entry, fib]
+[reached] Isolated state: path: (0 (sum: %entry %2) 0) @ None
+[backward] State: path: (0 (main: %13 ->) 0) @ [0, %entry, fib]
+[backward] Pob: path: (0 (main: (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[initializer] From [1, %10, main] to Target: [%13, main] scheduled
+[backward] State: path: (0 (sum: %entry %2) 0) @ None
+[backward] Pob: path: (1 (main: (fib: -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[initializer] From [0, %10, fib] to Target: [%entry, sum] scheduled
+[initialize, executor] From [1, %10, main] to:
+[initialize, executor] Target: [%13, main]
+[initialize, executor] From [0, %10, fib] to:
+[initialize, executor] Target: [%entry, sum]
+[reached] Isolated state: path: (0 (fib: %10 ->) 0) @ [0, %entry, sum]
+[reached] Isolated state: path: (1 (main: -> %10 %11) 3) @ [0, %13, main]
+[backward] State: path: (0 (fib: %10 ->) 0) @ [0, %entry, sum]
+[backward] Pob: path: (0 (main: (fib: (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[initializer] From [1, %9, fib] to Target: [%10, fib] scheduled
+[backward] State: path: (1 (main: -> %10 %11) 3) @ [0, %13, main]
+[backward] Pob: path: (0 (main: %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (1 (main: -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (fib: %return %13) 0) @ None
+[backward] Pob: path: (1 (main: -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (1 (fib: -> %10 %11) 1) @ [0, %return, fib]
+[backward] Pob: path: (0 (main: (fib: %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (1 (main: (fib: -> %10 %11 %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (sum: %entry %2) 0) @ None
+[backward] Pob: path: (1 (main: (fib: -> %10 %11 %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: (sum: %entry %2) -> %10 %11 %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (fib: %10 ->) 0) @ [0, %entry, sum]
+[backward] Pob: path: (0 (main: (fib: (sum: %entry %2) -> %10 %11 %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (fib: %entry %if.then) 1) @ [0, %return, fib]
+[backward] Pob: path: (0 (main: (fib: %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: %entry %if.then %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (main: %10 ->) 0) @ [0, %entry, fib]
+[backward] Pob: path: (0 (main: (fib: %entry %if.then %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: %10 -> (fib: %entry %if.then %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[initializer] From [1, %7, main] to Target: [%10, main] scheduled
+[initialize, executor] From [1, %9, fib] to:
+[initialize, executor] Target: [%10, fib]
+[initialize, executor] From [1, %7, main] to:
+[initialize, executor] Target: [%10, main]
+[reached] Isolated state: path: (1 (fib: -> %9) 1) @ [0, %10, fib]
+[reached] Isolated state: path: (1 (main: -> %7 %8) 3) @ [0, %10, main]
+[backward] State: path: (1 (fib: -> %9) 1) @ [0, %10, fib]
+[backward] Pob: path: (0 (main: (fib: %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (1 (main: (fib: -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (1 (fib: -> %9) 1) @ [0, %10, fib]
+[backward] Pob: path: (0 (main: (fib: %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (1 (main: (fib: -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (1 (main: -> %7 %8) 3) @ [0, %10, main]
+[backward] Pob: path: (0 (main: %10 -> (fib: %entry %if.then %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (1 (main: -> %7 %8 %10 -> (fib: %entry %if.then %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (fib: %return %13) 0) @ None
+[backward] Pob: path: (1 (main: (fib: -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: (fib: %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (fib: %entry %if.then) 1) @ [0, %return, fib]
+[backward] Pob: path: (0 (main: (fib: (fib: %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (fib: %9 ->) 0) @ [0, %entry, fib]
+[backward] Pob: path: (0 (main: (fib: (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[initializer] From [1, %8, fib] to Target: [%9, fib] scheduled
+[backward] State: path: (1 (fib: -> %10 %11) 1) @ [0, %return, fib]
+[backward] Pob: path: (0 (main: (fib: (fib: %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (1 (main: (fib: (fib: -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (sum: %entry %2) 0) @ None
+[backward] Pob: path: (1 (main: (fib: (fib: -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: (fib: (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (fib: %10 ->) 0) @ [0, %entry, sum]
+[backward] Pob: path: (0 (main: (fib: (fib: (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: (fib: %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (1 (fib: -> %9) 1) @ [0, %10, fib]
+[backward] Pob: path: (0 (main: (fib: (fib: %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (1 (main: (fib: (fib: -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (fib: %return %13) 0) @ None
+[backward] Pob: path: (1 (main: (fib: -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: (fib: %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (1 (fib: -> %10 %11) 1) @ [0, %return, fib]
+[backward] Pob: path: (0 (main: (fib: (fib: %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (1 (main: (fib: (fib: -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (fib: %entry %if.then) 1) @ [0, %return, fib]
+[backward] Pob: path: (0 (main: (fib: (fib: %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (fib: %9 ->) 0) @ [0, %entry, fib]
+[backward] Pob: path: (0 (main: (fib: (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (sum: %entry %2) 0) @ None
+[backward] Pob: path: (1 (main: (fib: (fib: -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: (fib: (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (fib: %10 ->) 0) @ [0, %entry, sum]
+[backward] Pob: path: (0 (main: (fib: (fib: (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: (fib: %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (1 (fib: -> %9) 1) @ [0, %10, fib]
+[backward] Pob: path: (0 (main: (fib: (fib: %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (1 (main: (fib: (fib: -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (fib: %return %13) 0) @ None
+[backward] Pob: path: (1 (main: -> %7 %8 %10 -> (fib: %entry %if.then %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: %return %13) -> %7 %8 %10 -> (fib: %entry %if.then %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (1 (fib: -> %10 %11) 1) @ [0, %return, fib]
+[backward] Pob: path: (0 (main: (fib: %return %13) -> %7 %8 %10 -> (fib: %entry %if.then %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (1 (main: (fib: -> %10 %11 %return %13) -> %7 %8 %10 -> (fib: %entry %if.then %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (sum: %entry %2) 0) @ None
+[backward] Pob: path: (1 (main: (fib: -> %10 %11 %return %13) -> %7 %8 %10 -> (fib: %entry %if.then %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: (sum: %entry %2) -> %10 %11 %return %13) -> %7 %8 %10 -> (fib: %entry %if.then %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (fib: %10 ->) 0) @ [0, %entry, sum]
+[backward] Pob: path: (0 (main: (fib: (sum: %entry %2) -> %10 %11 %return %13) -> %7 %8 %10 -> (fib: %entry %if.then %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %7 %8 %10 -> (fib: %entry %if.then %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (1 (fib: -> %9) 1) @ [0, %10, fib]
+[backward] Pob: path: (0 (main: (fib: %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %7 %8 %10 -> (fib: %entry %if.then %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (1 (main: (fib: -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %7 %8 %10 -> (fib: %entry %if.then %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (fib: %return %13) 0) @ None
+[backward] Pob: path: (1 (main: (fib: (fib: -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: (fib: (fib: %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (fib: %entry %if.then) 1) @ [0, %return, fib]
+[backward] Pob: path: (0 (main: (fib: (fib: (fib: %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: (fib: (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (fib: %9 ->) 0) @ [0, %entry, fib]
+[backward] Pob: path: (0 (main: (fib: (fib: (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: (fib: %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[initialize, executor] From [1, %8, fib] to:
+[initialize, executor] Target: [%9, fib]
+[reached] Isolated state: path: (1 (fib: -> %8) 1) @ [0, %9, fib]
+[backward] State: path: (1 (fib: -> %8) 1) @ [0, %9, fib]
+[backward] Pob: path: (0 (main: (fib: %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (1 (main: (fib: -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[initializer] From [0, %entry, dec] to Target: [%1, dec] (at the end) scheduled
+[backward] State: path: (1 (fib: -> %8) 1) @ [0, %9, fib]
+[backward] Pob: path: (0 (main: (fib: %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (1 (main: (fib: -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (1 (fib: -> %8) 1) @ [0, %9, fib]
+[backward] Pob: path: (0 (main: (fib: (fib: %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (1 (main: (fib: (fib: -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (fib: %entry %if.then) 1) @ [0, %return, fib]
+[backward] Pob: path: (0 (main: (fib: %return %13) -> %7 %8 %10 -> (fib: %entry %if.then %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: %entry %if.then %return %13) -> %7 %8 %10 -> (fib: %entry %if.then %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (main: %7 ->) 0) @ [0, %entry, fib]
+[backward] Pob: path: (0 (main: (fib: %entry %if.then %return %13) -> %7 %8 %10 -> (fib: %entry %if.then %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: %7 -> (fib: %entry %if.then %return %13) -> %7 %8 %10 -> (fib: %entry %if.then %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[initializer] From [0, %entry, main] to Target: [%7, main] scheduled
+[backward] State: path: (1 (fib: -> %10 %11) 1) @ [0, %return, fib]
+[backward] Pob: path: (0 (main: (fib: (fib: (fib: %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (1 (main: (fib: (fib: (fib: -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (sum: %entry %2) 0) @ None
+[backward] Pob: path: (1 (main: (fib: (fib: (fib: -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: (fib: (fib: (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (fib: %10 ->) 0) @ [0, %entry, sum]
+[backward] Pob: path: (0 (main: (fib: (fib: (fib: (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: (fib: (fib: %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (1 (fib: -> %9) 1) @ [0, %10, fib]
+[backward] Pob: path: (0 (main: (fib: (fib: (fib: %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (1 (main: (fib: (fib: (fib: -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[initialize, executor] From [0, %entry, dec] to:
+[initialize, executor] Target: [%1, dec] (at the end)
+[initialize, executor] From [0, %entry, main] to:
+[initialize, executor] Target: [%7, main]
+[reached] Isolated state: path: (0 (dec: %entry %1) 0) @ None
+[backward] State: path: (0 (dec: %entry %1) 0) @ None
+[backward] Pob: path: (1 (main: (fib: -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[initializer] From [0, %3, fib] to Target: [%entry, dec] scheduled
+[initializer] From [0, %7, fib] to Target: [%entry, dec] scheduled
+[initializer] From [0, %8, fib] to Target: [%entry, dec] scheduled
+[backward] State: path: (0 (dec: %entry %1) 0) @ None
+[backward] Pob: path: (1 (main: (fib: -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (dec: %entry %1) 0) @ None
+[backward] Pob: path: (1 (main: (fib: (fib: -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: (fib: (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[initialize, executor] From [0, %3, fib] to:
+[initialize, executor] Target: [%entry, dec]
+[initialize, executor] From [0, %7, fib] to:
+[initialize, executor] Target: [%entry, dec]
+[initialize, executor] From [0, %8, fib] to:
+[initialize, executor] Target: [%entry, dec]
+[reached] Isolated state: path: (0 (main: %entry %1 %2 %4 %5) 1) @ [0, %7, main]
+[reached] Isolated state: path: (0 (fib: %3 ->) 0) @ [0, %entry, dec]
+[reached] Isolated state: path: (0 (fib: %7 ->) 0) @ [0, %entry, dec]
+[reached] Isolated state: path: (0 (fib: %8 ->) 0) @ [0, %entry, dec]
+[backward] State: path: (0 (main: %entry %1 %2 %4 %5) 1) @ [0, %7, main]
+[backward] Pob: path: (0 (main: %7 -> (fib: %entry %if.then %return %13) -> %7 %8 %10 -> (fib: %entry %if.then %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: %entry %1 %2 %4 %5 %7 -> (fib: %entry %if.then %return %13) -> %7 %8 %10 -> (fib: %entry %if.then %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[conflict] Conflict in backward: path: (0 (main: %entry %1 %2 %4 %5 %7 -> (fib: %entry %if.then %return %13) -> %7 %8 %10 -> (fib: %entry %if.then %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition failed.
+[backward] State: path: (0 (fib: %8 ->) 0) @ [0, %entry, dec]
+[backward] Pob: path: (0 (main: (fib: (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[initializer] From [1, %7, fib] to Target: [%8, fib] scheduled
+[backward] State: path: (0 (fib: %8 ->) 0) @ [0, %entry, dec]
+[backward] Pob: path: (0 (main: (fib: (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (fib: %8 ->) 0) @ [0, %entry, dec]
+[backward] Pob: path: (0 (main: (fib: (fib: (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: (fib: %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[initialize, executor] From [1, %7, fib] to:
+[initialize, executor] Target: [%8, fib]
+[reached] Isolated state: path: (1 (fib: -> %7) 1) @ [0, %8, fib]
+[backward] State: path: (1 (fib: -> %7) 1) @ [0, %8, fib]
+[backward] Pob: path: (0 (main: (fib: %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (1 (main: (fib: -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (1 (fib: -> %7) 1) @ [0, %8, fib]
+[backward] Pob: path: (0 (main: (fib: %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (1 (main: (fib: -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (1 (fib: -> %7) 1) @ [0, %8, fib]
+[backward] Pob: path: (0 (main: (fib: (fib: %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (1 (main: (fib: (fib: -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (dec: %entry %1) 0) @ None
+[backward] Pob: path: (1 (main: (fib: -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (fib: %7 ->) 0) @ [0, %entry, dec]
+[backward] Pob: path: (0 (main: (fib: (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: %7 -> (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[initializer] From [1, %4, fib] to Target: [%7, fib] scheduled
+[backward] State: path: (0 (dec: %entry %1) 0) @ None
+[backward] Pob: path: (1 (main: (fib: -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (fib: %7 ->) 0) @ [0, %entry, dec]
+[backward] Pob: path: (0 (main: (fib: (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: %7 -> (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (dec: %entry %1) 0) @ None
+[backward] Pob: path: (1 (main: (fib: (fib: -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: (fib: (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (fib: %7 ->) 0) @ [0, %entry, dec]
+[backward] Pob: path: (0 (main: (fib: (fib: (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: (fib: %7 -> (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[initialize, executor] From [1, %4, fib] to:
+[initialize, executor] Target: [%7, fib]
+[reached] Isolated state: path: (1 (fib: -> %4 %5) 1) @ [0, %7, fib]
+[backward] State: path: (1 (fib: -> %4 %5) 1) @ [0, %7, fib]
+[backward] Pob: path: (0 (main: (fib: %7 -> (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (1 (main: (fib: -> %4 %5 %7 -> (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (1 (fib: -> %4 %5) 1) @ [0, %7, fib]
+[backward] Pob: path: (0 (main: (fib: %7 -> (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (1 (main: (fib: -> %4 %5 %7 -> (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %10 %11 %13 -> (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (1 (fib: -> %4 %5) 1) @ [0, %7, fib]
+[backward] Pob: path: (0 (main: (fib: (fib: %7 -> (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (1 (main: (fib: (fib: -> %4 %5 %7 -> (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (fib: %return %13) 0) @ None
+[backward] Pob: path: (1 (main: (fib: -> %4 %5 %7 -> (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: (fib: %return %13) -> %4 %5 %7 -> (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (1 (fib: -> %10 %11) 1) @ [0, %return, fib]
+[backward] Pob: path: (0 (main: (fib: (fib: %return %13) -> %4 %5 %7 -> (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (1 (main: (fib: (fib: -> %10 %11 %return %13) -> %4 %5 %7 -> (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (fib: %entry %if.then) 1) @ [0, %return, fib]
+[backward] Pob: path: (0 (main: (fib: (fib: %return %13) -> %4 %5 %7 -> (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: (fib: %entry %if.then %return %13) -> %4 %5 %7 -> (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (fib: %4 ->) 0) @ [0, %entry, fib]
+[backward] Pob: path: (0 (main: (fib: (fib: %entry %if.then %return %13) -> %4 %5 %7 -> (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: %4 -> (fib: %entry %if.then %return %13) -> %4 %5 %7 -> (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[initializer] From [1, %3, fib] to Target: [%4, fib] scheduled
+[backward] State: path: (0 (sum: %entry %2) 0) @ None
+[backward] Pob: path: (1 (main: (fib: (fib: -> %10 %11 %return %13) -> %4 %5 %7 -> (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: (fib: (sum: %entry %2) -> %10 %11 %return %13) -> %4 %5 %7 -> (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (fib: %10 ->) 0) @ [0, %entry, sum]
+[backward] Pob: path: (0 (main: (fib: (fib: (sum: %entry %2) -> %10 %11 %return %13) -> %4 %5 %7 -> (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: (fib: %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %4 %5 %7 -> (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (1 (fib: -> %9) 1) @ [0, %10, fib]
+[backward] Pob: path: (0 (main: (fib: (fib: %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %4 %5 %7 -> (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (1 (main: (fib: (fib: -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %4 %5 %7 -> (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[initialize, executor] From [1, %3, fib] to:
+[initialize, executor] Target: [%4, fib]
+KLEE: WARNING: Maximum stack size reached.
+[reached] Isolated state: path: (1 (fib: -> %3) 1) @ [0, %4, fib]
+[backward] State: path: (1 (fib: -> %3) 1) @ [0, %4, fib]
+[backward] Pob: path: (0 (main: (fib: %4 -> (fib: %entry %if.then %return %13) -> %4 %5 %7 -> (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (1 (main: (fib: -> %3 %4 -> (fib: %entry %if.then %return %13) -> %4 %5 %7 -> (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (dec: %entry %1) 0) @ None
+[backward] Pob: path: (1 (main: (fib: -> %3 %4 -> (fib: %entry %if.then %return %13) -> %4 %5 %7 -> (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: (dec: %entry %1) -> %3 %4 -> (fib: %entry %if.then %return %13) -> %4 %5 %7 -> (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (fib: %3 ->) 0) @ [0, %entry, dec]
+[backward] Pob: path: (0 (main: (fib: (dec: %entry %1) -> %3 %4 -> (fib: %entry %if.then %return %13) -> %4 %5 %7 -> (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: %3 -> (dec: %entry %1) -> %3 %4 -> (fib: %entry %if.then %return %13) -> %4 %5 %7 -> (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (fib: %entry %if.end) 1) @ [0, %3, fib]
+[backward] Pob: path: (0 (main: (fib: %3 -> (dec: %entry %1) -> %3 %4 -> (fib: %entry %if.then %return %13) -> %4 %5 %7 -> (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: (fib: %entry %if.end %3 -> (dec: %entry %1) -> %3 %4 -> (fib: %entry %if.then %return %13) -> %4 %5 %7 -> (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (0 (main: %13 ->) 0) @ [0, %entry, fib]
+[backward] Pob: path: (0 (main: (fib: %entry %if.end %3 -> (dec: %entry %1) -> %3 %4 -> (fib: %entry %if.then %return %13) -> %4 %5 %7 -> (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (0 (main: %13 -> (fib: %entry %if.end %3 -> (dec: %entry %1) -> %3 %4 -> (fib: %entry %if.then %return %13) -> %4 %5 %7 -> (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+[backward] State: path: (1 (main: -> %10 %11) 3) @ [0, %13, main]
+[backward] Pob: path: (0 (main: %13 -> (fib: %entry %if.end %3 -> (dec: %entry %1) -> %3 %4 -> (fib: %entry %if.then %return %13) -> %4 %5 %7 -> (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] To-be pob: path: (1 (main: -> %10 %11 %13 -> (fib: %entry %if.end %3 -> (dec: %entry %1) -> %3 %4 -> (fib: %entry %if.then %return %13) -> %4 %5 %7 -> (dec: %entry %1) -> %7 %8 -> (dec: %entry %1) -> %8 %9 -> (fib: %entry %if.then %return %13) -> %9 %10 -> (sum: %entry %2) -> %10 %11 %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
+[backward] Composition sucessful.
+KLEE: WARNING: Maximum stack size reached.
+KLEE: WARNING: Maximum stack size reached.
+KLEE: 0 states remaining
+KLEE: Distances from nearest states to remaining targets:
+KLEE: WARNING: 99.00% Reachable False Positive at trace 
+KLEE: halting execution, dumping remaining objects
+
+KLEE: done: total instructions = 1748
+KLEE: done: completed paths = 0
+KLEE: done: partially completed paths = 5
+KLEE: done: generated tests = 0
+KLEE: done: newly summarized locations = 1
