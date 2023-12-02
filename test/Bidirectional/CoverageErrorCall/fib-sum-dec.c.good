@@ -46,28 +46,28 @@
 [backward] Pob: path: (0 (main: (fib: %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
 [backward] To-be pob: path: (0 (main: (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]
 [backward] Composition sucessful.
+[initializer] From [0, %4, fib] to Target: [%entry, fib] scheduled
+[initializer] From [0, %9, fib] to Target: [%entry, fib] scheduled
 [initializer] From [0, %7, main] to Target: [%entry, fib] scheduled
 [initializer] From [0, %10, main] to Target: [%entry, fib] scheduled
 [initializer] From [0, %13, main] to Target: [%entry, fib] scheduled
-[initializer] From [0, %4, fib] to Target: [%entry, fib] scheduled
-[initializer] From [0, %9, fib] to Target: [%entry, fib] scheduled
 [initialize, executor] From [0, %entry, sum] to:
 [initialize, executor] Target: [%2, sum] (at the end)
+[initialize, executor] From [0, %4, fib] to:
+[initialize, executor] Target: [%entry, fib]
+[initialize, executor] From [0, %9, fib] to:
+[initialize, executor] Target: [%entry, fib]
 [initialize, executor] From [0, %7, main] to:
 [initialize, executor] Target: [%entry, fib]
 [initialize, executor] From [0, %10, main] to:
 [initialize, executor] Target: [%entry, fib]
 [initialize, executor] From [0, %13, main] to:
 [initialize, executor] Target: [%entry, fib]
-[initialize, executor] From [0, %4, fib] to:
-[initialize, executor] Target: [%entry, fib]
-[initialize, executor] From [0, %9, fib] to:
-[initialize, executor] Target: [%entry, fib]
-[reached] Isolated state: path: (0 (main: %13 ->) 0) @ [0, %entry, fib]
 [reached] Isolated state: path: (0 (main: %7 ->) 0) @ [0, %entry, fib]
-[reached] Isolated state: path: (0 (main: %10 ->) 0) @ [0, %entry, fib]
-[reached] Isolated state: path: (0 (fib: %9 ->) 0) @ [0, %entry, fib]
 [reached] Isolated state: path: (0 (fib: %4 ->) 0) @ [0, %entry, fib]
+[reached] Isolated state: path: (0 (fib: %9 ->) 0) @ [0, %entry, fib]
+[reached] Isolated state: path: (0 (main: %13 ->) 0) @ [0, %entry, fib]
+[reached] Isolated state: path: (0 (main: %10 ->) 0) @ [0, %entry, fib]
 [reached] Isolated state: path: (0 (sum: %entry %2) 0) @ None
 [backward] State: path: (0 (main: %13 ->) 0) @ [0, %entry, fib]
 [backward] Pob: path: (0 (main: (fib: %entry %if.then %return %13) -> %13 %14 %if.then ->) 0) @ [0, %entry, reach_error]

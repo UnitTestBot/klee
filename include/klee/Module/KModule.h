@@ -50,6 +50,7 @@ class CodeGraphInfo;
 class Executor;
 class Expr;
 class InterpreterHandler;
+struct KBlockCompare;
 struct KInstruction;
 class KModule;
 struct KFunction;
@@ -57,6 +58,10 @@ struct KCallBlock;
 template <class T> class ref;
 
 enum KBlockType { Base, Call, Return };
+
+struct KBlockCompare {
+  bool operator()(const KBlock *a, const KBlock *b) const;
+};
 
 struct KBlock {
   KFunction *parent;
@@ -72,8 +77,8 @@ public:
   KBlock &operator=(const KBlock &) = delete;
   virtual ~KBlock() = default;
 
-  std::set<KBlock *> successors();
-  std::set<KBlock *> predecessors();
+  std::set<KBlock *, KBlockCompare> successors();
+  std::set<KBlock *, KBlockCompare> predecessors();
 
   virtual KBlockType getKBlockType() const { return KBlockType::Base; }
   static bool classof(const KBlock *) { return true; }
@@ -113,7 +118,7 @@ private:
 };
 
 struct TraceVerifyPredicate : public InitializerPredicate {
-  explicit TraceVerifyPredicate(std::set<KBlock *> specialPoints,
+  explicit TraceVerifyPredicate(std::set<KBlock *, KBlockCompare> specialPoints,
                                 CodeGraphInfo &cgd, bool initJoinBlocks)
       : specialPoints(specialPoints), cgd(cgd),
         initJoinBlocks(initJoinBlocks){};
@@ -125,7 +130,7 @@ struct TraceVerifyPredicate : public InitializerPredicate {
   ~TraceVerifyPredicate() override {}
 
 private:
-  std::set<KBlock *> specialPoints;
+  std::set<KBlock *, KBlockCompare> specialPoints;
   std::set<KFunction *> interestingFns;
   std::set<KFunction *> uninsterestingFns;
 
@@ -195,7 +200,7 @@ public:
   std::unordered_map<const llvm::BasicBlock *, KBlock *> blockMap;
   KBlock *entryKBlock;
   std::vector<KBlock *> returnKBlocks;
-  std::set<KBlock *> finalKBlocks;
+  std::set<KBlock *, KBlockCompare> finalKBlocks;
   std::vector<KCallBlock *> kCallBlocks;
 
   /// count of instructions in function
@@ -244,14 +249,6 @@ public:
   /// Unique index for KFunction and KInstruction inside KModule
   /// from 0 to [KFunction + KInstruction]
   [[nodiscard]] inline unsigned getGlobalIndex() const { return globalIndex; }
-};
-
-struct KBlockCompare {
-  bool operator()(const KBlock *a, const KBlock *b) const {
-    return a->parent->getGlobalIndex() < b->parent->getGlobalIndex() ||
-           (a->parent->getGlobalIndex() == b->parent->getGlobalIndex() &&
-            a->getId() < b->getId());
-  }
 };
 
 struct KFunctionCompare {
@@ -374,15 +371,6 @@ public:
   inline unsigned getMaxGlobalIndex() const { return maxGlobalIndex; }
   unsigned getGlobalIndex(const llvm::Function *func) const;
   unsigned getGlobalIndex(const llvm::Instruction *inst) const;
-};
-
-struct KBlockLess {
-  bool operator()(const KBlock *a, const KBlock *b) const {
-    if (a->parent->getGlobalIndex() != b->parent->getGlobalIndex()) {
-      return a->parent->getGlobalIndex() < b->parent->getGlobalIndex();
-    }
-    return a->getId() < b->getId();
-  }
 };
 
 } // namespace klee

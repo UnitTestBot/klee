@@ -535,7 +535,7 @@ TargetedExecutionManager::prepareTargets(KModule *kmodule, SarifReport paths) {
     backwardWhitelists[result.id]->addTrace(result, kf, locToBlocks, true);
   }
 
-  std::set<KFunction *> functionsToDismantle;
+  std::set<KFunction *, KFunctionCompare> functionsToDismantle;
   for (auto wl : forwardWhitelists) {
     auto kf = wl.first;
     auto &dist = codeGraphInfo.getDistance(kf);
@@ -585,7 +585,7 @@ TargetedExecutionManager::prepareTargets(KModule *kmodule,
     backwardWhitelists[traceID]->addTrace(path, true);
   }
 
-  std::set<KFunction *> functionsToDismantle;
+  std::set<KFunction *, KFunctionCompare> functionsToDismantle;
   for (auto wl : forwardWhitelists) {
     auto kf = wl.first;
     auto &dist = codeGraphInfo.getDistance(kf);

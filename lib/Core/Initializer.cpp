@@ -184,7 +184,7 @@ void ConflictCoreInitializer::addConflictInit(const Conflict &conflict,
 }
 
 void ConflictCoreInitializer::initializeFunctions(
-    std::set<KFunction *> functions) {
+    std::set<KFunction *, KFunctionCompare> functions) {
   allowed = functions;
   // for (auto function : functions) {
   //   if (dismantledFunctions.count(function)) {
@@ -214,7 +214,7 @@ void ConflictCoreInitializer::addErrorInit(ref<Target> errorTarget) {
   auto errorT = dyn_cast<ReproduceErrorTarget>(errorTarget);
   auto location = errorTarget->getBlock();
   // Check direction
-  std::set<KBlock *, KBlockLess> nearest;
+  std::set<KBlock *, KBlockCompare> nearest;
   if (predicate(errorTarget->getBlock()) && !errorT->isThatError(Reachable)) {
     nearest.insert(errorTarget->getBlock()); // HOT FIX
   } else {
