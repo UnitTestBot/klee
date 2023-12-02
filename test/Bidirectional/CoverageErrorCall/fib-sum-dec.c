@@ -1,11 +1,8 @@
-// Bidirectional coverage-guided mode is broken now
-// This test needs to be fixed before the bidirectional mode is merged to the main branch.
 // REQUIRES: geq-llvm-12.0
-// XFAIL: geq-llvm-12.0
 
 // RUN: %clang %s -emit-llvm %O0opt -c -fno-discard-value-names -o %t.bc
 // RUN: rm -rf %t.klee-out
-// RUN: %klee --output-dir=%t.klee-out --execution-mode=bidirectional --max-propagations=3 --max-stack-frames=4 --skip-not-lazy-initialized --skip-not-symbolic-objects --initialize-in-join-blocks=true --debug-log=rootpob,backward,conflict,closepob,reached,init %t.bc 2> %t.log
+// RUN: %klee --output-dir=%t.klee-out --execution-mode=bidirectional --max-propagations=3 --max-stack-frames=4 --initialize-in-join-blocks --tmp-skip-fns-in-init=false --function-call-reproduce=reach_error --skip-not-lazy-initialized --skip-not-symbolic-objects --debug-log=rootpob,backward,conflict,closepob,reached,init %t.bc 2> %t.log
 // RUN: FileCheck %s -input-file=%t.log
 // RUN: sed -n '/\[pob\]/,$p' %t.log | sed -n '1,/KLEE\: done\: newly/ p' > %t.log.tail
 // RUN: diff %t.log.tail %s.good
@@ -13,6 +10,10 @@
 #include "klee/klee.h"
 #include <assert.h>
 #include <stdlib.h>
+
+void reach_error() {
+  klee_assert(0);
+}
 
 int dec(int n) {
   return --n;
@@ -35,7 +36,9 @@ int main() {
   int f1 = fib(n);
   int f2 = fib(n + 1);
   int f3 = fib(n + 2);
-  klee_assert(f1 + f2 == f3);
+  if (f1 + f2 != f3) {
+    reach_error();
+  }
   return 0;
 }
 
