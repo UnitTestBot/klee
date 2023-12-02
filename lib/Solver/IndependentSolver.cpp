@@ -67,21 +67,24 @@ bool IndependentSolver::computeValidity(const Query &query,
                                         PartialValidity &result) {
   std::vector<ref<const IndependentConstraintSet>> factors;
   query.getAllDependentConstraintsSets(factors);
-  ConstraintSet tmp(factors, query.constraints.independentElements().concretizedExprs);
+  ConstraintSet tmp(factors,
+                    query.constraints.independentElements().concretizedExprs);
   return solver->impl->computeValidity(query.withConstraints(tmp), result);
 }
 
 bool IndependentSolver::computeTruth(const Query &query, bool &isValid) {
   std::vector<ref<const IndependentConstraintSet>> factors;
   query.getAllDependentConstraintsSets(factors);
-  ConstraintSet tmp(factors, query.constraints.independentElements().concretizedExprs);
+  ConstraintSet tmp(factors,
+                    query.constraints.independentElements().concretizedExprs);
   return solver->impl->computeTruth(query.withConstraints(tmp), isValid);
 }
 
 bool IndependentSolver::computeValue(const Query &query, ref<Expr> &result) {
   std::vector<ref<const IndependentConstraintSet>> factors;
   query.getAllDependentConstraintsSets(factors);
-  ConstraintSet tmp(factors, query.constraints.independentElements().concretizedExprs);
+  ConstraintSet tmp(factors,
+                    query.constraints.independentElements().concretizedExprs);
   return solver->impl->computeValue(query.withConstraints(tmp), result);
 }
 
@@ -160,7 +163,9 @@ bool IndependentSolver::computeInitialValues(
                                               hasSolution);
   }
 
-  ConstraintSet dependentConstriants(dependentFactors, query.constraints.independentElements().concretizedExprs);
+  ConstraintSet dependentConstriants(
+      dependentFactors,
+      query.constraints.independentElements().concretizedExprs);
 
   std::vector<const Array *> dependentFactorsObjects;
   calculateArraysInFactors(dependentFactors, query.expr,
@@ -254,7 +259,9 @@ bool IndependentSolver::check(const Query &query, ref<SolverResponse> &result) {
     return solver->impl->check(query, result);
   }
 
-  ConstraintSet dependentConstriants(dependentFactors, query.constraints.independentElements().concretizedExprs);
+  ConstraintSet dependentConstriants(
+      dependentFactors,
+      query.constraints.independentElements().concretizedExprs);
 
   std::vector<const Array *> dependentFactorsObjects;
   std::vector<SparseStorage<unsigned char>> dependentFactorsValues;
@@ -324,7 +331,8 @@ bool IndependentSolver::computeValidityCore(const Query &query,
                                             bool &isValid) {
   std::vector<ref<const IndependentConstraintSet>> factors;
   query.getAllDependentConstraintsSets(factors);
-  ConstraintSet tmp(factors, query.constraints.independentElements().concretizedExprs);
+  ConstraintSet tmp(factors,
+                    query.constraints.independentElements().concretizedExprs);
   return solver->impl->computeValidityCore(query.withConstraints(tmp),
                                            validityCore, isValid);
 }

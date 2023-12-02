@@ -475,8 +475,7 @@ bool ConcretizingSolver::check(const Query &query,
       return false;
     }
   }
-  if ((CE && CE->isTrue()) ||
-      (isa<ValidResponse>(result))) {
+  if ((CE && CE->isTrue()) || (isa<ValidResponse>(result))) {
     if (!relaxSymcreteConstraints(query, result)) {
       return false;
     }
