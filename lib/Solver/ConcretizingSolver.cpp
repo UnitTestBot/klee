@@ -289,6 +289,39 @@ bool ConcretizingSolver::relaxSymcreteConstraints(const Query &query,
   }
 
   if (isa<ValidResponse>(result)) {
+    ValidityCore validityCore;
+    bool success = result->tryGetValidityCore(validityCore);
+    assert(success);
+
+    constraints_ty allValidityCoreConstraints = validityCore.constraints;
+    allValidityCoreConstraints.insert(validityCore.expr);
+    std::vector<const Array *> currentlyBrokenSymcretizedArrays;
+    findObjects(allValidityCoreConstraints.begin(),
+                allValidityCoreConstraints.end(),
+                currentlyBrokenSymcretizedArrays);
+
+    std::queue<const Array *> arrayQueue;
+
+    for (const Array *array : currentlyBrokenSymcretizedArrays) {
+      if (symcretesDependentFromArrays.count(array) &&
+          (kindsOfSymcretesForArrays.at(array).count(
+               Symcrete::SymcreteKind::SK_ALLOC_ADDRESS) ||
+           kindsOfSymcretesForArrays.at(array).count(
+               Symcrete::SymcreteKind::SK_LI_ADDRESS)) &&
+          !usedSymcretizedArrays.count(array)) {
+        arrayQueue.push(array);
+      }
+    }
+
+    if (!arrayQueue.empty()) {
+      if (!solver->impl->check(query, result)) {
+        return false;
+      }
+      if (isa<InvalidResponse>(result)) {
+        result = new UnknownResponse();
+      }
+    }
+
     return true;
   }
 
@@ -370,9 +403,9 @@ bool ConcretizingSolver::relaxSymcreteConstraints(const Query &query,
 
     /* Receive address array linked with this size array to request address
      * concretization. */
-    ref<Expr> condcretized = assignment.evaluate(symcrete->symcretized);
+    ref<Expr> concretized = assignment.evaluate(symcrete->symcretized);
 
-    uint64_t newSize = cast<ConstantExpr>(condcretized)->getZExtValue();
+    uint64_t newSize = cast<ConstantExpr>(concretized)->getZExtValue();
 
     void *address = addressGenerator->allocate(
         sizeSymcrete->addressSymcrete.symcretized, newSize);
@@ -472,9 +505,18 @@ bool ConcretizingSolver::check(const Query &query,
       return false;
     }
   }
-  if ((CE && CE->isTrue()) || isa<ValidResponse>(result)) {
+  if ((CE && CE->isTrue()) ||
+      (isa<ValidResponse>(result) && query.containsSizeSymcretes())) {
     if (!relaxSymcreteConstraints(query, result)) {
       return false;
+    }
+  }
+
+  if (isa<ValidResponse>(result)) {
+    for (auto i : cast<ValidResponse>(result)->validityCore().constraints) {
+      if (!query.constraints.cs().count(i)) {
+        return false;
+      }
     }
   }
 
@@ -546,7 +588,7 @@ bool ConcretizingSolver::computeValidityCore(const Query &query,
     }
   }
 
-  if (isValid) {
+  if (isValid && query.containsSizeSymcretes()) {
     ref<SolverResponse> result;
     if (!relaxSymcreteConstraints(query, result)) {
       return false;
@@ -562,6 +604,14 @@ bool ConcretizingSolver::computeValidityCore(const Query &query,
     } else {
       bool success = result->tryGetValidityCore(validityCore);
       assert(success);
+    }
+  }
+
+  if (isValid) {
+    for (auto i : validityCore.constraints) {
+      if (!query.constraints.cs().count(i)) {
+        return false;
+      }
     }
   }
 
