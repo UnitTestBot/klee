@@ -445,6 +445,60 @@ void MockBuilder::buildAnnotationForExternalFunctionArgs(
           }
           break;
         }
+        case Statement::Kind::TaintOutput: {
+//          buildCallKleeTaintFunction(
+//              "klee_add_taint", elem,
+//              elem->getType()->getPointerElementType(), // FIXME: now only first elem from array
+//              static_cast<size_t>(Statement::Kind::FormatString));
+//          break;
+        }
+        case Statement::Kind::FormatString: {
+          if (!elem->getType()->isPointerTy()) {
+            klee_error("Annotation: FormatString arg not pointer");
+          }
+
+          std::string sinkCondName =
+              "condition_sink_format_string_arg_" + std::to_string(i) +
+              "_" + func->getName().str();
+
+          llvm::BasicBlock *fromIf = builder->GetInsertBlock();
+          llvm::Function *curFunc = fromIf->getParent();
+
+          llvm::BasicBlock *sinkBB = llvm::BasicBlock::Create(
+              mockModule->getContext(), sinkCondName, curFunc);
+          llvm::BasicBlock *contBB = llvm::BasicBlock::Create(
+              mockModule->getContext(), "continue_" + sinkCondName);
+          auto brValueSink = buildCallKleeTaintFunction(
+              "klee_check_taint", elem,
+              elem->getType()->getPointerElementType(), // FIXME: now only first elem from array
+              static_cast<size_t>(Statement::Kind::FormatString));
+          builder->CreateCondBr(brValueSink, sinkBB, contBB);
+//          builder->CreateBr(sinkBB);  // for debug
+
+          builder->SetInsertPoint(sinkBB);
+          std::string sinkHitCondName =
+              "condition_sink_hit_format_string_arg_" + std::to_string(i) +
+              "_" + func->getName().str();
+          auto intType = llvm::IntegerType::get(mockModule->getContext(), 1);
+          auto *sinkHitCond = builder->CreateAlloca(intType, nullptr);
+          buildCallKleeMakeSymbolic("klee_make_mock", sinkHitCond, intType,
+                                    sinkHitCondName);
+          fromIf = builder->GetInsertBlock();
+          curFunc = fromIf->getParent();
+          llvm::BasicBlock *sinkHitBB = llvm::BasicBlock::Create(
+              mockModule->getContext(), sinkHitCondName, curFunc);
+          auto brValueSinkHit = builder->CreateLoad(intType, sinkHitCond);
+          builder->CreateCondBr(brValueSinkHit, sinkHitBB, contBB);
+
+          builder->SetInsertPoint(sinkHitBB);
+          buildCallKleeTaintSinkHit(
+              static_cast<size_t>(Statement::Kind::FormatString));
+          builder->CreateBr(contBB);
+
+          curFunc->getBasicBlockList().push_back(contBB);
+          builder->SetInsertPoint(contBB);
+          break;
+        }
         case Statement::Kind::Unknown:
         default:
           klee_message("Annotation not implemented %s",
@@ -458,6 +512,53 @@ void MockBuilder::buildAnnotationForExternalFunctionArgs(
       processingValue(prev, elem->getType(), allocSourcePtr, initNullPtr);
     }
   }
+}
+
+llvm::CallInst*
+MockBuilder::buildCallKleeTaintFunction(const std::string &functionName,
+                                        llvm::Value *source, llvm::Type *type,
+                                        size_t target) {
+  const auto returnType = (functionName == "klee_check_taint")
+      ? llvm::Type::getInt1Ty(mockModule->getContext())
+      : llvm::Type::getVoidTy(mockModule->getContext());
+
+  auto *kleeTaintFunctionType = llvm::FunctionType::get(
+      returnType,
+      {llvm::Type::getInt8PtrTy(mockModule->getContext()),
+       llvm::Type::getInt64Ty(mockModule->getContext()),
+       llvm::Type::getInt64Ty(mockModule->getContext())},
+      false);
+  auto kleeAddTaintCallee = mockModule->getOrInsertFunction(
+      functionName, kleeTaintFunctionType);
+
+  auto bitCastInst = builder->CreateBitCast(
+      source, llvm::Type::getInt8PtrTy(mockModule->getContext()));
+  return builder->CreateCall(
+      kleeAddTaintCallee,
+      {bitCastInst,
+       llvm::ConstantInt::get(
+           mockModule->getContext(),
+           llvm::APInt(64, mockModule->getDataLayout().getTypeStoreSize(type),
+                       false)),
+       llvm::ConstantInt::get(
+           mockModule->getContext(),
+           llvm::APInt(64, target, false))
+      });
+}
+
+void MockBuilder::buildCallKleeTaintSinkHit(size_t taintSink) {
+  auto *kleeTaintSinkHitType = llvm::FunctionType::get(
+      llvm::Type::getVoidTy(mockModule->getContext()),
+      {llvm::Type::getInt64Ty(mockModule->getContext())},
+      false);
+  auto kleeTaintSinkHitCallee = mockModule->getOrInsertFunction(
+      "klee_taint_sink_hit", kleeTaintSinkHitType);
+
+  builder->CreateCall(
+      kleeTaintSinkHitCallee,
+      {llvm::ConstantInt::get(
+          mockModule->getContext(),
+          llvm::APInt(64, taintSink, false))});
 }
 
 void MockBuilder::processingValue(llvm::Value *prev, llvm::Type *elemType,
