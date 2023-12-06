@@ -7,6 +7,7 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Transforms/Utils/BuildLibCalls.h"
 
 #include <memory>
 #include <utility>
@@ -446,11 +447,7 @@ void MockBuilder::buildAnnotationForExternalFunctionArgs(
           break;
         }
         case Statement::Kind::TaintOutput: {
-//          buildCallKleeTaintFunction(
-//              "klee_add_taint", elem,
-//              elem->getType()->getPointerElementType(), // FIXME: now only first elem from array
-//              static_cast<size_t>(Statement::Kind::FormatString));
-//          break;
+          break;
         }
         case Statement::Kind::FormatString: {
           if (!elem->getType()->isPointerTy()) {
@@ -470,10 +467,8 @@ void MockBuilder::buildAnnotationForExternalFunctionArgs(
               mockModule->getContext(), "continue_" + sinkCondName);
           auto brValueSink = buildCallKleeTaintFunction(
               "klee_check_taint", elem,
-              elem->getType()->getPointerElementType(), // FIXME: now only first elem from array
               static_cast<size_t>(Statement::Kind::FormatString));
           builder->CreateCondBr(brValueSink, sinkBB, contBB);
-//          builder->CreateBr(sinkBB);  // for debug
 
           builder->SetInsertPoint(sinkBB);
           std::string sinkHitCondName =
@@ -516,8 +511,21 @@ void MockBuilder::buildAnnotationForExternalFunctionArgs(
 
 llvm::CallInst*
 MockBuilder::buildCallKleeTaintFunction(const std::string &functionName,
-                                        llvm::Value *source, llvm::Type *type,
-                                        size_t target) {
+                                        llvm::Value *source, size_t target) {
+  llvm::Value *countBytes;
+  if (source->getType()->getPointerElementType()->isIntegerTy(8)) {
+    auto *TLI = new llvm::TargetLibraryInfo(llvm::TargetLibraryInfoImpl());
+    countBytes = llvm::emitStrLen(source, *builder,
+                                  mockModule->getDataLayout(),TLI);
+  }
+  else {
+    const size_t bytes = mockModule->getDataLayout().getTypeStoreSize(
+        source->getType()->getPointerElementType());
+    countBytes = llvm::ConstantInt::get(
+        mockModule->getContext(),
+        llvm::APInt(64, bytes, false));
+  }
+
   const auto returnType = (functionName == "klee_check_taint")
       ? llvm::Type::getInt1Ty(mockModule->getContext())
       : llvm::Type::getVoidTy(mockModule->getContext());
@@ -536,10 +544,7 @@ MockBuilder::buildCallKleeTaintFunction(const std::string &functionName,
   return builder->CreateCall(
       kleeAddTaintCallee,
       {bitCastInst,
-       llvm::ConstantInt::get(
-           mockModule->getContext(),
-           llvm::APInt(64, mockModule->getDataLayout().getTypeStoreSize(type),
-                       false)),
+       countBytes,
        llvm::ConstantInt::get(
            mockModule->getContext(),
            llvm::APInt(64, target, false))

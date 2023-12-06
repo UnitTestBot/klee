@@ -37,8 +37,7 @@ private:
                             const std::string &symbolicName);
   llvm::CallInst*
   buildCallKleeTaintFunction(const std::string &functionName,
-                             llvm::Value *source, llvm::Type *type,
-                             size_t target);
+                             llvm::Value *source, size_t target);
   void buildCallKleeTaintSinkHit(size_t taintSink);
 
   void buildAnnotationForExternalFunctionArgs(
