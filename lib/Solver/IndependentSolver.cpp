@@ -267,7 +267,7 @@ bool IndependentSolver::check(const Query &query, ref<SolverResponse> &result) {
     if (!solver->impl->check(query.withConstraints(dependentConstriants),
                              dependentFactorsResult)) {
       return false;
-    } else if (isa<ValidResponse>(dependentFactorsResult)) {
+    } else if (!isa<InvalidResponse>(dependentFactorsResult)) {
       result = dependentFactorsResult;
       return true;
     } else {
