@@ -447,6 +447,7 @@ void MockBuilder::buildAnnotationForExternalFunctionArgs(
           break;
         }
         case Statement::Kind::TaintOutput: {
+//          buildCallKleeTaintFunction("klee_add_taint", elem,);
           break;
         }
         case Statement::Kind::FormatString: {

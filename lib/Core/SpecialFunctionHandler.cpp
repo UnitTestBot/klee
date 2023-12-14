@@ -129,7 +129,7 @@ static SpecialFunctionHandler::HandlerInfo handlerInfo[] = {
     add("klee_add_taint", handleAddTaint, false),
     add("klee_clear_taint", handleClearTaint, false),
     add("klee_check_taint", handleCheckTaint, true),
-    add("klee_taint_sink_taint", handleTaintSinkHit, false),
+    add("klee_taint_sink_hit", handleTaintSinkHit, false),
 #ifdef SUPPORT_KLEE_EH_CXX
     add("_klee_eh_Unwind_RaiseException_impl", handleEhUnwindRaiseExceptionImpl,
         false),
@@ -1211,8 +1211,8 @@ void SpecialFunctionHandler::handleCheckTaint(
   }
 
   // FIXME: this is a test version right now
-//  ref<Expr> result = ConstantExpr::create(true, Expr::Bool);
-//  executor.bindLocal(target, state, result);
+  ref<Expr> result = ConstantExpr::create(true, Expr::Bool);
+  executor.bindLocal(target, state, result);
 }
 
 void SpecialFunctionHandler::handleTaintSinkHit(
@@ -1225,5 +1225,6 @@ void SpecialFunctionHandler::handleTaintSinkHit(
     return;
   }
 
-  //  klee_error("")
+
+  executor.terminateStateOnError(state, "FormatString", StateTerminationType::User);
 }
