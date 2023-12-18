@@ -3,6 +3,7 @@
 
 #include "ExecutionState.h"
 
+#include "klee/ADT/ImmutableList.h"
 #include "klee/Expr/Constraints.h"
 #include "klee/Expr/Path.h"
 #include "klee/Module/KInstruction.h"
@@ -79,6 +80,7 @@ public:
   ref<Target> location;
   TargetForest targetForest;
   PathConstraints constraints;
+  ImmutableList<Symbolic> symbolics;
 
   ref<Expr> nullPointerExpr;
 
