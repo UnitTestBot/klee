@@ -1,4 +1,4 @@
-// REQUIRES: not-msan
+// REQUIRES: not-msan, not-asan
 // Disabling msan because it times out on CI
 // RUN: %clang %s -emit-llvm %O0opt -g -c -o %t1.bc
 // RUN: rm -rf %t.klee-out
