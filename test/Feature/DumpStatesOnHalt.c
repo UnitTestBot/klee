@@ -9,4 +9,4 @@ int main(int argc, char **argv) {
     x = 0;
   return x;
 }
-// CHECK: halting execution, dumping remaining states
+// CHECK: halting execution, dumping remaining objects

@@ -4,6 +4,9 @@
 #
 ################################################################################
 
+config.runtime_build_type = "@KLEE_RUNTIME_BUILD_TYPE@"
+config.cmake_build_type = "@CMAKE_BUILD_TYPE@"
+
 config.klee_src_root = "@KLEE_SOURCE_DIR@"
 config.klee_obj_root = "@KLEE_BINARY_DIR@"
 config.klee_tools_dir = "@KLEE_TOOLS_DIR@"
@@ -42,6 +45,7 @@ config.cxx = "@NATIVE_CXX@"
 config.O0opt = "-O0 -Xclang -disable-O0-optnone"
 
 # Features
+config.enable_klee_asserts = True if @ENABLE_KLEE_ASSERTS@ == 1 else False
 config.enable_uclibc = True if @SUPPORT_KLEE_UCLIBC@ == 1 else False
 config.enable_posix_runtime = True if @ENABLE_POSIX_RUNTIME@ == 1 else False
 config.enable_floating_point = True if @ENABLE_FLOATING_POINT@ == 1 else False

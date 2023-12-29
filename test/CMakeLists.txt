@@ -34,6 +34,12 @@ else()
   set(SUPPORT_KLEE_UCLIBC 0)
 endif()
 
+if (ENABLE_KLEE_ASSERTS)
+  set(ENABLE_KLEE_ASSERTS 1)
+else()
+  set(ENABLE_KLEE_ASSERTS 0)
+endif()
+
 # FIXME: Do this to avoid changing the template file that
 # is shared by both build systems.
 if (ENABLE_POSIX_RUNTIME)
@@ -114,7 +120,11 @@ if (DOWNLOAD_FILECHECK_SOURCE)
   add_executable(FileCheck
     ${FILECHECK_SRC_FILE}
   )
-  llvm_config(FileCheck "${USE_LLVM_SHARED}" support)
+  if (${LLVM_VERSION_MAJOR} LESS_EQUAL 11)
+     llvm_config(FileCheck "${USE_LLVM_SHARED}" support)
+  else()
+     llvm_config(FileCheck "${USE_LLVM_SHARED}" support filecheck)
+  endif()
   target_include_directories(FileCheck PRIVATE ${LLVM_INCLUDE_DIRS})
   target_link_libraries(FileCheck PRIVATE ${FILECHECK_NEEDED_LIBS})
 endif()
