@@ -64,14 +64,14 @@ MockBuilder::MockBuilder(
     std::vector<std::pair<std::string, std::string>> &redefinitions,
     InterpreterHandler *interpreterHandler,
     std::set<std::string> &mainModuleFunctions,
-    std::set<std::string> &mainModuleGlobals)
+    std::set<std::string> &mainModuleGlobals,
+    const AnnotationsData &annotationsData)
     : userModule(initModule), opts(opts),
       interpreterOptions(interpreterOptions),
       ignoredExternals(ignoredExternals), redefinitions(redefinitions),
       interpreterHandler(interpreterHandler),
       mainModuleFunctions(mainModuleFunctions),
-      mainModuleGlobals(mainModuleGlobals),
-      annotationsData(opts.AnnotationsFile, opts.TaintAnnotationsFile) {}
+      mainModuleGlobals(mainModuleGlobals), annotationsData(annotationsData) {}
 
 std::unique_ptr<llvm::Module> MockBuilder::build() {
   initMockModule();
@@ -500,7 +500,7 @@ MockBuilder::buildCallKleeTaintFunction(const std::string &functionName,
       {llvm::Type::getInt8PtrTy(mockModule->getContext()),
        llvm::Type::getInt64Ty(mockModule->getContext())},
       false);
-  auto kleeAddTaintCallee =
+  auto kleeTaintFunctionCallee =
       mockModule->getOrInsertFunction(functionName, kleeTaintFunctionType);
 
   //  //TODO: that's not all:
@@ -544,13 +544,15 @@ MockBuilder::buildCallKleeTaintFunction(const std::string &functionName,
   if (!source->getType()->isPointerTy() && !source->getType()->isArrayTy()) {
     beginPtr = builder->CreateAlloca(source->getType());
     builder->CreateStore(source, beginPtr);
+    beginPtr = builder->CreateBitCast(
+        beginPtr, llvm::Type::getInt8PtrTy(mockModule->getContext()));
   } else {
     beginPtr = builder->CreateBitCast(
         source, llvm::Type::getInt8PtrTy(mockModule->getContext()));
   }
 
   return builder->CreateCall(
-      kleeAddTaintCallee,
+      kleeTaintFunctionCallee,
       {beginPtr, llvm::ConstantInt::get(mockModule->getContext(),
                                         llvm::APInt(64, taint, false))});
 }
@@ -813,6 +815,14 @@ void MockBuilder::buildAnnotationForExternalFunctionReturn(
   }
   std::string retName = "ret_" + func->getName().str();
   llvm::Value *retValuePtr = builder->CreateAlloca(returnType, nullptr);
+
+  //  TODO: fix strange type ("fopen" mock, store instruction)
+  //  if (func->getName() == "fopen") {
+  //    buildCallKleeMakeSymbolic("klee_make_mock", retValuePtr, returnType,
+  //                              func->getName().str());
+  //    llvm::Value *retValue = builder->CreateLoad(returnType, retValuePtr,
+  //    retName); builder->CreateRet(retValue); return;
+  //  }
 
   if (returnType->isPointerTy() && (allocSourcePtr || mustInitNull)) {
     processingValue(retValuePtr, returnType, allocSourcePtr,

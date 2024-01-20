@@ -10,8 +10,9 @@ struct AnnotationsData final {
   AnnotationsMap annotations;
   TaintAnnotation taintAnnotation;
 
-  explicit AnnotationsData(const std::string &annotationsFile,
-                           const std::string &taintAnnotationsFile);
+  explicit AnnotationsData(
+      const std::string &annotationsFile = std::string(),
+      const std::string &taintAnnotationsFile = std::string());
   virtual ~AnnotationsData();
 };
 

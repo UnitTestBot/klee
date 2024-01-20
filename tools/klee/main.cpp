@@ -15,6 +15,7 @@
 #include "klee/Core/Context.h"
 #include "klee/Core/Interpreter.h"
 #include "klee/Core/TargetedExecutionReporter.h"
+#include "klee/Module/AnnotationsData.h"
 #include "klee/Module/LocationInfo.h"
 #include "klee/Module/SarifReport.h"
 #include "klee/Module/TargetForest.h"
@@ -414,7 +415,8 @@ cl::opt<MockMutableGlobalsPolicy> MockMutableGlobals(
 
 cl::opt<std::string>
     AnnotationsFile("annotations", cl::desc("Path to the annotation JSON file"),
-                    cl::value_desc("path file"), cl::cat(MockCat));
+                    cl::init(std::string()), cl::value_desc("path file"),
+                    cl::cat(MockCat));
 
 cl::opt<bool> AnnotateOnlyExternal(
     "annotate-only-external",
@@ -422,7 +424,7 @@ cl::opt<bool> AnnotateOnlyExternal(
     cl::init(false), cl::cat(MockCat));
 
 cl::opt<std::string>
-    TaintAnnotationsFile("taint-annotations",
+    TaintAnnotationsFile("taint-annotations", cl::init(std::string()),
                          cl::desc("Path to the taint annotations JSON file"),
                          cl::value_desc("path file"), cl::cat(MockCat));
 
@@ -1861,8 +1863,6 @@ int main(int argc, char **argv, char **envp) {
       LibraryDir, EntryPoint, opt_suffix,
       /*MainCurrentName=*/EntryPoint,
       /*MainNameAfterMock=*/"__klee_mock_wrapped_main",
-      /*AnnotationsFile=*/AnnotationsFile,
-      /*TaintAnnotationsFile=*/TaintAnnotationsFile,
       /*Optimize=*/OptimizeModule,
       /*Simplify*/ SimplifyModule,
       /*CheckDivZero=*/CheckDivZero,
@@ -2073,6 +2073,8 @@ int main(int argc, char **argv, char **envp) {
   IOpts.Mock = Mock;
   IOpts.MockStrategy = MockStrategy;
   IOpts.MockMutableGlobals = MockMutableGlobals;
+  IOpts.AnnotationsFile = AnnotationsFile;
+  IOpts.TaintAnnotationsFile = TaintAnnotationsFile;
 
   std::unique_ptr<Interpreter> interpreter(
       Interpreter::create(ctx, IOpts, handler.get()));

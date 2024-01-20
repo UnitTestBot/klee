@@ -29,7 +29,7 @@ private:
   std::set<std::string> &mainModuleFunctions;
   std::set<std::string> &mainModuleGlobals;
 
-  AnnotationsData annotationsData;
+  const AnnotationsData &annotationsData;
 
   void initMockModule();
   void buildMockMain();
@@ -77,7 +77,8 @@ public:
               std::vector<std::pair<std::string, std::string>> &redefinitions,
               InterpreterHandler *interpreterHandler,
               std::set<std::string> &mainModuleFunctions,
-              std::set<std::string> &mainModuleGlobals);
+              std::set<std::string> &mainModuleGlobals,
+              const AnnotationsData &annotationsData);
 
   std::unique_ptr<llvm::Module> build();
   void buildAllocSource(llvm::Value *prev, llvm::Type *elemType,

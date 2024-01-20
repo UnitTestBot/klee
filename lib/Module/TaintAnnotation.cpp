@@ -5,18 +5,18 @@
 
 namespace klee {
 
-TaintAnnotation::TaintAnnotation() = default;
+TaintAnnotation::TaintAnnotation(const std::string &path) {
+  if (path.empty()) {
+    return;
+  }
 
-TaintAnnotation::TaintAnnotation(const std::string &taintAnnotationsFilePath) {
-  std::ifstream taintAnnotationsFile(taintAnnotationsFilePath);
+  std::ifstream taintAnnotationsFile(path);
   if (!taintAnnotationsFile.good()) {
-    klee_error("Taint annotation: Opening %s failed.",
-               taintAnnotationsFilePath.c_str());
+    klee_error("Taint annotation: Opening %s failed.", path.c_str());
   }
   json taintAnnotationsJson = json::parse(taintAnnotationsFile, nullptr, false);
   if (taintAnnotationsJson.is_discarded()) {
-    klee_error("Taint annotation: Parsing JSON %s failed.",
-               taintAnnotationsFilePath.c_str());
+    klee_error("Taint annotation: Parsing JSON %s failed.", path.c_str());
   }
 
   std::set<std::string> sourcesStrs;
