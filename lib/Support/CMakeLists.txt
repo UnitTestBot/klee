@@ -8,6 +8,7 @@
 #===------------------------------------------------------------------------===#
 add_library(kleeSupport
   CompressionStream.cpp
+  DebugFlags.cpp
   ErrorHandling.cpp
   FileHandling.cpp
   MemoryUsage.cpp
