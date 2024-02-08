@@ -278,6 +278,10 @@ ExprVisitor::Action ExprVisitor::visitExprPost(const Expr &) {
   return Action::skipChildren();
 }
 
+ExprVisitor::Action ExprVisitor::visitVar(const VarExpr &) {
+  return Action::doChildren();
+}
+
 ExprVisitor::Action ExprVisitor::visitNotOptimized(const NotOptimizedExpr &) {
   return Action::doChildren();
 }

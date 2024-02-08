@@ -72,12 +72,20 @@ T ExprRangeEvaluator<T>::evalRead(const UpdateList &ul, T index) {
   T res;
 
   for (const UpdateNode *un = ul.head.get(); un; un = un->next.get()) {
-    T ui = evaluate(un->index);
+    if (un->isSimple()) {
+      T ui = evaluate(un->asSimple()->index);
 
-    if (ui.mustEqual(index)) {
-      return res.set_union(evaluate(un->value));
-    } else if (ui.mayEqual(index)) {
-      res = res.set_union(evaluate(un->value));
+      if (ui.mustEqual(index)) {
+        return res.set_union(evaluate(un->asSimple()->value));
+      } else if (ui.mayEqual(index)) {
+        res = res.set_union(evaluate(un->asSimple()->value));
+        if (res.isFullRange(8)) {
+          return res;
+        }
+      }
+    } else {
+      auto write = un->asRange();
+      res = res.set_union(evalRead(write->rangeList, index));
       if (res.isFullRange(8)) {
         return res;
       }
