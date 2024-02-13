@@ -53,9 +53,19 @@ UpdateList AlphaBuilder::visitUpdateList(UpdateList u) {
   updates.push_back(nullptr);
 
   for (int i = updates.size() - 2; i >= 0; i--) {
-    ref<Expr> index = visit(updates[i]->index);
-    ref<Expr> value = visit(updates[i]->value);
-    updates[i] = new UpdateNode(updates[i + 1], index, value);
+    if (updates[i]->isSimple()) {
+      auto write = updates[i]->asSimple();
+      ref<Expr> index = visit(write->index);
+      ref<Expr> value = visit(write->value);
+      updates[i] = new UpdateNode(updates[i + 1], SimpleWrite(index, value));
+    } else {
+      auto write = updates[i]->asRange();
+      ExprLambda guard(
+          write->guard.getParam(),
+          visit(write->guard.getBody())); // Var should not be touched
+      auto list = visitUpdateList(write->rangeList);
+      updates[i] = new UpdateNode(updates[i + 1], RangeWrite(guard, list));
+    }
   }
   return UpdateList(root, updates[0]);
 }
