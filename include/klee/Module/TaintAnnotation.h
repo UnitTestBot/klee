@@ -13,18 +13,30 @@ using json = nlohmann::json;
 
 namespace klee {
 
-// TODO: set<size_t> to set<pair<size_t, size)t>>, where pair is sink and target
-using TaintSinksSourcesMap = std::map<size_t, std::set<size_t>>;
+using source_ty = size_t;
+using sink_ty = size_t;
+using rule_ty = size_t;
 
-class TaintAnnotation final {
-public:
-  TaintSinksSourcesMap sinksToSources;
-  std::map<std::string, size_t> sinks;
-  std::map<std::string, size_t> sources;
-  // TODO: add map from size_t target to string
+struct TaintHitInfo final {
+  source_ty source;
+  sink_ty sink;
+
+  explicit TaintHitInfo(source_ty source, sink_ty sink);
+
+  bool operator<(const TaintHitInfo &other) const;
+  bool operator==(const TaintHitInfo &other) const;
+};
+
+using TaintHitsMap = std::map<TaintHitInfo, rule_ty>;
+
+struct TaintAnnotation final {
+  TaintHitsMap hits;
+
+  std::unordered_map<std::string, source_ty> sources;
+  std::unordered_map<std::string, sink_ty> sinks;
+  std::vector<std::string> rules;
 
   explicit TaintAnnotation(const std::string &path);
-  virtual ~TaintAnnotation();
 };
 
 } // namespace klee

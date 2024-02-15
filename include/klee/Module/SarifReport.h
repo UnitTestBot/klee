@@ -50,6 +50,12 @@ enum ReachWithError {
   MayBeNullPointerException,  // void f(int *x) { *x = 42; } - should it error?
   MustBeNullPointerException, // MayBeNPE = yes, MustBeNPE = no
   NullCheckAfterDerefException,
+
+  // TODO: separate as Taint with additional info
+  TaintFormatString,
+  TaintSensitiveData,
+  TaintExecute,
+
   Reachable,
   None,
 };

@@ -618,7 +618,7 @@ private:
   /// Then just call `terminateStateOnError`
   void terminateStateOnTargetError(ExecutionState &state, ReachWithError error);
 
-  void terminateStateOnTaintError(ExecutionState &state, size_t sink);
+  void terminateStateOnTargetTaintError(ExecutionState &state, size_t rule);
 
   /// Call error handler and terminate state in case of program errors
   /// (e.g. free()ing globals, out-of-bound accesses)

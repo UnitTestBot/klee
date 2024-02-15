@@ -129,8 +129,8 @@ static SpecialFunctionHandler::HandlerInfo handlerInfo[] = {
     add("klee_add_taint", handleAddTaint, false),
     add("klee_clear_taint", handleClearTaint, false),
     add("klee_check_taint_source", handleCheckTaintSource, true),
-    add("klee_check_taint_sink", handleCheckTaintSink, true),
-    add("klee_taint_sink_hit", handleTaintSinkHit, false),
+    add("klee_get_taint_rule", handleGetTaintRule, true),
+    add("klee_taint_hit", handleTaintHit, false),
 
 #ifdef SUPPORT_KLEE_EH_CXX
     add("_klee_eh_Unwind_RaiseException_impl", handleEhUnwindRaiseExceptionImpl,
@@ -1200,35 +1200,37 @@ void SpecialFunctionHandler::handleCheckTaintSource(
   }
 }
 
-void SpecialFunctionHandler::handleCheckTaintSink(
+void SpecialFunctionHandler::handleGetTaintRule(
     klee::ExecutionState &state, klee::KInstruction *target,
     std::vector<ref<Expr>> &arguments) {
   if (arguments.size() != 2) {
     executor.terminateStateOnUserError(state,
                                        "Incorrect number of arguments to "
-                                       "klee_check_taint_sink(void*, size_t)");
+                                       "klee_get_taint_rule(void*, size_t)");
     return;
   }
 
-  //  ref<Expr> result = ConstantExpr::create(true, Expr::Bool);
-  //  executor.bindLocal(target, state, result);
+//    ref<Expr> result = ConstantExpr::create(4, Expr::Int64);
+//    executor.bindLocal(target, state, result);
 }
 
-void SpecialFunctionHandler::handleTaintSinkHit(
+void SpecialFunctionHandler::handleTaintHit(
     klee::ExecutionState &state, klee::KInstruction *target,
     std::vector<ref<Expr>> &arguments) {
   if (arguments.size() != 1) {
     executor.terminateStateOnUserError(
-        state, "Incorrect number of arguments to klee_taint_sink_hit(size_t)");
+        state, "Incorrect number of arguments to klee_taint_hit(size_t)");
     return;
   }
 
   char *end = nullptr;
-  size_t sink = strtoul(arguments[0]->toString().c_str(), &end, 10);
+  size_t rule = strtoul(arguments[0]->toString().c_str(), &end, 10);
   if (*end != '\0' || errno == ERANGE) {
     executor.terminateStateOnUserError(
-        state, "Incorrect argument 0 to klee_taint_sink_hit(size_t)");
+        state, "Incorrect argument 0 to klee_taint_hit(size_t)");
   }
 
-  executor.terminateStateOnTaintError(state, sink);
+  klee_warning("!!!: %s\n", arguments[0]->toString().c_str());
+
+  executor.terminateStateOnTargetTaintError(state, rule);
 }

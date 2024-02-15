@@ -65,10 +65,10 @@ def transform_annotation_with_taint_statements(annotation, func_name):
     return transformed_annotation    
 
 
-def transform(utbot_json, coody_json, process_taint):
+def transform(utbot_json, coody_json, with_taints):
     for coody_name, annotation in coody_json.items():
         funcName, mangledName = getNames(coody_name)
-        if (process_taint):
+        if (with_taints):
             annotation = transform_annotation_with_taint_statements(annotation, funcName)
         utbot_json[mangledName] = {"name": funcName, "annotation": annotation, "properties": []}
 

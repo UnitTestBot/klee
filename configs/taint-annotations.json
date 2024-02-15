@@ -1,11 +1,20 @@
 {
   "SensitiveDataLeak": [
-    "SensitiveDataSource"
+    {
+      "source": "SensitiveDataSource",
+      "rule": "TAINT.SDE"
+    }
   ],
   "FormatString": [
-    "UntrustedSource"
+    {
+      "source": "UntrustedSource",
+      "rule": "SV.STR.FMT.TAINT"
+    }
   ],
   "Execute": [
-    "UntrustedSource"
+    {
+      "source": "UntrustedSource",
+      "rule": "TAINT.STRING.CLI"
+    }
   ]
 }

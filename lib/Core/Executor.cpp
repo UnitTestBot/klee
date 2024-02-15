@@ -4867,18 +4867,12 @@ void Executor::terminateStateOnTargetError(ExecutionState &state,
 }
 
 // TODO: add taint target errors to taint-annotations.json and change function
-void Executor::terminateStateOnTaintError(ExecutionState &state, size_t sink) {
-  //  reportStateOnTargetError(state, error);
+void Executor::terminateStateOnTargetTaintError(ExecutionState &state, size_t rule) {
+  const std::string &ruleStr = annotationsData.taintAnnotation.rules[rule];
 
-  const auto &sinks = annotationsData.taintAnnotation.sinks;
-  auto taintSink = std::find_if(sinks.begin(), sinks.end(),
-                                [&](const std::pair<std::string, size_t> &i) {
-                                  return i.second == sink;
-                                });
-  if (taintSink == std::end(sinks)) {
-    klee_error("Unknown sink index");
-  }
-  terminateStateOnProgramError(state, taintSink->first + " taint error",
+  reportStateOnTargetError(state, rule);
+
+  terminateStateOnProgramError(state, ruleStr + " taint error",
                                StateTerminationType::Taint);
 }
 
