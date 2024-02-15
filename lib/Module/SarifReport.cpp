@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <list>
+#include <utility>
 
 #include "klee/Module/SarifReport.h"
 
@@ -33,71 +34,73 @@ ReachWithErrors tryConvertRuleJson(const std::string &ruleId, ToolName toolName,
   switch (toolName) {
   case ToolName::SecB:
     if ("NullDereference" == ruleId) {
-      return {ReachWithError::MustBeNullPointerException};
+      return {ReachWithError(ReachWithErrorType::MustBeNullPointerException)};
     } else if ("CheckAfterDeref" == ruleId) {
-      return {ReachWithError::NullCheckAfterDerefException};
+      return {ReachWithError(ReachWithErrorType::NullCheckAfterDerefException)};
     } else if ("DoubleFree" == ruleId) {
-      return {ReachWithError::DoubleFree};
+      return {ReachWithError(ReachWithErrorType::DoubleFree)};
     } else if ("UseAfterFree" == ruleId) {
-      return {ReachWithError::UseAfterFree};
+      return {ReachWithError(ReachWithErrorType::UseAfterFree)};
     } else if ("Reached" == ruleId) {
-      return {ReachWithError::Reachable};
+      return {ReachWithError(ReachWithErrorType::Reachable)};
     }
-    return {};
+    return {ReachWithError(ReachWithErrorType::MaybeTaint, ruleId)};
   case ToolName::clang:
     if ("core.NullDereference" == ruleId) {
-      return {ReachWithError::MayBeNullPointerException,
-              ReachWithError::MustBeNullPointerException};
+      return {ReachWithError(ReachWithErrorType::MayBeNullPointerException),
+              ReachWithError(ReachWithErrorType::MustBeNullPointerException)};
     } else if ("unix.Malloc" == ruleId) {
       if (errorMessage.has_value()) {
         if (errorMessage->text == "Attempt to free released memory") {
-          return {ReachWithError::DoubleFree};
+          return {ReachWithError(ReachWithErrorType::DoubleFree)};
         } else if (errorMessage->text == "Use of memory after it is freed") {
-          return {ReachWithError::UseAfterFree};
+          return {ReachWithError(ReachWithErrorType::UseAfterFree)};
         } else {
           return {};
         }
       } else {
-        return {ReachWithError::UseAfterFree, ReachWithError::DoubleFree};
+        return {ReachWithError(ReachWithErrorType::UseAfterFree),
+                ReachWithError(ReachWithErrorType::DoubleFree)};
       }
     } else if ("core.Reach" == ruleId) {
-      return {ReachWithError::Reachable};
+      return {ReachWithError(ReachWithErrorType::Reachable)};
     }
-    return {};
+    return {ReachWithError(ReachWithErrorType::MaybeTaint, ruleId)};
   case ToolName::CppCheck:
     if ("nullPointer" == ruleId || "ctunullpointer" == ruleId) {
-      return {ReachWithError::MayBeNullPointerException,
-              ReachWithError::MustBeNullPointerException}; // TODO: check it out
+      return {
+          ReachWithError(ReachWithErrorType::MayBeNullPointerException),
+          ReachWithError(
+              ReachWithErrorType::MustBeNullPointerException)}; // TODO: check
+                                                                // it out
     } else if ("doubleFree" == ruleId) {
-      return {ReachWithError::DoubleFree};
+      return {ReachWithError(ReachWithErrorType::DoubleFree)};
     }
-    return {};
+    return {ReachWithError(ReachWithErrorType::MaybeTaint, ruleId)};
   case ToolName::Infer:
     if ("NULL_DEREFERENCE" == ruleId || "NULLPTR_DEREFERENCE" == ruleId) {
-      return {ReachWithError::MayBeNullPointerException,
-              ReachWithError::MustBeNullPointerException}; // TODO: check it out
+      return {
+          ReachWithError(ReachWithErrorType::MayBeNullPointerException),
+          ReachWithError(
+              ReachWithErrorType::MustBeNullPointerException)}; // TODO: check
+                                                                // it out
     } else if ("USE_AFTER_DELETE" == ruleId || "USE_AFTER_FREE" == ruleId) {
-      return {ReachWithError::UseAfterFree, ReachWithError::DoubleFree};
+      return {ReachWithError(ReachWithErrorType::UseAfterFree),
+              ReachWithError(ReachWithErrorType::DoubleFree)};
     }
-    return {};
+    return {ReachWithError(ReachWithErrorType::MaybeTaint, ruleId)};
   case ToolName::Cooddy:
     if ("NULL.DEREF" == ruleId || "NULL.UNTRUSTED.DEREF" == ruleId) {
-      return {ReachWithError::MayBeNullPointerException,
-              ReachWithError::MustBeNullPointerException};
+      return {ReachWithError(ReachWithErrorType::MayBeNullPointerException),
+              ReachWithError(ReachWithErrorType::MustBeNullPointerException)};
     } else if ("MEM.DOUBLE.FREE" == ruleId) {
-      return {ReachWithError::DoubleFree};
+      return {ReachWithError(ReachWithErrorType::DoubleFree)};
     } else if ("MEM.USE.FREE" == ruleId) {
-      return {ReachWithError::UseAfterFree};
-    } else if ("SV.STR.FMT.TAINT" == ruleId) {
-      return {ReachWithError::TaintFormatString};
-    } else if ("TAINT.SDE" == ruleId) {
-      return {ReachWithError::TaintSensitiveData};
-    } else if ("TAINT.STRING.CLI" == ruleId) {
-      return {ReachWithError::TaintExecute};
+      return {ReachWithError(ReachWithErrorType::UseAfterFree)};
     }
-    return {};
+    return {ReachWithError(ReachWithErrorType::MaybeTaint, ruleId)};
   case ToolName::Unknown:
-    return {};
+    return {ReachWithError(ReachWithErrorType::MaybeTaint, ruleId)};
   }
 }
 
@@ -150,7 +153,7 @@ ReachWithErrors tryConvertErrorKind(ToolName toolName,
                                     const optional<std::string> &ruleId,
                                     const optional<Message> &msg) {
   if (!ruleId.has_value()) {
-    return {ReachWithError::Reachable};
+    return {ReachWithError(ReachWithErrorType::Reachable)};
   } else {
     return tryConvertRuleJson(*ruleId, toolName, msg);
   }
@@ -273,6 +276,7 @@ static const char *ReachWithErrorNames[] = {
     "MayBeNullPointerException",
     "NullPointerException", // for backward compatibility with SecB
     "NullCheckAfterDerefException",
+    ""
     "Reachable",
     "None",
 };
@@ -305,8 +309,27 @@ bool LineColumnRange::hasInsideInternal(InstrWithPrecision &kp) const {
   return false;
 }
 
+ReachWithError::ReachWithError(ReachWithErrorType type,
+                               std::optional<std::string> data)
+    : type(type), data(std::move(data)) {}
+
+bool ReachWithError::operator==(const ReachWithError &other) const {
+  if (type == other.type && ReachWithErrorType::MaybeTaint == type) {
+    return data == other.data;
+  }
+  return (type == other.type);
+}
+
+bool ReachWithError::operator!=(const ReachWithError &other) const {
+  return !(*this == other);
+}
+
+bool ReachWithError::operator<(const ReachWithError &other) const {
+  return type < other.type;
+}
+
 const char *getErrorString(ReachWithError error) {
-  return ReachWithErrorNames[error];
+  return ReachWithErrorNames[error.type];
 }
 
 std::string getErrorsString(const ReachWithErrors &errors) {
@@ -584,15 +607,16 @@ Location *Location::createCooddy(std::string &&filename_,
                                  LineColumnRange &range, EventKind &kind) {
   if (kind.isError) {
     if (kind.kinds.size() == 1) {
-      switch (kind.kinds[0]) {
-      case ReachWithError::DoubleFree:
+      switch (kind.kinds[0].type) {
+      case ReachWithErrorType::DoubleFree:
         return new Cooddy::OpCodeLoc(std::move(filename_), std::move(range),
                                      kind, Instruction::Call);
       default:
         return nullptr;
       }
     } else if (std::find(kind.kinds.begin(), kind.kinds.end(),
-                         ReachWithError::MustBeNullPointerException) !=
+                         ReachWithError(
+                             ReachWithErrorType::MustBeNullPointerException)) !=
                kind.kinds.end()) {
       // the thing that Cooddy reports is too complex, so we fallback to just
       // lines

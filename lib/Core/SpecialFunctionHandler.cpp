@@ -1210,13 +1210,14 @@ void SpecialFunctionHandler::handleGetTaintRule(
     return;
   }
 
-//    ref<Expr> result = ConstantExpr::create(4, Expr::Int64);
-//    executor.bindLocal(target, state, result);
+  // TODO: now mock
+  ref<Expr> result = ConstantExpr::create(1, Expr::Int64);
+  executor.bindLocal(target, state, result);
 }
 
-void SpecialFunctionHandler::handleTaintHit(
-    klee::ExecutionState &state, klee::KInstruction *target,
-    std::vector<ref<Expr>> &arguments) {
+void SpecialFunctionHandler::handleTaintHit(klee::ExecutionState &state,
+                                            klee::KInstruction *target,
+                                            std::vector<ref<Expr>> &arguments) {
   if (arguments.size() != 1) {
     executor.terminateStateOnUserError(
         state, "Incorrect number of arguments to klee_taint_hit(size_t)");
@@ -1229,8 +1230,5 @@ void SpecialFunctionHandler::handleTaintHit(
     executor.terminateStateOnUserError(
         state, "Incorrect argument 0 to klee_taint_hit(size_t)");
   }
-
-  klee_warning("!!!: %s\n", arguments[0]->toString().c_str());
-
   executor.terminateStateOnTargetTaintError(state, rule);
 }

@@ -1219,8 +1219,8 @@ bool mustVisitForkBranches(ref<Target> target, KInstruction *instr) {
   // fork branches here
   if (auto reprErrorTarget = dyn_cast<ReproduceErrorTarget>(target)) {
     return reprErrorTarget->isTheSameAsIn(instr) &&
-           reprErrorTarget->isThatError(
-               ReachWithError::NullCheckAfterDerefException);
+           reprErrorTarget->isThatError(ReachWithError(
+               ReachWithErrorType::NullCheckAfterDerefException));
   }
   return false;
 }
@@ -2517,12 +2517,14 @@ void Executor::checkNullCheckAfterDeref(ref<Expr> cond, ExecutionState &state,
   if (eqPointerCheck && eqPointerCheck->left->isZero() &&
       state.resolvedPointers.count(eqPointerCheck->right)) {
     if (isa<EqExpr>(cond) && !fstate && sstate) {
-      reportStateOnTargetError(*sstate,
-                               ReachWithError::NullCheckAfterDerefException);
+      reportStateOnTargetError(
+          *sstate,
+          ReachWithError(ReachWithErrorType::NullCheckAfterDerefException));
     }
     if (isa<EqExpr>(Expr::createIsZero(cond)) && !sstate && fstate) {
-      reportStateOnTargetError(*fstate,
-                               ReachWithError::NullCheckAfterDerefException);
+      reportStateOnTargetError(
+          *fstate,
+          ReachWithError(ReachWithErrorType::NullCheckAfterDerefException));
     }
   }
 }
@@ -2535,9 +2537,10 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       auto target = kvp.first;
       if (target->shouldFailOnThisTarget() &&
           cast<ReproduceErrorTarget>(target)->isThatError(
-              ReachWithError::Reachable) &&
+              ReachWithError(ReachWithErrorType::Reachable)) &&
           cast<ReproduceErrorTarget>(target)->isTheSameAsIn(ki)) {
-        terminateStateOnTargetError(state, ReachWithError::Reachable);
+        terminateStateOnTargetError(
+            state, ReachWithError(ReachWithErrorType::Reachable));
         return;
       }
     }
@@ -4840,25 +4843,25 @@ void Executor::terminateStateOnTargetError(ExecutionState &state,
   // Proceed with normal `terminateStateOnError` call
   std::string messaget;
   StateTerminationType terminationType;
-  switch (error) {
-  case ReachWithError::MayBeNullPointerException:
-  case ReachWithError::MustBeNullPointerException:
+  switch (error.type) {
+  case ReachWithErrorType::MayBeNullPointerException:
+  case ReachWithErrorType::MustBeNullPointerException:
     messaget = "memory error: null pointer exception";
     terminationType = StateTerminationType::Ptr;
     break;
-  case ReachWithError::DoubleFree:
+  case ReachWithErrorType::DoubleFree:
     messaget = "double free error";
     terminationType = StateTerminationType::Ptr;
     break;
-  case ReachWithError::UseAfterFree:
+  case ReachWithErrorType::UseAfterFree:
     messaget = "use after free error";
     terminationType = StateTerminationType::Ptr;
     break;
-  case ReachWithError::Reachable:
+  case ReachWithErrorType::Reachable:
     messaget = "";
     terminationType = StateTerminationType::Reachable;
     break;
-  case ReachWithError::None:
+  case ReachWithErrorType::None:
   default:
     messaget = "unspecified error";
     terminationType = StateTerminationType::User;
@@ -4866,11 +4869,15 @@ void Executor::terminateStateOnTargetError(ExecutionState &state,
   terminateStateOnProgramError(state, messaget, terminationType);
 }
 
-// TODO: add taint target errors to taint-annotations.json and change function
-void Executor::terminateStateOnTargetTaintError(ExecutionState &state, size_t rule) {
-  const std::string &ruleStr = annotationsData.taintAnnotation.rules[rule];
+void Executor::terminateStateOnTargetTaintError(ExecutionState &state,
+                                                size_t rule) {
+  if (rule >= annotationsData.taintAnnotation.rules.size()) {
+    terminateStateOnUserError(state, "Incorrect rule id");
+  }
 
-  reportStateOnTargetError(state, rule);
+  const std::string &ruleStr = annotationsData.taintAnnotation.rules[rule];
+  reportStateOnTargetError(
+      state, ReachWithError(ReachWithErrorType::MaybeTaint, ruleStr));
 
   terminateStateOnProgramError(state, ruleStr + " taint error",
                                StateTerminationType::Taint);
@@ -5297,8 +5304,8 @@ void Executor::executeFree(ExecutionState &state, ref<Expr> address,
     if (!resolveExact(*zeroPointer.second, address,
                       typeSystemManager->getUnknownType(), rl, "free") &&
         guidanceKind == GuidanceKind::ErrorGuidance) {
-      terminateStateOnTargetError(*zeroPointer.second,
-                                  ReachWithError::DoubleFree);
+      terminateStateOnTargetError(
+          *zeroPointer.second, ReachWithError(ReachWithErrorType::DoubleFree));
       return;
     }
 
@@ -5355,9 +5362,9 @@ bool Executor::resolveExact(ExecutionState &estate, ref<Expr> address,
   ExecutionState *bound = branches.first;
   if (bound) {
     auto error = isReadFromSymbolicArray(uniqueBase)
-                     ? ReachWithError::MayBeNullPointerException
-                     : ReachWithError::MustBeNullPointerException;
-    terminateStateOnTargetError(*bound, error);
+                     ? ReachWithErrorType::MayBeNullPointerException
+                     : ReachWithErrorType::MustBeNullPointerException;
+    terminateStateOnTargetError(*bound, ReachWithError(error));
   }
   if (!branches.second) {
     address = Expr::createPointer(0);
@@ -6111,9 +6118,9 @@ void Executor::executeMemoryOperation(
   ExecutionState *bound = branches.first;
   if (bound) {
     auto error = isReadFromSymbolicArray(uniqueBase)
-                     ? ReachWithError::MayBeNullPointerException
-                     : ReachWithError::MustBeNullPointerException;
-    terminateStateOnTargetError(*bound, error);
+                     ? ReachWithErrorType::MayBeNullPointerException
+                     : ReachWithErrorType::MustBeNullPointerException;
+    terminateStateOnTargetError(*bound, ReachWithError(error));
   }
   if (!branches.second)
     return;
@@ -6224,7 +6231,8 @@ void Executor::executeMemoryOperation(
     solver->setTimeout(time::Span());
 
     if (!success) {
-      terminateStateOnTargetError(*state, ReachWithError::UseAfterFree);
+      terminateStateOnTargetError(
+          *state, ReachWithError(ReachWithErrorType::UseAfterFree));
       return;
     }
   }
@@ -6820,7 +6828,7 @@ void Executor::runFunctionAsMain(Function *f, int argc, char **argv,
       auto kfunction = kmodule->functionNameMap.at(FunctionCallReproduce);
       KBlock *kCallBlock = kfunction->entryKBlock;
       forest->add(ReproduceErrorTarget::create(
-          {ReachWithError::Reachable}, "",
+          {ReachWithError(ReachWithErrorType::Reachable)}, "",
           LineColumnRange(kCallBlock->getFirstInstruction()), kCallBlock));
       prepTargets.emplace(kEntryFunction, forest);
     }
@@ -7340,9 +7348,9 @@ bool Executor::getSymbolicSolution(const ExecutionState &state, KTest &res) {
   // we cannot be sure that an irreproducible state proves the presence of an
   // error
   if (uninitObjects.size() > 0 || state.symbolics.size() != symbolics.size()) {
-    state.error = ReachWithError::None;
+    state.error = ReachWithError(ReachWithErrorType::None);
   } else if (FunctionCallReproduce != "" &&
-             state.error == ReachWithError::Reachable) {
+             state.error.type == ReachWithErrorType::Reachable) {
     setHaltExecution(HaltExecution::ReachedTarget);
   }
 
