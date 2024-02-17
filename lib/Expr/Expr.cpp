@@ -2558,3 +2558,22 @@ ref<Expr> IsSubnormalExpr::either(const ref<Expr> &e0, const ref<Expr> &e1) {
   return OrExpr::create(IsSubnormalExpr::create(e0),
                         IsSubnormalExpr::create(e1));
 }
+
+ref<Expr> ExprLambda::apply(ref<Expr> arg) const {
+  ExprReplaceVisitor visitor(param, arg);
+  return visitor.visit(body);
+}
+
+ExprLambda ExprLambda::addCondition(ref<Expr> cond) const {
+  return ExprLambda(param, AndExpr::create(body, cond));
+}
+
+ExprLambda ExprLambda::merge(ExprLambda a, ExprLambda b) {
+  assert(a.param == b.param);
+  return ExprLambda(a.param, AndExpr::create(a.body, b.body));
+}
+
+ExprLambda ExprLambda::constantTrue() {
+  return ExprLambda(nullptr, Expr::createTrue());
+}
+

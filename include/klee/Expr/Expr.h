@@ -560,7 +560,136 @@ public:
   static bool classof(const NotOptimizedExpr *) { return true; }
 };
 
-/// Class representing a byte update of an array.
+class ExprLambda {
+public:
+  ExprLambda(ref<Expr> param, ref<Expr> body) : param(param), body(body) {}
+
+  ref<Expr> apply(ref<Expr> arg) const;
+  ExprLambda addCondition(ref<Expr> cond) const;
+  static ExprLambda merge(ExprLambda a, ExprLambda b);
+  static ExprLambda constantTrue();
+
+  bool operator==(const ExprLambda &other) const {
+    return std::tie(param, body) == std::tie(other.param, other.body);
+  }
+
+  bool operator!=(const ExprLambda &other) const { return !(*this == other); }
+
+  bool operator<(const ExprLambda &other) const {
+    return std::tie(param, body) < std::tie(other.param, other.body);
+  }
+
+  bool isConstantTrue() const {
+    return body->isTrue();
+  }
+
+  ref<Expr> getParam() const {
+    return param;
+  }
+
+  ref<Expr> getBody() const { return body; }
+
+private:
+  ref<Expr> param;
+  ref<Expr> body;
+};
+
+struct SimpleWrite;
+struct RangeWrite;
+using Write = std::variant<SimpleWrite, RangeWrite>;
+
+/// Class representing a complete list of updates into an array.
+class UpdateList {
+  friend class ReadExpr; // for default constructor
+
+public:
+  const Array *root = nullptr;
+  bool isSimple = true;
+
+  /// pointer to the most recent update node
+  ref<UpdateNode> head;
+
+public:
+  UpdateList() = default;
+  UpdateList(const Array *_root, const ref<UpdateNode> &_head);
+  UpdateList(const UpdateList &b) = default;
+  ~UpdateList() = default;
+
+  UpdateList &operator=(const UpdateList &b) = default;
+
+  /// size of this update list
+  unsigned getSize() const;
+
+  void extend(const SimpleWrite &write);
+  void extend(const RangeWrite &write);
+  void extend(const Write &write);
+
+  std::vector<std::pair<ExprLambda, std::variant<ref<Expr>, UpdateList>>>
+  flatten() const;
+
+  int compare(const UpdateList &b) const;
+
+  bool operator<(const UpdateList &rhs) const { return compare(rhs) < 0; }
+
+  unsigned hash() const;
+  unsigned height() const;
+};
+
+struct SimpleWrite {
+  SimpleWrite(ref<Expr> index, ref<Expr> value)
+      : index(index), value(value) {}
+
+  unsigned hash() const {
+    unsigned res = index->hash();
+    res = (res * Expr::MAGIC_HASH_CONSTANT) + value->hash();
+    return res;
+  }
+
+  bool operator==(const SimpleWrite &other) const {
+    return std::tie(index, value) == std::tie(other.index, other.value);
+  }
+
+  bool operator!=(const SimpleWrite &other) const {
+    return !(*this == other);
+  }
+
+  bool operator<(const SimpleWrite &other) const {
+    return std::tie(index, value) < std::tie(other.index, other.value);
+  }
+
+  ref<Expr> index, value;
+};
+
+struct RangeWrite {
+  RangeWrite(ExprLambda guard, UpdateList rangeList) : guard(guard), rangeList(rangeList) {}
+
+  unsigned hash() const {
+    unsigned res = guard.getBody()->hash();
+    res = (res * Expr::MAGIC_HASH_CONSTANT) + rangeList.hash();
+    return res;
+  }
+
+  bool operator==(const RangeWrite &other) const {
+    return guard == other.guard && rangeList.compare(other.rangeList) == 0;
+  }
+
+  bool operator!=(const RangeWrite &other) const {
+    return !(*this == other);
+  }
+
+  bool operator<(const RangeWrite &other) const {
+    if (guard != other.guard) {
+      return guard < other.guard;
+    } else {
+      return rangeList.compare(other.rangeList) == -1;
+    }
+  }
+
+  ExprLambda guard;
+  UpdateList rangeList;
+};
+
+/// Class representing an update of an array.
 class UpdateNode {
   friend class UpdateList;
 
