@@ -14,6 +14,7 @@
 #include "klee/ADT/Ref.h"
 #include "klee/Expr/SymbolicSource.h"
 #include "klee/Support/CompilerWarning.h"
+#include <variant>
 
 DISABLE_WARNING_PUSH
 DISABLE_WARNING_DEPRECATED_DECLARATIONS
@@ -699,7 +700,7 @@ class UpdateNode {
 
 public:
   const ref<UpdateNode> next;
-  ref<Expr> index, value;
+  Write write;
 
   /// @brief Required by klee::ref-managed objects
   mutable class ReferenceCounter _refCount;
@@ -709,8 +710,8 @@ private:
   unsigned size;
 
 public:
-  UpdateNode(const ref<UpdateNode> &_next, const ref<Expr> &_index,
-             const ref<Expr> &_value);
+  UpdateNode(const ref<UpdateNode> &_next, const SimpleWrite &write);
+  UpdateNode(const ref<UpdateNode> &_next, const RangeWrite &write);
 
   unsigned getSize() const { return size; }
 
@@ -718,6 +719,26 @@ public:
   bool equals(const UpdateNode &b) const;
   unsigned hash() const { return hashValue; }
   unsigned height() const { return heightValue; }
+
+  bool isSimple() const {
+    return std::holds_alternative<SimpleWrite>(write);
+  }
+
+  SimpleWrite *asSimple() {
+    return std::get_if<SimpleWrite>(&write);
+  }
+
+  RangeWrite *asRange() {
+    return std::get_if<RangeWrite>(&write);
+  }
+
+  const SimpleWrite *asSimple() const {
+    return std::get_if<SimpleWrite>(&write);
+  }
+
+  const RangeWrite *asRange() const {
+    return std::get_if<RangeWrite>(&write);
+  }
 
   UpdateNode() = delete;
   ~UpdateNode() = default;
@@ -787,36 +808,9 @@ public:
   friend class ArrayCache;
 };
 
-/// Class representing a complete list of updates into an array.
-class UpdateList {
-  friend class ReadExpr; // for default constructor
+using ReadRanges = std::vector<std::pair<ExprLambda, std::variant<ref<Expr>, UpdateList>>>;
 
-public:
-  const Array *root = nullptr;
-
-  /// pointer to the most recent update node
-  ref<UpdateNode> head;
-
-public:
-  UpdateList() = default;
-  UpdateList(const Array *_root, const ref<UpdateNode> &_head);
-  UpdateList(const UpdateList &b) = default;
-  ~UpdateList() = default;
-
-  UpdateList &operator=(const UpdateList &b) = default;
-
-  /// size of this update list
-  unsigned getSize() const { return head ? head->getSize() : 0; }
-
-  void extend(const ref<Expr> &index, const ref<Expr> &value);
-
-  int compare(const UpdateList &b) const;
-
-  bool operator<(const UpdateList &rhs) const { return compare(rhs) < 0; }
-
-  unsigned hash() const;
-  unsigned height() const;
-};
+ref<Expr> rangesToSelect(const ReadRanges &ranges, ref<Expr> index);
 
 /// Class representing a one byte read from an array.
 class ReadExpr : public NonConstantExpr {
@@ -837,6 +831,13 @@ public:
   }
 
   static ref<Expr> create(const UpdateList &updates, ref<Expr> i);
+
+  static ReadRanges getRanges(const UpdateList &range, ref<Expr> i,
+                              bool hasSymbolicIndex);
+
+  static UpdateList stripUnneded(const UpdateList &ul, ref<Expr> index);
+
+  static ref<Expr> readOrExpr(std::variant<ref<Expr>, UpdateList> v, ref<Expr> index);
 
   Width getWidth() const {
     assert(updates.root);
