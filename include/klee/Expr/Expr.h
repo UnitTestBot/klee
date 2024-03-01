@@ -41,6 +41,7 @@ class raw_ostream;
 namespace klee {
 
 class Array;
+class UpdateNode;
 class ArrayCache;
 class ConstantExpr;
 class Expr;
@@ -167,6 +168,7 @@ public:
     // Primitive
 
     Constant = 0,
+    Var,
 
     // Special
 
@@ -1741,6 +1743,48 @@ public:
   // binary representations for NaN but we need try to use the same
   // representation for consistency with the solver.
   static ref<ConstantExpr> GetNaN(Expr::Width w);
+};
+
+class VarExpr : public Expr {
+public:
+  static const Kind kind = Var;
+  static const unsigned numKids = 0;
+
+private:
+  unsigned index;
+  Width width;
+
+  VarExpr(unsigned index, Width width) : index(index), width(width) {}
+
+public:
+  Width getWidth() const { return width; }
+  Kind getKind() const { return Var; }
+
+  static bool classof(const Expr *E) { return E->getKind() == Expr::Var; }
+  static bool classof(const VarExpr *) { return true; }
+
+  unsigned getNumKids() const { return 0; }
+  ref<Expr> getKid(unsigned i) const { return 0; }
+
+  unsigned getIndex() { return index; }
+
+  int compareContents(const Expr &b) const {
+    const VarExpr &vb = static_cast<const VarExpr &>(b);
+    if (getWidth() != vb.getWidth()) {
+      return getWidth() < vb.getWidth() ? -1 : 1;
+    }
+    if (index == vb.index) {
+      return 0;
+    }
+    return index < vb.index ? -1 : 1;
+  }
+
+  virtual ref<Expr> rebuild(ref<Expr> kids[]) const {
+    assert(0 && "rebuild() on VarExpr");
+    return const_cast<VarExpr *>(this);
+  }
+
+  virtual unsigned computeHash();
 };
 
 // Implementations

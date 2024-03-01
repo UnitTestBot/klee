@@ -11,6 +11,7 @@
 
 #include "klee/Config/Version.h"
 #include "klee/Expr/ExprPPrinter.h"
+#include "klee/Expr/ExprReplaceVisitor.h"
 #include "klee/Expr/ExprUtil.h"
 #include "klee/Expr/SymbolicSource.h"
 #include "klee/Support/ErrorHandling.h"
@@ -180,6 +181,7 @@ void Expr::printKind(llvm::raw_ostream &os, Kind k) {
     os << #C;                                                                  \
     break
     X(Constant);
+    X(Var);
     X(NotOptimized);
     X(Read);
     X(Select);
@@ -281,6 +283,12 @@ unsigned ConstantExpr::computeHash() {
   else
     hashValue = hash_value(value) ^ (w * MAGIC_HASH_CONSTANT);
 
+  return hashValue;
+}
+
+unsigned VarExpr::computeHash() {
+  unsigned res = getWidth() * Expr::MAGIC_HASH_CONSTANT;
+  hashValue = res ^ index * Expr::MAGIC_HASH_CONSTANT;
   return hashValue;
 }
 
@@ -1515,74 +1523,155 @@ unsigned Array::computeHash() {
 }
 /***/
 
-ref<Expr> ReadExpr::create(const UpdateList &ul, ref<Expr> index) {
-  // rollback update nodes if possible
-
-  // Iterate through the update list from the most recent to the
-  // least recent to find a potential written value for a concrete index;
-  // stop if an update with symbolic has been found as we don't know which
-  // array element has been updated
-  auto un = ul.head.get();
-  bool updateListHasSymbolicWrites = false;
-  for (; un; un = un->next.get()) {
-    ref<Expr> cond = EqExpr::create(index, un->index);
-    if (ConstantExpr *CE = dyn_cast<ConstantExpr>(cond)) {
-      if (CE->isTrue())
-        // Return the found value
-        return un->value;
-    } else {
-      // Found write with symbolic index
-      updateListHasSymbolicWrites = true;
-      break;
+ref<Expr> klee::rangesToSelect(const ReadRanges &ranges, ref<Expr> index) {
+  assert(ranges.size() > 0 && ranges.back().first.isConstantTrue());
+  ref<Expr> result = nullptr;
+  for (auto it = ranges.rbegin(); it != ranges.rend(); ++it) {
+    if (auto e = std::get_if<ref<Expr>>(&(*it).second)) {
+      if (!result) {
+        result = *e;
+      } else {
+        result = SelectExpr::create((*it).first.apply(index), *e, result);
+      }
+    } else if (auto ul = std::get_if<UpdateList>(&(*it).second)) {
+      assert((*ul).isSimple);
+      if (!result) {
+        result = ReadExpr::alloc(*ul, index);
+      } else {
+        result = SelectExpr::create((*it).first.apply(index),
+                                    ReadExpr::alloc(*ul, index), result);
+      }
     }
   }
+  return result;
+}
 
-  // So that we return weird stuff like reads from consts that should have
-  // simplified to constant exprs if we read beyond size boundary.
-  if (auto source = dyn_cast<ConstantSource>(ul.root->source)) {
-    if (auto arraySizeExpr = dyn_cast<ConstantExpr>(ul.root->size)) {
-      if (auto indexExpr = dyn_cast<ConstantExpr>(index)) {
-        auto arraySize = arraySizeExpr->getZExtValue();
-        auto concreteIndex = indexExpr->getZExtValue();
-        if (concreteIndex >= arraySize) {
-          return ReadExpr::alloc(ul, index);
+// ref<Expr> ReadExpr::create(const UpdateList &ul, ref<Expr> index) {
+//   // rollback update nodes if possible
+
+//   // Iterate through the update list from the most recent to the
+//   // least recent to find a potential written value for a concrete index;
+//   // stop if an update with symbolic has been found as we don't know which
+//   // array element has been updated
+//   auto un = ul.head.get();
+//   bool updateListHasSymbolicWrites = false;
+//   for (; un; un = un->next.get()) {
+//     ref<Expr> cond = EqExpr::create(index, un->index);
+//     if (ConstantExpr *CE = dyn_cast<ConstantExpr>(cond)) {
+//       if (CE->isTrue())
+//         // Return the found value
+//         return un->value;
+//     } else {
+//       // Found write with symbolic index
+//       updateListHasSymbolicWrites = true;
+//       break;
+//     }
+//  }
+
+//   // So that we return weird stuff like reads from consts that should have
+//   // simplified to constant exprs if we read beyond size boundary.
+  // if (auto source = dyn_cast<ConstantSource>(ul.root->source)) {
+  //   if (auto arraySizeExpr = dyn_cast<ConstantExpr>(ul.root->size)) {
+  //     if (auto indexExpr = dyn_cast<ConstantExpr>(index)) {
+  //       auto arraySize = arraySizeExpr->getZExtValue();
+  //       auto concreteIndex = indexExpr->getZExtValue();
+  //       if (concreteIndex >= arraySize) {
+  //         return ReadExpr::alloc(ul, index);
+  //       }
+  //     }
+  //   } else {
+  //     return ReadExpr::alloc(ul, index);
+  //   }
+  // }
+
+//   if (isa<ConstantSource>(ul.root->source) && !updateListHasSymbolicWrites) {
+//     // No updates with symbolic index to a constant array have been found
+//     if (ConstantExpr *CE = dyn_cast<ConstantExpr>(index)) {
+//       assert(CE->getWidth() <= 64 && "Index too large");
+//       ref<ConstantSource> constantSource =
+//           cast<ConstantSource>(ul.root->source);
+//       uint64_t concreteIndex = CE->getZExtValue();
+//       if (auto value = constantSource->constantValues.load(concreteIndex)) {
+//         return value;
+//       }
+//     }
+//   }
+
+//   // Now, no update with this concrete index exists
+//   // Try to remove any most recent but unimportant updates
+//   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(index)) {
+//     if (ConstantExpr *arrayConstantSize =
+//             dyn_cast<ConstantExpr>(ul.root->size)) {
+//       assert(CE->getWidth() <= 64 && "Index too large");
+//       uint64_t concreteIndex = CE->getZExtValue();
+//       uint64_t size = arrayConstantSize->getZExtValue();
+//       if (concreteIndex < size) {
+//         // Create shortened update list
+//         UpdateList newUpdateList(ul.root, un);
+//         return ReadExpr::alloc(newUpdateList, index);
+//       }
+//     }
+//   }
+
+//   return ReadExpr::alloc(ul, index);
+// }
+
+ref<Expr> ReadExpr::create(const UpdateList &ul, ref<Expr> index) {
+  auto list = stripUnneded(ul, index);
+
+  if (!list.head) {
+    if (auto source = dyn_cast<ConstantSource>(ul.root->source)) {
+      if (auto ce = dyn_cast<ConstantExpr>(index)) {
+        uint64_t concreteIndex = ce->getZExtValue();
+        if (auto value = source->constantValues.load(concreteIndex)) {
+          return value;
         }
       }
+    }
+  }
+
+  return ReadExpr::alloc(list, index);
+}
+
+ref<Expr> ReadExpr::readOrExpr(std::variant<ref<Expr>, UpdateList> v, ref<Expr> index) {
+  if (auto e = std::get_if<ref<Expr>>(&v)) {
+    return *e;
+  } if (auto r = std::get_if<UpdateList>(&v)) {
+    return ReadExpr::alloc(*r, index);
+  } else {
+    assert(0);
+  }
+}
+
+UpdateList ReadExpr::stripUnneded(const UpdateList &ul, ref<Expr> index) {
+  auto un = ul.head.get();
+  std::vector<Write> needed;
+
+  for (; un; un = un->next.get()) {
+    if (un->isSimple()) {
+      auto write = un->asSimple();
+      auto cond = EqExpr::create(index, write->index);
+      if (auto ce = dyn_cast<ConstantExpr>(cond)) {
+        if (ce->isTrue()) {
+          needed.push_back(*write);
+          break;
+        }
+      } else {
+        needed.push_back(*write);
+      }
     } else {
-      return ReadExpr::alloc(ul, index);
+      auto write = un->asRange();
+      auto neededOnly = stripUnneded(write->rangeList, index);
+      needed.push_back(RangeWrite(write->guard, neededOnly));
     }
   }
 
-  if (isa<ConstantSource>(ul.root->source) && !updateListHasSymbolicWrites) {
-    // No updates with symbolic index to a constant array have been found
-    if (ConstantExpr *CE = dyn_cast<ConstantExpr>(index)) {
-      assert(CE->getWidth() <= 64 && "Index too large");
-      ref<ConstantSource> constantSource =
-          cast<ConstantSource>(ul.root->source);
-      uint64_t concreteIndex = CE->getZExtValue();
-      if (auto value = constantSource->constantValues.load(concreteIndex)) {
-        return value;
-      }
-    }
+  UpdateList result(ul.root, nullptr);
+  for (auto it = needed.rbegin(); it != needed.rend(); ++it) {
+    result.extend(*it);
   }
 
-  // Now, no update with this concrete index exists
-  // Try to remove any most recent but unimportant updates
-  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(index)) {
-    if (ConstantExpr *arrayConstantSize =
-            dyn_cast<ConstantExpr>(ul.root->size)) {
-      assert(CE->getWidth() <= 64 && "Index too large");
-      uint64_t concreteIndex = CE->getZExtValue();
-      uint64_t size = arrayConstantSize->getZExtValue();
-      if (concreteIndex < size) {
-        // Create shortened update list
-        UpdateList newUpdateList(ul.root, un);
-        return ReadExpr::alloc(newUpdateList, index);
-      }
-    }
-  }
-
-  return ReadExpr::alloc(ul, index);
+  return result;
 }
 
 int ReadExpr::compareContents(const Expr &b) const {
