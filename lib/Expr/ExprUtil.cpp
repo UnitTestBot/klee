@@ -61,15 +61,32 @@ void klee::findReads(ref<Expr> e, bool visitUpdates,
         // especially since we memoize all the expr results anyway. So
         // we take a simple approach of memoizing the results for the
         // head, which often will be shared among multiple nodes.
-        if (updates.insert(re->updates.head.get()).second) {
-          for (const auto *un = re->updates.head.get(); un;
-               un = un->next.get()) {
-            if (!isa<ConstantExpr>(un->index) &&
-                visited.insert(un->index).second)
-              stack.push_back(un->index);
-            if (!isa<ConstantExpr>(un->value) &&
-                visited.insert(un->value).second)
-              stack.push_back(un->value);
+        std::vector<const UpdateNode *> ULStack;
+        ULStack.push_back(re->updates.head.get());
+        while (!ULStack.empty()) {
+          auto node = ULStack.back();
+          ULStack.pop_back();
+          if (updates.insert(node).second) {
+            for (const auto *un = node; un; un = un->next.get()) {
+              if (un->isSimple()) {
+                auto write = un->asSimple();
+                if (!isa<ConstantExpr>(write->index) &&
+                    visited.insert(write->index).second) {
+                  stack.push_back(write->index);
+                }
+                if (!isa<ConstantExpr>(write->value) &&
+                    visited.insert(write->value).second) {
+                  stack.push_back(write->value);
+                }
+              } else {
+                auto write = un->asRange();
+                ULStack.push_back(write->rangeList.head.get());
+                if (!isa<ConstantExpr>(write->guard.getBody()) &&
+                    visited.insert(write->guard.getBody()).second) {
+                  stack.push_back(write->guard.getBody()); // Except for param
+                }
+              }
+            }
           }
         }
       }
@@ -98,8 +115,15 @@ protected:
     visit(ul.root->getSize());
     // XXX should we memo better than what ExprVisitor is doing for us?
     for (const auto *un = ul.head.get(); un; un = un->next.get()) {
-      visit(un->index);
-      visit(un->value);
+      if (un->isSimple()) {
+        auto write = un->asSimple();
+        visit(write->index);
+        visit(write->value);
+      } else {
+        auto write = un->asRange();
+        visit(write->guard.getBody());
+        visit(ReadExpr::alloc(write->rangeList, ConstantExpr::create(0, 64))); // Hack
+      }
     }
 
     if (!findOnlySymbolicObjects || ul.root->isSymbolicArray())
@@ -130,8 +154,15 @@ ExprVisitor::Action ConstantArrayFinder::visitRead(const ReadExpr &re) {
   visit(ul.root->getSize());
   // FIXME should we memo better than what ExprVisitor is doing for us?
   for (const auto *un = ul.head.get(); un; un = un->next.get()) {
-    visit(un->index);
-    visit(un->value);
+    if (un->isSimple()) {
+      auto write = un->asSimple();
+      visit(write->index);
+      visit(write->value);
+    } else {
+      auto write = un->asRange();
+      visit(write->guard.getBody());
+      visit(ReadExpr::alloc(write->rangeList, ConstantExpr::create(0, 64))); // Hack
+    }
   }
 
   if (ul.root->isConstantArray()) {

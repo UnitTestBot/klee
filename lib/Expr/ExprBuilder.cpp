@@ -315,7 +315,7 @@ public:
   virtual ref<Expr> Read(const UpdateList &Updates, const ref<Expr> &Index) {
     // Roll back through writes when possible.
     auto UN = Updates.head;
-    while (UN && Eq(Index, UN->index)->isFalse())
+    while (UN && UN->isSimple() && Eq(Index, UN->asSimple()->index)->isFalse())
       UN = UN->next;
 
     if (ConstantExpr *CE = dyn_cast<ConstantExpr>(Index))

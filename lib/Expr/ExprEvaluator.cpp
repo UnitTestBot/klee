@@ -14,11 +14,13 @@ using namespace klee;
 ExprVisitor::Action ExprEvaluator::evalRead(const UpdateList &ul,
                                             unsigned index) {
   for (auto un = ul.head; un; un = un->next) {
-    ref<Expr> ui = visit(un->index);
+    assert(un->isSimple());
+    auto write = un->asSimple();
+    ref<Expr> ui = visit(write->index);
 
     if (ConstantExpr *CE = dyn_cast<ConstantExpr>(ui)) {
       if (CE->getZExtValue() == index)
-        return Action::changeTo(visit(un->value));
+        return Action::changeTo(visit(write->value));
     } else {
       // update index is unknown, so may or may not be index, we
       // cannot guarantee value. we can rewrite to read at this
