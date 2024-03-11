@@ -111,7 +111,7 @@ const UpdateList &ObjectState::getUpdates() const {
         if (isa<ConstantExpr>(value)) {
           values.store(i, cast<ConstantExpr>(value));
         } else {
-          symbolicUpdates.extend(ConstantExpr::create(i, Expr::Int32), value);
+          symbolicUpdates.extend(SimpleWrite(ConstantExpr::create(i, Expr::Int32), value));
         }
       }
       auto array = getArrayCache()->CreateArray(
@@ -140,7 +140,7 @@ void ObjectState::flushForRead() const {
     auto offset = unflushed.first;
     auto value = knownSymbolics.load(offset);
     assert(value);
-    updates.extend(ConstantExpr::create(offset, Expr::Int32), value);
+    updates.extend(SimpleWrite(ConstantExpr::create(offset, Expr::Int32), value));
   }
   unflushedMask.reset(false);
 }
@@ -213,7 +213,7 @@ void ObjectState::write8(ref<Expr> offset, ref<Expr> value) {
         object->size, allocInfo.c_str());
   }
 
-  updates.extend(ZExtExpr::create(offset, Expr::Int32), value);
+  updates.extend(SimpleWrite(ZExtExpr::create(offset, Expr::Int32), value));
 }
 
 void ObjectState::write(ref<const ObjectState> os) {
@@ -237,9 +237,13 @@ ref<Expr> ObjectState::read(ref<Expr> offset, Expr::Width width) const {
   if (width == Expr::Bool)
     return ExtractExpr::create(read8(offset), 0, Expr::Bool);
 
-  if (lastUpdate && lastUpdate->index == offset &&
-      lastUpdate->value->getWidth() == width)
-    return lastUpdate->value;
+  // Is lastUpdate just updates.head?
+  if (lastUpdate && lastUpdate->isSimple()) {
+    auto write = lastUpdate->asSimple();
+    if (write->index == offset && write->value->getWidth() == width) {
+      return write->value;
+    }
+  }
 
   // Otherwise, follow the slow general case.
   unsigned NumBytes = width / 8;
@@ -298,7 +302,7 @@ void ObjectState::write(ref<Expr> offset, ref<Expr> value) {
     write8(AddExpr::create(offset, ConstantExpr::create(idx, Expr::Int32)),
            ExtractExpr::create(value, 8 * i, Expr::Int8));
   }
-  lastUpdate = new UpdateNode(nullptr, offset, value);
+  lastUpdate = new UpdateNode(nullptr, SimpleWrite(offset, value));
 }
 
 void ObjectState::write(unsigned offset, ref<Expr> value) {
@@ -384,7 +388,12 @@ void ObjectState::print() const {
 
   llvm::errs() << "\tUpdates:\n";
   for (const auto *un = updates.head.get(); un; un = un->next.get()) {
-    llvm::errs() << "\t\t[" << un->index << "] = " << un->value << "\n";
+    if (un->isSimple()) {
+      auto write = un->asSimple();
+      llvm::errs() << "\t\t[" << write->index << "] = " << write->value << "\n";
+    } else {
+      llvm::errs() << "RangeWrite (TODO printing)\n";
+    }
   }
 }
 
