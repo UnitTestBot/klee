@@ -493,8 +493,8 @@ ExprHandle STPBuilder::getInitialRead(const Array *root, unsigned index) {
   // the oldest
   for (const auto &un :
        llvm::make_range(update_nodes.crbegin(), update_nodes.crend())) {
-    un_expr = vc_writeExpr(vc, un_expr, construct(un->index, 0),
-                           construct(un->value, 0));
+    un_expr = vc_writeExpr(vc, un_expr, construct(un->asSimple()->index, 0),
+                           construct(un->asSimple()->value, 0));
 
     _arr_hash.hashUpdateNodeExpr(un, un_expr);
   }
@@ -569,37 +569,44 @@ ExprHandle STPBuilder::constructActual(ref<Expr> e, int *width_out) {
   case Expr::Read: {
     ReadExpr *re = cast<ReadExpr>(e);
     assert(re && re->updates.root);
-    *width_out = re->updates.root->getRange();
 
-    if (auto constantSource =
-            dyn_cast<ConstantSource>(re->updates.root->source)) {
-      if (!isa<ConstantExpr>(re->updates.root->size)) {
-        ref<Expr> selectExpr = constantSource->constantValues.defaultV();
-        for (const auto &[index, value] :
-             constantSource->constantValues.storage()) {
-          selectExpr = SelectExpr::create(
-              EqExpr::create(re->index, ConstantExpr::create(
-                                            index, re->index->getWidth())),
-              value, selectExpr);
-        }
-        std::vector<const UpdateNode *> update_nodes;
-        auto un = re->updates.head.get();
-        for (; un; un = un->next.get()) {
-          update_nodes.push_back(un);
-        }
+    if (re->updates.isSimple) {
+      *width_out = re->updates.root->getRange();
 
-        for (auto it = update_nodes.rbegin(); it != update_nodes.rend(); ++it) {
-          selectExpr =
-              SelectExpr::create(EqExpr::create(re->index, (*it)->index),
-                                 (*it)->value, selectExpr);
+      if (auto constantSource =
+              dyn_cast<ConstantSource>(re->updates.root->source)) {
+        if (!isa<ConstantExpr>(re->updates.root->size)) {
+          ref<Expr> selectExpr = constantSource->constantValues.defaultV();
+          for (const auto &[index, value] :
+               constantSource->constantValues.storage()) {
+            selectExpr = SelectExpr::create(
+                EqExpr::create(re->index, ConstantExpr::create(
+                                              index, re->index->getWidth())),
+                value, selectExpr);
+          }
+          std::vector<const UpdateNode *> update_nodes;
+          auto un = re->updates.head.get();
+          for (; un; un = un->next.get()) {
+            update_nodes.push_back(un);
+          }
+
+          for (auto it = update_nodes.rbegin(); it != update_nodes.rend();
+               ++it) {
+            selectExpr =
+                SelectExpr::create(EqExpr::create(re->index, (*it)->asSimple()->index),
+                                   (*it)->asSimple()->value, selectExpr);
+          }
+          return construct(selectExpr, width_out);
         }
-        return construct(selectExpr, width_out);
       }
-    }
 
-    return vc_readExpr(
-        vc, getArrayForUpdate(re->updates.root, re->updates.head.get()),
-        construct(re->index, 0));
+      return vc_readExpr(
+          vc, getArrayForUpdate(re->updates.root, re->updates.head.get()),
+          construct(re->index, 0));
+    } else {
+      auto select = rangesToSelect(re->updates.flatten(), re->index);
+      return construct(select, width_out);
+    }
   }
 
   case Expr::Select: {

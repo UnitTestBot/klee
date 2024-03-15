@@ -79,9 +79,18 @@ ConstantArrayExprVisitor::visitConcat(const ConcatExpr &ce) {
 ExprVisitor::Action ConstantArrayExprVisitor::visitRead(const ReadExpr &re) {
   // It is an interesting ReadExpr if it contains a concrete array
   // that is read at a symbolic index
-  if (re.updates.root->isConstantArray() && !isa<ConstantExpr>(re.index)) {
-    for (const auto *un = re.updates.head.get(); un; un = un->next.get()) {
-      if (!isa<ConstantExpr>(un->index) || !isa<ConstantExpr>(un->value)) {
+
+  if (!isa<ConstantExpr>(re.updates.root->size)) {
+    incompatible = true;
+  } else if (re.updates.root->isConstantArray() &&
+             !isa<ConstantExpr>(re.index)) {
+    for (auto *un = re.updates.head.get(); un; un = un->next.get()) {
+      if (!un->isSimple()) {
+        incompatible = true;
+        return Action::skipChildren();
+      }
+      auto write = un->asSimple();
+      if (!isa<ConstantExpr>(write->index) || !isa<ConstantExpr>(write->value)) {
         incompatible = true;
         return Action::skipChildren();
       }
@@ -177,7 +186,9 @@ ExprVisitor::Action ArrayReadExprVisitor::inspectRead(ref<Expr> hash,
                                                       Expr::Width width,
                                                       const ReadExpr &re) {
   // pre(*): index is symbolic
-  if (!isa<ConstantExpr>(re.index)) {
+  if (!isa<ConstantExpr>(re.updates.root->size)) {
+    incompatible = true;
+  } else if (!isa<ConstantExpr>(re.index)) {
     if (readInfo.find(&re) == readInfo.end()) {
       if (re.updates.root->isSymbolicArray() && !re.updates.head) {
         return Action::doChildren();
@@ -185,17 +196,22 @@ ExprVisitor::Action ArrayReadExprVisitor::inspectRead(ref<Expr> hash,
       if (re.updates.head) {
         // Check preconditions on UpdateList nodes
         bool hasConcreteValues = false;
-        for (const auto *un = re.updates.head.get(); un; un = un->next.get()) {
+        for (auto *un = re.updates.head.get(); un; un = un->next.get()) {
+          if (!un->isSimple()) {
+            incompatible = true;
+            return Action::skipChildren();
+          }
+          auto write = un->asSimple();
           // Symbolic case - \inv(update): index is concrete
-          if (!isa<ConstantExpr>(un->index)) {
+          if (!isa<ConstantExpr>(write->index)) {
             incompatible = true;
             break;
-          } else if (!isa<ConstantExpr>(un->value)) {
+          } else if (!isa<ConstantExpr>(write->value)) {
             // We tell the optimization that there is a symbolic value,
             // otherwise we rely on the concrete optimization procedure
             symbolic = true;
           } else if (re.updates.root->isSymbolicArray() &&
-                     isa<ConstantExpr>(un->value)) {
+                     isa<ConstantExpr>(write->value)) {
             // We can optimize symbolic array, but only if they have
             // at least one concrete value
             hasConcreteValues = true;

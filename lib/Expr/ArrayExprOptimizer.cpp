@@ -307,11 +307,13 @@ ref<Expr> ExprOptimizer::getSelectOptExpr(
       }
       for (auto it = us.rbegin(); it != us.rend(); it++) {
         const UpdateNode *un = *it;
-        auto ce = dyn_cast<ConstantExpr>(un->index);
+        assert(un->isSimple());
+        auto write = un->asSimple();
+        auto ce = dyn_cast<ConstantExpr>(write->index);
         assert(ce && "Not a constant expression");
         uint64_t index = ce->getAPValue().getZExtValue();
         assert(index < arrayConstValues.size());
-        auto arrayValue = dyn_cast<ConstantExpr>(un->value);
+        auto arrayValue = dyn_cast<ConstantExpr>(write->value);
         assert(arrayValue && "Not a constant expression");
         arrayConstValues[index] = arrayValue;
       }
@@ -398,14 +400,16 @@ ref<Expr> ExprOptimizer::getSelectOptExpr(
 
       for (auto it = us.rbegin(); it != us.rend(); it++) {
         const UpdateNode *un = *it;
-        auto ce = dyn_cast<ConstantExpr>(un->index);
+        assert(un->isSimple());
+        auto write = un->asSimple();
+        auto ce = dyn_cast<ConstantExpr>(write->index);
         assert(ce && "Not a constant expression");
         uint64_t index = ce->getAPValue().getLimitedValue();
-        if (!isa<ConstantExpr>(un->value)) {
+        if (!isa<ConstantExpr>(write->value)) {
           ba.set(index);
         } else {
           ba.unset(index);
-          auto arrayValue = dyn_cast<ConstantExpr>(un->value);
+          auto arrayValue = dyn_cast<ConstantExpr>(write->value);
           assert(arrayValue && "Not a constant expression");
           arrayConstValues[index] = arrayValue;
         }

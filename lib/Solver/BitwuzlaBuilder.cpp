@@ -425,7 +425,7 @@ Term BitwuzlaBuilder::getArrayForUpdate(const Array *root,
   for (const auto &un :
        llvm::make_range(update_nodes.crbegin(), update_nodes.crend())) {
     un_expr =
-        writeExpr(un_expr, construct(un->index, 0), construct(un->value, 0));
+        writeExpr(un_expr, construct(un->asSimple()->index, 0), construct(un->asSimple()->value, 0));
 
     _arr_hash.hashUpdateNodeExpr(un, un_expr);
   }
@@ -504,9 +504,15 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
   case Expr::Read: {
     ReadExpr *re = cast<ReadExpr>(e);
     assert(re && re->updates.root);
+
+    if (re->updates.isSimple) {
     *width_out = re->updates.root->getRange();
     return readExpr(getArrayForUpdate(re->updates.root, re->updates.head.get()),
                     construct(re->index, 0));
+    } else {
+      auto select = rangesToSelect(re->updates.flatten(), re->index);
+      return construct(select, width_out);
+    }
   }
 
   case Expr::Select: {

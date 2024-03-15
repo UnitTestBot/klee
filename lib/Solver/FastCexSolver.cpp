@@ -875,15 +875,19 @@ public:
       CexValueData index = evalRangeForExpr(re->index);
 
       for (const auto *un = re->updates.head.get(); un; un = un->next.get()) {
-        CexValueData ui = evalRangeForExpr(un->index);
+        if (!un->isSimple()) {
+          return; // What to do?
+        }
+
+        CexValueData ui = evalRangeForExpr(un->asSimple()->index);
 
         // If these indices can't alias, continue propagation
         if (!ui.mayEqual(index))
           continue;
 
         // Otherwise if we know they alias, propagate into the write value.
-        if (ui.mustEqual(index) || re->index == un->index)
-          propagateExactValues(un->value, range);
+        if (ui.mustEqual(index) || re->index == un->asSimple()->index)
+          propagateExactValues(un->asSimple()->value, range);
         return;
       }
 
