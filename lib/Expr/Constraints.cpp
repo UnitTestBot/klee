@@ -47,29 +47,6 @@ llvm::cl::opt<RewriteEqualitiesPolicy> RewriteEqualities(
     llvm::cl::init(RewriteEqualitiesPolicy::Simple), llvm::cl::cat(SolvingCat));
 } // namespace
 
-class ExprReplaceVisitor : public ExprVisitor {
-private:
-  ref<Expr> src, dst;
-
-public:
-  ExprReplaceVisitor(const ref<Expr> &_src, const ref<Expr> &_dst)
-      : src(_src), dst(_dst) {}
-
-  Action visitExpr(const Expr &e) override {
-    if (e == *src) {
-      return Action::changeTo(dst);
-    }
-    return Action::doChildren();
-  }
-
-  Action visitExprPost(const Expr &e) override {
-    if (e == *src) {
-      return Action::changeTo(dst);
-    }
-    return Action::doChildren();
-  }
-};
-
 class ExprReplaceVisitor2 : public ExprVisitor {
 private:
   std::vector<std::reference_wrapper<const ExprHashMap<ref<Expr>>>>
