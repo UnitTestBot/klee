@@ -1180,33 +1180,28 @@ ref<ConstantExpr> ConstantExpr::GetNaN(Expr::Width w) {
   switch (w) {
   case Int16: {
     apint = llvm::APInt(/*numBits=*/16, (uint64_t)0x7c01, /*isSigned=*/false);
-    sem = &(LLVMFltSemantics(IEEEhalf));
     break;
   }
   case Int32: {
     apint =
         llvm::APInt(/*numBits=*/32, (uint64_t)0x7f800001, /*isSigned=*/false);
-    sem = &(LLVMFltSemantics(IEEEsingle));
     break;
   }
   case Int64: {
     apint = llvm::APInt(/*numBits=*/64, (uint64_t)0x7ff0000000000001,
                         /*isSigned=*/false);
-    sem = &(LLVMFltSemantics(IEEEdouble));
     break;
   }
   case Fl80: {
     // 0x7FFF8000000000000001
     uint64_t temp[] = {0x8000000000000001, (uint64_t)0x7FFF};
     apint = llvm::APInt(/*numBits=*/80, temp);
-    sem = &(LLVMFltSemantics(x87DoubleExtended));
     break;
   }
   case Int128: {
     // 0x7FFF0000000000000000000000000001
     uint64_t temp[] = {0x0000000000000001, 0x7FFF000000000000};
     apint = llvm::APInt(/*numBits=*/128, temp);
-    sem = &(LLVMFltSemantics(IEEEquad));
     break;
   }
   default: {

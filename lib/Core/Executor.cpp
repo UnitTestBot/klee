@@ -489,9 +489,9 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
                    InterpreterHandler *ih)
     : Interpreter(opts), interpreterHandler(ih), searcher(nullptr),
       externalDispatcher(new ExternalDispatcher(ctx)), statsTracker(0),
-      pathWriter(0), symPathWriter(0),
-      specialFunctionHandler(0), timers{time::Span(TimerInterval)},
-      guidanceKind(opts.Guidance), codeGraphInfo(new CodeGraphInfo()),
+      pathWriter(0), symPathWriter(0), specialFunctionHandler(0),
+      timers{time::Span(TimerInterval)}, guidanceKind(opts.Guidance),
+      codeGraphInfo(new CodeGraphInfo()),
       distanceCalculator(new DistanceCalculator(*codeGraphInfo)),
       targetCalculator(new TargetCalculator(*codeGraphInfo)),
       targetManager(new TargetManager(guidanceKind, *distanceCalculator,
@@ -7252,8 +7252,7 @@ void Executor::logState(const ExecutionState &state, int id,
     object.first->getSizeExpr()->print(*f);
     *f << "\n";
   }
-  *f << state.symbolics.size() << " symbolics total. "
-     << "Symbolics:\n";
+  *f << state.symbolics.size() << " symbolics total. " << "Symbolics:\n";
   size_t sc = 0;
   for (const auto &symbolic : state.symbolics) {
     *f << "Symbolic number " << sc++ << "\n";
