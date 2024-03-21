@@ -403,7 +403,7 @@ void PathConstraints::advancePath(KInstruction *ki) { _path.advance(ki); }
 ExprHashSet PathConstraints::addConstraint(ref<Expr> e,
                                            Path::PathIndex currIndex) {
   auto expr = Simplificator::simplifyExpr(constraints, e);
-  if (auto ce = dyn_cast<ConstantExpr>(expr.simplified)) {
+  if (isa<ConstantExpr>(expr.simplified)) {
     assert(ce->isTrue() && "Attempt to add invalid constraint");
     return {};
   }
@@ -411,7 +411,7 @@ ExprHashSet PathConstraints::addConstraint(ref<Expr> e,
   std::vector<ref<Expr>> exprs;
   Expr::splitAnds(expr.simplified, exprs);
   for (auto expr : exprs) {
-    if (auto ce = dyn_cast<ConstantExpr>(expr)) {
+    if (isa<ConstantExpr>(expr)) {
       assert(ce->isTrue() && "Expression simplified to false");
     } else {
       _original.insert(expr);

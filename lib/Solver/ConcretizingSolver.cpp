@@ -172,7 +172,7 @@ bool ConcretizingSolver::getBrokenArrays(
   }
 
   ValidityCore validityCore;
-  bool success = result->tryGetValidityCore(validityCore);
+  [[maybe_unused]] bool success = result->tryGetValidityCore(validityCore);
   assert(success);
 
   constraints_ty allValidityCoreConstraints = validityCore.constraints;
@@ -500,7 +500,7 @@ bool ConcretizingSolver::computeValidityCore(const Query &query,
       cache.insert(key, assign);
       isValid = false;
     } else {
-      bool success = result->tryGetValidityCore(validityCore);
+      [[maybe_unused]] bool success = result->tryGetValidityCore(validityCore);
       assert(success);
     }
   }

@@ -349,12 +349,13 @@ Function *ExternalDispatcherImpl::createDispatcher(KCallable *target,
         target->getName(), FTy, func->function()->getAttributes());
     result = Builder.CreateCall(dispatchTarget,
                                 llvm::ArrayRef<Value *>(args, args + i));
-  } else if (auto *asmValue = dyn_cast<KInlineAsm>(target)) {
+  } else {
+    auto *asmValue = dyn_cast<KInlineAsm>(target);
+    assert(asmValue && "Unhandled KCallable type");
     result = Builder.CreateCall(asmValue->inlineAsm(),
                                 llvm::ArrayRef<Value *>(args, args + i));
-  } else {
-    assert(0 && "Unhandled KCallable derived class");
   }
+
   if (result->getType() != Type::getVoidTy(ctx)) {
     auto resp = Builder.CreateBitCast(
         argI64s, PointerType::getUnqual(result->getType()));

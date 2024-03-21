@@ -33,8 +33,6 @@ llvm::cl::opt<TrackCoverageBy> TrackCoverage(
     cl::init(TrackCoverageBy::None), cl::cat(ExecCat));
 
 void TargetCalculator::update(const ExecutionState &state) {
-  Function *initialFunction = state.getInitPCBlock()->getParent();
-
   if (state.prevPC == state.prevPC->parent->getLastInstruction() &&
       !fullyCoveredFunctions.count(state.pc->parent->parent)) {
     auto &fBranches = getCoverageTargets(state.pc->parent->parent);

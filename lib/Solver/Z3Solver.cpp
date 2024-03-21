@@ -153,7 +153,7 @@ struct Z3SolverEnv {
   inc_umap<const Array *, ExprHashSet> usedArrayBytes;
   ExprIncSet symbolicObjects;
 
-  explicit Z3SolverEnv(){};
+  explicit Z3SolverEnv() {};
   explicit Z3SolverEnv(const arr_vec &objects);
 
   void pop(size_t popSize);
@@ -200,12 +200,13 @@ void Z3SolverEnv::clear() {
 const Z3SolverEnv::arr_vec *
 Z3SolverEnv::getObjectsForGetModel(ObjectAssignment oa) const {
   switch (oa) {
-  case ObjectAssignment::NotNeeded:
-    return nullptr;
   case ObjectAssignment::NeededForObjectsFromEnv:
     return &objectsForGetModel;
   case ObjectAssignment::NeededForObjectsFromQuery:
     return &objects.v;
+  case ObjectAssignment::NotNeeded:
+  default:
+    return nullptr;
   }
 }
 
@@ -695,12 +696,10 @@ SolverImpl::SolverRunStatus Z3SolverImpl::handleSolverResponse(
       Z3_model_eval(builder->ctx, theModel, builder->construct(array->size),
                     Z3_TRUE, &arraySizeExpr);
       Z3_inc_ref(builder->ctx, arraySizeExpr);
-      ::Z3_ast_kind arraySizeExprKind =
-          Z3_get_ast_kind(builder->ctx, arraySizeExpr);
       assert(arraySizeExprKind == Z3_NUMERAL_AST &&
              "Evaluated size expression has wrong sort");
       uint64_t arraySize = 0;
-      bool success =
+      [[maybe_unused]] bool success =
           Z3_get_numeral_uint64(builder->ctx, arraySizeExpr, &arraySize);
       assert(success && "Failed to get size");
 
@@ -711,14 +710,13 @@ SolverImpl::SolverRunStatus Z3SolverImpl::handleSolverResponse(
           Z3_model_eval(builder->ctx, theModel, builder->construct(offsetExpr),
                         Z3_TRUE, &arrayElementOffsetExpr);
           Z3_inc_ref(builder->ctx, arrayElementOffsetExpr);
-          ::Z3_ast_kind arrayElementOffsetExprKind =
-              Z3_get_ast_kind(builder->ctx, arrayElementOffsetExpr);
           assert(arrayElementOffsetExprKind == Z3_NUMERAL_AST &&
                  "Evaluated size expression has wrong sort");
           uint64_t concretizedOffsetValue = 0;
-          bool success = Z3_get_numeral_uint64(
-              builder->ctx, arrayElementOffsetExpr, &concretizedOffsetValue);
-          assert(success && "Failed to get size");
+          if (!Z3_get_numeral_uint64(builder->ctx, arrayElementOffsetExpr,
+                                     &concretizedOffsetValue)) {
+            return SolverImpl::SOLVER_RUN_STATUS_FAILURE;
+          }
           offsetValues.insert(concretizedOffsetValue);
           Z3_dec_ref(builder->ctx, arrayElementOffsetExpr);
         }
@@ -728,19 +726,20 @@ SolverImpl::SolverRunStatus Z3SolverImpl::handleSolverResponse(
           ::Z3_ast arrayElementExpr;
           Z3ASTHandle initial_read = builder->getInitialRead(array, offset);
 
-          __attribute__((unused)) bool successfulEval =
-              Z3_model_eval(builder->ctx, theModel, initial_read,
-                            /*model_completion=*/Z3_TRUE, &arrayElementExpr);
-          assert(successfulEval && "Failed to evaluate model");
+          if (!Z3_model_eval(builder->ctx, theModel, initial_read,
+                             /*model_completion=*/Z3_TRUE, &arrayElementExpr)) {
+            return SolverImpl::SOLVER_RUN_STATUS_FAILURE;
+          }
           Z3_inc_ref(builder->ctx, arrayElementExpr);
           assert(Z3_get_ast_kind(builder->ctx, arrayElementExpr) ==
                      Z3_NUMERAL_AST &&
                  "Evaluated expression has wrong sort");
 
           int arrayElementValue = 0;
-          __attribute__((unused)) bool successGet = Z3_get_numeral_int(
-              builder->ctx, arrayElementExpr, &arrayElementValue);
-          assert(successGet && "failed to get value back");
+          if (!Z3_get_numeral_int(builder->ctx, arrayElementExpr,
+                                  &arrayElementValue)) {
+            return SolverImpl::SOLVER_RUN_STATUS_FAILURE;
+          }
           assert(arrayElementValue >= 0 && arrayElementValue <= 255 &&
                  "Integer from model is out of range");
           data.store(offset, arrayElementValue);
@@ -1069,7 +1068,7 @@ private:
 
 public:
   Z3TreeSolverImpl(Z3BuilderType type, size_t maxSolvers)
-      : Z3SolverImpl(type), maxSolvers(maxSolvers){};
+      : Z3SolverImpl(type), maxSolvers(maxSolvers) {};
 
   /// implementation of Z3SolverImpl interface
   Z3_solver initNativeZ3(const ConstraintQuery &query,

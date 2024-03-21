@@ -676,6 +676,7 @@ void ConstantExpr::toMemory(void *address) {
   case Expr::Int256:
   case Expr::Int512:
     memcpy(address, value.getRawData(), width / 8);
+    break;
   // FIXME: what about machines without x87 support?
   case Expr::Fl80:
     *((long double *)address) = *(const long double *)value.getRawData();
@@ -698,7 +699,6 @@ void ConstantExpr::toString(std::string &Res, unsigned radix) const {
     }
     case 16: {
       // Emit C99 Hex float
-      unsigned count = 0;
       // Example format is -0x1.000p+4
       // The total number of characters needed is approximately
       //
@@ -1179,37 +1179,31 @@ ref<ConstantExpr> ConstantExpr::GetNaN(Expr::Width w) {
   // These values have been chosen to be consistent with Z3 when
   // rewriter.hi_fp_unspecified=false
   llvm::APInt apint;
-  const llvm::fltSemantics *sem;
   switch (w) {
   case Int16: {
     apint = llvm::APInt(/*numBits=*/16, (uint64_t)0x7c01, /*isSigned=*/false);
-    sem = &(LLVMFltSemantics(IEEEhalf));
     break;
   }
   case Int32: {
     apint =
         llvm::APInt(/*numBits=*/32, (uint64_t)0x7f800001, /*isSigned=*/false);
-    sem = &(LLVMFltSemantics(IEEEsingle));
     break;
   }
   case Int64: {
     apint = llvm::APInt(/*numBits=*/64, (uint64_t)0x7ff0000000000001,
                         /*isSigned=*/false);
-    sem = &(LLVMFltSemantics(IEEEdouble));
     break;
   }
   case Fl80: {
     // 0x7FFF8000000000000001
     uint64_t temp[] = {0x8000000000000001, (uint64_t)0x7FFF};
     apint = llvm::APInt(/*numBits=*/80, temp);
-    sem = &(LLVMFltSemantics(x87DoubleExtended));
     break;
   }
   case Int128: {
     // 0x7FFF0000000000000000000000000001
     uint64_t temp[] = {0x0000000000000001, 0x7FFF000000000000};
     apint = llvm::APInt(/*numBits=*/128, temp);
-    sem = &(LLVMFltSemantics(IEEEquad));
     break;
   }
   }
@@ -1582,7 +1576,7 @@ ref<Expr> ReadExpr::create(const UpdateList &ul, ref<Expr> index, bool safe) {
 
   // So that we return weird stuff like reads from consts that should have
   // simplified to constant exprs if we read beyond size boundary.
-  if (ConstantSource *source = dyn_cast<ConstantSource>(ul.root->source)) {
+  if (isa<ConstantSource>(ul.root->source)) {
     if (auto arraySizeExpr = dyn_cast<ConstantExpr>(ul.root->size)) {
       if (auto indexExpr = dyn_cast<ConstantExpr>(index)) {
         auto arraySize = arraySizeExpr->getZExtValue();

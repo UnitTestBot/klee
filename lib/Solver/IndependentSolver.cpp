@@ -284,8 +284,9 @@ bool IndependentSolver::check(const Query &query, ref<SolverResponse> &result) {
       result = dependentFactorsResult;
       return true;
     } else {
-      bool success = dependentFactorsResult->tryGetInitialValuesFor(
-          dependentFactorsObjects, dependentFactorsValues);
+      [[maybe_unused]] bool success =
+          dependentFactorsResult->tryGetInitialValuesFor(
+              dependentFactorsObjects, dependentFactorsValues);
       assert(success && "Can not get initial values (Independent solver)!");
       retMap = Assignment(dependentFactorsObjects, dependentFactorsValues);
     }
@@ -315,7 +316,7 @@ bool IndependentSolver::check(const Query &query, ref<SolverResponse> &result) {
       result = tempResult;
       return true;
     } else {
-      bool success =
+      [[maybe_unused]] bool success =
           tempResult->tryGetInitialValuesFor(arraysInFactor, tempValues);
       assert(success && "Can not get initial values (Independent solver)!");
       assert(tempValues.size() == arraysInFactor.size() &&
@@ -328,7 +329,7 @@ bool IndependentSolver::check(const Query &query, ref<SolverResponse> &result) {
   }
   result = new InvalidResponse(retMap.bindings);
   Assignment::bindings_ty bindings;
-  bool success = result->tryGetInitialValues(bindings);
+  [[maybe_unused]] bool success = result->tryGetInitialValues(bindings);
   assert(success);
   assert(assertCreatedPointEvaluatesToTrue(query, bindings, retMap.bindings) &&
          "should satisfy the equation");
