@@ -85,6 +85,8 @@ enum class StateTerminationType : std::uint8_t {
   /// \endcond
 };
 
+enum StateTerminationConfidenceCategory { CONFIDENT, PROBABLY };
+
 namespace HaltExecution {
 enum Reason {
   NotHalt = 0,

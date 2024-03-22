@@ -152,6 +152,10 @@ public:
   /// @brief ID for this error.
   const StateTerminationType ruleID;
 
+  /// @brief Confidence of this error: may be considered
+  /// as a flag of `true positive` error for instance.
+  const StateTerminationConfidenceCategory confidence;
+
   /// @brief Message describing this error.
   const std::string message;
 
@@ -161,14 +165,17 @@ public:
   const std::optional<ref<CodeEvent>> source;
 
   ErrorEvent(const ref<CodeEvent> &source, const ref<CodeLocation> &sink,
-             StateTerminationType ruleID, const std::string &message)
-      : CodeEvent(EventKind::ERR, sink), ruleID(ruleID), message(message),
-        source(source) {}
+             StateTerminationType ruleID,
+             StateTerminationConfidenceCategory confidence,
+             const std::string &message)
+      : CodeEvent(EventKind::ERR, sink), ruleID(ruleID), confidence(confidence),
+        message(message), source(source) {}
 
   ErrorEvent(const ref<CodeLocation> &sink, StateTerminationType ruleID,
+             StateTerminationConfidenceCategory confidence,
              const std::string &message)
-      : CodeEvent(EventKind::ERR, sink), ruleID(ruleID), message(message),
-        source(std::nullopt) {}
+      : CodeEvent(EventKind::ERR, sink), ruleID(ruleID), confidence(confidence),
+        message(message), source(std::nullopt) {}
 
   std::string description() const override { return message; }
 

@@ -40,6 +40,7 @@
 #include "klee/Config/config.h"
 #include "klee/Core/Interpreter.h"
 #include "klee/Core/MockBuilder.h"
+#include "klee/Core/TerminationTypes.h"
 #include "klee/Expr/ArrayExprOptimizer.h"
 #include "klee/Expr/ArrayExprVisitor.h"
 #include "klee/Expr/Assignment.h"
@@ -61,6 +62,7 @@
 #include "klee/Solver/Common.h"
 #include "klee/Solver/Solver.h"
 #include "klee/Solver/SolverCmdLine.h"
+#include "klee/Solver/SolverUtil.h"
 #include "klee/Statistics/TimerStatIncrementer.h"
 #include "klee/Support/Casting.h"
 #include "klee/Support/ErrorHandling.h"
@@ -2721,6 +2723,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       if (bi->getMetadata("md.ret")) {
         state.stack.forceReturnLocation(locationOf(state));
       }
+      state.lastBrConfidently = true;
 
       transferToBasicBlock(bi->getSuccessor(0), bi->getParent(), state);
     } else {
@@ -2740,6 +2743,15 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
         maxNewStateStackSize =
             std::max(maxNewStateStackSize,
                      branches.first->stack.stackRegisterSize() * 8);
+        branches.first->lastBrConfidently = false;
+        branches.second->lastBrConfidently = false;
+      } else {
+        if (branches.first) {
+          branches.first->lastBrConfidently = true;
+        }
+        if (branches.second) {
+          branches.second->lastBrConfidently = true;
+        }
       }
 
       // NOTE: There is a hidden dependency here, markBranchVisited
@@ -4013,6 +4025,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       terminateStateOnProgramError(
           state, new ErrorEvent(locationOf(state),
                                 StateTerminationType::BadVectorAccess,
+                                StateTerminationConfidenceCategory::CONFIDENT,
                                 "Out of bounds write when inserting element"));
       return;
     }
@@ -4056,6 +4069,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       terminateStateOnProgramError(
           state, new ErrorEvent(locationOf(state),
                                 StateTerminationType::BadVectorAccess,
+                                StateTerminationConfidenceCategory::CONFIDENT,
                                 "Out of bounds read when extracting element"));
       return;
     }
@@ -4940,28 +4954,42 @@ void Executor::terminateStateOnTargetError(ExecutionState &state,
     terminationType = StateTerminationType::User;
   }
   terminateStateOnProgramError(
-      state, new ErrorEvent(locationOf(state), terminationType, messaget));
+      state,
+      new ErrorEvent(locationOf(state), terminationType,
+                     StateTerminationConfidenceCategory::CONFIDENT, messaget));
 }
 
-void Executor::terminateStateOnError(ExecutionState &state,
-                                     const llvm::Twine &messaget,
-                                     StateTerminationType terminationType,
-                                     const llvm::Twine &info,
-                                     const char *suffix) {
+void Executor::terminateStateOnError(
+    ExecutionState &state, const llvm::Twine &messaget,
+    StateTerminationType terminationType,
+    StateTerminationConfidenceCategory confidence, const llvm::Twine &info,
+    const char *suffix) {
   std::string message = messaget.str();
-  static std::set<std::pair<Instruction *, std::string>> emittedErrors;
+  static std::set<
+      std::pair<Instruction *,
+                std::pair<StateTerminationConfidenceCategory, std::string>>>
+      emittedErrors;
   const KInstruction *ki = getLastNonKleeInternalInstruction(state);
   Instruction *lastInst = ki->inst();
 
-  if ((EmitAllErrors ||
-       emittedErrors.insert(std::make_pair(lastInst, message)).second) &&
+  if ((EmitAllErrors || emittedErrors
+                            .insert(std::make_pair(
+                                lastInst, std::make_pair(confidence, message)))
+                            .second) &&
       shouldWriteTest(state, true)) {
     std::string filepath = ki->getSourceFilepath();
+
+    std::string prefix =
+        (confidence == StateTerminationConfidenceCategory::CONFIDENT
+             ? "ERROR"
+             : "POSSIBLE ERROR");
+
     if (!filepath.empty()) {
-      klee_message("ERROR: %s:%zu: %s", filepath.c_str(), ki->getLine(),
-                   message.c_str());
+      klee_message((prefix + ": %s:%zu: %s").c_str(), filepath.c_str(),
+                   ki->getLine(), message.c_str());
     } else {
-      klee_message("ERROR: (location information missing) %s", message.c_str());
+      klee_message((prefix + ": (location information missing) %s").c_str(),
+                   message.c_str());
     }
     if (!EmitAllErrors)
       klee_message("NOTE: now ignoring this error at this location");
@@ -5007,7 +5035,8 @@ void Executor::terminateStateOnExecError(ExecutionState &state,
   assert(reason > StateTerminationType::USERERR &&
          reason <= StateTerminationType::EXECERR);
   ++stats::terminationExecutionError;
-  terminateStateOnError(state, message, reason, "");
+  terminateStateOnError(state, message, reason,
+                        StateTerminationConfidenceCategory::CONFIDENT, "");
 }
 
 void Executor::terminateStateOnProgramError(ExecutionState &state,
@@ -5032,19 +5061,22 @@ void Executor::terminateStateOnProgramError(ExecutionState &state,
   }
   state.eventsRecorder.record(reason);
 
-  terminateStateOnError(state, reason->message, reason->ruleID, info, suffix);
+  terminateStateOnError(state, reason->message, reason->ruleID,
+                        reason->confidence, info, suffix);
 }
 
 void Executor::terminateStateOnSolverError(ExecutionState &state,
                                            const llvm::Twine &message) {
   ++stats::terminationSolverError;
-  terminateStateOnError(state, message, StateTerminationType::Solver, "");
+  terminateStateOnError(state, message, StateTerminationType::Solver,
+                        StateTerminationConfidenceCategory::CONFIDENT, "");
 }
 
 void Executor::terminateStateOnUserError(ExecutionState &state,
                                          const llvm::Twine &message) {
   ++stats::terminationUserError;
-  terminateStateOnError(state, message, StateTerminationType::User, "");
+  terminateStateOnError(state, message, StateTerminationType::User,
+                        StateTerminationConfidenceCategory::CONFIDENT, "");
 }
 
 // XXX shoot me
@@ -5222,6 +5254,7 @@ void Executor::callExternalFunction(ExecutionState &state, KInstruction *target,
         e->getWidth() == Context::get().getPointerWidth()) {
       ref<Expr> symExternCallsCanReturnNullExpr =
           makeMockValue(state, "symExternCallsCanReturnNull", Expr::Bool);
+      state.nullPointerMarkers.push_back(symExternCallsCanReturnNullExpr);
       e = SelectExpr::create(
           symExternCallsCanReturnNullExpr,
           ConstantExpr::alloc(0, Context::get().getPointerWidth()), e);
@@ -5347,6 +5380,7 @@ void Executor::executeAlloc(ExecutionState &state, ref<Expr> size, bool isLocal,
             makeMockValue(state, "symCheckOutOfMemory", Expr::Bool);
         address = SelectExpr::create(symCheckOutOfMemoryExpr,
                                      Expr::createPointer(0), address);
+        state.nullPointerMarkers.push_back(symCheckOutOfMemoryExpr);
       }
 
       // state.addPointerResolution(address, mo);
@@ -5392,13 +5426,22 @@ void Executor::executeFree(ExecutionState &state, ref<Expr> address,
             *it->second,
             new ErrorEvent(new AllocEvent(mo->allocSite),
                            locationOf(*it->second), StateTerminationType::Free,
+                           rl.size() != 1
+                               ? StateTerminationConfidenceCategory::PROBABLY
+                               : StateTerminationConfidenceCategory::CONFIDENT,
                            "free of alloca"),
             getAddressInfo(*it->second, address));
       } else if (mo->isGlobal) {
+        if (rl.size() != 1) {
+          klee_warning("Following error if likely false positive");
+        }
         terminateStateOnProgramError(
             *it->second,
             new ErrorEvent(new AllocEvent(mo->allocSite),
                            locationOf(*it->second), StateTerminationType::Free,
+                           rl.size() != 1
+                               ? StateTerminationConfidenceCategory::PROBABLY
+                               : StateTerminationConfidenceCategory::CONFIDENT,
                            "free of global"),
             getAddressInfo(*it->second, address));
       } else {
@@ -5409,6 +5452,99 @@ void Executor::executeFree(ExecutionState &state, ref<Expr> address,
       }
     }
   }
+}
+
+ExecutionState *Executor::handleNullPointerException(ExecutionState &state,
+                                                     ref<Expr> base) {
+  StatePair branches =
+      forkInternal(state, Expr::createIsZero(base), BranchType::MemOp);
+  ExecutionState *bound = branches.first;
+  if (!bound) {
+    return branches.second;
+  }
+
+  // If there are no markers on `malloc` returning nullptr,
+  // then `confidence` depends on presence of `unbound` state.
+  if (!bound->nullPointerMarkers.empty()) {
+    // bound constraints already contain `Expr::createIsZero()`
+    std::vector<const Array *> markersArrays;
+    markersArrays.reserve(bound->nullPointerMarkers.size());
+    findSymbolicObjects(bound->nullPointerMarkers.begin(),
+                        bound->nullPointerMarkers.end(), markersArrays);
+
+    // Do some iterations (2-3) to figure out if error is confident.
+    ref<Expr> allExcludedVectorsOfMarkers = Expr::createTrue();
+
+    bool convinced = false;
+    for (int tpCheckIteration = 0; tpCheckIteration < 2; ++tpCheckIteration) {
+      ref<SolverResponse> isConfidentResponse;
+      if (!solver->getResponse(bound->constraints.cs(),
+                               allExcludedVectorsOfMarkers, isConfidentResponse,
+                               bound->queryMetaData)) {
+        terminateStateOnSolverError(*bound, "Query timeout");
+      }
+
+      if (isa<ValidResponse>(isConfidentResponse)) {
+        reportStateOnTargetError(*bound,
+                                 ReachWithError::MustBeNullPointerException);
+
+        terminateStateOnProgramError(
+            *bound,
+            new ErrorEvent(locationOf(*bound), StateTerminationType::Ptr,
+                           StateTerminationConfidenceCategory::CONFIDENT,
+                           "memory error: null pointer exception"));
+        convinced = true;
+        break;
+      }
+
+      // Receive current values of markers
+      std::vector<SparseStorage<unsigned char>> boundSetSolution;
+      isConfidentResponse->tryGetInitialValuesFor(markersArrays,
+                                                  boundSetSolution);
+      Assignment nonConfidentResponseAssignment(markersArrays,
+                                                boundSetSolution);
+
+      // Exclude this combinations of markers
+
+      ref<Expr> conjExcludedVectorOfMarkers = Expr::createTrue();
+      for (ref<Expr> marker : bound->nullPointerMarkers) {
+        conjExcludedVectorOfMarkers = AndExpr::create(
+            conjExcludedVectorOfMarkers,
+            EqExpr::create(marker,
+                           nonConfidentResponseAssignment.evaluate(marker)));
+      }
+
+      allExcludedVectorsOfMarkers =
+          OrExpr::create(allExcludedVectorsOfMarkers,
+                         NotExpr::create(conjExcludedVectorOfMarkers));
+    }
+
+    if (!convinced) {
+      reportStateOnTargetError(*bound,
+                               ReachWithError::MayBeNullPointerException);
+
+      terminateStateOnProgramError(
+          *bound, new ErrorEvent(locationOf(*bound), StateTerminationType::Ptr,
+                                 StateTerminationConfidenceCategory::PROBABLY,
+                                 "memory error: null pointer exception"));
+    }
+
+  } else {
+    auto error = branches.second != nullptr
+                     ? ReachWithError::MayBeNullPointerException
+                     : ReachWithError::MustBeNullPointerException;
+    reportStateOnTargetError(*bound, error);
+
+    terminateStateOnProgramError(
+        *bound,
+        new ErrorEvent(locationOf(*bound), StateTerminationType::Ptr,
+                       branches.second != nullptr
+                           ? StateTerminationConfidenceCategory::PROBABLY
+                           : StateTerminationConfidenceCategory::CONFIDENT,
+                       "memory error: null pointer exception"));
+  }
+
+  return branches.second;
 }
 
 bool Executor::resolveExact(ExecutionState &estate, ref<Expr> address,
@@ -5436,20 +5572,12 @@ bool Executor::resolveExact(ExecutionState &estate, ref<Expr> address,
       Simplificator::simplifyExpr(estate.constraints.cs(), base).simplified;
   uniqueBase = toUnique(estate, uniqueBase);
 
-  StatePair branches =
-      forkInternal(estate, Expr::createIsZero(base), BranchType::MemOp);
-  ExecutionState *bound = branches.first;
-  if (bound) {
-    auto error = isReadFromSymbolicArray(uniqueBase)
-                     ? ReachWithError::MayBeNullPointerException
-                     : ReachWithError::MustBeNullPointerException;
-    terminateStateOnTargetError(*bound, error);
-  }
-  if (!branches.second) {
-    address = Expr::createPointer(0);
+  ExecutionState *handledNPEState = handleNullPointerException(estate, base);
+  if (!handledNPEState) {
+    return false;
   }
 
-  ExecutionState &state = *branches.second;
+  ExecutionState &state = *handledNPEState;
 
   ResolutionList rl;
   bool mayBeOutOfBound = true;
@@ -5494,6 +5622,9 @@ bool Executor::resolveExact(ExecutionState &estate, ref<Expr> address,
       terminateStateOnProgramError(
           *unbound,
           new ErrorEvent(locationOf(*unbound), StateTerminationType::Ptr,
+                         !results.empty()
+                             ? StateTerminationConfidenceCategory::PROBABLY
+                             : StateTerminationConfidenceCategory::CONFIDENT,
                          "memory error: invalid pointer: " + name),
           getAddressInfo(*unbound, address));
     }
@@ -5583,6 +5714,7 @@ void Executor::concretizeSize(ExecutionState &state, ref<Expr> size,
             *hugeSize.second,
             new ErrorEvent(locationOf(*hugeSize.second),
                            StateTerminationType::Model,
+                           StateTerminationConfidenceCategory::CONFIDENT,
                            "concretized symbolic size"),
             info.str());
       }
@@ -6204,18 +6336,9 @@ void Executor::executeMemoryOperation(
 
   ref<Expr> uniqueBase = toUnique(estate, base);
 
-  StatePair branches =
-      forkInternal(estate, Expr::createIsZero(base), BranchType::MemOp);
-  ExecutionState *bound = branches.first;
-  if (bound) {
-    auto error = isReadFromSymbolicArray(uniqueBase)
-                     ? ReachWithError::MayBeNullPointerException
-                     : ReachWithError::MustBeNullPointerException;
-    terminateStateOnTargetError(*bound, error);
-  }
-  if (!branches.second)
+  ExecutionState *state = handleNullPointerException(estate, base);
+  if (!state)
     return;
-  ExecutionState *state = branches.second;
 
   // fast path: single in-bounds resolution
   IDType idFastResult;
@@ -6286,6 +6409,7 @@ void Executor::executeMemoryOperation(
               *state,
               new ErrorEvent(new AllocEvent(mo->allocSite), locationOf(*state),
                              StateTerminationType::ReadOnly,
+                             StateTerminationConfidenceCategory::CONFIDENT,
                              "memory error: object read only"));
         } else {
           wos->write(mo->getOffsetExpr(address), value);
@@ -6348,6 +6472,10 @@ void Executor::executeMemoryOperation(
     return;
   }
 
+  bool mayBeFalsePositive =
+      resolvedMemoryObjects.size() > 1 ||
+      (resolvedMemoryObjects.size() == 1 && mayBeOutOfBound);
+
   ExecutionState *unbound = nullptr;
   if (MergedPointerDereference) {
     ref<Expr> guard;
@@ -6396,16 +6524,19 @@ void Executor::executeMemoryOperation(
           maxNewWriteableOSSize =
               std::max(maxNewWriteableOSSize, wos->getSparseStorageEntries());
           if (wos->readOnly) {
-            branches =
+            StatePair branches =
                 forkInternal(*state, Expr::createIsZero(unboundConditions[i]),
                              BranchType::MemOp);
             assert(branches.first);
             terminateStateOnProgramError(
                 *branches.first,
-                new ErrorEvent(new AllocEvent(mo->allocSite),
-                               locationOf(*branches.first),
-                               StateTerminationType::ReadOnly,
-                               "memory error: object read only"));
+                new ErrorEvent(
+                    new AllocEvent(mo->allocSite), locationOf(*branches.first),
+                    StateTerminationType::ReadOnly,
+                    mayBeFalsePositive
+                        ? StateTerminationConfidenceCategory::PROBABLY
+                        : StateTerminationConfidenceCategory::CONFIDENT,
+                    "memory error: object read only"));
             state = branches.second;
           } else {
             ref<Expr> result = SelectExpr::create(
@@ -6474,10 +6605,13 @@ void Executor::executeMemoryOperation(
             ConstantExpr::alloc(size, Context::get().getPointerWidth()), true);
         if (wos->readOnly) {
           terminateStateOnProgramError(
-              *bound,
-              new ErrorEvent(new AllocEvent(mo->allocSite), locationOf(*bound),
-                             StateTerminationType::ReadOnly,
-                             "memory error: object read only"));
+              *bound, new ErrorEvent(
+                          new AllocEvent(mo->allocSite), locationOf(*bound),
+                          StateTerminationType::ReadOnly,
+                          mayBeFalsePositive
+                              ? StateTerminationConfidenceCategory::PROBABLY
+                              : StateTerminationConfidenceCategory::CONFIDENT,
+                          "memory error: object read only"));
         } else {
           wos->write(mo->getOffsetExpr(address), value);
         }
@@ -6528,6 +6662,9 @@ void Executor::executeMemoryOperation(
             *unbound,
             new ErrorEvent(new AllocEvent(baseObjectPair.first->allocSite),
                            locationOf(*unbound), StateTerminationType::Ptr,
+                           mayBeFalsePositive
+                               ? StateTerminationConfidenceCategory::PROBABLY
+                               : StateTerminationConfidenceCategory::CONFIDENT,
                            "memory error: out of bound pointer"),
             getAddressInfo(*unbound, address));
         return;
@@ -6537,6 +6674,9 @@ void Executor::executeMemoryOperation(
     terminateStateOnProgramError(
         *unbound,
         new ErrorEvent(locationOf(*unbound), StateTerminationType::Ptr,
+                       mayBeFalsePositive
+                           ? StateTerminationConfidenceCategory::PROBABLY
+                           : StateTerminationConfidenceCategory::CONFIDENT,
                        "memory error: out of bound pointer"),
         getAddressInfo(*unbound, address));
   }
@@ -7189,21 +7329,25 @@ void Executor::getConstraintLog(const ExecutionState &state, std::string &res,
 }
 
 void Executor::addSARIFReport(const ExecutionState &state) {
-  ResultJson result{};
-
-  CodeFlowJson codeFlow = state.eventsRecorder.serialize();
-
   if (ref<ErrorEvent> lastEvent =
           llvm::dyn_cast<ErrorEvent>(state.eventsRecorder.last())) {
+
+    ResultJson result{};
+
+    CodeFlowJson codeFlow = state.eventsRecorder.serialize();
+
     result.locations.push_back(lastEvent->serialize());
     result.message = {Message{lastEvent->message}};
     result.ruleId = {terminationTypeName(lastEvent->ruleID)};
-    result.level = {"error"};
+    result.level = {lastEvent->confidence ==
+                            StateTerminationConfidenceCategory::CONFIDENT
+                        ? "error"
+                        : "warning"};
+
+    result.codeFlows.push_back(std::move(codeFlow));
+
+    sarifReport.runs.back().results.push_back(std::move(result));
   }
-
-  result.codeFlows.push_back(std::move(codeFlow));
-
-  sarifReport.runs.back().results.push_back(std::move(result));
 }
 
 SarifReportJson Executor::getSARIFReport() const { return sarifReport; }

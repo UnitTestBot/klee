@@ -317,6 +317,12 @@ public:
 
   // Overall state of the state - Data specific
 
+  /// @brief: TODO:
+  bool lastBrConfidently = true;
+
+  /// @brief: TODO:
+  ImmutableList<ref<Expr>> nullPointerMarkers;
+
   /// @brief Exploration depth, i.e., number of times KLEE branched for this
   /// state
   std::uint32_t depth = 0;

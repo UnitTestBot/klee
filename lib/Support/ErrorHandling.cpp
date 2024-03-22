@@ -32,6 +32,7 @@ FILE *klee::klee_message_file = NULL;
 static const char *warningPrefix = "WARNING";
 static const char *warningOncePrefix = "WARNING ONCE";
 static const char *errorPrefix = "ERROR";
+static const char *possibleErrorPrefix = "POSSIBLE ERROR";
 static const char *notePrefix = "NOTE";
 
 namespace klee {
@@ -80,9 +81,15 @@ static void klee_vfmessage(FILE *fp, const char *pfx, const char *msg,
                        /*bold=*/true,
                        /*bg=*/false);
 
-    // Errors
+    // True-Postive Errors
     if (shouldSetColor(pfx, msg, errorPrefix))
       fdos.changeColor(llvm::raw_ostream::RED,
+                       /*bold=*/true,
+                       /*bg=*/false);
+
+    // Non True-Positive Errors
+    if (shouldSetColor(pfx, msg, possibleErrorPrefix))
+      fdos.changeColor(llvm::raw_ostream::YELLOW,
                        /*bold=*/true,
                        /*bg=*/false);
 

@@ -20,6 +20,7 @@
 #include "TypeManager.h"
 
 #include "klee/Config/config.h"
+#include "klee/Core/TerminationTypes.h"
 #include "klee/Module/KInstruction.h"
 #include "klee/Module/KModule.h"
 #include "klee/Solver/SolverCmdLine.h"
@@ -30,6 +31,8 @@
 #include "klee/klee.h"
 
 #include "klee/Support/CompilerWarning.h"
+#include <llvm/IR/BasicBlock.h>
+#include <llvm/IR/CFG.h>
 DISABLE_WARNING_PUSH
 DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/ADT/APFloat.h"
@@ -343,8 +346,10 @@ void SpecialFunctionHandler::handleAbort(ExecutionState &state,
                                          std::vector<ref<Expr>> &arguments) {
   assert(arguments.size() == 0 && "invalid number of arguments to abort");
   executor.terminateStateOnProgramError(
-      state, new ErrorEvent(executor.locationOf(state),
-                            StateTerminationType::Abort, "abort failure"));
+      state,
+      new ErrorEvent(executor.locationOf(state), StateTerminationType::Abort,
+                     StateTerminationConfidenceCategory::CONFIDENT,
+                     "abort failure"));
 }
 
 void SpecialFunctionHandler::handleExit(ExecutionState &state,
@@ -361,13 +366,21 @@ void SpecialFunctionHandler::handleSilentExit(
   executor.terminateStateEarlyUser(state, "");
 }
 
+static bool isAssertFailsConfidently(ExecutionState &state) {
+  return state.lastBrConfidently;
+}
+
 void SpecialFunctionHandler::handleAssert(ExecutionState &state,
                                           KInstruction *target,
                                           std::vector<ref<Expr>> &arguments) {
   assert(arguments.size() == 3 && "invalid number of arguments to _assert");
+
   executor.terminateStateOnProgramError(
       state,
       new ErrorEvent(executor.locationOf(state), StateTerminationType::Assert,
+                     isAssertFailsConfidently(state)
+                         ? StateTerminationConfidenceCategory::CONFIDENT
+                         : StateTerminationConfidenceCategory::PROBABLY,
                      "ASSERTION FAIL: " +
                          readStringAtAddress(state, arguments[0])));
 }
@@ -380,6 +393,9 @@ void SpecialFunctionHandler::handleAssertFail(
   executor.terminateStateOnProgramError(
       state,
       new ErrorEvent(executor.locationOf(state), StateTerminationType::Assert,
+                     isAssertFailsConfidently(state)
+                         ? StateTerminationConfidenceCategory::CONFIDENT
+                         : StateTerminationConfidenceCategory::PROBABLY,
                      "ASSERTION FAIL: " +
                          readStringAtAddress(state, arguments[0])));
 }
@@ -395,6 +411,7 @@ void SpecialFunctionHandler::handleReportError(
       state,
       new ErrorEvent(executor.locationOf(state),
                      StateTerminationType::ReportError,
+                     StateTerminationConfidenceCategory::CONFIDENT,
                      readStringAtAddress(state, arguments[2])),
       "", readStringAtAddress(state, arguments[3]).c_str());
 }
@@ -839,6 +856,7 @@ void SpecialFunctionHandler::handleCheckMemoryAccess(
       executor.terminateStateOnProgramError(
           state,
           new ErrorEvent(executor.locationOf(state), StateTerminationType::Ptr,
+                         StateTerminationConfidenceCategory::CONFIDENT,
                          "check_memory_access: memory error"),
           executor.getAddressInfo(state, address));
     } else {
@@ -848,9 +866,11 @@ void SpecialFunctionHandler::handleCheckMemoryAccess(
       if (!chk->isTrue()) {
         executor.terminateStateOnProgramError(
             state,
-            new ErrorEvent(
-                new AllocEvent(mo->allocSite), executor.locationOf(state),
-                StateTerminationType::Ptr, "check_memory_access: memory error"),
+            new ErrorEvent(new AllocEvent(mo->allocSite),
+                           executor.locationOf(state),
+                           StateTerminationType::Ptr,
+                           StateTerminationConfidenceCategory::CONFIDENT,
+                           "check_memory_access: memory error"),
             executor.getAddressInfo(state, address));
       }
     }
@@ -1122,8 +1142,9 @@ void SpecialFunctionHandler::handleSetConcreteRoundingMode(
       llvm::APFloat::rmNearestTiesToEven;
   ref<Expr> roundingModeArg = arguments[0];
   if (!isa<ConstantExpr>(roundingModeArg)) {
-    executor.terminateStateOnError(state, "argument should be concrete",
-                                   StateTerminationType::User);
+    executor.terminateStateOnError(
+        state, "argument should be concrete", StateTerminationType::User,
+        StateTerminationConfidenceCategory::CONFIDENT);
     return;
   }
   const ConstantExpr *CE = dyn_cast<ConstantExpr>(roundingModeArg);
@@ -1144,8 +1165,9 @@ void SpecialFunctionHandler::handleSetConcreteRoundingMode(
     newRoundingMode = llvm::APFloat::rmTowardZero;
     break;
   default:
-    executor.terminateStateOnError(state, "Invalid rounding mode",
-                                   StateTerminationType::User);
+    executor.terminateStateOnError(
+        state, "Invalid rounding mode", StateTerminationType::User,
+        StateTerminationConfidenceCategory::CONFIDENT);
     return;
   }
   state.roundingMode = newRoundingMode;

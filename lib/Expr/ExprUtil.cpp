@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "klee/Expr/ExprUtil.h"
+#include "klee/ADT/ImmutableList.h"
 #include "klee/Expr/Expr.h"
 #include "klee/Expr/ExprHashMap.h"
 #include "klee/Expr/ExprVisitor.h"
@@ -185,6 +186,9 @@ template void klee::findSymbolicObjects<B>(B, B, std::vector<const Array *> &);
 
 typedef ExprHashSet::iterator C;
 template void klee::findSymbolicObjects<C>(C, C, std::vector<const Array *> &);
+
+typedef ImmutableList<ref<Expr>>::iterator D;
+template void klee::findSymbolicObjects<D>(D, D, std::vector<const Array *> &);
 
 typedef std::vector<ref<Expr>>::iterator A;
 template void klee::findObjects<A>(A, A, std::vector<const Array *> &);
