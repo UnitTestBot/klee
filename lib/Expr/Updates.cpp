@@ -10,37 +10,40 @@
 #include "klee/Expr/Expr.h"
 
 #include <cassert>
+#include <cwchar>
 
 using namespace klee;
 
 ///
 
-UpdateNode::UpdateNode(const ref<UpdateNode> &_next, const ref<Expr> &_index,
-                       const ref<Expr> &_value)
-    : next(_next), index(_index), value(_value) {
-  // FIXME: What we need to check here instead is that _value is of the same
-  // width as the range of the array that the update node is part of.
-  /*
-  assert(_value->getWidth() == Expr::Int8 &&
-         "Update value should be 8-bit wide.");
-  */
+UpdateNode::UpdateNode(const ref<UpdateNode> &next, const SimpleWrite &write)
+    : next(next), write(write) {
   computeHash();
   computeHeight();
   size = next ? next->size + 1 : 1;
 }
 
+UpdateNode::UpdateNode(const ref<UpdateNode> &next, const RangeWrite &write)
+    : next(next), write(write) {
+  computeHash();
+  computeHeight();
+  size = next ? next->size + write.rangeList.getSize() : write.rangeList.getSize();
+}
+
 extern "C" void vc_DeleteExpr(void *);
 
 int UpdateNode::compare(const UpdateNode &b) const {
-  if (int i = index.compare(b.index))
-    return i;
-  return value.compare(b.value);
+  if (write == b.write) {
+    return 0;
+  } else {
+    return write < b.write ? -1 : 1;
+  }
 }
 
 bool UpdateNode::equals(const UpdateNode &b) const { return compare(b) == 0; }
 
 unsigned UpdateNode::computeHash() {
-  hashValue = index->hash() ^ value->hash();
+  hashValue = isSimple() ? asSimple()->hash() : asRange()->hash(); // Correct?
   if (next)
     hashValue ^= next->hash();
   return hashValue;
@@ -48,8 +51,12 @@ unsigned UpdateNode::computeHash() {
 
 unsigned UpdateNode::computeHeight() {
   unsigned maxHeight = next ? next->height() : 0;
-  maxHeight = std::max(maxHeight, index->height());
-  maxHeight = std::max(maxHeight, value->height());
+  if (isSimple()) {
+    maxHeight = std::max(maxHeight, asSimple()->index->height());
+    maxHeight = std::max(maxHeight, asSimple()->value->height());
+  } else {
+    maxHeight = std::max(maxHeight, asRange()->rangeList.height());
+  }
   heightValue = maxHeight;
   return heightValue;
 }
@@ -59,14 +66,64 @@ unsigned UpdateNode::computeHeight() {
 UpdateList::UpdateList(const Array *_root, const ref<UpdateNode> &_head)
     : root(_root), head(_head) {}
 
-void UpdateList::extend(const ref<Expr> &index, const ref<Expr> &value) {
+unsigned UpdateList::getSize() const { return head ? head->getSize() : 0; }
 
+void UpdateList::extend(const SimpleWrite &write) {
   if (root) {
-    assert(root->getDomain() == index->getWidth());
-    assert(root->getRange() == value->getWidth());
+    assert(root->getDomain() == write.index->getWidth());
+    assert(root->getRange() == write.value->getWidth());
   }
 
-  head = new UpdateNode(head, index, value);
+  head = new UpdateNode(head, write);
+}
+
+void UpdateList::extend(const RangeWrite &write) {
+  isSimple = false;
+  head = new UpdateNode(head, write);
+}
+
+void UpdateList::extend(const Write &write) {
+  if (auto simple = std::get_if<SimpleWrite>(&write)) {
+    extend(*simple);
+  } else if (auto range = std::get_if<RangeWrite>(&write)) {
+    extend(*range);
+  } else {
+    assert(0);
+  }
+}
+
+ReadRanges UpdateList::flatten() const {
+  ReadRanges result;
+  std::vector<Write> writes;
+
+  auto un = head.get();
+
+  for (; un; un = un->next.get()) {
+    if (un->isSimple()) {
+      writes.push_back(un->write);
+    } else {
+      auto write = un->asRange();
+      auto sublists = write->rangeList.flatten();
+
+      for (auto &sublist : sublists) {
+        sublist.first = ExprLambda::merge(sublist.first, write->guard);
+        auto &list = std::get<UpdateList>(sublist.second);
+        for (auto it = writes.rbegin(); it != writes.rend(); ++it) {
+          list.extend(*it);
+        }
+        result.push_back(sublist);
+      }
+    }
+  }
+
+  auto newList = UpdateList(root, nullptr);
+  for (auto it = writes.rbegin(); it != writes.rend(); ++it) {
+    newList.extend(*it);
+  }
+
+  result.push_back({ExprLambda::constantTrue(), newList});
+
+  return result;
 }
 
 int UpdateList::compare(const UpdateList &b) const {

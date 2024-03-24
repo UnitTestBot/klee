@@ -1538,7 +1538,7 @@ VersionResult ParserImpl::ParseVersion() {
     }
 
     if (LHS.isValid() && RHS.isValid())
-      Base.extend(LHS.get(), RHS.get());
+      Base.extend(SimpleWrite(LHS.get(), RHS.get()));
   }
 
   return Base;

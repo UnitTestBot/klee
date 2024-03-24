@@ -14,6 +14,7 @@
 #include "klee/Expr/SymbolicSource.h"
 #include "klee/Module/KInstruction.h"
 #include "klee/Module/KModule.h"
+#include "klee/Support/Casting.h"
 #include "klee/Support/PrintContext.h"
 
 #include "klee/Support/CompilerWarning.h"
@@ -123,8 +124,15 @@ private:
     if (un) {
       if (couldPrintUpdates.insert(un).second) {
         scanUpdate(un->next.get());
-        scan1(un->index);
-        scan1(un->value);
+        if (un->isSimple()) {
+          auto write = un->asSimple();
+          scan1(write->index);
+          scan1(write->value);
+        } else {
+          auto write = un->asRange();
+          scan1(write->guard.getBody());
+          scanUpdate(write->rangeList.head.get());
+        }
       } else {
         shouldPrintUpdates.insert(un);
       }
@@ -198,14 +206,23 @@ private:
       }
       // PC << "(=";
       // unsigned innerIndent = PC.pos;
-      print(un->index, PC);
-      // printSeparator(PC, isSimple(un->index), innerIndent);
-      PC << "=";
-      print(un->value, PC);
+      if (un->isSimple()) {
+        auto write = un->asSimple();
+        print(write->index, PC);
+        // printSeparator(PC, isSimple(un->index), innerIndent);
+        PC << "=";
+        print(write->value, PC);
+      } else {
+        auto write = un->asRange();
+        print(write->guard.getBody());
+        PC << " -> ";
+        printUpdateList(write->rangeList, PC);
+      }
       // PC << ')';
 
       nextShouldBreak =
-          !(isa<ConstantExpr>(un->index) && isa<ConstantExpr>(un->value));
+          (!un->isSimple() || !(isa<ConstantExpr>(un->asSimple()->index) &&
+                                isa<ConstantExpr>(un->asSimple()->value)));
     }
 
     if (openedList)
@@ -455,10 +472,17 @@ public:
     }
   }
 
+  void printVar(const ref<VarExpr> &e, PrintContext &PC) {
+    PC << "$" << e->getIndex() << "_w" << e->getWidth();
+  }
+
   void print(const ref<Expr> &e, PrintContext &PC,
              bool printConstWidth = false) {
-    if (ConstantExpr *CE = dyn_cast<ConstantExpr>(e))
+    if (ConstantExpr *CE = dyn_cast<ConstantExpr>(e)) {
       printConst(CE, PC, printConstWidth);
+    } else if (VarExpr *VE = dyn_cast<VarExpr>(e)) {
+      printVar(VE, PC);
+    }
     else {
       std::map<ref<Expr>, unsigned>::iterator it = bindings.find(e);
       if (it != bindings.end()) {

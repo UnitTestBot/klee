@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "klee/Expr/ExprSMTLIBPrinter.h"
+#include "klee/Expr/Expr.h"
 #include "klee/Support/Casting.h"
 #include "klee/Support/ErrorHandling.h"
 
@@ -275,21 +276,26 @@ void ExprSMTLIBPrinter::printFullExpression(
 }
 
 void ExprSMTLIBPrinter::printReadExpr(const ref<ReadExpr> &e) {
-  *p << "(" << getSMTLIBKeyword(e) << " ";
-  p->pushIndent();
+  if (e->updates.isSimple) {
+    *p << "(" << getSMTLIBKeyword(e) << " ";
+    p->pushIndent();
 
-  printSeperator();
+    printSeperator();
 
-  // print array with updates recursively
-  printUpdatesAndArray(e->updates.head.get(), e->updates.root);
+    // print array with updates recursively
+    printUpdatesAndArray(e->updates.head.get(), e->updates.root);
 
-  // print index
-  printSeperator();
-  printExpression(e->index, SORT_BITVECTOR);
+    // print index
+    printSeperator();
+    printExpression(e->index, SORT_BITVECTOR);
 
-  p->popIndent();
-  printSeperator();
-  *p << ")";
+    p->popIndent();
+    printSeperator();
+    *p << ")";
+  } else {
+    // Sort bitvector?
+    printFullExpression(rangesToSelect(e->updates.flatten(), e->index), SORT_BITVECTOR);
+  }
 }
 
 void ExprSMTLIBPrinter::printExtractExpr(const ref<ExtractExpr> &e) {
@@ -490,11 +496,11 @@ void ExprSMTLIBPrinter::printUpdatesAndArray(const UpdateNode *un,
     printSeperator();
 
     // print index
-    printExpression(un->index, SORT_BITVECTOR);
+    printExpression(un->asSimple()->index, SORT_BITVECTOR);
     printSeperator();
 
     // print value that is assigned to this index of the array
-    printExpression(un->value, SORT_BITVECTOR);
+    printExpression(un->asSimple()->value, SORT_BITVECTOR);
 
     p->popIndent();
     printSeperator();
@@ -840,8 +846,8 @@ void ExprSMTLIBPrinter::scanBindingExprDeps() {
 
 void ExprSMTLIBPrinter::scanUpdates(const UpdateNode *un) {
   while (un != NULL) {
-    scan(un->index);
-    scan(un->value);
+    scan(un->asSimple()->index);
+    scan(un->asSimple()->value);
     un = un->next.get();
   }
 }
