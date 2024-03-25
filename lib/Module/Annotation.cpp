@@ -7,12 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "klee/Module/Annotation.h"
-#include "klee/Support/CompilerWarning.h"
 #include "klee/Support/ErrorHandling.h"
 
 #include <llvm/Support/raw_ostream.h>
-
-#include "nlohmann/json.hpp"
 
 #include <fstream>
 #include <map>
