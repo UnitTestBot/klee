@@ -45,12 +45,6 @@ namespace klee {
     __builtin_unreachable();
     #endif
   }
-
-  // [[noreturn]] inline void unimplemented() {
-  //   #if defined(__GNUC__) || defined(__clang__)
-  //   __builtin_unreachable();
-  //   #endif
-  // }
 }
 
 #endif // KLEE_INCLUDE_KLEE_SUPPORT_COMPILERWARNING_H
