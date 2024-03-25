@@ -20,7 +20,7 @@ add_compile_options(
 ###############################################################################
 # Warnings as errors
 ###############################################################################
-option(WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
+option(WARNINGS_AS_ERRORS "Treat compiler warnings as errors" ON)
 if (WARNINGS_AS_ERRORS)
   add_compile_options("-Werror")
   message(STATUS "Treating compiler warnings as errors")

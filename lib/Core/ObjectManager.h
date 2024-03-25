@@ -85,6 +85,7 @@ public:
 class Subscriber {
 public:
   virtual void update(ref<ObjectManager::Event> e) = 0;
+  virtual ~Subscriber() = default;
 };
 
 } // namespace klee

@@ -86,7 +86,7 @@ ref<SymbolicSource> SourceBuilder::value(const llvm::Value &_allocSite,
     return argument(*allocSite, _index, km);
   }
   const llvm::Instruction *allocSite = dyn_cast<llvm::Instruction>(&_allocSite);
-  assert(allocSite != nulltpr && "Invalid allocSite value");
+  assert(allocSite && "Invalid allocSite value");
   return instruction(*allocSite, _index, km);
 }
 

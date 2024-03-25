@@ -1242,8 +1242,8 @@ MetaSMTBuilder<SolverContext>::constructActual(ref<Expr> e, int *width_out) {
 #endif
 
   default:
-    assert(false);
-    break;
+    assert(false && "unexpected expression");
+    unreachable();
   };
   return res;
 }
