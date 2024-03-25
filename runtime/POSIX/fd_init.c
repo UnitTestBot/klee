@@ -163,8 +163,8 @@ void klee_init_fds(unsigned n_files, unsigned file_length,
     unsigned int i;
     for (i = 0; i < stdin_length; i++) {
       klee_prefer_cex(__exe_fs.sym_stdin,
-                      32 <= __exe_fs.sym_stdin->contents[i] &&
-                          __exe_fs.sym_stdin->contents[i] <= 126);
+                      (32 <= __exe_fs.sym_stdin->contents[i]) &
+                          (__exe_fs.sym_stdin->contents[i] <= 126));
     }
     __exe_env.fds[0].dfile = __exe_fs.sym_stdin;
     off64_t *ptr = malloc(sizeof(off64_t));
