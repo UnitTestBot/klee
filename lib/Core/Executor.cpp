@@ -6474,6 +6474,7 @@ void Executor::executeMemoryOperation(
     }
 
     if (!unbound && resolveConditions.size() == 0) {
+      std::terminate();
       klee_error("");
     }
   } else {
@@ -7194,7 +7195,8 @@ void Executor::logState(const ExecutionState &state, int id,
     object.first->getSizeExpr()->print(*f);
     *f << "\n";
   }
-  *f << state.symbolics.size() << " symbolics total. " << "Symbolics:\n";
+  *f << state.symbolics.size() << " symbolics total. "
+     << "Symbolics:\n";
   size_t sc = 0;
   for (const auto &symbolic : state.symbolics) {
     *f << "Symbolic number " << sc++ << "\n";

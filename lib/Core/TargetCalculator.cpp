@@ -15,6 +15,7 @@
 #include "klee/Module/KInstruction.h"
 #include "klee/Module/Target.h"
 #include "klee/Module/TargetHash.h"
+#include "klee/Support/CompilerWarning.h"
 
 #include <set>
 #include <vector>
@@ -158,11 +159,11 @@ TargetCalculator::getCoverageTargets(KFunction *kf) {
   case TrackCoverageBy::Branches:
     return codeGraphInfo.getFunctionConditionalBranches(kf);
   case TrackCoverageBy::None:
+    [[fallthrough]];
   case TrackCoverageBy::All:
     return codeGraphInfo.getFunctionBranches(kf);
-
   default:
-    assert(0 && "not implemented");
+    unreachable();
   }
 }
 
