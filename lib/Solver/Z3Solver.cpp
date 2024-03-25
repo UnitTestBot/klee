@@ -151,7 +151,7 @@ struct Z3SolverEnv {
   inc_umap<const Array *, ExprHashSet> usedArrayBytes;
   ExprIncSet symbolicObjects;
 
-  explicit Z3SolverEnv() {};
+  explicit Z3SolverEnv(){};
   explicit Z3SolverEnv(const arr_vec &objects);
 
   void pop(size_t popSize);
@@ -728,6 +728,9 @@ SolverImpl::SolverRunStatus Z3SolverImpl::handleSolverResponse(
           uint64_t concretizedOffsetValue = 0;
           if (!Z3_get_numeral_uint64(builder->ctx, arrayElementOffsetExpr,
                                      &concretizedOffsetValue)) {
+            Z3_dec_ref(builder->ctx, arrayElementOffsetExpr);
+            Z3_dec_ref(builder->ctx, arraySizeExpr);
+            Z3_model_dec_ref(builder->ctx, theModel);
             return SolverImpl::SOLVER_RUN_STATUS_FAILURE;
           }
           offsetValues.insert(concretizedOffsetValue);
@@ -741,6 +744,8 @@ SolverImpl::SolverRunStatus Z3SolverImpl::handleSolverResponse(
 
           if (!Z3_model_eval(builder->ctx, theModel, initial_read,
                              /*model_completion=*/Z3_TRUE, &arrayElementExpr)) {
+            Z3_dec_ref(builder->ctx, arraySizeExpr);
+            Z3_model_dec_ref(builder->ctx, theModel);
             return SolverImpl::SOLVER_RUN_STATUS_FAILURE;
           }
           Z3_inc_ref(builder->ctx, arrayElementExpr);
@@ -751,6 +756,9 @@ SolverImpl::SolverRunStatus Z3SolverImpl::handleSolverResponse(
           int arrayElementValue = 0;
           if (!Z3_get_numeral_int(builder->ctx, arrayElementExpr,
                                   &arrayElementValue)) {
+            Z3_dec_ref(builder->ctx, arrayElementExpr);
+            Z3_dec_ref(builder->ctx, arraySizeExpr);
+            Z3_model_dec_ref(builder->ctx, theModel);
             return SolverImpl::SOLVER_RUN_STATUS_FAILURE;
           }
           assert(arrayElementValue >= 0 && arrayElementValue <= 255 &&
@@ -1081,7 +1089,7 @@ private:
 
 public:
   Z3TreeSolverImpl(Z3BuilderType type, size_t maxSolvers)
-      : Z3SolverImpl(type), maxSolvers(maxSolvers) {};
+      : Z3SolverImpl(type), maxSolvers(maxSolvers){};
 
   /// implementation of Z3SolverImpl interface
   Z3_solver initNativeZ3(const ConstraintQuery &, Z3ASTIncSet &) override {
