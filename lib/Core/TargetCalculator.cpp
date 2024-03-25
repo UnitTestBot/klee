@@ -16,7 +16,6 @@
 #include "klee/Module/Target.h"
 #include "klee/Module/TargetHash.h"
 #include "klee/Support/CompilerWarning.h"
-#include "klee/Support/OptionCategories.h"
 
 #include <set>
 #include <vector>
