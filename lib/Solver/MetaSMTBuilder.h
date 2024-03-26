@@ -17,6 +17,7 @@
 #include "klee/Expr/Expr.h"
 #include "klee/Expr/ExprHashMap.h"
 #include "klee/Expr/ExprPPrinter.h"
+#include <cassert>
 
 #ifdef ENABLE_METASMT
 
@@ -751,12 +752,13 @@ MetaSMTBuilder<SolverContext>::constructActual(ref<Expr> e, int *width_out) {
     *width_out = ce->getWidth();
     unsigned numKids = ce->getNumKids();
 
-    if (numKids > 0) {
-      res = evaluate(_solver, construct(ce->getKid(numKids - 1), 0));
-      for (int i = numKids - 2; i >= 0; i--) {
-        res = evaluate(_solver, concat(construct(ce->getKid(i), 0), res));
-      }
+    assert(numKids > 0);
+
+    res = evaluate(_solver, construct(ce->getKid(numKids - 1), 0));
+    for (int i = numKids - 2; i >= 0; i--) {
+      res = evaluate(_solver, concat(construct(ce->getKid(i), 0), res));
     }
+
     break;
   }
 

@@ -457,25 +457,27 @@ public:
   KleeHandler(int argc, char **argv);
   ~KleeHandler();
 
-  llvm::raw_ostream &getInfoStream() const { return *m_infoFile; }
+  llvm::raw_ostream &getInfoStream() const override { return *m_infoFile; }
   /// Returns the number of test cases successfully generated so far
   unsigned getNumTestCases() { return m_numGeneratedTests; }
   unsigned getNumPathsCompleted() { return m_pathsCompleted; }
   unsigned getNumPathsExplored() { return m_pathsExplored; }
-  void incPathsCompleted() { ++m_pathsCompleted; }
-  void incPathsExplored(std::uint32_t num = 1) { m_pathsExplored += num; }
+  void incPathsCompleted() override { ++m_pathsCompleted; }
+  void incPathsExplored(std::uint32_t num = 1) override {
+    m_pathsExplored += num;
+  }
 
   void setInterpreter(Interpreter *i);
 
   void processTestCase(const ExecutionState &state, const char *message,
-                       const char *suffix, bool isError = false);
+                       const char *suffix, bool isError = false) override;
 
   void writeTestCaseXML(bool isError, const KTest &out, unsigned id,
                         unsigned version = 0);
 
-  std::string getOutputFilename(const std::string &filename);
+  std::string getOutputFilename(const std::string &filename) override;
   std::unique_ptr<llvm::raw_fd_ostream>
-  openOutputFile(const std::string &filename);
+  openOutputFile(const std::string &filename) override;
   std::string getTestFilename(const std::string &suffix, unsigned id,
                               unsigned version = 0);
   std::unique_ptr<llvm::raw_fd_ostream>
