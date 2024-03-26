@@ -155,7 +155,7 @@ Path::TransitionKind Path::getTransitionKind(KBlock *a, KBlock *b) {
       return TransitionKind::StepInto;
     }
   }
-  if (auto rb = dyn_cast<KReturnBlock>(a)) {
+  if (isa<KReturnBlock>(a)) {
     return TransitionKind::StepOut;
   }
   assert(a->parent == b->parent);

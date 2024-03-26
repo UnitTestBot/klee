@@ -22,6 +22,7 @@
 #include "klee/Module/KModule.h"
 
 #include "klee/Support/CompilerWarning.h"
+#include "klee/Support/ErrorHandling.h"
 DISABLE_WARNING_PUSH
 DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/ADT/APInt.h"
@@ -574,7 +575,7 @@ SourceResult ParserImpl::ParseConstantSource() {
 }
 
 SourceResult ParserImpl::ParseSymbolicSizeConstantAddressSource() {
-  assert(0 && "unimplemented");
+  klee_error("unimplemented");
   // auto valueExpr = ParseNumber(64).get();
   // auto versionExpr = ParseNumber(64).get();
   // auto value = dyn_cast<ConstantExpr>(valueExpr);

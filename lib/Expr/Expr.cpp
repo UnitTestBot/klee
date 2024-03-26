@@ -19,6 +19,7 @@
 #include "klee/Utilities/APFloatEval.h"
 
 #include "klee/Support/CompilerWarning.h"
+#include <assert.h>
 DISABLE_WARNING_PUSH
 DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/ADT/APFloat.h"
@@ -635,6 +636,7 @@ void ConstantExpr::toMemory(void *address) {
   case Expr::Int256:
   case Expr::Int512:
     memcpy(address, value.getRawData(), width / 8);
+    break;
   // FIXME: what about machines without x87 support?
   case Expr::Fl80:
     *((long double *)address) = *(const long double *)value.getRawData();
@@ -657,7 +659,6 @@ void ConstantExpr::toString(std::string &Res, unsigned radix) const {
     }
     case 16: {
       // Emit C99 Hex float
-      unsigned count = 0;
       // Example format is -0x1.000p+4
       // The total number of characters needed is approximately
       //
@@ -1144,7 +1145,7 @@ ref<ConstantExpr> ConstantExpr::GetNaN(Expr::Width w) {
   // These values have been chosen to be consistent with Z3 when
   // rewriter.hi_fp_unspecified=false
   llvm::APInt apint;
-  const llvm::fltSemantics *sem;
+  [[maybe_unused]] const llvm::fltSemantics *sem;
   switch (w) {
   case Int16: {
     apint = llvm::APInt(/*numBits=*/16, (uint64_t)0x7c01, /*isSigned=*/false);
@@ -1176,6 +1177,10 @@ ref<ConstantExpr> ConstantExpr::GetNaN(Expr::Width w) {
     apint = llvm::APInt(/*numBits=*/128, temp);
     sem = &(LLVMFltSemantics(IEEEquad));
     break;
+  }
+  default: {
+    assert(false && "unexpected value for GetNaN");
+    unreachable();
   }
   }
 #ifndef NDEBUG
@@ -1540,7 +1545,7 @@ ref<Expr> ReadExpr::create(const UpdateList &ul, ref<Expr> index) {
 
   // So that we return weird stuff like reads from consts that should have
   // simplified to constant exprs if we read beyond size boundary.
-  if (auto source = dyn_cast<ConstantSource>(ul.root->source)) {
+  if (isa<ConstantSource>(ul.root->source)) {
     if (auto arraySizeExpr = dyn_cast<ConstantExpr>(ul.root->size)) {
       if (auto indexExpr = dyn_cast<ConstantExpr>(index)) {
         auto arraySize = arraySizeExpr->getZExtValue();
@@ -1715,8 +1720,7 @@ ref<Expr> ExtractExpr::create(ref<Expr> expr, unsigned off, Width w) {
     return expr;
   } else if (ConstantExpr *CE = dyn_cast<ConstantExpr>(expr)) {
     return CE->Extract(off, w);
-  } else if (SelectExpr *se = dyn_cast<SelectExpr>(expr)) {
-  } else {
+  } else if (!isa<SelectExpr>(expr)) {
     // Extract(Concat)
     if (ConcatExpr *ce = dyn_cast<ConcatExpr>(expr)) {
       // if the extract skips the right side of the concat

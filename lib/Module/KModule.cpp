@@ -674,8 +674,8 @@ KBlock::KBlock(
     const std::unordered_map<Instruction *, unsigned> &instructionToRegisterMap,
     KInstruction **instructionsKF, unsigned &globalIndexInc,
     KBlockType blockType)
-    : KValue(block, KValue::Kind::BLOCK), blockKind(blockType),
-      parent(_kfunction) {
+    : KValue(block, KValue::Kind::BLOCK), parent(_kfunction),
+      blockKind(blockType) {
   instructions = instructionsKF;
 
   for (auto &it : *block) {

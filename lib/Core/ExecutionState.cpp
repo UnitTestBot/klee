@@ -445,7 +445,6 @@ BasicBlock *ExecutionState::getPCBlock() const {
 
 void ExecutionState::increaseLevel() {
   llvm::BasicBlock *srcbb = getPrevPCBlock();
-  llvm::BasicBlock *dstbb = getPCBlock();
   KFunction *kf = prevPC->parent->parent;
   KModule *kmodule = kf->parent;
 

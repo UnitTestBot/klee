@@ -200,12 +200,13 @@ void Z3SolverEnv::clear() {
 const Z3SolverEnv::arr_vec *
 Z3SolverEnv::getObjectsForGetModel(ObjectAssignment oa) const {
   switch (oa) {
-  case ObjectAssignment::NotNeeded:
-    return nullptr;
   case ObjectAssignment::NeededForObjectsFromEnv:
     return &objectsForGetModel;
   case ObjectAssignment::NeededForObjectsFromQuery:
     return &objects.v;
+  case ObjectAssignment::NotNeeded:
+  default:
+    return nullptr;
   }
 }
 
@@ -689,33 +690,48 @@ SolverImpl::SolverRunStatus Z3SolverImpl::handleSolverResponse(
       SparseStorage<unsigned char> data;
 
       ::Z3_ast arraySizeExpr;
-      Z3_model_eval(builder->ctx, theModel, builder->construct(array->size),
-                    Z3_TRUE, &arraySizeExpr);
+      if (!Z3_model_eval(builder->ctx, theModel,
+                         builder->construct(array->size), Z3_TRUE,
+                         &arraySizeExpr)) {
+        Z3_model_dec_ref(builder->ctx, theModel);
+        return SolverImpl::SOLVER_RUN_STATUS_FAILURE;
+      }
       Z3_inc_ref(builder->ctx, arraySizeExpr);
-      ::Z3_ast_kind arraySizeExprKind =
-          Z3_get_ast_kind(builder->ctx, arraySizeExpr);
-      assert(arraySizeExprKind == Z3_NUMERAL_AST &&
+
+      assert(Z3_get_ast_kind(builder->ctx, arraySizeExpr) == Z3_NUMERAL_AST &&
              "Evaluated size expression has wrong sort");
       uint64_t arraySize = 0;
-      bool success =
-          Z3_get_numeral_uint64(builder->ctx, arraySizeExpr, &arraySize);
-      assert(success && "Failed to get size");
+      if (!Z3_get_numeral_uint64(builder->ctx, arraySizeExpr, &arraySize)) {
+        Z3_dec_ref(builder->ctx, arraySizeExpr);
+        Z3_model_dec_ref(builder->ctx, theModel);
+        return SolverImpl::SOLVER_RUN_STATUS_FAILURE;
+      }
 
       if (env.usedArrayBytes.count(array)) {
         std::unordered_set<uint64_t> offsetValues;
         for (const ref<Expr> &offsetExpr : env.usedArrayBytes.at(array)) {
           ::Z3_ast arrayElementOffsetExpr;
-          Z3_model_eval(builder->ctx, theModel, builder->construct(offsetExpr),
-                        Z3_TRUE, &arrayElementOffsetExpr);
+          if (!Z3_model_eval(builder->ctx, theModel,
+                             builder->construct(offsetExpr), Z3_TRUE,
+                             &arrayElementOffsetExpr)) {
+            Z3_dec_ref(builder->ctx, arraySizeExpr);
+            Z3_model_dec_ref(builder->ctx, theModel);
+            return SolverImpl::SOLVER_RUN_STATUS_FAILURE;
+          }
+
           Z3_inc_ref(builder->ctx, arrayElementOffsetExpr);
-          ::Z3_ast_kind arrayElementOffsetExprKind =
-              Z3_get_ast_kind(builder->ctx, arrayElementOffsetExpr);
-          assert(arrayElementOffsetExprKind == Z3_NUMERAL_AST &&
+
+          assert(Z3_get_ast_kind(builder->ctx, arrayElementOffsetExpr) ==
+                     Z3_NUMERAL_AST &&
                  "Evaluated size expression has wrong sort");
           uint64_t concretizedOffsetValue = 0;
-          bool success = Z3_get_numeral_uint64(
-              builder->ctx, arrayElementOffsetExpr, &concretizedOffsetValue);
-          assert(success && "Failed to get size");
+          if (!Z3_get_numeral_uint64(builder->ctx, arrayElementOffsetExpr,
+                                     &concretizedOffsetValue)) {
+            Z3_dec_ref(builder->ctx, arrayElementOffsetExpr);
+            Z3_dec_ref(builder->ctx, arraySizeExpr);
+            Z3_model_dec_ref(builder->ctx, theModel);
+            return SolverImpl::SOLVER_RUN_STATUS_FAILURE;
+          }
           offsetValues.insert(concretizedOffsetValue);
           Z3_dec_ref(builder->ctx, arrayElementOffsetExpr);
         }
@@ -725,19 +741,25 @@ SolverImpl::SolverRunStatus Z3SolverImpl::handleSolverResponse(
           ::Z3_ast arrayElementExpr;
           Z3ASTHandle initial_read = builder->getInitialRead(array, offset);
 
-          __attribute__((unused)) bool successfulEval =
-              Z3_model_eval(builder->ctx, theModel, initial_read,
-                            /*model_completion=*/Z3_TRUE, &arrayElementExpr);
-          assert(successfulEval && "Failed to evaluate model");
+          if (!Z3_model_eval(builder->ctx, theModel, initial_read,
+                             /*model_completion=*/Z3_TRUE, &arrayElementExpr)) {
+            Z3_dec_ref(builder->ctx, arraySizeExpr);
+            Z3_model_dec_ref(builder->ctx, theModel);
+            return SolverImpl::SOLVER_RUN_STATUS_FAILURE;
+          }
           Z3_inc_ref(builder->ctx, arrayElementExpr);
           assert(Z3_get_ast_kind(builder->ctx, arrayElementExpr) ==
                      Z3_NUMERAL_AST &&
                  "Evaluated expression has wrong sort");
 
           int arrayElementValue = 0;
-          __attribute__((unused)) bool successGet = Z3_get_numeral_int(
-              builder->ctx, arrayElementExpr, &arrayElementValue);
-          assert(successGet && "failed to get value back");
+          if (!Z3_get_numeral_int(builder->ctx, arrayElementExpr,
+                                  &arrayElementValue)) {
+            Z3_dec_ref(builder->ctx, arrayElementExpr);
+            Z3_dec_ref(builder->ctx, arraySizeExpr);
+            Z3_model_dec_ref(builder->ctx, theModel);
+            return SolverImpl::SOLVER_RUN_STATUS_FAILURE;
+          }
           assert(arrayElementValue >= 0 && arrayElementValue <= 255 &&
                  "Integer from model is out of range");
           data.store(offset, arrayElementValue);

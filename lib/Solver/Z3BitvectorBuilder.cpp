@@ -931,6 +931,7 @@ Z3SortHandle Z3BitvectorBuilder::getFloatSortFromBitWidth(unsigned bitWidth) {
   default:
     assert(0 &&
            "bitWidth cannot converted to a IEEE-754 binary-* number by Z3");
+    unreachable();
   }
 }
 

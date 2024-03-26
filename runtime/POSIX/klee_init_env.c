@@ -242,7 +242,8 @@ int __klee_posix_wrapped_main(int argc, char **argv, char **envp);
 
 void check_stdin_read() {
   klee_assume(__exe_env.stdin_off == __exe_env.max_off);
-  for (int i = 0; i < __exe_fs.n_sym_files; i++) {
+  unsigned i = 0;
+  for (; i < __exe_fs.n_sym_files; i++) {
     klee_assume(__exe_fs.sym_files[i].read_bytes_real ==
                 __exe_fs.sym_files[i].read_bytes_symbolic);
     klee_assume(__exe_fs.sym_files[i].write_bytes_real ==

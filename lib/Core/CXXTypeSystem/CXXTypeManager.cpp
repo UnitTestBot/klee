@@ -227,13 +227,11 @@ bool cxxtypes::KCXXType::isAccessableFrom(KCXXType *accessingType) const {
 }
 
 bool cxxtypes::KCXXType::isAccessableFrom(KType *accessingType) const {
-  assert(accessingType && "Accessing type is nullptr!");
-  if (isa<KCXXType>(accessingType)) {
-    KCXXType *accessingCXXType = cast<KCXXType>(accessingType);
-    return isAccessingFromChar(accessingCXXType) ||
-           isAccessableFrom(accessingCXXType);
-  }
-  assert(false && "Attempted to compare raw llvm type with C++ type!");
+  KCXXType *accessingCXXType = dyn_cast_or_null<KCXXType>(accessingType);
+  assert(accessingCXXType &&
+         "Attempted to compare raw llvm type with C++ type!");
+  return isAccessingFromChar(accessingCXXType) ||
+         isAccessableFrom(accessingCXXType);
 }
 
 ref<Expr> cxxtypes::KCXXType::getContentRestrictions(ref<Expr> object) const {

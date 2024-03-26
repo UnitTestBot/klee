@@ -44,9 +44,8 @@ ExecutionState *ObjectManager::branchState(ExecutionState *state,
 }
 
 void ObjectManager::removeState(ExecutionState *state) {
-  std::vector<ExecutionState *>::iterator itr =
-      std::find(removedStates.begin(), removedStates.end(), state);
-  assert(itr == removedStates.end());
+  assert(std::find(removedStates.begin(), removedStates.end(), state) ==
+         removedStates.end());
 
   if (!statesUpdated) {
     statesUpdated = true;
