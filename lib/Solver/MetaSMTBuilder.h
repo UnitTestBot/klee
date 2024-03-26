@@ -20,7 +20,11 @@
 #include "klee/Expr/ArrayExprHash.h"
 #include "klee/Expr/Expr.h"
 #include "klee/Expr/ExprHashMap.h"
-#include "klee/Solver/SolverStats.h"
+#include "klee/Expr/ExprPPrinter.h"
+#include <cassert>
+
+#ifdef ENABLE_METASMT
+
 #include "klee/Support/CompilerWarning.h"
 
 #include "llvm/ADT/iterator_range.h"

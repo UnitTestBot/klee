@@ -52,6 +52,7 @@
 #undef STP
 #undef type_t
 #endif
+DISABLE_WARNING_POP
 
 #include <memory>
 
