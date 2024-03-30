@@ -195,7 +195,7 @@ TEST(ExprTest, ReadExprFoldingConstantUpdate) {
   ref<Expr> index = ConstantExpr::create(0, Expr::Int32);
   UpdateList ul(array, 0);
   ref<Expr> updateValue = ConstantExpr::create(32, Expr::Int8);
-  ul.extend(index, updateValue);
+  ul.extend(SimpleWrite(index, updateValue));
   ref<Expr> read = ReadExpr::create(ul, index);
   // Read - should be constant folded to 32
   // Check that constant folding worked
@@ -224,8 +224,8 @@ TEST(ExprTest, ReadExprFoldingConstantMultipleUpdate) {
   UpdateList ul(array, 0);
   ref<Expr> updateValue = ConstantExpr::create(32, Expr::Int8);
   ref<Expr> updateValue2 = ConstantExpr::create(64, Expr::Int8);
-  ul.extend(index, updateValue);
-  ul.extend(index, updateValue2);
+  ul.extend(SimpleWrite(index, updateValue));
+  ul.extend(SimpleWrite(index, updateValue2));
   ref<Expr> read = ReadExpr::create(ul, index);
   // Read - should be constant folded to 64
   // Check that constant folding worked
@@ -256,7 +256,7 @@ TEST(ExprTest, ReadExprFoldingSymbolicValueUpdate) {
       ac.CreateArray(ConstantExpr::create(256, sizeof(uint64_t) * CHAR_BIT),
                      SourceBuilder::makeSymbolic("arr", 2));
   ref<Expr> updateValue = ReadExpr::createTempRead(array2, Expr::Int8);
-  ul.extend(index, updateValue);
+  ul.extend(SimpleWrite(index, updateValue));
   ref<Expr> read = ReadExpr::create(ul, index);
   // Read - should be constant folded to the symbolic value
   // Check that constant folding worked
@@ -285,7 +285,7 @@ TEST(ExprTest, ReadExprFoldingSymbolicIndexUpdate) {
                      SourceBuilder::makeSymbolic("arr", 2));
   ref<Expr> updateIndex = ReadExpr::createTempRead(array2, Expr::Int32);
   ref<Expr> updateValue = ConstantExpr::create(12, Expr::Int8);
-  ul.extend(updateIndex, updateValue);
+  ul.extend(SimpleWrite(updateIndex, updateValue));
   ref<Expr> read;
 
   for (unsigned i = 0; i < size; ++i) {

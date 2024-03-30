@@ -51,10 +51,10 @@ TEST(ArrayExprTest, HashCollisions) {
                      SourceBuilder::makeSymbolic("symIdx", 0));
   ref<Expr> symIdx = Expr::createTempRead(symArray, Expr::Int32);
   UpdateList ul(array, 0);
-  ul.extend(getConstant(3, Expr::Int32), getConstant(11, Expr::Int8));
+  ul.extend(SimpleWrite(getConstant(3, Expr::Int32), getConstant(11, Expr::Int8)));
   ref<Expr> firstRead = ReadExpr::create(ul, symIdx);
-  ul.extend(getConstant(6, Expr::Int32), getConstant(42, Expr::Int8));
-  ul.extend(getConstant(6, Expr::Int32), getConstant(42, Expr::Int8));
+  ul.extend(SimpleWrite(getConstant(6, Expr::Int32), getConstant(42, Expr::Int8)));
+  ul.extend(SimpleWrite(getConstant(6, Expr::Int32), getConstant(42, Expr::Int8)));
   ref<Expr> updatedRead = ReadExpr::create(ul, symIdx);
 
   // This test requires hash collision and should be updated if the hash
