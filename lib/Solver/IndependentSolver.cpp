@@ -199,7 +199,7 @@ bool IndependentSolver::computeInitialValues(
       continue;
     } else if (it->exprs.size() == 0) {
       ref<SolverResponse> tempResult = new InvalidResponse();
-      bool success =
+      [[maybe_unused]] bool success =
           tempResult->tryGetInitialValuesFor(arraysInFactor, tempValues);
       assert(success && "Can not get initial values (Independent solver)!");
     } else {

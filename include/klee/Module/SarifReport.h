@@ -10,15 +10,20 @@
 #ifndef KLEE_SARIF_REPORT_H
 #define KLEE_SARIF_REPORT_H
 
+#include "klee/ADT/Ref.h"
+
+#include "klee/Support/CompilerWarning.h"
+DISABLE_WARNING_PUSH
+DISABLE_WARNING_DEPRECATED_DECLARATIONS
+#include <llvm/IR/Function.h>
+DISABLE_WARNING_POP
+
+#include "nlohmann/json.hpp"
+
 #include <optional>
-#include <set>
 #include <string>
 #include <unordered_set>
 #include <vector>
-
-#include "klee/ADT/Ref.h"
-#include "nlohmann/json.hpp"
-#include "llvm/IR/Function.h"
 
 using json = nlohmann::json;
 

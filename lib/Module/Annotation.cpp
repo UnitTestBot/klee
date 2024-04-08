@@ -15,6 +15,8 @@ DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include <llvm/Support/raw_ostream.h>
 DISABLE_WARNING_POP
 
+#include "nlohmann/json.hpp"
+
 #include <fstream>
 #include <map>
 #include <vector>

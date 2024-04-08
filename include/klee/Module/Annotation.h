@@ -9,12 +9,12 @@
 #ifndef KLEE_ANNOTATION_H
 #define KLEE_ANNOTATION_H
 
+#include "nlohmann/json_fwd.hpp"
+
 #include <map>
 #include <set>
 #include <string>
 #include <vector>
-
-#include "nlohmann/json_fwd.hpp"
 
 using json = nlohmann::json;
 

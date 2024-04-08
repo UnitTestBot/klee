@@ -219,7 +219,7 @@ bool ConcretizingSolver::relaxSymcreteConstraints(const Query &query,
 
     std::queue<const Array *> arrayQueue;
 
-    bool addressArrayPresent = false;
+    [[maybe_unused]] bool addressArrayPresent = false;
     for (const Array *array : currentlyBrokenSymcretizedArrays) {
       if (symcretesDependentFromArrays.count(array) &&
           usedSymcretizedArrays.insert(array).second) {

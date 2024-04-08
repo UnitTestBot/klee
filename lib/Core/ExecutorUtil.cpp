@@ -281,7 +281,7 @@ ref<Expr> Executor::evalConstantExpr(const llvm::ConstantExpr *ce,
   llvm::Type *type = ce->getType();
 
   ref<Expr> op1(0), op2(0), op3(0);
-  bool isPointer1(false), isPointer2(false), isPointer3(false);
+  [[maybe_unused]] bool isPointer1(false), isPointer2(false), isPointer3(false);
   int numOperands = ce->getNumOperands();
 
   if (numOperands > 0) {
