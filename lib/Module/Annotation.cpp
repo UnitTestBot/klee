@@ -11,6 +11,8 @@
 
 #include <llvm/Support/raw_ostream.h>
 
+#include "nlohmann/json.hpp"
+
 #include <fstream>
 #include <map>
 #include <vector>

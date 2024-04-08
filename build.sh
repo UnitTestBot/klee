@@ -31,6 +31,7 @@ ENABLE_OPTIMIZED=1
 ENABLE_DEBUG=0
 DISABLE_ASSERTIONS=1
 REQUIRES_RTTI=1
+ENABLE_WARNINGS_AS_ERRORS=1
 
 ## Solvers Required options
 # SOLVERS=STP
@@ -64,6 +65,7 @@ if [ "$1" = "--debug" ] || [ "$1" = "-g" ]; then
     ENABLE_OPTIMIZED=0
     ENABLE_DEBUG=1
     KLEE_RUNTIME_BUILD="Debug+Asserts"
+    ENABLE_WARNINGS_AS_ERRORS=0
     shift 1
 else
     KEEP_PARSE="false"

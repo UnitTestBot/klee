@@ -25,6 +25,7 @@ build_klee() {
     "-DENABLE_SYSTEM_TESTS=TRUE"
     "-DENABLE_DOXYGEN=${ENABLE_DOXYGEN}"
     "-DLIT_ARGS=\"-v;--time-tests\""
+    "-DENABLE_WARNINGS_AS_ERRORS=${ENABLE_WARNINGS_AS_ERRORS}"
   )
 
 
