@@ -20,6 +20,7 @@ def klee_options(
     f_err,
     f_cov,
     write_ktests,
+    run_forever
 ):
     if max_time and int(max_time) > 30:
         MAX_SOLVER_TIME = 15
@@ -62,7 +63,13 @@ def klee_options(
         #  "--search=nurs:md2u", "--search=random-path",
         #  "-const-array-opt",
     ]
-
+    if run_forever:
+        cmd += [
+            f"--seed-dir={test_output_dir}",
+            "--use-seeded-search",
+            "--prune-already-executed-states",
+            "--store-seeds-locally",
+        ]
     if is32:
         cmd += [
             "--allocate-determ",
@@ -70,7 +77,7 @@ def klee_options(
             "--allocate-determ-start-address=0x00030000000",
             "--x86FP-as-x87FP80",
         ]
-
+    
     if f_err:
         cmd += [
             "--optimize=true",

@@ -369,6 +369,7 @@ bool CexCachingSolver::computeValue(const Query &query, ref<Expr> &result) {
   } else {
     a = new InvalidResponse();
   }
+if(!isa<InvalidResponse>(a)) query.dump();
   assert(isa<InvalidResponse>(a) && "computeValue() must have assignment");
   result = cast<InvalidResponse>(a)->evaluate(query.expr, false);
 

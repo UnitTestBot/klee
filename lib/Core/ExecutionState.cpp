@@ -178,7 +178,7 @@ ExecutionState::ExecutionState(const ExecutionState &state)
       forkDisabled(state.forkDisabled), returnValue(state.returnValue),
       gepExprBases(state.gepExprBases), prevTargets_(state.prevTargets_),
       targets_(state.targets_), prevHistory_(state.prevHistory_),
-      history_(state.history_), isTargeted_(state.isTargeted_) {
+      history_(state.history_), isTargeted_(state.isTargeted_), isSeeded(state.isSeeded){
   constraints.fork();
   queryMetaData.id = state.id;
 }

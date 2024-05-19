@@ -61,10 +61,13 @@ KTest *kTest_fromFile(const char *path);
 /* returns 1 on success, 0 on (unspecified) error */
 int kTest_toFile(const KTest *, const char *path);
 
+int seedToFile(unsigned instructions, unsigned isCompleted, const KTest *, const char *path);
+
 /* returns total number of object bytes */
 unsigned kTest_numBytes(KTest *);
 
 void kTest_free(KTest *);
+void test_kTest_free(KTest *);
 
 #ifdef __cplusplus
 }

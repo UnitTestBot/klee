@@ -1,4 +1,4 @@
-//===-- SeedInfo.cpp ------------------------------------------------------===//
+//===-- ExecutingSeed.cpp ------------------------------------------------------===//
 //
 //                     The KLEE Symbolic Virtual Machine
 //
@@ -19,10 +19,29 @@
 #include "klee/Support/ErrorHandling.h"
 
 #include <set>
+#include <fstream>
 
 using namespace klee;
 
-KTestObject *SeedInfo::getNextInput(const MemoryObject *mo, bool byName) {
+void KTestDeleter::kTestDeleter(KTest * kTest) { kTest_free(kTest); }
+void KTestDeleter::testKTestDeleter(KTest * kTest) {  test_kTest_free(kTest); }
+
+ExecutingSeed::ExecutingSeed(std::string _path)
+    : input(kTest_fromFile((_path + "ktest").c_str()), KTestDeleter::kTestDeleter),
+      path(_path) {
+  std::ifstream seedInfoStream(_path + "seedinfo");
+  if (seedInfoStream.good()) {
+    seedInfoStream >> maxInstructions;
+    seedInfoStream >> isCompleted;
+  }
+}
+
+ExecutingSeed::ExecutingSeed(StoredSeed seed)
+      : input(seed.output),
+        maxInstructions(seed.steppedInstructions),
+        isCompleted(seed.isCompleted), inputPosition(0) {}
+
+KTestObject *ExecutingSeed::getNextInput(const MemoryObject *mo, bool byName) {
   if (byName) {
     unsigned i;
 
@@ -59,7 +78,7 @@ KTestObject *SeedInfo::getNextInput(const MemoryObject *mo, bool byName) {
   }
 }
 
-void SeedInfo::patchSeed(const ExecutionState &state, ref<Expr> condition,
+void ExecutingSeed::patchSeed(const ExecutionState &state, ref<Expr> condition,
                          TimingSolver *solver) {
   ConstraintSet required = state.constraints.cs();
   required.addConstraint(condition, {});

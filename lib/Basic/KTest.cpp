@@ -13,6 +13,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <string>
+#include <fstream>
+#include <cassert>
+
 
 #define KTEST_VERSION 4
 #define KTEST_MAGIC_SIZE 5
@@ -275,6 +279,16 @@ error:
   return 0;
 }
 
+int seedToFile(unsigned instructions, unsigned isCompleted, const KTest *bo, const char *path) {
+  if(!kTest_toFile(bo, (std::string(path) + "ktest").c_str())){
+    return false;
+  }
+  std::ofstream out(std::string(path) + "seedinfo");
+  out << instructions << "\n";
+  out << isCompleted;
+  return true;
+}
+
 unsigned kTest_numBytes(KTest *bo) {
   unsigned i, res = 0;
   for (i = 0; i < bo->numObjects; i++)
@@ -287,6 +301,17 @@ void kTest_free(KTest *bo) {
   for (i = 0; i < bo->numArgs; i++)
     free(bo->args[i]);
   free(bo->args);
+  for (i = 0; i < bo->numObjects; i++) {
+    free(bo->objects[i].name);
+    free(bo->objects[i].bytes);
+    free(bo->objects[i].pointers);
+  }
+  free(bo->objects);
+  free(bo);
+}
+
+void test_kTest_free(KTest *bo) {
+  unsigned i;
   for (i = 0; i < bo->numObjects; i++) {
     free(bo->objects[i].name);
     free(bo->objects[i].bytes);
