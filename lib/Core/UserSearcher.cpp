@@ -74,6 +74,12 @@ cl::opt<bool> UseBatchingSearch(
              "(default=false)"),
     cl::init(false), cl::cat(SearchCat));
 
+cl::opt<bool>
+    UseSeededSearch("use-seeded-search",
+                    cl::desc("Use seeded searcher (explores seeded states "
+                             "before unseeded) (default=false)"),
+                    cl::init(false), cl::cat(SearchCat));
+
 cl::opt<unsigned> BatchInstructions(
     "batch-instructions",
     cl::desc("Number of instructions to batch when using "
@@ -204,6 +210,11 @@ Searcher *klee::constructUserSearcher(Executor &executor) {
                                             executor.theRNG, 1);
   } else {
     searcher = constructBaseSearcher(executor);
+  }
+
+  if (UseSeededSearch) {
+    states_ty &seedChandes = executor.getSeedChanges();
+    searcher = new SeededSearcher(searcher, seedChandes);
   }
 
   llvm::raw_ostream &os = executor.getHandler().getInfoStream();

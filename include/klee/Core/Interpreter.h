@@ -12,6 +12,7 @@
 #include "TerminationTypes.h"
 #include "klee/Module/Annotation.h"
 
+#include "klee/ADT/KTest.h"
 #include "klee/Module/SarifReport.h"
 
 #include <cstdint>
@@ -58,8 +59,11 @@ public:
 
   virtual void processTestCase(const ExecutionState &state, const char *message,
                                const char *suffix, bool isError = false) = 0;
-
   virtual ToolJson info() const = 0;
+
+  // used for writing .ktest files
+  virtual int argc() = 0;
+  virtual char **argv() = 0;
 };
 
 /// [File][Line][Column] -> Opcode
@@ -209,10 +213,6 @@ public:
   // a user specified path. use null to reset.
   virtual void setReplayPath(const std::vector<bool> *path) = 0;
 
-  // supply a set of symbolic bindings that will be used as "seeds"
-  // for the search. use null to reset.
-  virtual void useSeeds(const std::vector<struct KTest *> *seeds) = 0;
-
   virtual void runFunctionAsMain(llvm::Function *f, int argc, char **argv,
                                  char **envp) = 0;
 
@@ -237,7 +237,10 @@ public:
   virtual void getConstraintLog(const ExecutionState &state, std::string &res,
                                 LogType logFormat = STP) = 0;
 
-  virtual bool getSymbolicSolution(const ExecutionState &state, KTest &res) = 0;
+  virtual void getSteppedInstructions(const ExecutionState &state,
+                                      unsigned &res) = 0;
+
+  virtual bool getSymbolicSolution(const ExecutionState &state, KTest *res) = 0;
 
   virtual void addSARIFReport(const ExecutionState &state) = 0;
 

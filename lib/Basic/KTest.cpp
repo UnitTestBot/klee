@@ -9,10 +9,13 @@
 
 #include "klee/ADT/KTest.h"
 
+#include <cassert>
+#include <fstream>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <string>
 
 #define KTEST_VERSION 4
 #define KTEST_MAGIC_SIZE 5
@@ -287,6 +290,17 @@ void kTest_free(KTest *bo) {
   for (i = 0; i < bo->numArgs; i++)
     free(bo->args[i]);
   free(bo->args);
+  for (i = 0; i < bo->numObjects; i++) {
+    free(bo->objects[i].name);
+    free(bo->objects[i].bytes);
+    free(bo->objects[i].pointers);
+  }
+  free(bo->objects);
+  free(bo);
+}
+
+void test_kTest_free(KTest *bo) {
+  unsigned i;
   for (i = 0; i < bo->numObjects; i++) {
     free(bo->objects[i].name);
     free(bo->objects[i].bytes);
