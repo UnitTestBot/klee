@@ -151,6 +151,9 @@ public:
   inline const call_stack_ty &uniqueFrames() const { return uniqueFrames_; }
 
   void forceReturnLocation(const ref<CodeLocation> &location) {
+    if (callStack_.empty()) {
+      llvm::errs() << callStack_.size() << "\n";
+    }
     assert(!callStack_.empty() && "Call stack should contain at least one "
                                   "stack frame to force return location");
     std::optional<ref<CodeLocation>> &callStackReturnLocation =
@@ -300,6 +303,7 @@ private:
 public:
   using stack_ty = ExecutionStack;
 
+  bool isSeeded = false;
   // Execution - Control Flow specific
 
   /// @brief Pointer to initial instruction

@@ -54,11 +54,20 @@ public:
   void addProcessForest(PForest *);
 
   void addInitialState(ExecutionState *state);
+  void addFirstState(ExecutionState *state);
 
   void setCurrentState(ExecutionState *_current);
 
   ExecutionState *branchState(ExecutionState *state, BranchType reason);
   void removeState(ExecutionState *state);
+
+  void unseed(ExecutionState *state);
+  void seed(ExecutionState *state);
+
+  states_ty &getSeedChanges();
+
+  ExecutionState *initializeState(KInstruction *location,
+                                  std::set<ref<Target>> targets);
 
   const states_ty &getStates();
 
@@ -80,6 +89,8 @@ public:
   ExecutionState *current = nullptr;
   std::vector<ExecutionState *> addedStates;
   std::vector<ExecutionState *> removedStates;
+
+  states_ty seedChanges;
 };
 
 class Subscriber {

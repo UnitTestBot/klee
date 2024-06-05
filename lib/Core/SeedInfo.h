@@ -1,4 +1,4 @@
-//===-- SeedInfo.h ----------------------------------------------*- C++ -*-===//
+//===--SeedInfo.h ----------------------------------------------*- C++ -*-===//
 //
 //                     The KLEE Symbolic Virtual Machine
 //
@@ -24,15 +24,46 @@ class ExecutionState;
 class TimingSolver;
 class MemoryObject;
 
-class SeedInfo {
+struct KTestDeleter {
+  static void kTestDeleter(KTest *kTest);
+  static void testKTestDeleter(KTest *kTest);
+};
+
+class StoredSeed {
 public:
-  Assignment assignment;
-  KTest *input;
-  unsigned inputPosition;
-  std::set<struct KTestObject *> used;
+  std::shared_ptr<KTest> output;
+  unsigned steppedInstructions;
+  bool isCompleted;
 
 public:
-  explicit SeedInfo(KTest *_input) : input(_input), inputPosition(0) {}
+  ~StoredSeed() {}
+
+  explicit StoredSeed(KTest *output, unsigned steppedInstructions,
+                      bool isCompleted)
+      : output(output, KTestDeleter::testKTestDeleter),
+        steppedInstructions(steppedInstructions), isCompleted(isCompleted) {}
+};
+
+class ExecutingSeed {
+public:
+  Assignment assignment;
+  std::shared_ptr<KTest> input;
+  unsigned maxInstructions = 0;
+  bool isCompleted = 0;
+  unsigned inputPosition = 0;
+  std::set<struct KTestObject *> used;
+  std::string path = "";
+
+public:
+  ~ExecutingSeed() {}
+
+  explicit ExecutingSeed(KTest *input, unsigned maxInstructions,
+                         bool isCompleted)
+      : input(input, KTestDeleter::testKTestDeleter),
+        maxInstructions(maxInstructions), isCompleted(isCompleted),
+        inputPosition(0) {}
+  ExecutingSeed(StoredSeed seed);
+  ExecutingSeed(std::string _path);
 
   KTestObject *getNextInput(const MemoryObject *mo, bool byName);
 

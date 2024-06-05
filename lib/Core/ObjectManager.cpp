@@ -23,8 +23,11 @@ void ObjectManager::addSubscriber(Subscriber *s) { subscribers.push_back(s); }
 void ObjectManager::addProcessForest(PForest *pf) { processForest = pf; }
 
 void ObjectManager::addInitialState(ExecutionState *state) {
-  states.insert(state);
   processForest->addRoot(state);
+}
+
+void ObjectManager::addFirstState(ExecutionState *state) {
+  states.insert(state);
 }
 
 void ObjectManager::setCurrentState(ExecutionState *_current) {
@@ -35,7 +38,6 @@ void ObjectManager::setCurrentState(ExecutionState *_current) {
 
 ExecutionState *ObjectManager::branchState(ExecutionState *state,
                                            BranchType reason) {
-  assert(statesUpdated);
   ExecutionState *newState = state->branch();
   addedStates.push_back(newState);
   processForest->attach(state->ptreeNode, newState, state, reason);
@@ -44,6 +46,7 @@ ExecutionState *ObjectManager::branchState(ExecutionState *state,
 }
 
 void ObjectManager::removeState(ExecutionState *state) {
+
   std::vector<ExecutionState *>::iterator itr =
       std::find(removedStates.begin(), removedStates.end(), state);
   assert(itr == removedStates.end());
@@ -54,6 +57,23 @@ void ObjectManager::removeState(ExecutionState *state) {
 
   removedStates.push_back(state);
 }
+
+void ObjectManager::unseed(ExecutionState *state) {
+  if (state->isSeeded) {
+    state->isSeeded = false;
+    seedChanges.insert(state);
+    statesUpdated = true;
+  }
+}
+void ObjectManager::seed(ExecutionState *state) {
+  if (!state->isSeeded) {
+    state->isSeeded = true;
+    seedChanges.insert(state);
+    statesUpdated = true;
+  }
+}
+
+states_ty &ObjectManager::getSeedChanges() { return seedChanges; }
 
 void ObjectManager::updateSubscribers() {
   if (statesUpdated) {
@@ -75,6 +95,7 @@ void ObjectManager::updateSubscribers() {
     current = nullptr;
     addedStates.clear();
     removedStates.clear();
+    seedChanges.clear();
     statesUpdated = false;
   }
 }
