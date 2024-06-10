@@ -649,34 +649,7 @@ ref<Expr> ConstantExpr::fromMemory(void *address, Width width) {
 
 void ConstantExpr::toMemory(void *address) {
   auto width = getWidth();
-  switch (width) {
-  default:
-    assert(0 && "invalid type");
-  case Expr::Bool:
-    *((uint8_t *)address) = getZExtValue(1);
-    break;
-  case Expr::Int8:
-    *((uint8_t *)address) = getZExtValue(8);
-    break;
-  case Expr::Int16:
-    *((uint16_t *)address) = getZExtValue(16);
-    break;
-  case Expr::Int32:
-    *((uint32_t *)address) = getZExtValue(32);
-    break;
-  case Expr::Int64:
-    *((uint64_t *)address) = getZExtValue(64);
-    break;
-  case Expr::Int128:
-  case Expr::Int256:
-  case Expr::Int512:
-    memcpy(address, value.getRawData(), width / 8);
-    break;
-  // FIXME: what about machines without x87 support?
-  case Expr::Fl80:
-    *((long double *)address) = *(const long double *)value.getRawData();
-    break;
-  }
+  std::memcpy(address, value.getRawData(), (width + 7) / 8);
 }
 
 void ConstantExpr::toString(std::string &Res, unsigned radix) const {

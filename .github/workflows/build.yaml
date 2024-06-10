@@ -26,7 +26,7 @@ env:
   SOLVERS: BITWUZLA:Z3:STP
   STP_VERSION: 2.3.3
   TCMALLOC_VERSION: 2.9.1
-  UCLIBC_VERSION: klee_uclibc_v1.3
+  UCLIBC_VERSION: klee_uclibc_v1.4
   USE_TCMALLOC: 1
   USE_LIBCXX: 1
   Z3_VERSION: 4.8.15
@@ -41,12 +41,12 @@ jobs:
     strategy:
       matrix:
         name: [
+          "LLVM 16",
+          "LLVM 15",
           "LLVM 14",
           "LLVM 13",
           "LLVM 12",
           "LLVM 11, Doxygen",
-          "LLVM 10",
-          "LLVM 9",
           "ASan",
           "UBSan",
           "MSan",
@@ -59,6 +59,12 @@ jobs:
           "No TCMalloc, optimised runtime",
         ]
         include:
+          - name: "LLVM 16"
+            env:
+              LLVM_VERSION: 16
+          - name: "LLVM 15"
+            env:
+              LLVM_VERSION: 15
           - name: "LLVM 14"
             env:
               LLVM_VERSION: 14
@@ -72,12 +78,6 @@ jobs:
             env:
               LLVM_VERSION: 11
               ENABLE_DOXYGEN: 1
-          - name: "LLVM 10"
-            env:
-              LLVM_VERSION: 10
-          - name: "LLVM 9"
-            env:
-              LLVM_VERSION: 9
           # Sanitizer builds. Do unoptimized build otherwise the optimizer
           # might remove problematic code
           - name: "ASan"

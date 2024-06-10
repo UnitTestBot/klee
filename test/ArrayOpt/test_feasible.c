@@ -23,6 +23,7 @@
 // CHECK-CONST_ARR: const_arr
 
 #include "klee/klee.h"
+#include <assert.h>
 #include <stdio.h>
 
 char array[5] = {0, 1, 0, 1, 0};

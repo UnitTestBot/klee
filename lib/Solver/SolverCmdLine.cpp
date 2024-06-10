@@ -131,15 +131,24 @@ cl::opt<unsigned>
                                      " Set to 0 to disable (default=0)"),
                             cl::init(0), cl::cat(SolvingCat));
 
-void KCommandLine::HideOptions(llvm::cl::OptionCategory &Category) {
+void KCommandLine::KeepOnlyCategories(
+    std::set<llvm::cl::OptionCategory *> const &categories) {
   StringMap<cl::Option *> &map = cl::getRegisteredOptions();
 
   for (auto &elem : map) {
+    if (elem.first() == "version" || elem.first() == "color" ||
+        elem.first() == "help" || elem.first() == "help-list")
+      continue;
+
+    bool keep = false;
     for (auto &cat : elem.second->Categories) {
-      if (cat == &Category) {
-        elem.second->setHiddenFlag(cl::Hidden);
+      if (categories.find(cat) != categories.end()) {
+        keep = true;
+        break;
       }
     }
+    if (!keep)
+      elem.second->setHiddenFlag(cl::Hidden);
   }
 } // namespace klee
 

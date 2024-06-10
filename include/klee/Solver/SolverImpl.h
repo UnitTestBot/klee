@@ -115,9 +115,9 @@ public:
   /// status code
   static const char *getOperationStatusString(SolverRunStatus statusCode);
 
-  virtual char *getConstraintLog(const Query &) {
+  virtual std::string getConstraintLog(const Query &query) {
     // dummy
-    return nullptr;
+    return {};
   }
 
   virtual void setCoreSolverTimeout(time::Span) {}

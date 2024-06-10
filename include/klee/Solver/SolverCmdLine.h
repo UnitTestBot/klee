@@ -17,6 +17,8 @@
 
 #include "llvm/Support/CommandLine.h"
 
+#include <set>
+
 namespace klee {
 
 extern llvm::cl::opt<bool> UseFastCexSolver;
@@ -92,12 +94,12 @@ extern llvm::cl::opt<klee::MetaSMTBackendType> MetaSMTBackend;
 
 class KCommandLine {
 public:
-  /// Hide all options in the specified category
-  static void HideOptions(llvm::cl::OptionCategory &Category);
-
-  /// Hide all options except the ones in the specified category
-  static void HideUnrelatedOptions(llvm::cl::OptionCategory &Category);
+  /// Keep only the options in the provided categories,
+  /// together with --help, --help-list, --version and --color
+  static void
+  KeepOnlyCategories(std::set<llvm::cl::OptionCategory *> const &categories);
 };
+
 } // namespace klee
 
 #endif /* KLEE_SOLVERCMDLINE_H */

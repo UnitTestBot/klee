@@ -3,7 +3,7 @@
 // RUN: %klee --use-guided-search=none --output-dir=%t.klee-out %t1.bc
 // RUN: ls %t.klee-out/ | grep .err | wc -l | grep 2
 // RUN: ls %t.klee-out/ | grep .ptr.err | wc -l | grep 2
-
+#include "klee/klee.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>

@@ -67,12 +67,7 @@ public:
   llvm::Type *operator*() const { return CurTy; }
 
   llvm::Type *getIndexedType() const {
-#if LLVM_VERSION_CODE >= LLVM_VERSION(11, 0)
     return llvm::GetElementPtrInst::getTypeAtIndex(CurTy, getOperand());
-#else
-    llvm::CompositeType *CT = cast<llvm::CompositeType>(CurTy);
-    return CT->getTypeAtIndex(getOperand());
-#endif
   }
 
   // This is a non-standard operator->.  It allows you to call methods on the
@@ -82,15 +77,9 @@ public:
   llvm::Value *getOperand() const { return asValue(*OpIt); }
 
   generic_gep_type_iterator &operator++() { // Preincrement
-#if LLVM_VERSION_CODE >= LLVM_VERSION(11, 0)
-    if (llvm::isa<llvm::StructType>(CurTy) ||
-        llvm::isa<llvm::ArrayType>(CurTy) ||
-        llvm::isa<llvm::VectorType>(CurTy)) {
+    if (isa<llvm::StructType>(CurTy) || isa<llvm::ArrayType>(CurTy) ||
+        isa<llvm::VectorType>(CurTy)) {
       CurTy = llvm::GetElementPtrInst::getTypeAtIndex(CurTy, getOperand());
-#else
-    if (llvm::CompositeType *CT = dyn_cast<llvm::CompositeType>(CurTy)) {
-      CurTy = CT->getTypeAtIndex(getOperand());
-#endif
     } else if (CurTy->isPointerTy()) {
       CurTy = CurTy->getPointerElementType();
     } else {
@@ -143,14 +132,6 @@ inline iv_type_iterator iv_type_begin(const llvm::InsertValueInst *IV) {
 }
 inline iv_type_iterator iv_type_end(const llvm::InsertValueInst *IV) {
   return iv_type_iterator::end(IV->idx_end());
-}
-
-inline vce_type_iterator vce_type_begin(const llvm::ConstantExpr *CE) {
-  return vce_type_iterator::begin(CE->getOperand(0)->getType(),
-                                  CE->getIndices().begin());
-}
-inline vce_type_iterator vce_type_end(const llvm::ConstantExpr *CE) {
-  return vce_type_iterator::end(CE->getIndices().end());
 }
 
 template <typename ItTy>

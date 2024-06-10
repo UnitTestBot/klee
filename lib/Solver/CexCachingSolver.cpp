@@ -46,16 +46,10 @@ cl::opt<bool>
                               "before asking the SMT solver (default=false)"),
                      cl::cat(SolvingCat));
 
-cl::opt<bool> CexCacheExperimental(
-    "cex-cache-exp", cl::init(false),
-    cl::desc("Optimization for validity queries (default=false)"),
-    cl::cat(SolvingCat));
-
 cl::opt<bool> CexCacheValidityCores(
     "cex-cache-validity-cores", cl::init(false),
     cl::desc("Cache assignment and it's validity cores (default=false)"),
     cl::cat(SolvingCat));
-
 } // namespace
 
 ///
@@ -107,7 +101,7 @@ public:
   bool computeValidityCore(const Query &, ValidityCore &validityCore,
                            bool &isValid);
   SolverRunStatus getOperationStatusCode();
-  char *getConstraintLog(const Query &query);
+  std::string getConstraintLog(const Query &query) final;
   void setCoreSolverTimeout(time::Span timeout);
   void notifyStateTermination(std::uint32_t id);
 };
@@ -332,20 +326,6 @@ bool CexCachingSolver::computeValidity(const Query &query,
 bool CexCachingSolver::computeTruth(const Query &query, bool &isValid) {
   TimerStatIncrementer t(stats::cexCacheTime);
 
-  // There is a small amount of redundancy here. We only need to know
-  // truth and do not really need to compute an assignment. This means
-  // that we could check the cache to see if we already know that
-  // state ^ query has no assignment. In that case, by the validity of
-  // state, we know that state ^ !query must have an assignment, and
-  // so query cannot be true (valid). This does get hits, but doesn't
-  // really seem to be worth the overhead.
-
-  if (CexCacheExperimental) {
-    ref<SolverResponse> a;
-    if (lookupResponse(query.negateExpr(), a) && isa<ValidResponse>(a))
-      return false;
-  }
-
   ref<SolverResponse> a;
   if (!getResponse(query, a))
     return false;
@@ -445,7 +425,7 @@ SolverImpl::SolverRunStatus CexCachingSolver::getOperationStatusCode() {
   return solver->impl->getOperationStatusCode();
 }
 
-char *CexCachingSolver::getConstraintLog(const Query &query) {
+std::string CexCachingSolver::getConstraintLog(const Query &query) {
   return solver->impl->getConstraintLog(query);
 }
 

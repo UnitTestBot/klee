@@ -175,6 +175,8 @@ public:
   /// @param mo The MemoryObject to update
   /// @param os The associated memory state containing the actual data
   /// @param src_address the address to copy from
+  /// @param concretize fully concretize the object representation if changed
+  /// externally
   /// @return
   bool copyInConcrete(const MemoryObject *mo, const ObjectState *os,
                       uint64_t src_address, const Assignment &assignment);

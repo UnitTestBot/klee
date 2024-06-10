@@ -579,14 +579,18 @@ private:
   /// value). Otherwise return the original expression.
   ref<Expr> toUnique(const ExecutionState &state, ref<Expr> e);
 
-  /// Return a constant value for the given expression, forcing it to
-  /// be constant in the given state by adding a constraint if
-  /// necessary. Note that this function breaks completeness and
-  /// should generally be avoided.
+  /// Return a constant value for the given expression. Note that this function
+  /// breaks completeness and should generally be avoided.
   ///
-  /// \param purpose An identify string to printed in case of concretization.
+  /// \param reason A documentation string stating the reason for concretization
   ref<klee::ConstantExpr> toConstant(ExecutionState &state, ref<Expr> e,
-                                     const char *purpose);
+                                     const std::string &reason);
+
+  /// Evaluate the given expression under each seed, and return the
+  /// first one that results in a constant, if such a seed exist.  Otherwise,
+  /// return the non-constant evaluation of the expression under one of the
+  /// seeds.
+  ref<klee::ConstantExpr> getValueFromSeeds(ExecutionState &state, ref<Expr> e);
 
   ref<klee::ConstantPointerExpr> toConstantPointer(ExecutionState &state,
                                                    ref<PointerExpr> e,
@@ -607,9 +611,9 @@ private:
   const KInstruction *
   getLastNonKleeInternalInstruction(const ExecutionState &state) const;
 
-  /// Remove state from queue and delete state
-  void terminateState(ExecutionState &state,
-                      StateTerminationType terminationType);
+  /// Remove state from queue and delete state. This function should only be
+  /// used in the termination functions below.
+  void terminateState(ExecutionState &state, StateTerminationType reason);
 
   /// Call exit handler and terminate state normally
   /// (end of execution path)
@@ -670,7 +674,8 @@ private:
   /// Call error handler and terminate state for user errors
   /// (e.g. wrong usage of klee.h API)
   void terminateStateOnUserError(ExecutionState &state,
-                                 const llvm::Twine &message);
+                                 const llvm::Twine &message,
+                                 bool writeErr = true);
 
   void reportProgressTowardsTargets(std::string prefix,
                                     const SetOfStates &states) const;

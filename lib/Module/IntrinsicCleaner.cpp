@@ -21,6 +21,7 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/IntrinsicsX86.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/Pass.h"
@@ -130,9 +131,14 @@ bool IntrinsicCleanerPass::runOnBasicBlock(BasicBlock &b, Module &M) {
               Builder.CreatePointerCast(dst, i8pp, "vacopy.cast.dst");
           auto castedSrc =
               Builder.CreatePointerCast(src, i8pp, "vacopy.cast.src");
+#if LLVM_VERSION_CODE >= LLVM_VERSION(15, 0)
+          auto load = Builder.CreateLoad(Builder.getInt8PtrTy(), castedSrc,
+                                         "vacopy.read");
+#else
           auto load =
               Builder.CreateLoad(castedSrc->getType()->getPointerElementType(),
                                  castedSrc, "vacopy.read");
+#endif
           Builder.CreateStore(load, castedDst, false /* isVolatile */);
         } else {
           assert(WordSize == 8 && "Invalid word size!");
@@ -140,9 +146,13 @@ bool IntrinsicCleanerPass::runOnBasicBlock(BasicBlock &b, Module &M) {
           auto pDst = Builder.CreatePointerCast(dst, i64p, "vacopy.cast.dst");
           auto pSrc = Builder.CreatePointerCast(src, i64p, "vacopy.cast.src");
 
+#if LLVM_VERSION_CODE >= LLVM_VERSION(15, 0)
+          auto pSrcType = Builder.getPtrTy();
+          auto pDstType = Builder.getPtrTy();
+#else
           auto pSrcType = pSrc->getType()->getPointerElementType();
           auto pDstType = pDst->getType()->getPointerElementType();
-
+#endif
           auto val = Builder.CreateLoad(pSrcType, pSrc);
           Builder.CreateStore(val, pDst, ii);
 
@@ -386,7 +396,11 @@ bool IntrinsicCleanerPass::runOnBasicBlock(BasicBlock &b, Module &M) {
 #if LLVM_VERSION_CODE >= LLVM_VERSION(12, 0)
       case Intrinsic::experimental_noalias_scope_decl:
 #endif
+#if LLVM_VERSION_CODE < LLVM_VERSION(16, 0)
       case Intrinsic::flt_rounds:
+#else
+      case Intrinsic::get_rounding:
+#endif
       case Intrinsic::frameaddress:
       case Intrinsic::get_dynamic_area_offset:
       case Intrinsic::invariant_end:
@@ -403,9 +417,8 @@ bool IntrinsicCleanerPass::runOnBasicBlock(BasicBlock &b, Module &M) {
       case Intrinsic::ptr_annotation:
       case Intrinsic::readcyclecounter:
       case Intrinsic::returnaddress:
-#if LLVM_VERSION_CODE >= LLVM_VERSION(11, 0)
       case Intrinsic::roundeven:
-#endif
+      case Intrinsic::sin:
       case Intrinsic::stackrestore:
       case Intrinsic::stacksave:
       case Intrinsic::var_annotation:

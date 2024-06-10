@@ -17,6 +17,7 @@
 #include "klee/System/Time.h"
 
 #include <memory>
+#include <string>
 #include <vector>
 
 namespace klee {
@@ -189,7 +190,7 @@ public:
   virtual std::pair<ref<Expr>, ref<Expr>>
   getRange(const Query &, time::Span timeout = time::Span());
 
-  virtual char *getConstraintLog(const Query &query);
+  virtual std::string getConstraintLog(const Query &query);
   virtual void setCoreSolverTimeout(time::Span timeout);
 
   /// @brief Notify the solver that the state with specified id has been

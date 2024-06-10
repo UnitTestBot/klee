@@ -56,7 +56,7 @@ public:
       const Query &query, const std::vector<const Array *> &objects,
       std::vector<SparseStorageImpl<unsigned char>> &values, bool &hasSolution);
   SolverRunStatus getOperationStatusCode();
-  char *getConstraintLog(const Query &);
+  std::string getConstraintLog(const Query &);
   void setCoreSolverTimeout(time::Span timeout);
   void notifyStateTermination(std::uint32_t id);
 
@@ -401,7 +401,7 @@ bool ConcretizingSolver::check(const Query &query,
   return true;
 }
 
-char *ConcretizingSolver::getConstraintLog(const Query &query) {
+std::string ConcretizingSolver::getConstraintLog(const Query &query) {
   return solver->impl->getConstraintLog(query);
 }
 

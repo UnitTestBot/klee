@@ -40,7 +40,7 @@ public:
   bool computeValidityCore(const Query &query, ValidityCore &validityCore,
                            bool &isValid);
   SolverRunStatus getOperationStatusCode();
-  char *getConstraintLog(const Query &);
+  std::string getConstraintLog(const Query &);
   void setCoreSolverTimeout(time::Span timeout);
   void notifyStateTermination(std::uint32_t id);
   ValidityCore changeVersion(const ValidityCore &validityCore,
@@ -209,7 +209,7 @@ SolverImpl::SolverRunStatus AlphaEquivalenceSolver::getOperationStatusCode() {
   return solver->impl->getOperationStatusCode();
 }
 
-char *AlphaEquivalenceSolver::getConstraintLog(const Query &query) {
+std::string AlphaEquivalenceSolver::getConstraintLog(const Query &query) {
   return solver->impl->getConstraintLog(query);
 }
 

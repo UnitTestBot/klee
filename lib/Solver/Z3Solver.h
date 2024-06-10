@@ -23,6 +23,10 @@ class Z3Solver : public Solver {
 public:
   /// Z3Solver - Construct a new Z3Solver.
   Z3Solver(Z3BuilderType type);
+
+  /// Get the query in SMT-LIBv2 format.
+  /// \return A C-style string. The caller is responsible for freeing this.
+  std::string getConstraintLog(const Query &) final;
 };
 
 class Z3TreeSolver : public Solver {

@@ -43,7 +43,7 @@ public:
                      const std::vector<const Array *> &objects,
                      std::vector<SparseStorageImpl<unsigned char>> &values);
   SolverRunStatus getOperationStatusCode();
-  char *getConstraintLog(const Query &);
+  std::string getConstraintLog(const Query &) final;
   void setCoreSolverTimeout(time::Span timeout);
   void notifyStateTermination(std::uint32_t id);
 };
@@ -174,9 +174,8 @@ void AssignmentValidatingSolver::dumpAssignmentQuery(
   Query augmentedQuery = query.withConstraints(constraints);
 
   // Ask the solver for the log for this query.
-  char *logText = solver->getConstraintLog(augmentedQuery);
-  llvm::errs() << "Query with assignment as constraints:\n" << logText << "\n";
-  free(logText);
+  llvm::errs() << "Query with assignment as constraints:\n"
+               << solver->getConstraintLog(augmentedQuery) << "\n";
 }
 
 SolverImpl::SolverRunStatus
@@ -184,7 +183,7 @@ AssignmentValidatingSolver::getOperationStatusCode() {
   return solver->impl->getOperationStatusCode();
 }
 
-char *AssignmentValidatingSolver::getConstraintLog(const Query &query) {
+std::string AssignmentValidatingSolver::getConstraintLog(const Query &query) {
   return solver->impl->getConstraintLog(query);
 }
 

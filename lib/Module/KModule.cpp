@@ -9,6 +9,9 @@
 
 #define DEBUG_TYPE "KModule"
 
+#include "klee/Module/KModule.h"
+
+#include "ModuleHelper.h"
 #include "Passes.h"
 
 #include "klee/Core/Interpreter.h"
@@ -22,18 +25,7 @@
 
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/AssemblyAnnotationWriter.h"
-#include "llvm/IR/CFG.h"
-#include "llvm/IR/DataLayout.h"
-#include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/Instructions.h"
-#include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/LegacyPassManager.h"
-#include "llvm/IR/Module.h"
-#include "llvm/IR/ValueSymbolTable.h"
-#include "llvm/IR/Verifier.h"
-#include "llvm/Linker/Linker.h"
-#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Scalar.h"
@@ -53,9 +45,7 @@ cl::OptionCategory
               "These options affect the compile-time processing of the code.");
 }
 
-namespace {
-enum SwitchImplType { eSwitchTypeSimple, eSwitchTypeLLVM, eSwitchTypeInternal };
-
+namespace klee {
 cl::opt<bool> OutputSource(
     "output-source",
     cl::desc(
@@ -66,16 +56,6 @@ cl::opt<bool>
     OutputModule("output-module",
                  cl::desc("Write the bitcode for the final transformed module"),
                  cl::init(false), cl::cat(ModuleCat));
-
-cl::opt<SwitchImplType> SwitchType(
-    "switch-type",
-    cl::desc("Select the implementation of switch (default=internal)"),
-    cl::values(clEnumValN(eSwitchTypeSimple, "simple",
-                          "lower to ordered branches"),
-               clEnumValN(eSwitchTypeLLVM, "llvm", "lower using LLVM"),
-               clEnumValN(eSwitchTypeInternal, "internal",
-                          "execute switch internally")),
-    cl::init(eSwitchTypeInternal), cl::cat(ModuleCat));
 
 cl::opt<bool> DebugPrintEscapingFunctions(
     "debug-print-escaping-functions",
@@ -109,7 +89,7 @@ cl::opt<bool>
                cl::desc("Split each call in own basic block (default=true)"),
                cl::init(true), cl::cat(klee::ModuleCat));
 
-static cl::opt<bool>
+cl::opt<bool>
     StripUnwantedCalls("strip-unwanted-calls",
                        cl::desc("Strip all unwanted calls (llvm.dbg.* stuff)"),
                        cl::init(false), cl::cat(klee::ModuleCat));
@@ -118,13 +98,20 @@ cl::opt<bool> SplitReturns(
     "split-returns",
     cl::desc("Split each return in own basic block (default=true)"),
     cl::init(true), cl::cat(klee::ModuleCat));
+
+cl::opt<SwitchImplType> SwitchType(
+    "switch-type",
+    cl::desc("Select the implementation of switch (default=internal)"),
+    cl::values(clEnumValN(SwitchImplType::eSwitchTypeSimple, "simple",
+                          "lower to ordered branches"),
+               clEnumValN(SwitchImplType::eSwitchTypeLLVM, "llvm",
+                          "lower using LLVM"),
+               clEnumValN(SwitchImplType::eSwitchTypeInternal, "internal",
+                          "execute switch internally")),
+    cl::init(SwitchImplType::eSwitchTypeInternal), cl::cat(ModuleCat));
 } // namespace
 
 /***/
-
-namespace llvm {
-extern void Optimize(Module *, llvm::ArrayRef<const char *> preservedFunctions);
-}
 
 // what a hack
 static Function *getStubFunctionForCtorList(Module *m, GlobalVariable *gv,
@@ -170,9 +157,8 @@ static Function *getStubFunctionForCtorList(Module *m, GlobalVariable *gv,
   return fn;
 }
 
-static void
-injectStaticConstructorsAndDestructors(Module *m,
-                                       llvm::StringRef entryFunction) {
+void klee::injectStaticConstructorsAndDestructors(
+    Module *m, llvm::StringRef entryFunction) {
   GlobalVariable *ctors = m->getNamedGlobal("llvm.global_ctors");
   GlobalVariable *dtors = m->getNamedGlobal("llvm.global_dtors");
 
@@ -228,105 +214,14 @@ bool KModule::link(std::vector<std::unique_ptr<llvm::Module>> &modules,
 }
 
 void KModule::instrument(const Interpreter::ModuleOptions &opts) {
-  // Inject checks prior to optimization... we also perform the
-  // invariant transformations that we will end up doing later so that
-  // optimize is seeing what is as close as possible to the final
-  // module.
-  legacy::PassManager pm;
-  pm.add(new RaiseAsmPass());
-
-  // This pass will scalarize as much code as possible so that the Executor
-  // does not need to handle operands of vector type for most instructions
-  // other than InsertElementInst and ExtractElementInst.
-  //
-  // NOTE: Must come before division/overshift checks because those passes
-  // don't know how to handle vector instructions.
-  pm.add(createScalarizerPass());
-
-  // This pass will replace atomic instructions with non-atomic operations
-  pm.add(createLowerAtomicPass());
-  if (opts.CheckDivZero)
-    pm.add(new DivCheckPass());
-  if (opts.CheckOvershift)
-    pm.add(new OvershiftCheckPass());
-
-  pm.add(new IntrinsicCleanerPass(*targetData, opts.WithFPRuntime));
-  pm.run(*module);
-  withPosixRuntime = opts.WithPOSIXRuntime;
+  klee::instrument(opts.CheckDivZero, opts.CheckOvershift, opts.WithFPRuntime, module.get());
 }
 
 void KModule::optimiseAndPrepare(
     const Interpreter::ModuleOptions &opts,
     llvm::ArrayRef<const char *> preservedFunctions) {
-  // Preserve all functions containing klee-related function calls from being
-  // optimised around
-  if (!OptimiseKLEECall) {
-    legacy::PassManager pm;
-    pm.add(new OptNonePass());
-    pm.run(*module);
-  }
-
-  // Use KLEE's internal float classification functions if requested.
-  if (opts.WithFPRuntime) {
-    if (UseKleeFloatInternals) {
-      for (const auto &p : klee::floatReplacements) {
-        replaceOrRenameFunction(module.get(), p.first.c_str(),
-                                p.second.c_str());
-      }
-    }
-  }
-
-  if (opts.Optimize)
-    Optimize(module.get(), preservedFunctions);
-
-  // Add internal functions which are not used to check if instructions
-  // have been already visited
-  if (opts.CheckDivZero)
-    addInternalFunction("klee_div_zero_check");
-  if (opts.CheckOvershift)
-    addInternalFunction("klee_overshift_check");
-
-  // Needs to happen after linking (since ctors/dtors can be modified)
-  // and optimization (since global optimization can rewrite lists).
-  injectStaticConstructorsAndDestructors(module.get(), opts.EntryPoint);
-
-  // Finally, run the passes that maintain invariants we expect during
-  // interpretation. We run the intrinsic cleaner just in case we
-  // linked in something with intrinsics but any external calls are
-  // going to be unresolved. We really need to handle the intrinsics
-  // directly I think?
-  legacy::PassManager pm3;
-
-  pm3.add(new ReturnLocationFinderPass());
-  pm3.add(new LocalVarDeclarationFinderPass());
-
-  if (opts.Simplify)
-    pm3.add(createCFGSimplificationPass());
-  switch (SwitchType) {
-  case eSwitchTypeInternal:
-    break;
-  case eSwitchTypeSimple:
-    pm3.add(new LowerSwitchPass());
-    break;
-  case eSwitchTypeLLVM:
-    pm3.add(createLowerSwitchPass());
-    break;
-  default:
-    klee_error("invalid --switch-type");
-  }
-  pm3.add(new IntrinsicCleanerPass(*targetData, opts.WithFPRuntime));
-  pm3.add(createScalarizerPass());
-  pm3.add(new PhiCleanerPass());
-  pm3.add(new FunctionAliasPass());
-  if (StripUnwantedCalls)
-    pm3.add(new CallRemover());
-  if (SplitCalls) {
-    pm3.add(new CallSplitter());
-  }
-  if (SplitReturns) {
-    pm3.add(new ReturnSplitter());
-  }
-  pm3.run(*module);
+  klee::optimiseAndPrepare(OptimiseKLEECall, opts.Optimize, opts.WithFPRuntime, SwitchType,
+                           opts.EntryPoint, preservedFunctions, module.get());
 }
 
 class InstructionToLineAnnotator : public llvm::AssemblyAnnotationWriter {
@@ -367,7 +262,7 @@ void KModule::manifest(InterpreterHandler *ih,
 
   if (OutputModule) {
     std::unique_ptr<llvm::raw_fd_ostream> f(ih->openOutputFile("final.bc"));
-    WriteBitcodeToFile(*module, *f);
+    llvm::WriteBitcodeToFile(*module, *f);
   }
 
   {
@@ -466,23 +361,7 @@ std::optional<size_t> KModule::getAsmLine(const llvm::Instruction *inst) const {
   return getAsmLine(reinterpret_cast<std::uintptr_t>(inst));
 }
 
-void KModule::checkModule() {
-  InstructionOperandTypeCheckPass *operandTypeCheckPass =
-      new InstructionOperandTypeCheckPass();
-
-  legacy::PassManager pm;
-  if (!DontVerify)
-    pm.add(createVerifierPass(false));
-  pm.add(operandTypeCheckPass);
-  pm.run(*module);
-
-  // Enforce the operand type invariants that the Executor expects.  This
-  // implicitly depends on the "Scalarizer" pass to be run in order to succeed
-  // in the presence of vector instructions.
-  if (!operandTypeCheckPass->checkPassed()) {
-    klee_error("Unexpected instruction operand types detected");
-  }
-}
+void KModule::checkModule() { klee::checkModule(DontVerify, module.get()); }
 
 KBlock *KModule::getKBlock(const llvm::BasicBlock *bb) {
   return functionMap[bb->getParent()]->blockMap[bb];

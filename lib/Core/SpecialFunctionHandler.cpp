@@ -35,6 +35,8 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 
+#include <array>
+#include <cerrno>
 #include <sstream>
 
 using namespace llvm;
@@ -52,7 +54,7 @@ cl::opt<bool>
 cl::opt<bool>
     SilentKleeAssume("silent-klee-assume", cl::init(false),
                      cl::desc("Silently terminate paths with an infeasible "
-                              "condition given to klee_assume() rather than "
+                              "condition given to klee_assume rather than "
                               "emitting an error (default=false)"),
                      cl::cat(TerminationCat));
 
@@ -72,21 +74,27 @@ cl::opt<bool> CheckOutOfMemory("check-out-of-memory", cl::init(false),
 // especially things like realloc which have complicated semantics
 // w.r.t. forking. Among other things this makes delayed query
 // dispatch easier to implement.
-static SpecialFunctionHandler::HandlerInfo handlerInfo[] = {
+static constexpr std::array handlerInfo = {
 #define add(name, handler, ret)                                                \
-  { name, &SpecialFunctionHandler::handler, false, ret, false }
+  SpecialFunctionHandler::HandlerInfo {                                        \
+    name, &SpecialFunctionHandler::handler, false, ret, false                  \
+  }
 #define addDNR(name, handler)                                                  \
-  { name, &SpecialFunctionHandler::handler, true, false, false }
+  SpecialFunctionHandler::HandlerInfo {                                        \
+    name, &SpecialFunctionHandler::handler, true, false, false                 \
+  }
     addDNR("__assert_rtn", handleAssertFail),
     addDNR("__assert_fail", handleAssertFail),
     addDNR("__assert", handleAssertFail),
     addDNR("_assert", handleAssert),
     addDNR("abort", handleAbort),
     addDNR("_exit", handleExit),
-    {"exit", &SpecialFunctionHandler::handleExit, true, false, true},
+    SpecialFunctionHandler::HandlerInfo{
+        "exit", &SpecialFunctionHandler::handleExit, true, false, true},
     addDNR("klee_abort", handleAbort),
     addDNR("klee_silent_exit", handleSilentExit),
     addDNR("klee_report_error", handleReportError),
+    add("aligned_alloc", handleMemalign, true),
     add("calloc", handleCalloc, true),
     add("free", handleFree, false),
     add("klee_assume", handleAssume, false),
@@ -194,40 +202,12 @@ static SpecialFunctionHandler::HandlerInfo handlerInfo[] = {
 #undef add
 };
 
-SpecialFunctionHandler::const_iterator SpecialFunctionHandler::begin() {
-  return SpecialFunctionHandler::const_iterator(handlerInfo);
-}
-
-SpecialFunctionHandler::const_iterator SpecialFunctionHandler::end() {
-  // NULL pointer is sentinel
-  return SpecialFunctionHandler::const_iterator(0);
-}
-
-SpecialFunctionHandler::const_iterator &
-SpecialFunctionHandler::const_iterator::operator++() {
-  ++index;
-  if (index >= SpecialFunctionHandler::size()) {
-    // Out of range, return .end()
-    base = 0; // Sentinel
-    index = 0;
-  }
-
-  return *this;
-}
-
-int SpecialFunctionHandler::size() {
-  return sizeof(handlerInfo) / sizeof(handlerInfo[0]);
-}
-
 SpecialFunctionHandler::SpecialFunctionHandler(Executor &_executor)
     : executor(_executor) {}
 
 void SpecialFunctionHandler::prepare(
     std::vector<const char *> &preservedFunctions) {
-  unsigned N = size();
-
-  for (unsigned i = 0; i < N; ++i) {
-    HandlerInfo &hi = handlerInfo[i];
+  for (auto &hi : handlerInfo) {
     Function *f = executor.kmodule->module->getFunction(hi.name);
 
     // No need to create if the function doesn't exist, since it cannot
@@ -248,10 +228,7 @@ void SpecialFunctionHandler::prepare(
 }
 
 void SpecialFunctionHandler::bind() {
-  unsigned N = size();
-
-  for (unsigned i = 0; i < N; ++i) {
-    HandlerInfo &hi = handlerInfo[i];
+  for (auto &hi : handlerInfo) {
     Function *f = executor.kmodule->module->getFunction(hi.name);
 
     if (f && (!hi.doNotOverride || f->isDeclaration())) {
@@ -555,12 +532,8 @@ void SpecialFunctionHandler::handleAssume(ExecutionState &state, KInstruction *,
       state.constraints.cs(), e, res, state.queryMetaData);
   assert(success && "FIXME: Unhandled solver failure");
   if (res) {
-    if (SilentKleeAssume) {
-      executor.terminateState(state, StateTerminationType::SilentExit);
-    } else {
-      executor.terminateStateOnUserError(
-          state, "invalid klee_assume call (provably false)");
-    }
+    executor.terminateStateOnUserError(
+        state, "invalid klee_assume call (provably false)", !SilentKleeAssume);
   } else {
     executor.addConstraint(state, e);
   }

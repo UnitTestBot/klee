@@ -17,6 +17,8 @@
 #include "klee/Expr/SourceBuilder.h"
 #include "klee/Support/ErrorHandling.h"
 
+#include "llvm/IR/GlobalVariable.h"
+#include "llvm/Support/Alignment.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/MathExtras.h"
 
@@ -26,10 +28,12 @@
 
 using namespace klee;
 
-namespace {
+namespace klee {
 llvm::cl::OptionCategory MemoryCat("Memory management options",
                                    "These options control memory management.");
+}
 
+namespace {
 llvm::cl::opt<bool> DeterministicAllocation(
     "allocate-determ",
     llvm::cl::desc("Allocate memory deterministically (default=false)"),

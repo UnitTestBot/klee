@@ -20,10 +20,15 @@ namespace klee {
 extern llvm::cl::OptionCategory TestCompCat;
 extern llvm::cl::OptionCategory ExecCat;
 extern llvm::cl::OptionCategory DebugCat;
+extern llvm::cl::OptionCategory ExprCat;
+extern llvm::cl::OptionCategory ExtCallsCat;
+extern llvm::cl::OptionCategory MemoryCat;
 extern llvm::cl::OptionCategory MiscCat;
 extern llvm::cl::OptionCategory ModuleCat;
+extern llvm::cl::OptionCategory SearchCat;
 extern llvm::cl::OptionCategory SeedingCat;
 extern llvm::cl::OptionCategory SolvingCat;
+extern llvm::cl::OptionCategory StatsCat;
 extern llvm::cl::OptionCategory TerminationCat;
 extern llvm::cl::OptionCategory TestGenCat;
 } // namespace klee

@@ -10,8 +10,10 @@
 // RUN: rm -rf %t.klee-out
 // RUN: %klee --output-dir=%t.klee-out --use-timestamps=false --use-merged-pointer-dereference=false %t1.bc > %t1.log
 // RUN: diff %t1.res %t1.log
-#include <stdio.h>
 
+#include "klee/klee.h"
+#include <stdio.h>
+#include <stdlib.h>
 unsigned klee_urange(unsigned start, unsigned end) {
   unsigned x;
   klee_make_symbolic(&x, sizeof x, "x");

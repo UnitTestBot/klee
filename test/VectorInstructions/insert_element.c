@@ -5,6 +5,7 @@
 // RUN: %klee --output-dir=%t.klee-out --optimize=false  %t1.bc > %t.stdout.log 2> %t.stderr.log
 // RUN: FileCheck -check-prefix=CHECK-STDOUT -input-file=%t.stdout.log %s
 // RUN: FileCheck -check-prefix=CHECK-STDERR -input-file=%t.stderr.log %s
+#include "klee/klee.h"
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>

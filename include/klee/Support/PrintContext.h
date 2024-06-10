@@ -30,9 +30,9 @@ private:
   std::string newline;
 
   /// This is used to keep track of the stack of indentations used by
-  /// \sa breakLineI()
-  /// \sa pushIndent()
-  /// \sa popIndent()
+  ///  \sa breakLineI()
+  ///  \sa pushIndent()
+  ///  \sa popIndent()
   std::stack<unsigned int> indentStack;
 
 public:
@@ -54,14 +54,14 @@ public:
   }
 
   /// Break line using the indent on the top of the indent stack
-  /// \return The PrintContext object so the method is chainable
+  ///  \return The PrintContext object so the method is chainable
   PrintContext &breakLineI() {
     breakLine(indentStack.top());
     return *this;
   }
 
   /// Add the current position on the line to the top of the indent stack
-  /// \return The PrintContext object so the method is chainable
+  ///  \return The PrintContext object so the method is chainable
   PrintContext &pushIndent() {
     indentStack.push(pos);
     return *this;
@@ -70,7 +70,7 @@ public:
   llvm::raw_ostream &getStream() { return os; }
 
   /// Pop the top off the indent stack
-  /// \return The PrintContext object so the method is chainable
+  ///  \return The PrintContext object so the method is chainable
   PrintContext &popIndent() {
     indentStack.pop();
     return *this;
