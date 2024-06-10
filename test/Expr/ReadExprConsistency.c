@@ -2,8 +2,9 @@
 // RUN: rm -rf %t.klee-out
 // RUN: %klee --output-dir=%t.klee-out --exit-on-error %t.bc 2>%t.log
 // RUN: cat %t.log | FileCheck %s
-
+#include "klee/klee.h"
 #include <assert.h>
+#include <stdio.h>
 
 /*
 This tests checks ensures that only relevant updates are present when doing
@@ -15,7 +16,6 @@ https://github.com/klee/klee/issues/921
 https://github.com/klee/klee/pull/1061
 */
 
-void klee_print_expr(const char *, char);
 int main() {
   char arr[3];
   char symbolic;

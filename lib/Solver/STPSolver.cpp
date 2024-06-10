@@ -100,7 +100,7 @@ public:
   explicit STPSolverImpl(bool useForkedSTP, bool optimizeDivides = true);
   ~STPSolverImpl() override;
 
-  char *getConstraintLog(const Query &) override;
+  std::string getConstraintLog(const Query &) final;
   void setCoreSolverTimeout(time::Span timeout) override {
     this->timeout = timeout;
   }
@@ -203,7 +203,7 @@ STPSolverImpl::~STPSolverImpl() {
 
 /***/
 
-char *STPSolverImpl::getConstraintLog(const Query &query) {
+std::string STPSolverImpl::getConstraintLog(const Query &query) {
   vc_push(vc);
 
   for (const auto &constraint : query.constraints.cs())
@@ -216,7 +216,10 @@ char *STPSolverImpl::getConstraintLog(const Query &query) {
   vc_printQueryStateToBuffer(vc, builder->getFalse(), &buffer, &length, false);
   vc_pop(vc);
 
-  return buffer;
+  std::string result = buffer;
+  std::free(buffer);
+
+  return result;
 }
 
 bool STPSolverImpl::computeTruth(const Query &query, bool &isValid) {
@@ -478,7 +481,7 @@ SolverImpl::SolverRunStatus STPSolverImpl::getOperationStatusCode() {
 STPSolver::STPSolver(bool useForkedSTP, bool optimizeDivides)
     : Solver(std::make_unique<STPSolverImpl>(useForkedSTP, optimizeDivides)) {}
 
-char *STPSolver::getConstraintLog(const Query &query) {
+std::string STPSolver::getConstraintLog(const Query &query) {
   return impl->getConstraintLog(query);
 }
 

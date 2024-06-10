@@ -95,23 +95,22 @@ DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Operator.h"
-#include "llvm/Support/Casting.h"
+#if LLVM_VERSION_CODE >= LLVM_VERSION(15, 0)
+#include "llvm/IR/GetElementPtrTypeIterator.h"
+#endif
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
-#if LLVM_VERSION_CODE >= LLVM_VERSION(10, 0)
 #include "llvm/Support/TypeSize.h"
-#else
-typedef unsigned TypeSize;
-#endif
 #include "llvm/Support/raw_ostream.h"
 DISABLE_WARNING_POP
 
 #include <algorithm>
 #include <cassert>
 #include <cerrno>
+#include <cinttypes>
 #include <cstdint>
 #include <cstring>
 #include <cxxabi.h>
@@ -324,9 +323,11 @@ cl::opt<bool> OnlyOutputMakeSymbolicArrays(
 /*** External call policy options ***/
 
 enum class ExternalCallPolicy {
-  None,     // No external calls allowed
-  Concrete, // Only external calls with concrete arguments allowed
-  All,      // All external calls allowed
+  None,       // No external calls allowed
+  Concrete,   // Only external calls with concrete arguments allowed
+  All,        // All external calls allowed, symbolic arguments concretized
+  OverApprox, // All external calls allowed, symbolic inputs are not constrained
+              // by the call
 };
 
 cl::opt<ExternalCallPolicy> ExternalCalls(
@@ -342,19 +343,29 @@ cl::opt<ExternalCallPolicy> ExternalCalls(
                    "allowed (default)"),
         clEnumValN(ExternalCallPolicy::All, "all",
                    "All external function calls are allowed.  This concretizes "
-                   "any symbolic arguments in calls to external functions.")),
+                   "any symbolic arguments in calls to external functions."),
+        clEnumValN(ExternalCallPolicy::OverApprox, "over-approx",
+                   "All external function calls are allowed.  This concretizes "
+                   "any symbolic arguments in calls to external functions but"
+                   "the concretization is ignored after the call (see docs).")),
     cl::init(ExternalCallPolicy::Concrete), cl::cat(ExtCallsCat));
 
-cl::opt<bool> SuppressExternalWarnings(
-    "suppress-external-warnings", cl::init(false),
-    cl::desc("Supress warnings about calling external functions."),
-    cl::cat(ExtCallsCat));
+/*** External call warnings options ***/
 
-cl::opt<bool> AllExternalWarnings(
-    "all-external-warnings", cl::init(false),
-    cl::desc("Issue a warning everytime an external call is made, "
-             "as opposed to once per function (default=false)"),
-    cl::cat(ExtCallsCat));
+enum class ExtCallWarnings {
+  None,            // Never warn on external calls
+  OncePerFunction, // Only warn once per function on external calls
+  All,             // Always warn on external calls
+};
+
+cl::opt<ExtCallWarnings> ExternalCallWarnings(
+    "external-call-warnings",
+    cl::desc("Specify when to warn about external calls"),
+    cl::values(clEnumValN(ExtCallWarnings::None, "none", "Never warn"),
+               clEnumValN(ExtCallWarnings::OncePerFunction, "once-per-function",
+                          "Warn once per external function (default)"),
+               clEnumValN(ExtCallWarnings::All, "all", "Always warn")),
+    cl::init(ExtCallWarnings::OncePerFunction), cl::cat(ExtCallsCat));
 
 /*** Seeding options ***/
 
@@ -507,9 +518,9 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
                    InterpreterHandler *ih)
     : Interpreter(opts), interpreterHandler(ih), searcher(nullptr),
       externalDispatcher(new ExternalDispatcher(ctx)), statsTracker(0),
-      pathWriter(0), symPathWriter(0),
-      specialFunctionHandler(0), timers{time::Span(TimerInterval)},
-      guidanceKind(opts.Guidance), codeGraphInfo(new CodeGraphInfo()),
+      pathWriter(0), symPathWriter(0), specialFunctionHandler(0),
+      timers{time::Span(TimerInterval)}, guidanceKind(opts.Guidance),
+      codeGraphInfo(new CodeGraphInfo()),
       distanceCalculator(new DistanceCalculator(*codeGraphInfo)),
       targetCalculator(new TargetCalculator(*codeGraphInfo)),
       targetManager(new TargetManager(guidanceKind, *distanceCalculator,
@@ -1660,20 +1671,18 @@ ref<Expr> Executor::toUnique(const ExecutionState &state, ref<Expr> e) {
   return result;
 }
 
-/* Concretize the given expression, and return a possible constant value.
-   'reason' is just a documentation string stating the reason for
-   concretization. */
 ref<klee::ConstantExpr> Executor::toConstant(ExecutionState &state, ref<Expr> e,
-                                             const char *reason) {
+                                             const std::string &reason) {
   e = Simplificator::simplifyExpr(state.constraints.cs(), e).simplified;
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(e))
     return CE;
 
-  ref<ConstantExpr> value;
-  bool success =
-      solver->getValue(state.constraints.cs(), e, value, state.queryMetaData);
-  assert(success && "FIXME: Unhandled solver failure");
-  (void)success;
+  ref<ConstantExpr> value = getValueFromSeeds(state, e);
+  if (!value) {
+    [[maybe_unused]] bool success =
+        solver->getValue(state.constraints.cs(), e, value, state.queryMetaData);
+    assert(success && "FIXME: Unhandled solver failure");
+  }
 
   std::string str;
   llvm::raw_string_ostream os(str);
@@ -1681,14 +1690,27 @@ ref<klee::ConstantExpr> Executor::toConstant(ExecutionState &state, ref<Expr> e,
      << " to value " << value << " (" << state.pc->getSourceFilepath() << ":"
      << state.pc->getLine() << ")";
 
-  if (AllExternalWarnings)
+  if (ExternalCallWarnings == ExtCallWarnings::All)
     klee_warning("%s", os.str().c_str());
   else
-    klee_warning_once(reason, "%s", os.str().c_str());
-
-  addConstraint(state, EqExpr::create(e, value));
+    klee_warning_once(reason.c_str(), "%s", os.str().c_str());
 
   return value;
+}
+
+ref<klee::ConstantExpr> Executor::getValueFromSeeds(ExecutionState &state,
+                                                    ref<Expr> e) {
+  auto found = seedMap->find(&state);
+  if (found == seedMap->end())
+    return nullptr;
+
+  auto seeds = found->second;
+  for (auto const &seed : seeds) {
+    auto value = seed.assignment.evaluate(e);
+    if (isa<ConstantExpr>(value))
+      return value;
+  }
+  return nullptr;
 }
 
 ref<klee::ConstantPointerExpr>
@@ -1710,7 +1732,7 @@ Executor::toConstantPointer(ExecutionState &state, ref<PointerExpr> e,
      << " to value " << pointer << " (" << state.pc->getSourceFilepath() << ":"
      << state.pc->getLine() << ")";
 
-  if (AllExternalWarnings)
+  if (ExternalCallWarnings == ExtCallWarnings::All)
     klee_warning("%s", os.str().c_str());
   else
     klee_warning_once(reason, "%s", os.str().c_str());
@@ -2497,12 +2519,8 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
           argWidth = arguments[k]->getWidth();
         }
 
-#if LLVM_VERSION_CODE >= LLVM_VERSION(11, 0)
         MaybeAlign ma = cb.getParamAlign(k);
         unsigned alignment = ma ? ma->value() : 0;
-#else
-        unsigned alignment = cb.getParamAlignment(k);
-#endif
 
         if (WordSize == Expr::Int32 && !alignment)
           alignment = 4;
@@ -2757,7 +2775,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
           unwindToNextLandingpad(state);
         } else {
           // a clause (or a catch-all clause or filter clause) matches:
-          // remember the stack index and switch to cleanup phase
+          // remember the stack index and switch to clean-up phase
           state.unwindingInformation =
               std::make_unique<CleanupPhaseUnwindingInformation>(
                   sui->exceptionObject, cast<ConstantExpr>(result),
@@ -3143,8 +3161,12 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
     if (f) {
       const FunctionType *fType = f->getFunctionType();
+#if LLVM_VERSION_MAJOR >= 15
+      const FunctionType *fpType = cb.getFunctionType();
+#else
       const FunctionType *fpType =
           dyn_cast<FunctionType>(fp->getType()->getPointerElementType());
+#endif
 
       // special case the call with a bitcast case
       if (fType != fpType) {
@@ -3746,7 +3768,11 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     llvm::APFloat Arg(*fpWidthToSemantics(arg->getWidth()), arg->getAPValue());
     uint64_t value = 0;
     bool isExact = true;
+#if LLVM_VERSION_CODE >= LLVM_VERSION(16, 0)
+    auto valueRef = llvm::MutableArrayRef(value);
+#else
     auto valueRef = makeMutableArrayRef(value);
+#endif
     Arg.convertToInteger(valueRef, resultType, false,
                          llvm::APFloat::rmTowardZero, &isExact);
     bindLocal(ki, state, ConstantExpr::alloc(value, resultType));
@@ -3764,7 +3790,11 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
     uint64_t value = 0;
     bool isExact = true;
+#if LLVM_VERSION_CODE >= LLVM_VERSION(16, 0)
+    auto valueRef = llvm::MutableArrayRef(value);
+#else
     auto valueRef = makeMutableArrayRef(value);
+#endif
     Arg.convertToInteger(valueRef, resultType, true,
                          llvm::APFloat::rmTowardZero, &isExact);
     bindLocal(ki, state, ConstantExpr::alloc(value, resultType));
@@ -4130,11 +4160,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       return;
     }
     uint64_t iIdx = cIdx->getZExtValue();
-#if LLVM_VERSION_MAJOR >= 11
     const auto *vt = cast<llvm::FixedVectorType>(iei->getType());
-#else
-    const llvm::VectorType *vt = iei->getType();
-#endif
     unsigned EltBits = getWidthForLLVMType(vt->getElementType());
 
     if (iIdx >= vt->getNumElements()) {
@@ -4173,11 +4199,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       return;
     }
     uint64_t iIdx = cIdx->getZExtValue();
-#if LLVM_VERSION_MAJOR >= 11
     const auto *vt = cast<llvm::FixedVectorType>(eei->getVectorOperandType());
-#else
-    const llvm::VectorType *vt = eei->getVectorOperandType();
-#endif
     unsigned EltBits = getWidthForLLVMType(vt->getElementType());
 
     if (iIdx >= vt->getNumElements()) {
@@ -4303,10 +4325,17 @@ template <typename TypeIt>
 void Executor::computeOffsetsSeqTy(KGEPInstruction *kgepi,
                                    ref<ConstantExpr> &constantOffset,
                                    uint64_t index, const TypeIt it) {
+#if LLVM_VERSION_CODE <= LLVM_VERSION(14, 0)
   assert(it->getNumContainedTypes() == 1 &&
          "Sequential type must contain one subtype");
   uint64_t elementSize =
       kmodule->targetData->getTypeStoreSize(it->getContainedType(0));
+#else
+  assert(it.isSequential() && "Called with non-sequential type");
+  // Get the size of a single element
+  std::uint64_t elementSize =
+      kmodule->targetData->getTypeStoreSize(it.getIndexedType());
+#endif
   const Value *operand = it.getOperand();
   if (const Constant *c = dyn_cast<Constant>(operand)) {
     ref<ConstantExpr> index =
@@ -4326,13 +4355,21 @@ void Executor::computeOffsets(KGEPInstruction *kgepi, TypeIt ib, TypeIt ie) {
       ConstantExpr::alloc(0, Context::get().getPointerWidth());
   uint64_t index = 1;
   for (TypeIt ii = ib; ii != ie; ++ii) {
+#if LLVM_VERSION_CODE <= LLVM_VERSION(14, 0)
     if (StructType *st = dyn_cast<StructType>(*ii)) {
+#else
+    if (StructType *st = ii.getStructTypeOrNull()) {
+#endif
       const StructLayout *sl = kmodule->targetData->getStructLayout(st);
       const ConstantInt *ci = cast<ConstantInt>(ii.getOperand());
       uint64_t addend = sl->getElementOffset((unsigned)ci->getZExtValue());
       constantOffset = constantOffset->Add(
           ConstantExpr::alloc(addend, Context::get().getPointerWidth()));
+#if LLVM_VERSION_CODE <= LLVM_VERSION(14, 0)
     } else if (ii->isArrayTy() || ii->isVectorTy() || ii->isPointerTy()) {
+#else
+    } else if (ii.isSequential()) {
+#endif
       computeOffsetsSeqTy(kgepi, constantOffset, index, ii);
     } else
       assert("invalid type" && 0);
@@ -4344,15 +4381,55 @@ void Executor::computeOffsets(KGEPInstruction *kgepi, TypeIt ib, TypeIt ie) {
 void Executor::bindInstructionConstants(KInstruction *KI) {
   if (GetElementPtrInst *gepi = dyn_cast<GetElementPtrInst>(KI->inst())) {
     KGEPInstruction *kgepi = static_cast<KGEPInstruction *>(KI);
-    computeOffsets(kgepi, gep_type_begin(gepi), gep_type_end(gepi));
+#if LLVM_VERSION_CODE <= LLVM_VERSION(14, 0)
+    computeOffsets(kgepi, klee::gep_type_begin(gepi), klee::gep_type_end(gepi));
+#else
+    computeOffsets(kgepi, llvm::gep_type_begin(gepi), llvm::gep_type_end(gepi));
+#endif
   } else if (InsertValueInst *ivi = dyn_cast<InsertValueInst>(KI->inst())) {
     KGEPInstruction *kgepi = static_cast<KGEPInstruction *>(KI);
-    computeOffsets(kgepi, iv_type_begin(ivi), iv_type_end(ivi));
-    assert(kgepi->indices.empty() && "InsertValue constant offset expected");
+    llvm::Value *agg = ivi->getAggregateOperand();
+    llvm::Type *current_type = agg->getType();
+    std::uint64_t offset = 0;
+    for (auto index : ivi->indices()) {
+      if (StructType *st = dyn_cast<llvm::StructType>(current_type)) {
+        const StructLayout *sl = kmodule->targetData->getStructLayout(st);
+        std::uint64_t addend = sl->getElementOffset(index);
+        offset = offset + addend;
+      } else if (current_type->isArrayTy() || current_type->isVectorTy() ||
+                 current_type->isPointerTy()) {
+        std::uint64_t elementSize = kmodule->targetData->getTypeStoreSize(
+            current_type->getArrayElementType());
+        offset += elementSize * index;
+      } else {
+        assert(0 && "Unknown type");
+      }
+
+      current_type = GetElementPtrInst::getTypeAtIndex(current_type, index);
+    }
+    kgepi->offset = offset;
   } else if (ExtractValueInst *evi = dyn_cast<ExtractValueInst>(KI->inst())) {
     KGEPInstruction *kgepi = static_cast<KGEPInstruction *>(KI);
-    computeOffsets(kgepi, ev_type_begin(evi), ev_type_end(evi));
-    assert(kgepi->indices.empty() && "ExtractValue constant offset expected");
+    llvm::Value *agg = evi->getAggregateOperand();
+    llvm::Type *current_type = agg->getType();
+    uint64_t offset = 0;
+    for (auto index : evi->indices()) {
+      if (StructType *st = dyn_cast<llvm::StructType>(current_type)) {
+        const StructLayout *sl = kmodule->targetData->getStructLayout(st);
+        uint64_t addend = sl->getElementOffset(index);
+        offset = offset + addend;
+      } else if (current_type->isArrayTy() || current_type->isVectorTy() ||
+                 current_type->isPointerTy()) {
+        uint64_t elementSize = kmodule->targetData->getTypeStoreSize(
+            current_type->getArrayElementType());
+        offset += elementSize * index;
+      } else {
+        assert(0 && "Unknown type");
+      }
+
+      current_type = GetElementPtrInst::getTypeAtIndex(current_type, index);
+    }
+    kgepi->offset = offset;
   }
 }
 
@@ -4550,14 +4627,14 @@ void Executor::seed(ExecutionState &initialState) {
         klee_message("%d seeds remaining over: %d states", numSeeds, numStates);
       }
     }
-  }
 
-  klee_message("seeding done (%d states remain)",
-               (int)objectManager->getStates().size());
+    klee_message("seeding done (%d states remain)",
+                 (int)objectManager->getStates().size());
 
-  if (OnlySeed) {
-    doDumpStates();
-    return;
+    if (OnlySeed) {
+      doDumpStates();
+      return;
+    }
   }
 }
 
@@ -4862,10 +4939,10 @@ HaltExecution::Reason fromStateTerminationType(StateTerminationType t) {
 }
 
 void Executor::terminateState(ExecutionState &state,
-                              StateTerminationType terminationType) {
-  state.terminationReasonType = fromStateTerminationType(terminationType);
-  if (terminationType >= StateTerminationType::MaxDepth &&
-      terminationType <= StateTerminationType::EARLY) {
+                              StateTerminationType reason) {
+  state.terminationReasonType = fromStateTerminationType(reason);
+  if (reason >= StateTerminationType::MaxDepth &&
+      reason <= StateTerminationType::EARLY) {
     SetOfStates states = {&state};
     decreaseConfidenceFromStoppedStates(states, state.terminationReasonType);
   }
@@ -4912,6 +4989,7 @@ void Executor::terminateStateEarly(ExecutionState &state, const Twine &message,
         reason > StateTerminationType::EARLY &&
             reason <= StateTerminationType::EXECERR);
   }
+
   terminateState(state, reason);
 }
 
@@ -5120,19 +5198,24 @@ void Executor::terminateStateOnSolverError(ExecutionState &state,
 }
 
 void Executor::terminateStateOnUserError(ExecutionState &state,
-                                         const llvm::Twine &message) {
+                                         const llvm::Twine &message,
+                                         bool writeErr) {
   ++stats::terminationUserError;
-  terminateStateOnError(state, message, StateTerminationType::User, "");
+  if (writeErr) {
+    terminateStateOnError(state, message, StateTerminationType::User, "");
+  } else {
+    terminateState(state, StateTerminationType::User);
+  }
 }
 
 void Executor::callExternalFunction(ExecutionState &state, KInstruction *target,
                                     KCallable *callable,
                                     std::vector<ref<Expr>> &arguments) {
   // check if specialFunctionHandler wants it
-  if (const auto *func = dyn_cast<KFunction>(callable)) {
-    if (specialFunctionHandler->handle(state, func->function(), target,
-                                       arguments))
-      return;
+  if (const auto *func = dyn_cast<KFunction>(callable);
+      func && specialFunctionHandler->handle(state, func->function(), target,
+                                             arguments)) {
+    return;
   }
 
   if (ExternalCalls == ExternalCallPolicy::None &&
@@ -5249,8 +5332,7 @@ void Executor::callExternalFunction(ExecutionState &state, KInstruction *target,
       errnoValue->getZExtValue(sizeof(*errno_addr) * 8));
 #endif
 
-  if (!SuppressExternalWarnings) {
-
+  if (ExternalCallWarnings != ExtCallWarnings::None) {
     std::string TmpStr;
     llvm::raw_string_ostream os(TmpStr);
     os << "calling external: " << callable->getName().str() << "(";
@@ -5261,7 +5343,7 @@ void Executor::callExternalFunction(ExecutionState &state, KInstruction *target,
     }
     os << ") at " << state.pc->getSourceLocationString();
 
-    if (AllExternalWarnings)
+    if (ExternalCallWarnings == ExtCallWarnings::All)
       klee_warning("%s", os.str().c_str());
     else
       klee_warning_once(callable->unwrap(), "%s", os.str().c_str());
@@ -6295,6 +6377,7 @@ void Executor::executeMemoryOperation(
       terminateStateOnSolverError(*state, "Query timed out (bounds check).");
       return;
     }
+    solver->setTimeout(time::Span());
 
     bool mustBeInBounds = !isa<InvalidResponse>(response);
     if (mustBeInBounds) {
@@ -7130,9 +7213,7 @@ void Executor::getConstraintLog(const ExecutionState &state, std::string &res,
   switch (logFormat) {
   case STP: {
     auto query = state.toQuery();
-    char *log = solver->getConstraintLog(query);
-    res = std::string(log);
-    free(log);
+    res = solver->getConstraintLog(query);
   } break;
 
   case KQUERY: {
@@ -7668,7 +7749,7 @@ size_t Executor::getAllocationAlignment(const llvm::Value *allocSite) const {
       type = GO->getType();
     }
   } else if (const AllocaInst *AI = dyn_cast<AllocaInst>(allocSite)) {
-    alignment = AI->getAlignment();
+    alignment = AI->getAlign().value();
     type = AI->getAllocatedType();
   } else if (isa<InvokeInst>(allocSite) || isa<CallInst>(allocSite)) {
     // FIXME: Model the semantics of the call to use the right alignment
@@ -7691,7 +7772,12 @@ size_t Executor::getAllocationAlignment(const llvm::Value *allocSite) const {
     assert(type != NULL);
     // No specified alignment. Get the alignment for the type.
     if (type->isSized()) {
+#if LLVM_VERSION_CODE >= LLVM_VERSION(16, 0)
+      alignment = kmodule->targetData->getPrefTypeAlign(type).value();
+#else
       alignment = kmodule->targetData->getPrefTypeAlignment(type);
+#endif
+
     } else {
       klee_warning_once(allocSite,
                         "Cannot determine memory alignment for "

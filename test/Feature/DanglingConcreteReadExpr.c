@@ -3,6 +3,7 @@
 // RUN: %klee --optimize=false --output-dir=%t.klee-out %t1.bc
 // RUN: grep "total queries = 1" %t.klee-out/info
 
+#include "klee/klee.h"
 #include <assert.h>
 
 int main() {

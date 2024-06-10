@@ -6,7 +6,7 @@
 // RUN: grep "(array (w64 100) (makeSymbolic a 0))" %t1 | wc -l | grep 2
 
 /* Tests that the Array factory correctly distinguishes between arrays created at the same location but with different sizes */
-
+#include "klee/klee.h"
 #include <stdio.h>
 #include <stdlib.h>
 

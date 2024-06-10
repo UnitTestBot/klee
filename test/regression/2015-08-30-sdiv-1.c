@@ -7,7 +7,9 @@
 /* Division by constant can be optimized.using mul/shift
  * For signed division, div by 1 or -1 cannot be optimized like that.
  */
+#include "klee/klee.h"
 #include <stdint.h>
+
 int main() {
   int32_t dividend;
   klee_make_symbolic(&dividend, sizeof dividend, "Dividend");

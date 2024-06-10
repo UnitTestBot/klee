@@ -6,6 +6,7 @@
 // RUN: not %klee --output-dir=%t.klee-out --exit-on-error %t.bc > %t.default-klee-assume.log 2>&1
 // RUN: FileCheck -input-file=%t.default-klee-assume.log -check-prefix=CHECK-DEFAULT-KLEE-ASSUME %s
 
+#include "klee/klee.h"
 #include <assert.h>
 #include <stdio.h>
 

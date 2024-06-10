@@ -44,7 +44,7 @@ cl::list<StateTerminationType> ExitOnErrorType(
         "Stop execution after reaching a specified condition (default=false)"),
     cl::values(
         clEnumValN(StateTerminationType::Abort, "Abort",
-                   "The program crashed (reached abort()/klee_abort())"),
+                   "The program reached abort or klee_abort"),
         clEnumValN(StateTerminationType::Assert, "Assert",
                    "An assertion was hit"),
         clEnumValN(StateTerminationType::BadVectorAccess, "BadVectorAccess",
@@ -85,8 +85,8 @@ cl::list<StateTerminationType> ExitOnErrorType(
         clEnumValN(StateTerminationType::NullableAttribute, "NullableAttribute",
                    "Violation of nullable attribute detected"),
         clEnumValN(StateTerminationType::User, "User",
-                   "Wrong klee_* functions invocation")),
-    cl::cat(TerminationCat));
+                   "Wrong klee_* function invocation")),
+    cl::ZeroOrMore, cl::cat(TerminationCat));
 
 cl::opt<unsigned long long>
     MaxInstructions("max-instructions",

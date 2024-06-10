@@ -4,6 +4,7 @@
 // RUN: rm -rf %t.klee-out
 // RUN: %klee --output-dir=%t.klee-out --klee-call-optimisation=false --optimize %t.bc 2>&1 | FileCheck %s
 
+#include "klee/klee.h"
 #include <assert.h>
 #include <stdio.h>
 

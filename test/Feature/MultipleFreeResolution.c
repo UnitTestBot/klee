@@ -4,6 +4,8 @@
 // RUN: ls %t.klee-out/ | grep .ktest | wc -l | grep 4
 // RUN: ls %t.klee-out/ | grep .err | wc -l | grep 3
 
+#include "klee/klee.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -34,9 +36,9 @@ int main() {
   free(buf[s]);
 
   for (i = 0; i < 3; i++) {
-    // CHECK: MultipleFreeResolution.c:[[@LINE+3]]: memory error: out of bound pointer
-    // CHECK: MultipleFreeResolution.c:[[@LINE+2]]: memory error: out of bound pointer
-    // CHECK: MultipleFreeResolution.c:[[@LINE+1]]: memory error: out of bound pointer
+    // CHECK: MultipleFreeResolution.c:[[@LINE+3]]: memory error: use after free
+    // CHECK: MultipleFreeResolution.c:[[@LINE+2]]: memory error: use after free
+    // CHECK: MultipleFreeResolution.c:[[@LINE+1]]: memory error: use after free
     printf("*buf[%d] = %d\n", i, *buf[i]);
   }
 

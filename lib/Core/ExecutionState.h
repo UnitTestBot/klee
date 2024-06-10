@@ -67,6 +67,7 @@ struct KInstruction;
 class MemoryObject;
 class PTreeNode;
 class Target;
+struct InstructionInfo;
 
 llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const MemoryMap &mm);
 

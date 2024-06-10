@@ -10,7 +10,7 @@
 // RUN: grep -q "b==4" %t.log
 // RUN: grep -q "c==5" %t.log
 // RUN: grep -q "x==6" %t.log
-
+#include "klee/klee.h"
 #include <stdio.h>
 #include <string.h>
 

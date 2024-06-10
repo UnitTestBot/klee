@@ -86,7 +86,7 @@ public:
   bool computeValidityCore(const Query &, ValidityCore &validityCore,
                            bool &isValid);
   SolverRunStatus getOperationStatusCode();
-  char *getConstraintLog(const Query &);
+  std::string getConstraintLog(const Query &) final;
   void setCoreSolverTimeout(time::Span timeout);
   void notifyStateTermination(std::uint32_t id);
 };
@@ -293,7 +293,7 @@ SolverImpl::SolverRunStatus CachingSolver::getOperationStatusCode() {
   return solver->impl->getOperationStatusCode();
 }
 
-char *CachingSolver::getConstraintLog(const Query &query) {
+std::string CachingSolver::getConstraintLog(const Query &query) {
   return solver->impl->getConstraintLog(query);
 }
 

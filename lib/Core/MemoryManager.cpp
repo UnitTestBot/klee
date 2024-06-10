@@ -21,13 +21,9 @@
 DISABLE_WARNING_PUSH
 DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/IR/GlobalVariable.h"
+#include "llvm/Support/Alignment.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/MathExtras.h"
-#if LLVM_VERSION_CODE >= LLVM_VERSION(10, 0)
-#include "llvm/Support/Alignment.h"
-#else
-#include "llvm/Support/MathExtras.h"
-#endif
 DISABLE_WARNING_POP
 
 #include <algorithm>
@@ -38,10 +34,12 @@ DISABLE_WARNING_POP
 
 using namespace klee;
 
-namespace {
+namespace klee {
 llvm::cl::OptionCategory MemoryCat("Memory management options",
                                    "These options control memory management.");
+}
 
+namespace {
 llvm::cl::opt<bool> DeterministicAllocation(
     "allocate-determ",
     llvm::cl::desc("Allocate memory deterministically (default=false)"),

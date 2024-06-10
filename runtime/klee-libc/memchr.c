@@ -36,10 +36,7 @@
 
 #include <string.h>
 
-void *memchr(s, c, n) const void *s;
-int c;
-size_t n;
-{
+void *memchr(const void *s, int c, size_t n) {
   if (n != 0) {
     const unsigned char *p = s;
 
