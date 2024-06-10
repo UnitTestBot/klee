@@ -13,7 +13,7 @@ using namespace klee;
 
 void klee::checkModule(bool DontVerfify, llvm::Module *module) { assert(0); }
 
-void klee::instrument(bool CheckDivZero, bool CheckOvershift, bool WithFPRuntime,
-                      llvm::Module *module) {
+void klee::instrument(bool CheckDivZero, bool CheckOvershift,
+                      bool WithFPRuntime, llvm::Module *module) {
   assert(0);
 }

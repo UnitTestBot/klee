@@ -21,12 +21,13 @@ enum class SwitchImplType {
 };
 
 void optimiseAndPrepare(bool OptimiseKLEECall, bool Optimize,
-                        bool WithFPRuntime,
-                        SwitchImplType SwitchType, std::string EntryPoint,
+                        bool WithFPRuntime, SwitchImplType SwitchType,
+                        std::string EntryPoint,
                         llvm::ArrayRef<const char *> preservedFunctions,
                         llvm::Module *module);
 void checkModule(bool DontVerfify, llvm::Module *module);
-void instrument(bool CheckDivZero, bool CheckOvershift, bool WithFPRuntime, llvm::Module *module);
+void instrument(bool CheckDivZero, bool CheckOvershift, bool WithFPRuntime,
+                llvm::Module *module);
 
 void injectStaticConstructorsAndDestructors(llvm::Module *m,
                                             llvm::StringRef entryFunction);

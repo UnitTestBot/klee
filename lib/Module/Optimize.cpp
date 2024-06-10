@@ -35,8 +35,8 @@
 
 using namespace klee;
 void klee::optimiseAndPrepare(bool OptimiseKLEECall, bool Optimize,
-                              bool WithFPRuntime,
-                              SwitchImplType SwitchType, std::string EntryPoint,
+                              bool WithFPRuntime, SwitchImplType SwitchType,
+                              std::string EntryPoint,
                               llvm::ArrayRef<const char *> preservedFunctions,
                               llvm::Module *module) {
   assert(0);

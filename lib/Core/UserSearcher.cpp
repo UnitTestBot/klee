@@ -87,7 +87,7 @@ cl::opt<bool> UseFairSearch(
         "(default=false)"),
     cl::init(false), cl::cat(SearchCat));
 
-} // namespace
+} // namespace klee
 
 void klee::initializeSearchOptions() {
   // default values
