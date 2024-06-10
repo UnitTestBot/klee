@@ -112,7 +112,7 @@ cl::opt<SwitchImplType> SwitchType(
                clEnumValN(SwitchImplType::eSwitchTypeInternal, "internal",
                           "execute switch internally")),
     cl::init(SwitchImplType::eSwitchTypeInternal), cl::cat(ModuleCat));
-} // namespace
+} // namespace klee
 
 /***/
 
@@ -217,14 +217,16 @@ bool KModule::link(std::vector<std::unique_ptr<llvm::Module>> &modules,
 }
 
 void KModule::instrument(const Interpreter::ModuleOptions &opts) {
-  klee::instrument(opts.CheckDivZero, opts.CheckOvershift, opts.WithFPRuntime, module.get());
+  klee::instrument(opts.CheckDivZero, opts.CheckOvershift, opts.WithFPRuntime,
+                   module.get());
 }
 
 void KModule::optimiseAndPrepare(
     const Interpreter::ModuleOptions &opts,
     llvm::ArrayRef<const char *> preservedFunctions) {
-  klee::optimiseAndPrepare(OptimiseKLEECall, opts.Optimize, opts.WithFPRuntime, SwitchType,
-                           opts.EntryPoint, preservedFunctions, module.get());
+  klee::optimiseAndPrepare(OptimiseKLEECall, opts.Optimize, opts.WithFPRuntime,
+                           SwitchType, opts.EntryPoint, preservedFunctions,
+                           module.get());
 }
 
 class InstructionToLineAnnotator : public llvm::AssemblyAnnotationWriter {

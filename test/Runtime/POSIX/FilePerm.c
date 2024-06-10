@@ -22,10 +22,9 @@ int main(int argc, char **argv) {
   else
     fprintf(stderr, "Cannot open file 'A'\n");
 
-    printf("File 'A' opened successfully\n");
+  printf("File 'A' opened successfully\n");
   // CHECK-DAG: File 'A' opened successfully
-  else
-    printf("Cannot open file 'A'\n");
+  else printf("Cannot open file 'A'\n");
   // CHECK-DAG: Cannot open file 'A'
   if (fd != -1)
     close(fd);
