@@ -221,6 +221,13 @@ void KModule::instrument(const Interpreter::ModuleOptions &opts) {
 void KModule::optimiseAndPrepare(
     const Interpreter::ModuleOptions &opts,
     llvm::ArrayRef<const char *> preservedFunctions) {
+  // Add internal functions which are not used to check if instructions
+  // have been already visited
+  if (opts.CheckDivZero)
+    addInternalFunction("klee_div_zero_check");
+  if (opts.CheckOvershift)
+    addInternalFunction("klee_overshift_check");
+
   klee::optimiseAndPrepare(OptimiseKLEECall, opts.Optimize, opts.WithFPRuntime,
                            SwitchType, opts.EntryPoint, preservedFunctions,
                            module.get());
