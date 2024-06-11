@@ -116,6 +116,7 @@ static SpecialFunctionHandler::HandlerInfo handlerInfo[] = {
     add("klee_is_symbolic", handleIsSymbolic, true),
     add("klee_make_symbolic", handleMakeSymbolic, false),
     add("klee_make_mock", handleMakeMock, false),
+    add("klee_make_mock_all", handleMakeMockAll, false),
     add("klee_mark_global", handleMarkGlobal, false),
     add("klee_prefer_cex", handlePreferCex, false),
     add("klee_posix_prefer_cex", handlePosixPreferCex, false),
@@ -129,6 +130,12 @@ static SpecialFunctionHandler::HandlerInfo handlerInfo[] = {
     add("malloc", handleMalloc, true),
     add("memalign", handleMemalign, true),
     add("realloc", handleRealloc, true),
+
+    add("klee_add_taint", handleAddTaint, false),
+    add("klee_clear_taint", handleClearTaint, false),
+    add("klee_check_taint_source", handleCheckTaintSource, true),
+    add("klee_get_taint_hits", handleGetTaintHits, true),
+    add("klee_taint_hit", handleTaintHit, false),
 
 #ifdef SUPPORT_KLEE_EH_CXX
     add("_klee_eh_Unwind_RaiseException_impl", handleEhUnwindRaiseExceptionImpl,
@@ -802,7 +809,8 @@ void SpecialFunctionHandler::handleRealloc(ExecutionState &state,
   if (zeroSize.first) { // size == 0
     executor.executeFree(*zeroSize.first,
                          PointerExpr::create(addressPointer->getValue(),
-                                             addressPointer->getValue()),
+                                             addressPointer->getValue(),
+                                             addressPointer->getTaint()),
                          target);
   }
   if (zeroSize.second) { // size != 0
@@ -1070,6 +1078,71 @@ void SpecialFunctionHandler::handleMakeMock(ExecutionState &state,
   }
 }
 
+void SpecialFunctionHandler::handleMakeMockAll(
+    ExecutionState &state, KInstruction *target,
+    std::vector<ref<Expr>> &arguments) {
+  std::string name;
+
+  if (arguments.size() != 2) {
+    executor.terminateStateOnUserError(state,
+                                       "Incorrect number of arguments to "
+                                       "klee_make_mock_all(void*, char*)");
+    return;
+  }
+
+  name = arguments[1]->isZero()
+             ? ""
+             : readStringAtAddress(state, executor.makePointer(arguments[1]));
+
+  if (name.empty()) {
+    executor.terminateStateOnUserError(
+        state, "Empty name of function in klee_make_mock_all");
+    return;
+  }
+
+  KFunction *kf = target->parent->parent;
+
+  Executor::ExactResolutionList rl;
+  executor.resolveExact(state, arguments[0],
+                        executor.typeSystemManager->getUnknownType(), rl,
+                        "make_symbolic");
+
+  for (auto &it : rl) {
+    ObjectPair op = it.second->addressSpace.findObject(it.first);
+    const MemoryObject *mo = op.first;
+    mo->setName(name);
+    mo->updateTimestamp();
+
+    const ObjectState *old = op.second;
+    ExecutionState *s = it.second;
+
+    if (old->readOnly) {
+      executor.terminateStateOnUserError(
+          *s, "cannot make readonly object symbolic");
+      return;
+    }
+
+    ref<SymbolicSource> source;
+    switch (executor.interpreterOpts.MockStrategy) {
+    case MockStrategyKind::Naive:
+      source =
+          SourceBuilder::mockNaive(executor.kmodule.get(), *kf->function(),
+                                   executor.updateNameVersion(state, name));
+      break;
+    case MockStrategyKind::Deterministic:
+      std::vector<ref<Expr>> args(kf->getNumArgs());
+      for (size_t i = 0; i < kf->getNumArgs(); i++) {
+        args[i] = executor.getArgumentCell(state, kf, i).value;
+      }
+      source = SourceBuilder::mockDeterministic(executor.kmodule.get(),
+                                                *kf->function(), args);
+      break;
+    }
+    executor.executeMakeSymbolic(state, mo, old->getDynamicType(), source,
+                                 false);
+  }
+}
+
 void SpecialFunctionHandler::handleMarkGlobal(
     ExecutionState &state, KInstruction *target,
     std::vector<ref<Expr>> &arguments) {
@@ -1213,4 +1286,107 @@ void SpecialFunctionHandler::handleFAbs(ExecutionState &state,
   assert(arguments.size() == 1 && "invalid number of arguments to fabs");
   ref<Expr> result = FAbsExpr::create(arguments[0]);
   executor.bindLocal(target, state, result);
+}
+
+void SpecialFunctionHandler::handleAddTaint(klee::ExecutionState &state,
+                                            klee::KInstruction *target,
+                                            std::vector<ref<Expr>> &arguments) {
+  if (arguments.size() != 2) {
+    executor.terminateStateOnUserError(state,
+                                       "Incorrect number of arguments to "
+                                       "klee_add_taint(void*, size_t)");
+    return;
+  }
+
+  uint64_t taintSource = dyn_cast<ConstantExpr>(arguments[1])->getZExtValue();
+
+  ref<PointerExpr> pointer = executor.makePointer(arguments[0]);
+  if (auto *p = dyn_cast<PointerExpr>(arguments[0])) {
+    if (p->isKnownValue()) {
+      pointer =
+          PointerExpr::create(p->getValue(), p->getValue(), p->getTaint());
+    }
+  }
+  executor.executeChangeTaintSource(state, target, pointer, taintSource, true);
+}
+
+void SpecialFunctionHandler::handleClearTaint(
+    klee::ExecutionState &state, klee::KInstruction *target,
+    std::vector<ref<Expr>> &arguments) {
+  if (arguments.size() != 2) {
+    executor.terminateStateOnUserError(state,
+                                       "Incorrect number of arguments to "
+                                       "klee_clear_taint(void*, size_t)");
+    return;
+  }
+
+  uint64_t taintSource = dyn_cast<ConstantExpr>(arguments[1])->getZExtValue();
+
+  ref<PointerExpr> pointer = executor.makePointer(arguments[0]);
+  if (auto *p = dyn_cast<PointerExpr>(arguments[0])) {
+    if (p->isKnownValue()) {
+      pointer =
+          PointerExpr::create(p->getValue(), p->getValue(), p->getTaint());
+    }
+  }
+  executor.executeChangeTaintSource(state, target, pointer, taintSource, false);
+}
+
+void SpecialFunctionHandler::handleCheckTaintSource(
+    klee::ExecutionState &state, klee::KInstruction *target,
+    std::vector<ref<Expr>> &arguments) {
+  if (arguments.size() != 2) {
+    executor.terminateStateOnUserError(
+        state, "Incorrect number of arguments to "
+               "klee_check_taint_source(void*, size_t)");
+    return;
+  }
+
+  uint64_t taintSource = dyn_cast<ConstantExpr>(arguments[1])->getZExtValue();
+
+  ref<PointerExpr> pointer = executor.makePointer(arguments[0]);
+  if (auto *p = dyn_cast<PointerExpr>(arguments[0])) {
+    if (p->isKnownValue()) {
+      pointer =
+          PointerExpr::create(p->getValue(), p->getValue(), p->getTaint());
+    }
+  }
+  executor.executeCheckTaintSource(state, target, pointer, taintSource);
+}
+
+void SpecialFunctionHandler::handleGetTaintHits(
+    klee::ExecutionState &state, klee::KInstruction *target,
+    std::vector<ref<Expr>> &arguments) {
+  if (arguments.size() != 2) {
+    executor.terminateStateOnUserError(state,
+                                       "Incorrect number of arguments to "
+                                       "klee_get_taint_hits(void*, size_t)");
+    return;
+  }
+
+  uint64_t taintSink = dyn_cast<ConstantExpr>(arguments[1])->getZExtValue();
+
+  ref<PointerExpr> pointer = executor.makePointer(arguments[0]);
+  if (auto *p = dyn_cast<PointerExpr>(arguments[0])) {
+    if (p->isKnownValue()) {
+      pointer =
+          PointerExpr::create(p->getValue(), p->getValue(), p->getTaint());
+    }
+  }
+  executor.executeGetTaintHits(state, target, pointer, taintSink);
+}
+
+void SpecialFunctionHandler::handleTaintHit(klee::ExecutionState &state,
+                                            klee::KInstruction *target,
+                                            std::vector<ref<Expr>> &arguments) {
+  if (arguments.size() != 2) {
+    executor.terminateStateOnUserError(
+        state,
+        "Incorrect number of arguments to klee_taint_hit(uint64_t, size_t)");
+    return;
+  }
+
+  uint64_t taintHits = dyn_cast<ConstantExpr>(arguments[0])->getZExtValue();
+  size_t taintSink = dyn_cast<ConstantExpr>(arguments[1])->getZExtValue();
+  executor.terminateStateOnTargetTaintError(state, taintHits, taintSink);
 }

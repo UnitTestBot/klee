@@ -10,7 +10,7 @@
 #define KLEE_MOCKBUILDER_H
 
 #include "klee/Core/Interpreter.h"
-#include "klee/Module/Annotation.h"
+#include "klee/Module/AnnotationsData.h"
 
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Module.h"
@@ -38,7 +38,7 @@ private:
   std::set<std::string> &mainModuleFunctions;
   std::set<std::string> &mainModuleGlobals;
 
-  AnnotationsMap annotations;
+  const AnnotationsData &annotationsData;
 
   void initMockModule();
   void buildMockMain();
@@ -48,6 +48,23 @@ private:
   buildCallKleeMakeSymbolic(const std::string &kleeMakeSymbolicFunctionName,
                             llvm::Value *source, llvm::Type *type,
                             const std::string &symbolicName);
+  void buildCallKleeMakeMockAll(llvm::Value *source,
+                                const std::string &symbolicName);
+  llvm::CallInst *buildCallKleeTaintFunction(const std::string &functionName,
+                                             llvm::Value *source, size_t taint,
+                                             llvm::Type *returnType);
+  void buildCallKleeTaintHit(llvm::Value *taintHits, size_t taintSink);
+
+  void buildAnnotationTaintOutput(llvm::Value *elem,
+                                  const Statement::Ptr &statement);
+  void buildAnnotationTaintPropagation(llvm::Value *elem,
+                                       const Statement::Ptr &statement,
+                                       llvm::Function *func,
+                                       const std::string &target);
+  void buildAnnotationTaintSink(llvm::Value *elem,
+                                const Statement::Ptr &statement,
+                                llvm::Function *func,
+                                const std::string &target);
 
   void buildAnnotationForExternalFunctionArgs(
       llvm::Function *func,
@@ -71,7 +88,8 @@ public:
               std::vector<std::pair<std::string, std::string>> &redefinitions,
               InterpreterHandler *interpreterHandler,
               std::set<std::string> &mainModuleFunctions,
-              std::set<std::string> &mainModuleGlobals);
+              std::set<std::string> &mainModuleGlobals,
+              const AnnotationsData &annotationsData);
 
   std::unique_ptr<llvm::Module> build();
   void buildAllocSource(llvm::Value *prev, llvm::Type *elemType,

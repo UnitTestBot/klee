@@ -130,6 +130,7 @@ public:
   HANDLER(handleIsSymbolic);
   HANDLER(handleMakeSymbolic);
   HANDLER(handleMakeMock);
+  HANDLER(handleMakeMockAll);
   HANDLER(handleMalloc);
   HANDLER(handleMemalign);
   HANDLER(handleMarkGlobal);
@@ -181,6 +182,11 @@ public:
   HANDLER(handleNonnullArg);
   HANDLER(handleNullabilityArg);
   HANDLER(handlePointerOverflow);
+  HANDLER(handleAddTaint);
+  HANDLER(handleClearTaint);
+  HANDLER(handleCheckTaintSource);
+  HANDLER(handleGetTaintHits);
+  HANDLER(handleTaintHit);
 #undef HANDLER
 };
 } // namespace klee

@@ -136,8 +136,11 @@ public:
 
   /// Lookup a binding from a MemoryObject.
   ObjectPair findObject(const MemoryObject *mo) const;
-  RefObjectPair lazyInitializeObject(const MemoryObject *mo) const;
-  RefObjectPair findOrLazyInitializeObject(const MemoryObject *mo) const;
+  RefObjectPair lazyInitializeObject(const MemoryObject *mo,
+                                     ref<Expr> taint) const;
+  RefObjectPair
+  findOrLazyInitializeObject(const MemoryObject *mo,
+                             ref<Expr> taint = Expr::createEmptyTaint()) const;
 
   /// Copy the concrete values of all managed ObjectStates into the
   /// actual system memory location they were allocated at.

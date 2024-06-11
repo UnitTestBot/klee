@@ -267,6 +267,12 @@ public:
   }
   void initializeToZero();
 
+  void reset(ref<Expr> newDefault);
+  void reset(ref<Expr> updateForDefault, bool isAdd);
+
+  ref<Expr> combineAll() const;
+  void updateAll(const ref<ConstantExpr> &updateExpr, bool isAdd);
+
 private:
   const UpdateList &getUpdates() const;
 
@@ -291,6 +297,7 @@ private:
 
   ObjectStage valueOS;
   ObjectStage baseOS;
+  ObjectStage taintOS;
 
   ref<UpdateNode> lastUpdate;
 
@@ -304,8 +311,10 @@ public:
 
   /// Create a new object state for the given memory
   // For objects in memory
-  ObjectState(const MemoryObject *mo, const Array *array, KType *dt);
-  ObjectState(const MemoryObject *mo, KType *dt);
+  ObjectState(const MemoryObject *mo, const Array *array, KType *dt,
+              ref<Expr> defaultTaintValue = Expr::createEmptyTaint());
+  ObjectState(const MemoryObject *mo, KType *dt,
+              ref<Expr> defaultTaintValue = Expr::createEmptyTaint());
 
   // For symbolic objects not in memory (hack)
 
@@ -318,7 +327,8 @@ public:
   void initializeToZero();
 
   size_t getSparseStorageEntries() {
-    return valueOS.getSparseStorageEntries() + baseOS.getSparseStorageEntries();
+    return valueOS.getSparseStorageEntries() +
+           baseOS.getSparseStorageEntries() + taintOS.getSparseStorageEntries();
   }
 
   void swapObjectHack(MemoryObject *mo) { object = mo; }
@@ -328,10 +338,13 @@ public:
   ref<Expr> read8(unsigned offset) const;
   ref<Expr> readValue(ref<Expr> offset, Expr::Width width) const;
   ref<Expr> readBase(ref<Expr> offset, Expr::Width width) const;
+  ref<Expr> readTaint(ref<Expr> offset, Expr::Width width) const;
   ref<Expr> readValue(unsigned offset, Expr::Width width) const;
   ref<Expr> readBase(unsigned offset, Expr::Width width) const;
+  ref<Expr> readTaint(unsigned offset, Expr::Width width) const;
   ref<Expr> readValue8(unsigned offset) const;
   ref<Expr> readBase8(unsigned offset) const;
+  ref<Expr> readTaint8(unsigned offset) const;
 
   void write(unsigned offset, ref<Expr> value);
   void write(ref<Expr> offset, ref<Expr> value);
@@ -347,12 +360,23 @@ public:
 
   KType *getDynamicType() const;
 
+  ref<Expr> readTaint() const { return taintOS.combineAll(); }
+  void updateTaint(const ref<ConstantExpr> &updateForTaint, bool isAdd) {
+    taintOS.updateAll(updateForTaint, isAdd);
+  }
+
 private:
   ref<Expr> read8(ref<Expr> offset) const;
   ref<Expr> readValue8(ref<Expr> offset) const;
   ref<Expr> readBase8(ref<Expr> offset) const;
+  ref<Expr> readTaint8(ref<Expr> offset) const;
   void write8(unsigned offset, ref<Expr> value);
   void write8(ref<Expr> offset, ref<Expr> value);
+
+  void resetTaint(ref<Expr> newTaint) { taintOS.reset(std::move(newTaint)); }
+  void resetTaint(ref<Expr> updateForTaint, bool isAdd) {
+    taintOS.reset(std::move(updateForTaint), isAdd);
+  }
 };
 
 } // namespace klee

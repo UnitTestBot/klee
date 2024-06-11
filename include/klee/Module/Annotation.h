@@ -15,6 +15,12 @@
 #include <set>
 #include <string>
 #include <vector>
+#include "klee/Config/config.h"
+#include "klee/Config/config.h"
+
+#include "llvm/IR/Module.h"
+
+#include <optional>
 
 using json = nlohmann::json;
 
@@ -29,7 +35,11 @@ enum class Kind {
   MaybeInitNull,
   // TODO: rename to alloc
   AllocSource,
-  Free
+  Free,
+
+  TaintOutput,
+  TaintPropagation,
+  TaintSink
 };
 
 enum class Property {
@@ -108,6 +118,39 @@ public:
   Type value = Free::Type::FREE;
 
   explicit Free(const std::string &str = "FreeSource::1");
+
+  [[nodiscard]] Kind getKind() const override;
+};
+
+struct Taint : public Unknown {
+protected:
+  std::string taintType;
+
+public:
+  explicit Taint(const std::string &str = "Unknown");
+
+  [[nodiscard]] Kind getKind() const override;
+
+  [[nodiscard]] std::string getTaintType() const;
+  [[nodiscard]] std::string getTaintTypeAsLower() const;
+};
+
+struct TaintOutput final : public Taint {
+  explicit TaintOutput(const std::string &str = "TaintOutput");
+
+  [[nodiscard]] Kind getKind() const override;
+};
+
+struct TaintPropagation final : public Taint {
+  size_t propagationParameterIndex;
+
+  explicit TaintPropagation(const std::string &str = "TaintPropagation");
+
+  [[nodiscard]] Kind getKind() const override;
+};
+
+struct TaintSink final : public Taint {
+  explicit TaintSink(const std::string &str = "TaintSink");
 
   [[nodiscard]] Kind getKind() const override;
 };

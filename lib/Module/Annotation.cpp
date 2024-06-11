@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "klee/Module/Annotation.h"
+#include "klee/Module/TaintAnnotation.h"
 #include "klee/Support/ErrorHandling.h"
 
 #include "klee/Support/CompilerWarning.h"
@@ -16,6 +17,8 @@ DISABLE_WARNING_DEPRECATED_DECLARATIONS
 DISABLE_WARNING_POP
 
 #include "nlohmann/json.hpp"
+
+#include <fstream>
 
 #include <fstream>
 
@@ -136,13 +139,80 @@ Free::Free(const std::string &str) : Unknown(str) {
 
 Kind Free::getKind() const { return Kind::Free; }
 
+Taint::Taint(const std::string &str) : Unknown(str) {
+  taintType = rawValue.substr(0, rawValue.find(':'));
+  if (taintType.empty()) {
+    klee_error("Annotation Taint: Incorrect value format, must has taint type");
+  }
+}
+
+Kind Taint::getKind() const { return Unknown::getKind(); }
+
+std::string Taint::getTaintType() const { return taintType; }
+
+std::string Taint::getTaintTypeAsLower() const { return toLower(taintType); }
+
+/*
+ * Format: TaintOutput:{offset}:{type}
+ */
+
+TaintOutput::TaintOutput(const std::string &str) : Taint(str) {}
+
+Kind TaintOutput::getKind() const { return Kind::TaintOutput; }
+
+/*
+ * Format: TaintPropagation:{offset}:{type}:{data}
+ */
+
+TaintPropagation::TaintPropagation(const std::string &str) : Taint(str) {
+  const size_t colonPos = rawValue.find(':');
+  const std::string rawData =
+      (colonPos == std::string::npos)
+          ? std::string()
+          : rawValue.substr(colonPos + 1, std::string::npos);
+
+  if (rawData.empty()) {
+    klee_error("Annotation TaintPropagation: Incorrect value %s format, must "
+               "be <type>:<index>",
+               rawValue.c_str());
+  }
+
+  char *end = nullptr;
+  size_t propagationParameterData = strtoul(rawData.c_str(), &end, 10);
+  if (*end != '\0' || errno == ERANGE) {
+    klee_error("Annotation TaintPropagation: Incorrect value %s format, must "
+               "be <type>:<index>",
+               rawValue.c_str());
+  }
+
+  if (propagationParameterData == 0) {
+    klee_error("Annotation TaintPropagation: Incorrect value %s, data for "
+               "propagation must be >= 1",
+               rawValue.c_str());
+  }
+  propagationParameterIndex = propagationParameterData - 1;
+}
+
+Kind TaintPropagation::getKind() const { return Kind::TaintPropagation; }
+
+/*
+ * Format: TaintSink:{offset}:{type}
+ */
+
+TaintSink::TaintSink(const std::string &str) : Taint(str) {}
+
+Kind TaintSink::getKind() const { return Kind::TaintSink; }
+
 const std::map<std::string, Statement::Kind> StringToKindMap = {
     {"deref", Statement::Kind::Deref},
     {"initnull", Statement::Kind::InitNull},
     {"maybeinitnull", Statement::Kind::MaybeInitNull},
     {"allocsource", Statement::Kind::AllocSource},
     {"freesource", Statement::Kind::Free},
-    {"freesink", Statement::Kind::Free}};
+    {"freesink", Statement::Kind::Free},
+    {"taintoutput", Statement::Kind::TaintOutput},
+    {"taintpropagation", Statement::Kind::TaintPropagation},
+    {"taintsink", Statement::Kind::TaintSink}};
 
 inline Statement::Kind stringToKind(const std::string &str) {
   auto it = StringToKindMap.find(toLower(str));
@@ -167,6 +237,12 @@ Ptr stringToKindPtr(const std::string &str) {
     return std::make_shared<Alloc>(str);
   case Statement::Kind::Free:
     return std::make_shared<Free>(str);
+  case Statement::Kind::TaintOutput:
+    return std::make_shared<TaintOutput>(str);
+  case Statement::Kind::TaintPropagation:
+    return std::make_shared<TaintPropagation>(str);
+  case Statement::Kind::TaintSink:
+    return std::make_shared<TaintSink>(str);
   }
 }
 
