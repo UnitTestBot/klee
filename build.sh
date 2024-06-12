@@ -47,7 +47,7 @@ JSON_VERSION=v3.11.3
 IMMER_VERSION=v0.8.1
 
 ## UClibC Required options
-UCLIBC_VERSION=klee_uclibc_v1.3
+UCLIBC_VERSION=klee_uclibc_v1.4
 # LLVM_VERSION is also required for UClibC
 
 ## Z3 Required options
