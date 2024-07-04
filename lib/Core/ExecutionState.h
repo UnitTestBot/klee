@@ -421,7 +421,7 @@ public:
 
   ExprHashMap<llvm::Type *> gepExprBases;
 
-  mutable ReachWithError error = ReachWithError::None;
+  mutable ReachWithError error = ReachWithError(ReachWithErrorType::None);
   std::atomic<HaltExecution::Reason> terminationReasonType{
       HaltExecution::NotHalt};
 

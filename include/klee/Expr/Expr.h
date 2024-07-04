@@ -183,6 +183,8 @@ public:
 
   static const Width Fl80 = 80;
 
+  static const Width TaintWidth = 64;
+
   enum States { Undefined, True, False };
 
   enum Kind {
@@ -394,6 +396,7 @@ public:
   ref<ReadExpr> hasOrderedReads(bool stride) const;
   ref<ReadExpr> hasOrderedReads() const;
   ref<Expr> getValue() const;
+  ref<Expr> getTaint() const;
 
   /* Static utility methods */
 
@@ -412,6 +415,11 @@ public:
   static ref<Expr> createIsZero(ref<Expr> e);
   static ref<ConstantExpr> createTrue();
   static ref<ConstantExpr> createFalse();
+
+  static ref<ConstantExpr> createEmptyTaint();
+  static ref<ConstantExpr> createTaintBySource(uint64_t source);
+  static ref<Expr> combineTaints(const ref<Expr> &taintL,
+                                 const ref<Expr> &taintR);
 
   /// Create a little endian read of the given type at offset 0 of the
   /// given object.
@@ -1676,25 +1684,32 @@ public:
 class PointerExpr : public NonConstantExpr {
 public:
   static const Kind kind = Expr::Pointer;
-  static const unsigned numKids = 2;
+  static const unsigned numKids = 3;
+
   ref<Expr> base;
   ref<Expr> value;
-  static ref<Expr> alloc(const ref<Expr> &b, const ref<Expr> &v) {
-    ref<Expr> r(new PointerExpr(b, v));
+  ref<Expr> taint;
+
+  static ref<Expr> alloc(const ref<Expr> &b, const ref<Expr> &v,
+                         const ref<Expr> &t = createEmptyTaint()) {
+    ref<Expr> r(new PointerExpr(b, v, t));
     r->computeHash();
     r->computeHeight();
     return r;
   }
-  static ref<Expr> create(const ref<Expr> &b, const ref<Expr> &o);
-  static ref<Expr> create(const ref<Expr> &v);
+  static ref<Expr> create(const ref<Expr> &b, const ref<Expr> &v,
+                          const ref<Expr> &t = createEmptyTaint());
+  static ref<Expr> create(const ref<Expr> &expr);
   static ref<Expr> createSymbolic(const ref<Expr> &expr,
                                   const ref<ReadExpr> &pointer,
                                   const ref<Expr> &off);
 
   Width getWidth() const { return value->getWidth(); }
   Kind getKind() const { return Expr::Pointer; }
+
   ref<Expr> getBase() const { return base; }
   ref<Expr> getValue() const { return value; }
+  ref<Expr> getTaint() const { return taint; }
   ref<Expr> getOffset() const {
     assert(value->getWidth() == base->getWidth() &&
            "Invalid getOffset() call!");
@@ -1707,12 +1722,14 @@ public:
       return base;
     if (i == 1)
       return value;
+    if (i == 2)
+      return taint;
     return 0;
   }
 
   int compareContents(const Expr &b) const { return 0; }
   virtual ref<Expr> rebuild(ref<Expr> kids[]) const {
-    return create(kids[0], kids[1]);
+    return create(kids[0], kids[1], kids[2]);
   }
   static bool classof(const Expr *E) {
     return E->getKind() == Expr::Pointer ||
@@ -1721,6 +1738,10 @@ public:
   static bool classof(const PointerExpr *) { return true; }
 
   bool isKnownValue() const { return getBase()->isZero(); }
+
+  ref<Expr> combineTaints(const ref<PointerExpr> &RHS) {
+    return Expr::combineTaints(getTaint(), RHS->getTaint());
+  }
 
   ref<Expr> Add(const ref<PointerExpr> &RHS);
   ref<Expr> Sub(const ref<PointerExpr> &RHS);
@@ -1750,30 +1771,38 @@ public:
   ref<Expr> Not();
 
 protected:
-  PointerExpr(const ref<Expr> &b, const ref<Expr> &v) : base(b), value(v) {}
+  PointerExpr(const ref<Expr> &b, const ref<Expr> &v, const ref<Expr> &t)
+      : base(b), value(v), taint(t) {}
 };
 
 class ConstantPointerExpr : public PointerExpr {
 public:
   static const Kind kind = Expr::ConstantPointer;
-  static const unsigned numKids = 2;
-  static ref<ConstantPointerExpr> alloc(const ref<ConstantExpr> &b,
-                                        const ref<ConstantExpr> &o) {
-    ref<ConstantPointerExpr> r = new ConstantPointerExpr(b, o);
+  static const unsigned numKids = 3;
+
+  static ref<ConstantPointerExpr>
+  alloc(const ref<ConstantExpr> &b, const ref<ConstantExpr> &v,
+        const ref<ConstantExpr> &t = createEmptyTaint()) {
+    ref<ConstantPointerExpr> r = new ConstantPointerExpr(b, v, t);
     r->computeHash();
     r->computeHeight();
     return r;
   }
   static ref<Expr> create(const ref<ConstantExpr> &b,
-                          const ref<ConstantExpr> &o);
+                          const ref<ConstantExpr> &v,
+                          const ref<ConstantExpr> &t = createEmptyTaint());
 
   Kind getKind() const { return Expr::ConstantPointer; }
+
   ref<ConstantExpr> getConstantBase() const { return cast<ConstantExpr>(base); }
   ref<ConstantExpr> getConstantOffset() const {
     return getConstantValue()->Sub(getConstantBase());
   }
   ref<ConstantExpr> getConstantValue() const {
     return cast<ConstantExpr>(value);
+  }
+  ref<ConstantExpr> getConstantTaint() const {
+    return cast<ConstantExpr>(taint);
   }
 
   static bool classof(const Expr *E) {
@@ -1782,8 +1811,9 @@ public:
   static bool classof(const ConstantPointerExpr *) { return true; }
 
 private:
-  ConstantPointerExpr(const ref<ConstantExpr> &b, const ref<ConstantExpr> &v)
-      : PointerExpr(b, v) {}
+  ConstantPointerExpr(const ref<ConstantExpr> &b, const ref<ConstantExpr> &v,
+                      const ref<ConstantExpr> &t)
+      : PointerExpr(b, v, t) {}
 };
 
 // Implementations

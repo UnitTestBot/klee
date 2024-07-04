@@ -41,6 +41,7 @@ DISABLE_WARNING_POP
 #include <cstddef>
 #include <functional>
 #include <sstream>
+#include <utility>
 
 namespace klee {
 llvm::cl::opt<MemoryType> MemoryBackend(
@@ -106,19 +107,25 @@ std::string MemoryObject::getAllocInfo() const {
 
 /***/
 
-ObjectState::ObjectState(const MemoryObject *mo, const Array *array, KType *dt)
+ObjectState::ObjectState(const MemoryObject *mo, const Array *array, KType *dt,
+                         ref<Expr> defaultTaintValue)
     : copyOnWriteOwner(0), object(mo), valueOS(ObjectStage(array, nullptr)),
       baseOS(ObjectStage(array->size, Expr::createPointer(0), false,
                          Context::get().getPointerWidth())),
+      taintOS(ObjectStage(array->size, std::move(defaultTaintValue), false,
+                          Expr::TaintWidth)),
       lastUpdate(nullptr), size(array->size), dynamicType(dt), readOnly(false) {
   baseOS.initializeToZero();
 }
 
-ObjectState::ObjectState(const MemoryObject *mo, KType *dt)
+ObjectState::ObjectState(const MemoryObject *mo, KType *dt,
+                         ref<Expr> defaultTaintValue)
     : copyOnWriteOwner(0), object(mo),
       valueOS(ObjectStage(mo->getSizeExpr(), nullptr)),
       baseOS(ObjectStage(mo->getSizeExpr(), Expr::createPointer(0), false,
                          Context::get().getPointerWidth())),
+      taintOS(ObjectStage(mo->getSizeExpr(), std::move(defaultTaintValue),
+                          false, Expr::TaintWidth)),
       lastUpdate(nullptr), size(mo->getSizeExpr()), dynamicType(dt),
       readOnly(false) {
   baseOS.initializeToZero();
@@ -126,8 +133,8 @@ ObjectState::ObjectState(const MemoryObject *mo, KType *dt)
 
 ObjectState::ObjectState(const ObjectState &os)
     : copyOnWriteOwner(0), object(os.object), valueOS(os.valueOS),
-      baseOS(os.baseOS), lastUpdate(os.lastUpdate), size(os.size),
-      dynamicType(os.dynamicType), readOnly(os.readOnly),
+      baseOS(os.baseOS), taintOS(os.taintOS), lastUpdate(os.lastUpdate),
+      size(os.size), dynamicType(os.dynamicType), readOnly(os.readOnly),
       wasWritten(os.wasWritten) {}
 
 /***/
@@ -135,15 +142,17 @@ ObjectState::ObjectState(const ObjectState &os)
 void ObjectState::initializeToZero() {
   valueOS.initializeToZero();
   baseOS.initializeToZero();
+  taintOS.initializeToZero();
 }
 
 ref<Expr> ObjectState::read8(unsigned offset) const {
   ref<Expr> val = valueOS.readWidth(offset);
   ref<Expr> base = baseOS.readWidth(offset);
-  if (base->isZero()) {
+  ref<Expr> taint = taintOS.readWidth(offset);
+  if (base->isZero() && taint->isZero()) {
     return val;
   } else {
-    return PointerExpr::create(base, val);
+    return PointerExpr::create(base, val, taint);
   }
 }
 
@@ -153,6 +162,10 @@ ref<Expr> ObjectState::readValue8(unsigned offset) const {
 
 ref<Expr> ObjectState::readBase8(unsigned offset) const {
   return baseOS.readWidth(offset);
+}
+
+ref<Expr> ObjectState::readTaint8(unsigned offset) const {
+  return taintOS.readWidth(offset);
 }
 
 ref<Expr> ObjectState::read8(ref<Expr> offset) const {
@@ -177,10 +190,11 @@ ref<Expr> ObjectState::read8(ref<Expr> offset) const {
   }
   ref<Expr> val = valueOS.readWidth(offset);
   ref<Expr> base = baseOS.readWidth(offset);
-  if (base->isZero()) {
+  ref<Expr> taint = taintOS.readWidth(offset);
+  if (base->isZero() && taint->isZero()) {
     return val;
   } else {
-    return PointerExpr::create(base, val);
+    return PointerExpr::create(base, val, taint);
   }
 }
 
@@ -230,10 +244,34 @@ ref<Expr> ObjectState::readBase8(ref<Expr> offset) const {
   return baseOS.readWidth(offset);
 }
 
+ref<Expr> ObjectState::readTaint8(ref<Expr> offset) const {
+  assert(!isa<ConstantExpr>(offset) &&
+         "constant offset passed to symbolic read8");
+
+  if (object) {
+    if (ref<ConstantExpr> sizeExpr =
+            dyn_cast<ConstantExpr>(object->getSizeExpr())) {
+      auto moSize = sizeExpr->getZExtValue();
+      if (object && moSize > 4096) {
+        std::string allocInfo = object->getAllocInfo();
+        klee_warning_once(nullptr,
+                          "Symbolic memory access will send the following "
+                          "array of %lu bytes to "
+                          "the constraint solver -- large symbolic arrays may "
+                          "cause significant "
+                          "performance issues: %s",
+                          moSize, allocInfo.c_str());
+      }
+    }
+  }
+  return taintOS.readWidth(offset);
+}
+
 void ObjectState::write8(unsigned offset, uint8_t value) {
   valueOS.writeWidth(offset, value);
   baseOS.writeWidth(offset,
                     ConstantExpr::create(0, Context::get().getPointerWidth()));
+  taintOS.writeWidth(offset, Expr::createEmptyTaint());
 }
 
 void ObjectState::write8(unsigned offset, ref<Expr> value) {
@@ -241,10 +279,12 @@ void ObjectState::write8(unsigned offset, ref<Expr> value) {
   if (auto pointer = dyn_cast<PointerExpr>(value)) {
     valueOS.writeWidth(offset, pointer->getValue());
     baseOS.writeWidth(offset, pointer->getBase());
+    taintOS.writeWidth(offset, pointer->getTaint());
   } else {
     valueOS.writeWidth(offset, value);
     baseOS.writeWidth(
         offset, ConstantExpr::create(0, Context::get().getPointerWidth()));
+    taintOS.writeWidth(offset, Expr::createEmptyTaint());
   }
 }
 
@@ -272,17 +312,22 @@ void ObjectState::write8(ref<Expr> offset, ref<Expr> value) {
   if (auto pointer = dyn_cast<PointerExpr>(value)) {
     valueOS.writeWidth(offset, pointer->getValue());
     baseOS.writeWidth(offset, pointer->getBase());
+    taintOS.writeWidth(offset, pointer->getTaint());
   } else {
     valueOS.writeWidth(offset, value);
     baseOS.writeWidth(
         offset, ConstantExpr::create(0, Context::get().getPointerWidth()));
+    taintOS.writeWidth(offset, Expr::createEmptyTaint());
   }
 }
 
 void ObjectState::write(ref<const ObjectState> os) {
   wasWritten = true;
+
   valueOS.write(os->valueOS);
   baseOS.write(os->baseOS);
+  taintOS.write(os->taintOS);
+
   lastUpdate = os->lastUpdate;
 }
 
@@ -295,20 +340,22 @@ ref<Expr> ObjectState::read(ref<Expr> offset, Expr::Width width) const {
 
   ref<Expr> val = readValue(offset, width);
   ref<Expr> base = readBase(offset, width);
-  if (base->isZero()) {
+  ref<Expr> taint = readTaint(offset, width);
+  if (base->isZero() && taint->isZero()) {
     return val;
   } else {
-    return PointerExpr::create(base, val);
+    return PointerExpr::create(base, val, taint);
   }
 }
 
 ref<Expr> ObjectState::read(unsigned offset, Expr::Width width) const {
   ref<Expr> val = readValue(offset, width);
   ref<Expr> base = readBase(offset, width);
-  if (base->isZero()) {
+  ref<Expr> taint = readTaint(offset, width);
+  if (base->isZero() && taint->isZero()) {
     return val;
   } else {
-    return PointerExpr::create(base, val);
+    return PointerExpr::create(base, val, taint);
   }
 }
 
@@ -368,10 +415,6 @@ ref<Expr> ObjectState::readBase(ref<Expr> offset, Expr::Width width) const {
   if (width == Expr::Bool)
     return ExtractExpr::create(readBase8(offset), 0, Expr::Bool);
 
-  // Treat bool specially, it is the only non-byte sized write we allow.
-  if (width == Expr::Bool)
-    return ExtractExpr::create(readBase8(offset), 0, Expr::Bool);
-
   // Otherwise, follow the slow general case.
   unsigned NumBytes = width / 8;
   assert(width == NumBytes * 8 && "Invalid read size!");
@@ -411,6 +454,50 @@ ref<Expr> ObjectState::readBase(unsigned offset, Expr::Width width) const {
     } else {
       Res = Byte;
     }
+  }
+
+  return Res;
+}
+
+ref<Expr> ObjectState::readTaint(ref<Expr> offset, Expr::Width width) const {
+  // Truncate offset to 32-bits.
+  offset = ZExtExpr::create(offset, Expr::Int32);
+
+  // Check for reads at constant offsets.
+  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(offset))
+    return readTaint(CE->getZExtValue(32), width);
+
+  // Treat bool specially, it is the only non-byte sized write we allow.
+  if (width == Expr::Bool)
+    return ExtractExpr::create(readTaint8(offset), 0, Expr::Bool);
+
+  // Otherwise, follow the slow general case.
+  unsigned NumBytes = width / 8;
+  assert(width == NumBytes * 8 && "Invalid read size!");
+  ref<Expr> Res = Expr::createEmptyTaint();
+  for (unsigned i = 0; i != NumBytes; ++i) {
+    unsigned idx = Context::get().isLittleEndian() ? i : (NumBytes - i - 1);
+    ref<Expr> Byte = readTaint8(
+        AddExpr::create(offset, ConstantExpr::create(idx, Expr::Int32)));
+    Res = i ? OrExpr::create(Byte, Res) : Byte;
+  }
+
+  return Res;
+}
+
+ref<Expr> ObjectState::readTaint(unsigned offset, Expr::Width width) const {
+  // Treat bool specially, it is the only non-byte sized write we allow.
+  if (width == Expr::Bool)
+    return ExtractExpr::create(readTaint8(offset), 0, Expr::Bool);
+
+  // Otherwise, follow the slow general case.
+  unsigned NumBytes = width / 8;
+  assert(width == NumBytes * 8 && "Invalid width for read size!");
+  ref<Expr> Res = Expr::createEmptyTaint();
+  for (unsigned i = 0; i != NumBytes; ++i) {
+    unsigned idx = Context::get().isLittleEndian() ? i : (NumBytes - i - 1);
+    ref<Expr> Byte = readTaint8(offset + idx);
+    Res = i ? OrExpr::create(Byte, Res) : Byte;
   }
 
   return Res;
@@ -516,6 +603,8 @@ void ObjectState::print() const {
   valueOS.print();
   llvm::errs() << "\tOffset ObjectStage:\n";
   baseOS.print();
+  llvm::errs() << "\tTaint ObjectStage:\n";
+  taintOS.print();
 }
 
 KType *ObjectState::getDynamicType() const { return dynamicType; }
@@ -719,5 +808,101 @@ void ObjectStage::print() const {
   llvm::errs() << "\tUpdates:\n";
   for (const auto *un = updates.head.get(); un; un = un->next.get()) {
     llvm::errs() << "\t\t[" << un->index << "] = " << un->value << "\n";
+  }
+}
+
+/***/
+
+void ObjectStage::reset(ref<Expr> newDefault) {
+  knownSymbolics->reset(std::move(newDefault));
+  unflushedMask->reset(false);
+  updates = UpdateList(nullptr, nullptr);
+}
+
+void ObjectStage::reset(ref<Expr> updateForDefault, bool isAdd) {
+  ref<Expr> oldDefault = knownSymbolics->defaultV();
+  ref<Expr> newDefault =
+      isAdd ? OrExpr::create(oldDefault, updateForDefault)
+            : AndExpr::create(oldDefault, NotExpr::create(updateForDefault));
+  knownSymbolics->reset(std::move(newDefault));
+  unflushedMask->reset(false);
+  updates = UpdateList(nullptr, nullptr);
+}
+
+ref<Expr> ObjectStage::combineAll() const {
+  ref<Expr> result = Expr::createEmptyTaint();
+  if (knownSymbolics->defaultV()) {
+    result = knownSymbolics->defaultV();
+  }
+  for (auto [index, value] : knownSymbolics->storage()) {
+    result = OrExpr::create(result, value);
+  }
+  if (updates.root) {
+    if (ref<ConstantSource> constantSource =
+            cast<ConstantSource>(updates.root->source)) {
+      for (const auto &[index, value] :
+           constantSource->constantValues->storage()) {
+        result = OrExpr::create(result, value);
+      }
+    }
+  }
+  for (const auto *un = updates.head.get(); un; un = un->next.get()) {
+    result = OrExpr::create(result, un->value);
+  }
+  return result;
+}
+
+void ObjectStage::updateAll(const ref<ConstantExpr> &updateExpr, bool isAdd) {
+  std::vector<std::pair<size_t, ref<Expr>>> newKnownSymbolics;
+  for (auto [index, value] : knownSymbolics->storage()) {
+    ref<Expr> newValue =
+        isAdd ? OrExpr::create(value, updateExpr)
+              : AndExpr::create(value, NotExpr::create(updateExpr));
+    newKnownSymbolics.emplace_back(index, value);
+  }
+
+  if (knownSymbolics->defaultV()) {
+    ref<Expr> oldDefault = knownSymbolics->defaultV();
+    ref<Expr> newDefault =
+        isAdd ? OrExpr::create(oldDefault, updateExpr)
+              : AndExpr::create(oldDefault, NotExpr::create(updateExpr));
+    knownSymbolics->reset(std::move(newDefault));
+  }
+
+  for (auto [index, value] : newKnownSymbolics) {
+    knownSymbolics->store(index, value);
+  }
+
+  std::vector<std::pair<ref<Expr>, ref<Expr>>> newUpdates;
+  for (auto *un = updates.head.get(); un; un = un->next.get()) {
+    ref<Expr> newValue =
+        isAdd ? OrExpr::create(un->value, updateExpr)
+              : AndExpr::create(un->value, NotExpr::create(updateExpr));
+    newUpdates.emplace_back(un->index, newValue);
+  }
+
+  const Array *array = nullptr;
+  if (updates.root) {
+    if (ref<ConstantSource> constantSource =
+            cast<ConstantSource>(updates.root->source)) {
+      SparseStorage<ref<ConstantExpr>> *newStorage = constructStorage(
+          size, ConstantExpr::create(0, width), MaxFixedSizeStructureSize);
+
+      for (const auto &[index, value] :
+           constantSource->constantValues->storage()) {
+        ref<ConstantExpr> newValue =
+            isAdd ? OrExpr::create(value, updateExpr)
+                  : AndExpr::create(value, NotExpr::create(updateExpr));
+        newStorage->store(index, newValue);
+      }
+
+      array = Array::create(size, SourceBuilder::constant(newStorage),
+                            Expr::Int32, width);
+    }
+  }
+
+  updates = UpdateList(array, nullptr);
+  for (auto [index, value] : newUpdates) {
+    updates.extend(index, value);
   }
 }

@@ -11,12 +11,11 @@
 
 #include <assert.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/mman.h>
 #include <sys/time.h>
-#include <time.h>
 
 #include "klee/klee.h"
 
@@ -164,6 +163,14 @@ void klee_make_symbolic(void *array, size_t nbytes, const char *name) {
 void klee_make_mock(void *ret_array, size_t ret_nbytes, const char *fname) {
   klee_make_symbol(ret_array, ret_nbytes, fname);
 }
+
+// TODO: add for tests
+//void klee_make_mock_all(void *ret_array, const char *fname) {}
+//void klee_add_taint(void *array, size_t taint_source) {}
+//void klee_clear_taint(void *array, size_t taint_source) {}
+//bool klee_check_taint_source(void *array, size_t taint_source) {}
+//uint64_t klee_get_taint_hits(void *array, size_t taint_sink) {}
+//void klee_taint_hit(uint64_t taint_hits, size_t taint_sink) {}
 
 void klee_silent_exit(int x) { exit(x); }
 

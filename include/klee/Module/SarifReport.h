@@ -43,7 +43,7 @@ template <typename T> struct adl_serializer<std::optional<T>> {
 } // namespace nlohmann
 
 namespace klee {
-enum ReachWithError {
+enum ReachWithErrorType {
   DoubleFree = 0,
   UseAfterFree,
   MayBeNullPointerException,  // void f(int *x) { *x = 42; } - should it error?
@@ -51,7 +51,22 @@ enum ReachWithError {
   NullCheckAfterDerefException,
   Reachable,
   None,
+  MaybeTaint,
 };
+
+struct ReachWithError {
+  ReachWithErrorType type;
+  std::optional<std::string> data;
+
+  explicit ReachWithError(ReachWithErrorType type,
+                          std::optional<std::string> data = std::nullopt);
+
+  bool operator==(const ReachWithError &other) const;
+  bool operator!=(const ReachWithError &other) const;
+  bool operator<(const ReachWithError &other) const;
+};
+
+using ReachWithErrors = std::vector<ReachWithError>;
 
 const char *getErrorString(ReachWithError error);
 std::string getErrorsString(const std::vector<ReachWithError> &errors);

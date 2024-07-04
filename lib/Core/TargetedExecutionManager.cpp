@@ -552,7 +552,8 @@ bool TargetedExecutionManager::reportTruePositive(ExecutionState &state,
 
     atLeastOneReported = true;
     assert(!errorTarget->isReported);
-    if (errorTarget->isThatError(ReachWithError::Reachable)) {
+    if (errorTarget->isThatError(
+            ReachWithError(ReachWithErrorType::Reachable))) {
       klee_warning("100.00%% %s Reachable at trace %s", getErrorString(error),
                    errorTarget->getId().c_str());
     } else {

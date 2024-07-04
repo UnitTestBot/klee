@@ -9,6 +9,8 @@
 
 #include "AddressSpace.h"
 
+#include <utility>
+
 #include "ExecutionState.h"
 #include "Memory.h"
 #include "TimingSolver.h"
@@ -80,19 +82,21 @@ ObjectPair AddressSpace::findObject(const MemoryObject *mo) const {
              : ObjectPair(nullptr, nullptr);
 }
 
-RefObjectPair AddressSpace::lazyInitializeObject(const MemoryObject *mo) const {
-  return RefObjectPair(mo, new ObjectState(mo, mo->content, mo->type));
+RefObjectPair AddressSpace::lazyInitializeObject(const MemoryObject *mo,
+                                                 ref<Expr> taint) const {
+  return RefObjectPair(
+      mo, new ObjectState(mo, mo->content, mo->type, std::move(taint)));
 }
 
-RefObjectPair
-AddressSpace::findOrLazyInitializeObject(const MemoryObject *mo) const {
+RefObjectPair AddressSpace::findOrLazyInitializeObject(const MemoryObject *mo,
+                                                       ref<Expr> taint) const {
   ObjectPair op = findObject(mo);
   if (op.first && op.second) {
     return RefObjectPair(op.first, op.second);
   }
   assert(!op.first && !op.second);
   if (mo->isLazyInitialized) {
-    return lazyInitializeObject(mo);
+    return lazyInitializeObject(mo, std::move(taint));
   }
   return RefObjectPair(nullptr, nullptr);
 }

@@ -549,6 +549,19 @@ ref<ConstantExpr> Expr::createFalse() {
   return ConstantExpr::create(0, Expr::Bool);
 }
 
+ref<ConstantExpr> Expr::createEmptyTaint() {
+  return ConstantExpr::create(0, Expr::Int64);
+}
+
+ref<ConstantExpr> Expr::createTaintBySource(uint64_t source) {
+  return ConstantExpr::create((1 << source), Expr::Int64);
+}
+
+ref<Expr> Expr::combineTaints(const ref<Expr> &taintL,
+                              const ref<Expr> &taintR) {
+  return OrExpr::create(taintL, taintR);
+}
+
 Expr::ByteWidth Expr::getByteWidth() const {
   return (getWidth() + CHAR_BIT - 1) / CHAR_BIT;
 }
@@ -1694,7 +1707,25 @@ ref<Expr> SelectExpr::create(ref<Expr> c, ref<Expr> t, ref<Expr> f) {
         SelectExpr::create(c, truePointer->getBase(), falsePointer->getBase());
     ref<Expr> value = SelectExpr::create(c, truePointer->getValue(),
                                          falsePointer->getValue());
-    return PointerExpr::create(base, value);
+    ref<Expr> taint = SelectExpr::create(c, truePointer->getTaint(),
+                                         falsePointer->getTaint());
+    return PointerExpr::create(base, value, taint);
+  } else if (isa<PointerExpr>(t) && !isa<PointerExpr>(f)) {
+    ref<PointerExpr> truePointer = cast<PointerExpr>(t);
+    ref<Expr> base = SelectExpr::create(c, truePointer->getBase(),
+                                        ConstantExpr::create(0, f->getWidth()));
+    ref<Expr> value = SelectExpr::create(c, truePointer->getValue(), f);
+    ref<Expr> taint =
+        SelectExpr::create(c, truePointer->getTaint(), createEmptyTaint());
+    return PointerExpr::create(base, value, taint);
+  } else if (!isa<PointerExpr>(t) && isa<PointerExpr>(f)) {
+    ref<PointerExpr> falsePointer = cast<PointerExpr>(f);
+    ref<Expr> base = SelectExpr::create(
+        c, ConstantExpr::create(0, t->getWidth()), falsePointer->getBase());
+    ref<Expr> value = SelectExpr::create(c, t, falsePointer->getValue());
+    ref<Expr> taint =
+        SelectExpr::create(c, createEmptyTaint(), falsePointer->getTaint());
+    return PointerExpr::create(base, value, taint);
   } else if (!isa<ConstantExpr>(t) && isa<ConstantExpr>(f)) {
     return SelectExpr::alloc(Expr::createIsZero(c), f, t);
   }
@@ -1768,6 +1799,11 @@ ref<Expr> Expr::getValue() const {
                                 : const_cast<Expr *>(this);
 }
 
+ref<Expr> Expr::getTaint() const {
+  return isa<PointerExpr>(this) ? cast<PointerExpr>(this)->getTaint()
+                                : cast<Expr>(Expr::createEmptyTaint());
+}
+
 ref<Expr> convolution(const ref<Expr> &l, const ref<Expr> &r) {
   ref<Expr> null = ConstantExpr::create(0, l->getWidth());
   return SelectExpr::create(EqExpr::create(l, r), l, null);
@@ -1797,7 +1833,8 @@ ref<Expr> ConcatExpr::create(const ref<Expr> &l, const ref<Expr> &r) {
     if (PointerExpr *ee_right = dyn_cast<PointerExpr>(r)) {
       return PointerExpr::create(
           convolution(ee_left->getBase(), ee_right->getBase()),
-          ConcatExpr::create(ee_left->getValue(), ee_right->getValue()));
+          ConcatExpr::create(ee_left->getValue(), ee_right->getValue()),
+          ee_left->combineTaints(ee_right));
     }
   }
 
@@ -1849,7 +1886,8 @@ ref<Expr> ExtractExpr::create(ref<Expr> expr, unsigned off, Width w) {
     return CE->Extract(off, w);
   } else if (PointerExpr *pe = dyn_cast<PointerExpr>(expr)) {
     return PointerExpr::create(pe->getBase(),
-                               ExtractExpr::create(pe->getValue(), off, w));
+                               ExtractExpr::create(pe->getValue(), off, w),
+                               pe->getTaint());
   } else {
     // Extract(Concat)
     if (ConcatExpr *ce = dyn_cast<ConcatExpr>(expr)) {
@@ -1916,8 +1954,8 @@ ref<Expr> ZExtExpr::create(const ref<Expr> &e, Width w) {
   } else if (ConstantExpr *CE = dyn_cast<ConstantExpr>(e)) {
     return CE->ZExt(w);
   } else if (PointerExpr *pe = dyn_cast<PointerExpr>(e)) {
-    return PointerExpr::create(pe->getBase(),
-                               ZExtExpr::create(pe->getValue(), w));
+    return PointerExpr::create(
+        pe->getBase(), ZExtExpr::create(pe->getValue(), w), pe->getTaint());
   } else if (SelectExpr *se = dyn_cast<SelectExpr>(e)) {
     if (isa<ConstantExpr>(se->trueExpr)) {
       return SelectExpr::create(se->cond, ZExtExpr::create(se->trueExpr, w),
@@ -1937,8 +1975,8 @@ ref<Expr> SExtExpr::create(const ref<Expr> &e, Width w) {
   } else if (ConstantExpr *CE = dyn_cast<ConstantExpr>(e)) {
     return CE->SExt(w);
   } else if (PointerExpr *pe = dyn_cast<PointerExpr>(e)) {
-    return PointerExpr::create(pe->getBase(),
-                               SExtExpr::create(pe->getValue(), w));
+    return PointerExpr::create(
+        pe->getBase(), SExtExpr::create(pe->getValue(), w), pe->getTaint());
   } else if (SelectExpr *se = dyn_cast<SelectExpr>(e)) {
     if (isa<ConstantExpr>(se->trueExpr)) {
       return SelectExpr::create(se->cond, SExtExpr::create(se->trueExpr, w),
@@ -2049,7 +2087,8 @@ static ref<Expr> AddExpr_createPartial(Expr *l, const ref<ConstantExpr> &cr) {
 }
 
 static ref<Expr> AddExpr_createPointerR(const ref<PointerExpr> &pl, Expr *r) {
-  return PointerExpr::create(pl->getBase(), AddExpr::create(pl->getValue(), r));
+  return PointerExpr::create(pl->getBase(), AddExpr::create(pl->getValue(), r),
+                             pl->getTaint());
 }
 
 static ref<Expr> AddExpr_createPointer(Expr *l, const ref<PointerExpr> &pr) {
@@ -2110,11 +2149,13 @@ static ref<Expr> SubExpr_createPartial(Expr *l, const ref<ConstantExpr> &cr) {
 }
 
 static ref<Expr> SubExpr_createPointerR(const ref<PointerExpr> &pl, Expr *r) {
-  return PointerExpr::create(pl->getBase(), SubExpr::create(pl->getValue(), r));
+  return PointerExpr::create(pl->getBase(), SubExpr::create(pl->getValue(), r),
+                             pl->getTaint());
 }
 
 static ref<Expr> SubExpr_createPointer(Expr *l, const ref<PointerExpr> &pr) {
-  return PointerExpr::create(pr->getBase(), SubExpr::create(l, pr->getValue()));
+  return PointerExpr::create(pr->getBase(), SubExpr::create(l, pr->getValue()),
+                             pr->getTaint());
 }
 
 static ref<Expr> SubExpr_create(Expr *l, Expr *r) {
@@ -2174,7 +2215,8 @@ static ref<Expr> MulExpr_createPartial(Expr *l, const ref<ConstantExpr> &cr) {
 }
 
 static ref<Expr> MulExpr_createPointerR(const ref<PointerExpr> &pl, Expr *r) {
-  return PointerExpr::create(pl->getBase(), MulExpr::create(pl->getValue(), r));
+  return PointerExpr::create(pl->getBase(), MulExpr::create(pl->getValue(), r),
+                             pl->getTaint());
 }
 
 static ref<Expr> MulExpr_createPointer(Expr *l, const ref<PointerExpr> &pr) {
@@ -2205,7 +2247,8 @@ static ref<Expr> AndExpr_createPartialR(const ref<ConstantExpr> &cl, Expr *r) {
 }
 
 static ref<Expr> AndExpr_createPointerR(const ref<PointerExpr> &pl, Expr *r) {
-  return PointerExpr::create(pl->getBase(), AndExpr::create(pl->getValue(), r));
+  return PointerExpr::create(pl->getBase(), AndExpr::create(pl->getValue(), r),
+                             pl->getTaint());
 }
 
 static ref<Expr> AndExpr_createPointer(Expr *l, const ref<PointerExpr> &pr) {
@@ -2233,7 +2276,8 @@ static ref<Expr> OrExpr_createPartialR(const ref<ConstantExpr> &cl, Expr *r) {
 }
 
 static ref<Expr> OrExpr_createPointerR(const ref<PointerExpr> &pl, Expr *r) {
-  return PointerExpr::create(pl->getBase(), OrExpr::create(pl->getValue(), r));
+  return PointerExpr::create(pl->getBase(), OrExpr::create(pl->getValue(), r),
+                             pl->getTaint());
 }
 
 static ref<Expr> OrExpr_createPointer(Expr *l, const ref<PointerExpr> &pr) {
@@ -2262,7 +2306,8 @@ static ref<Expr> XorExpr_createPartial(Expr *l, const ref<ConstantExpr> &cr) {
 }
 
 static ref<Expr> XorExpr_createPointerR(const ref<PointerExpr> &pl, Expr *r) {
-  return PointerExpr::create(pl->getBase(), XorExpr::create(pl->getValue(), r));
+  return PointerExpr::create(pl->getBase(), XorExpr::create(pl->getValue(), r),
+                             pl->getTaint());
 }
 
 static ref<Expr> XorExpr_createPointer(Expr *l, const ref<PointerExpr> &pr) {
@@ -2424,9 +2469,11 @@ static ref<Expr> AShrExpr_create(const ref<Expr> &l, const ref<Expr> &r) {
     if (PointerExpr *pl = dyn_cast<PointerExpr>(l)) {                          \
       if (PointerExpr *pr = dyn_cast<PointerExpr>(r))                          \
         return pl->_op(pr);                                                    \
-      return _e_op::create(pl->getValue(), r);                                 \
+      return PointerExpr::create(                                              \
+          pl->getBase(), _e_op::create(pl->getValue(), r), pl->getTaint());    \
     } else if (PointerExpr *pr = dyn_cast<PointerExpr>(r)) {                   \
-      return _e_op::create(l, pr->getValue());                                 \
+      return PointerExpr::create(                                              \
+          pr->getBase(), _e_op::create(l, pr->getValue()), pr->getTaint());    \
     }                                                                          \
     if (ConstantExpr *cl = dyn_cast<ConstantExpr>(l))                          \
       if (ConstantExpr *cr = dyn_cast<ConstantExpr>(r))                        \
@@ -2864,14 +2911,17 @@ ref<Expr> IsSubnormalExpr::either(const ref<Expr> &e0, const ref<Expr> &e1) {
 
 /***/
 
-ref<Expr> PointerExpr::create(const ref<Expr> &b, const ref<Expr> &v) {
+ref<Expr> PointerExpr::create(const ref<Expr> &b, const ref<Expr> &v,
+                              const ref<Expr> &t) {
   assert(!isa<PointerExpr>(b));
   assert(!isa<PointerExpr>(v));
-  if (isa<ConstantExpr>(b) && isa<ConstantExpr>(v)) {
-    return ConstantPointerExpr::create(cast<ConstantExpr>(b),
-                                       cast<ConstantExpr>(v));
+  assert(!isa<PointerExpr>(t));
+
+  if (isa<ConstantExpr>(b) && isa<ConstantExpr>(v) && isa<ConstantExpr>(t)) {
+    return ConstantPointerExpr::create(
+        cast<ConstantExpr>(b), cast<ConstantExpr>(v), cast<ConstantExpr>(t));
   } else {
-    return PointerExpr::alloc(b, v);
+    return PointerExpr::alloc(b, v, t);
   }
 }
 
@@ -2913,10 +2963,12 @@ ref<Expr> PointerExpr::create(const ref<Expr> &expr) {
 }
 
 ref<Expr> ConstantPointerExpr::create(const ref<ConstantExpr> &b,
-                                      const ref<ConstantExpr> &v) {
+                                      const ref<ConstantExpr> &v,
+                                      const ref<ConstantExpr> &t) {
   assert(!isa<PointerExpr>(b));
   assert(!isa<PointerExpr>(v));
-  return ConstantPointerExpr::alloc(b, v);
+  assert(!isa<PointerExpr>(t));
+  return ConstantPointerExpr::alloc(b, v, t);
 }
 
 #define BCREATE_P(_e_op, _op)                                                  \
@@ -2926,14 +2978,22 @@ ref<Expr> ConstantPointerExpr::create(const ref<ConstantExpr> &b,
       if (!RHS->isKnownValue()) {                                              \
         return _e_op::create(getValue(), RHS->getValue());                     \
       } else {                                                                 \
-        return PointerExpr::create(                                            \
-            getBase(), _e_op::create(getValue(), RHS->getValue()));            \
+        return PointerExpr::create(getBase(),                                  \
+                                   _e_op::create(getValue(), RHS->getValue()), \
+                                   combineTaints(RHS));                        \
       }                                                                        \
     } else if (!RHS->isKnownValue()) {                                         \
       return PointerExpr::create(RHS->getBase(),                               \
-                                 _e_op::create(getValue(), RHS->getValue()));  \
+                                 _e_op::create(getValue(), RHS->getValue()),   \
+                                 combineTaints(RHS));                          \
     } else {                                                                   \
-      return _e_op::create(getValue(), RHS->getValue());                       \
+      auto value = _e_op::create(getValue(), RHS->getValue());                 \
+      if (getTaint()->isZero() && RHS->getTaint()->isZero()) {                 \
+        return value;                                                          \
+      } else {                                                                 \
+        return PointerExpr::create(ConstantExpr::create(0, value->getWidth()), \
+                                   value, combineTaints(RHS));                 \
+      }                                                                        \
     }                                                                          \
   }
 
@@ -2952,7 +3012,8 @@ BCREATE_P(LShrExpr, LShr)
 BCREATE_P(AShrExpr, AShr)
 
 ref<Expr> PointerExpr::Not() {
-  return PointerExpr::create(getBase(), NotExpr::create(getValue()));
+  return PointerExpr::create(getBase(), NotExpr::create(getValue()),
+                             getTaint());
 }
 
 ref<Expr> PointerExpr::Eq(const ref<PointerExpr> &RHS) {
