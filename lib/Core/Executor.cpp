@@ -63,6 +63,7 @@
 #include "klee/Solver/Common.h"
 #include "klee/Solver/Solver.h"
 #include "klee/Solver/SolverCmdLine.h"
+#include "klee/Solver/SolverUtil.h"
 #include "klee/Statistics/TimerStatIncrementer.h"
 #include "klee/Support/Casting.h"
 #include "klee/Support/ErrorHandling.h"
@@ -4739,10 +4740,9 @@ void Executor::initializeTypeManager() {
   typeSystemManager->initModule();
 }
 
-static bool shouldWriteTest(const ExecutionState &state, bool isError = false) {
+static bool shouldWriteTest(const ExecutionState &state) {
   state.updateCoveredNew();
-  bool coveredNew = isError ? state.isCoveredNewError() : state.isCoveredNew();
-  return !OnlyOutputStatesCoveringNew || coveredNew;
+  return !OnlyOutputStatesCoveringNew || state.isCoveredNew();
 }
 
 static std::string terminationTypeFileExtension(StateTerminationType type) {
@@ -5093,8 +5093,7 @@ void Executor::terminateStateOnError(ExecutionState &state,
   Instruction *lastInst = ki->inst();
 
   if ((EmitAllErrors ||
-       emittedErrors.insert(std::make_pair(lastInst, message)).second) &&
-      shouldWriteTest(state, true)) {
+       emittedErrors.insert(std::make_pair(lastInst, message)).second)) {
     std::string filepath = ki->getSourceFilepath();
     if (!filepath.empty()) {
       klee_message("ERROR: %s:%zu: %s", filepath.c_str(), ki->getLine(),
@@ -5124,8 +5123,6 @@ void Executor::terminateStateOnError(ExecutionState &state,
     std::string info_str = info.str();
     if (!info_str.empty())
       msg << "Info: \n" << info_str;
-
-    state.clearCoveredNewError();
 
     const std::string ext = terminationTypeFileExtension(terminationType);
     // use user provided suffix from klee_report_error()
@@ -7563,7 +7560,8 @@ bool Executor::getSymbolicSolution(const ExecutionState &state, KTest &res) {
     if (success) {
       Assignment symcreteModel = Assignment(symcreteObjects, symcreteValues);
 
-      for (auto &i : model.diffWith(symcreteModel).bindings) {
+      auto diffAssignment = model.diffWith(symcreteModel).bindings;
+      for (auto &i : diffAssignment) {
         model.bindings.replace({i.first, i.second});
       }
     }
