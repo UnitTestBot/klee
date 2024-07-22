@@ -384,7 +384,8 @@ bool ConcretizingSolver::check(const Query &query,
   }
 
   if (isa<ValidResponse>(result)) {
-    for (auto i : cast<ValidResponse>(result)->validityCore().constraints) {
+    auto validityCore = cast<ValidResponse>(result)->validityCore();
+    for (auto i : validityCore.constraints) {
       if (!query.constraints.cs().count(i)) {
         return false;
       }
