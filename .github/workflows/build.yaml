@@ -5,7 +5,7 @@ on:
   pull_request:
     branches: [main, utbot-main]
   push:
-    branches: [main, utbot-main]
+    branches: [main, utbot-main, testheheh]
 
 # Defaults for building KLEE
 env:
