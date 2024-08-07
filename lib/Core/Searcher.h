@@ -418,6 +418,27 @@ public:
   bool empty() override;
   void printName(llvm::raw_ostream &os) override;
 };
+
+/// Seeded searcher is used to select seeded states before unseeded
+class SeededSearcher final : public Searcher {
+  std::unique_ptr<Searcher> baseSearcher;
+  std::unique_ptr<BFSSearcher> seededSearcher;
+  states_ty &seedChanges;
+  states_ty baseSearcherStates;
+  states_ty seededSearcherStates;
+
+public:
+  explicit SeededSearcher(Searcher *_searcher, states_ty &_seedChanges);
+
+  ExecutionState &selectState() override;
+
+  void update(ExecutionState *current,
+              const std::vector<ExecutionState *> &addedStates,
+              const std::vector<ExecutionState *> &removedStates) override;
+  ~SeededSearcher() override = default;
+  bool empty() override;
+  void printName(llvm::raw_ostream &os) override;
+};
 } // namespace klee
 
 #endif /* KLEE_SEARCHER_H */

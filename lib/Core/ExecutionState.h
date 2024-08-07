@@ -420,6 +420,8 @@ public:
   // Temp: to know which multiplex path this state has taken
   KFunction *multiplexKF = nullptr;
 
+  bool isSeeded = false;
+
 private:
   PersistentSet<ref<Target>> prevTargets_;
   PersistentSet<ref<Target>> targets_;

@@ -95,6 +95,7 @@
 #endif
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/TypeSize.h"
@@ -346,11 +347,42 @@ cl::opt<ExtCallWarnings> ExternalCallWarnings(
 
 /*** Seeding options ***/
 
+cl::opt<bool> RunForever("run-forever",
+                         cl::desc("Store states when out of memory and explore "
+                                  "them later (default=false)"),
+                         cl::init(false), cl::cat(SeedingCat));
+
+cl::opt<bool> StoreSeedsLocally("store-seeds-locally",
+                                cl::desc("Partially executed states are stored "
+                                         "locally as ktests (default=false)"),
+                                cl::init(false), cl::cat(SeedingCat));
+
+cl::opt<bool> ExploreCompletedSeeds(
+    "explore-completed-seeds",
+    cl::desc("Explore seeds created from completed paths (default=true)"),
+    cl::init(true), cl::cat(SeedingCat));
+
+cl::opt<unsigned>
+    UploadAmount("upload-amount",
+                 cl::desc("Amount of seeds that are uploaded every time "
+                          "seeding begins, 0 = upload all (default=0)"),
+                 cl::init(0), cl::cat(SeedingCat));
+
+cl::opt<unsigned> UploadPercentage(
+    "upload-percentage",
+    cl::desc(
+        "Percentage of seeds stored in executor, that are uploaded every time"
+        "seeding begins, 0 = disabled (default=100)"),
+    cl::init(100), cl::cat(SeedingCat));
+
 cl::opt<bool> AlwaysOutputSeeds(
     "always-output-seeds", cl::init(true),
     cl::desc(
         "Dump test cases even if they are driven by seeds only (default=true)"),
     cl::cat(SeedingCat));
+
+cl::opt<bool> PatchSeeds("patch-seeds", cl::desc("Patch seeds (default=false)"),
+                         cl::init(false), cl::cat(SeedingCat));
 
 cl::opt<bool> OnlyReplaySeeds(
     "only-replay-seeds", cl::init(false),
@@ -389,6 +421,16 @@ cl::opt<std::string>
              cl::desc("Amount of time to dedicate to seeds, before normal "
                       "search (default=0s (off))"),
              cl::cat(SeedingCat));
+
+cl::list<std::string> SeedOutFile("seed-file",
+                                  cl::desc(".ktest file to be used as seed"),
+                                  cl::cat(SeedingCat));
+
+cl::list<std::string>
+    SeedOutDir("seed-dir",
+               cl::desc("Directory with .ktest files to be used as seeds"),
+               cl::cat(SeedingCat));
+/***/
 
 /*** Debugging options ***/
 
@@ -504,13 +546,14 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
                                       *targetCalculator)),
       targetedExecutionManager(
           new TargetedExecutionManager(*codeGraphInfo, *targetManager)),
-      replayKTest(0), replayPath(0), usingSeeds(0), atMemoryLimit(false),
+      replayKTest(0), replayPath(0), atMemoryLimit(false),
       inhibitForking(false), coverOnTheFly(false),
       haltExecution(HaltExecution::NotHalt), ivcEnabled(false),
       debugLogBuffer(debugBufferString), sarifReport({}) {
 
   objectManager = std::make_unique<ObjectManager>();
   seedMap = std::make_unique<SeedMap>();
+  storedSeeds = std::make_unique<std::deque<ExecutingSeed>>();
   objectManager->addSubscriber(seedMap.get());
 
   // Add first entry for single run
@@ -1149,10 +1192,11 @@ void Executor::initializeGlobalObjects(ExecutionState &state) {
 
 bool Executor::branchingPermitted(ExecutionState &state, unsigned N) {
   assert(N);
-  if ((MaxMemoryInhibit && atMemoryLimit) || state.forkDisabled ||
-      inhibitForking || (MaxForks != ~0u && stats::forks >= MaxForks)) {
+  if ((MaxMemoryInhibit && atMemoryLimit && !state.isSeeded) ||
+      state.forkDisabled || inhibitForking ||
+      (MaxForks != ~0u && stats::forks >= MaxForks)) {
 
-    if (MaxMemoryInhibit && atMemoryLimit)
+    if (MaxMemoryInhibit && atMemoryLimit && !state.isSeeded)
       klee_warning_once(0, "skipping fork (memory cap exceeded)");
     else if (state.forkDisabled)
       klee_warning_once(0, "skipping fork (fork disabled on current path)");
@@ -1202,21 +1246,19 @@ void Executor::branch(ExecutionState &state,
     }
   }
 
-  // If necessary redistribute seeds to match conditions, killing
-  // states if necessary due to OnlyReplaySeeds (inefficient but
-  // simple).
-
-  std::map<ExecutionState *, std::vector<SeedInfo>>::iterator it =
-      seedMap->find(&state);
-  if (it != seedMap->end()) {
-    std::vector<SeedInfo> seeds = it->second;
+  if (state.isSeeded) {
+    std::map<ExecutionState *, std::vector<ExecutingSeed>>::iterator it =
+        seedMap->find(&state);
+    assert(it != seedMap->end());
+    assert(!it->second.empty());
+    std::vector<ExecutingSeed> seeds = it->second;
     seedMap->erase(it);
-
+    objectManager->unseed(it->first);
     // Assume each seed only satisfies one condition (necessarily true
     // when conditions are mutually exclusive and their conjunction is
     // a tautology).
-    for (std::vector<SeedInfo>::iterator siit = seeds.begin(),
-                                         siie = seeds.end();
+    for (std::vector<ExecutingSeed>::iterator siit = seeds.begin(),
+                                              siie = seeds.end();
          siit != siie; ++siit) {
       unsigned i;
       for (i = 0; i < N; ++i) {
@@ -1236,18 +1278,9 @@ void Executor::branch(ExecutionState &state,
         i = theRNG.getInt32() % N;
 
       // Extra check in case we're replaying seeds with a max-fork
-      if (result[i])
+      if (result[i]) {
+        objectManager->seed(result[i]);
         seedMap->at(result[i]).push_back(*siit);
-    }
-
-    if (OnlyReplaySeeds) {
-      for (unsigned i = 0; i < N; ++i) {
-        if (result[i] && !seedMap->count(result[i])) {
-          terminateStateEarlyAlgorithm(*result[i],
-                                       "Unseeded path during replay",
-                                       StateTerminationType::Replay);
-          result[i] = nullptr;
-        }
       }
     }
   }
@@ -1351,46 +1384,99 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
                                    KBlock *ifTrueBlock, KBlock *ifFalseBlock,
                                    BranchType reason) {
   bool isInternal = ifTrueBlock == ifFalseBlock;
-  std::map<ExecutionState *, std::vector<SeedInfo>>::iterator it =
-      seedMap->find(&current);
-  bool isSeeding = it != seedMap->end();
-
-  if (!isSeeding)
-    condition = maxStaticPctChecks(current, condition);
-
+  PartialValidity res = PartialValidity::None;
+  bool isSeeding = current.isSeeded;
+  std::vector<ExecutingSeed> trueSeeds;
+  std::vector<ExecutingSeed> falseSeeds;
   time::Span timeout = coreSolverTimeout;
-  if (isSeeding)
-    timeout *= static_cast<unsigned>(it->second.size());
-  solver->setTimeout(timeout);
-
   bool shouldCheckTrueBlock = true, shouldCheckFalseBlock = true;
+
   if (!isInternal) {
     shouldCheckTrueBlock = canReachSomeTargetFromBlock(current, ifTrueBlock);
     shouldCheckFalseBlock = canReachSomeTargetFromBlock(current, ifFalseBlock);
   }
-  PartialValidity res = PartialValidity::None;
-  bool terminateEverything = false, success = true;
-  if (!shouldCheckTrueBlock) {
-    bool mayBeFalse = false;
-    if (shouldCheckFalseBlock) {
-      // only solver->check-sat(!condition)
-      success = solver->mayBeFalse(current.constraints.cs(), condition,
-                                   mayBeFalse, current.queryMetaData);
+
+  if (!isSeeding) {
+    if (replayPath && !isInternal) {
+      assert(replayPosition < replayPath->size() &&
+             "ran out of branches in replay path mode");
+      bool branch = (*replayPath)[replayPosition++];
+      if (branch) {
+        res = PValidity::MustBeTrue;
+        addConstraint(current, condition);
+      } else {
+        res = PValidity::MustBeFalse;
+        addConstraint(current, Expr::createIsZero(condition));
+      }
     }
-    if (!success || !mayBeFalse)
-      terminateEverything = true;
-    else
-      res = PartialValidity::MayBeFalse;
-  } else if (!shouldCheckFalseBlock) {
-    // only solver->check-sat(condition)
-    bool mayBeTrue;
-    success = solver->mayBeTrue(current.constraints.cs(), condition, mayBeTrue,
-                                current.queryMetaData);
-    if (!success || !mayBeTrue)
-      terminateEverything = true;
-    else
-      res = PartialValidity::MayBeTrue;
+  } else {
+    std::map<ExecutionState *, std::vector<ExecutingSeed>>::iterator it =
+        seedMap->find(&current);
+    assert(it != seedMap->end());
+    assert(!it->second.empty());
+    timeout *= static_cast<unsigned>(it->second.size());
+    for (std::vector<ExecutingSeed>::iterator siit = it->second.begin(),
+                                              siie = it->second.end();
+         siit != siie; ++siit) {
+      ref<ConstantExpr> result;
+      bool success = solver->getValue(current.constraints.cs(),
+                                      siit->assignment.evaluate(condition),
+                                      result, current.queryMetaData);
+      assert(success && "FIXME: Unhandled solver failure");
+      (void)success;
+      if (result->isTrue()) {
+        trueSeeds.push_back(*siit);
+      } else if (result->isFalse()) {
+        falseSeeds.push_back(*siit);
+      }
+    }
+    if (!trueSeeds.empty() && falseSeeds.empty()) {
+      if (!shouldCheckFalseBlock) {
+        res = PartialValidity::MustBeTrue;
+      } else {
+        res = PartialValidity::MayBeTrue;
+      }
+    } else if (trueSeeds.empty() && !falseSeeds.empty()) {
+      if (!shouldCheckTrueBlock) {
+        res = PartialValidity::MustBeFalse;
+      } else {
+        res = PartialValidity::MayBeFalse;
+      }
+    } else if (!trueSeeds.empty() && !falseSeeds.empty()) {
+      res = PValidity::TrueOrFalse;
+    }
   }
+
+  solver->setTimeout(timeout);
+  bool terminateEverything = false, success = true;
+
+  if (res == PartialValidity::None) {
+    success = true;
+    condition = maxStaticPctChecks(current, condition);
+
+    if (!shouldCheckTrueBlock) {
+      bool mayBeFalse = false;
+      if (shouldCheckFalseBlock) {
+        // only solver->check-sat(!condition)
+        success = solver->mayBeFalse(current.constraints.cs(), condition,
+                                     mayBeFalse, current.queryMetaData);
+      }
+      if (!success || !mayBeFalse)
+        terminateEverything = true;
+      else
+        res = PartialValidity::MayBeFalse;
+    } else if (!shouldCheckFalseBlock) {
+      // only solver->check-sat(condition)
+      bool mayBeTrue;
+      success = solver->mayBeTrue(current.constraints.cs(), condition,
+                                  mayBeTrue, current.queryMetaData);
+      if (!success || !mayBeTrue)
+        terminateEverything = true;
+      else
+        res = PartialValidity::MayBeTrue;
+    }
+  }
+
   if (terminateEverything) {
     current.pc = current.prevPC;
     terminateStateEarlyAlgorithm(current, "State missed all it's targets.",
@@ -1410,70 +1496,17 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
     return StatePair(nullptr, nullptr);
   }
 
-  if (!isSeeding) {
-    if (replayPath && !isInternal) {
-      assert(replayPosition < replayPath->size() &&
-             "ran out of branches in replay path mode");
-      bool branch = (*replayPath)[replayPosition++];
+  if (res == PValidity::TrueOrFalse) {
+    assert(!replayKTest && "in replay mode, only one branch can be true.");
 
-      if (res == PValidity::MustBeTrue) {
-        assert(branch && "hit invalid branch in replay path mode");
-      } else if (res == PValidity::MustBeFalse) {
-        assert(!branch && "hit invalid branch in replay path mode");
+    if (!branchingPermitted(current, 2)) {
+      TimerStatIncrementer timer(stats::forkTime);
+      if (theRNG.getBool()) {
+        res = PValidity::MayBeTrue;
       } else {
-        // add constraints
-        if (branch) {
-          res = PValidity::MustBeTrue;
-          addConstraint(current, condition);
-        } else {
-          res = PValidity::MustBeFalse;
-          addConstraint(current, Expr::createIsZero(condition));
-        }
+        res = PValidity::MayBeFalse;
       }
-    } else if (res == PValidity::TrueOrFalse) {
-      assert(!replayKTest && "in replay mode, only one branch can be true.");
-
-      if (!branchingPermitted(current, 2)) {
-        TimerStatIncrementer timer(stats::forkTime);
-        if (theRNG.getBool()) {
-          res = PValidity::MayBeTrue;
-        } else {
-          res = PValidity::MayBeFalse;
-        }
-        ++stats::inhibitedForks;
-      }
-    }
-  }
-
-  // Fix branch in only-replay-seed mode, if we don't have both true
-  // and false seeds.
-  if (isSeeding && (current.forkDisabled || OnlyReplaySeeds) &&
-      res == PValidity::TrueOrFalse) {
-    bool trueSeed = false, falseSeed = false;
-    // Is seed extension still ok here?
-    for (std::vector<SeedInfo>::iterator siit = it->second.begin(),
-                                         siie = it->second.end();
-         siit != siie; ++siit) {
-      ref<ConstantExpr> res;
-      bool success = solver->getValue(current.constraints.cs(),
-                                      siit->assignment.evaluate(condition), res,
-                                      current.queryMetaData);
-      assert(success && "FIXME: Unhandled solver failure");
-      (void)success;
-      if (res->isTrue()) {
-        trueSeed = true;
-      } else {
-        falseSeed = true;
-      }
-      if (trueSeed && falseSeed)
-        break;
-    }
-    if (!(trueSeed && falseSeed)) {
-      assert(trueSeed || falseSeed);
-
-      res = trueSeed ? PValidity::MustBeTrue : PValidity::MustBeFalse;
-      addConstraint(current,
-                    trueSeed ? condition : Expr::createIsZero(condition));
+      ++stats::inhibitedForks;
     }
   }
 
@@ -1494,7 +1527,9 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
     if (res == PValidity::MayBeTrue) {
       addConstraint(current, condition);
     }
-
+    if (isSeeding) {
+      seedMap->at(&current) = trueSeeds;
+    }
     return StatePair(&current, nullptr);
   } else if (res == PValidity::MustBeFalse || res == PValidity::MayBeFalse) {
     if (!isInternal) {
@@ -1506,7 +1541,9 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
     if (res == PValidity::MayBeFalse) {
       addConstraint(current, Expr::createIsZero(condition));
     }
-
+    if (isSeeding) {
+      seedMap->at(&current) = falseSeeds;
+    }
     return StatePair(nullptr, &current);
   } else {
     // When does PValidity::None happen?
@@ -1518,42 +1555,10 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
 
     falseState = objectManager->branchState(trueState, reason);
 
-    if (it != seedMap->end()) {
-      std::vector<SeedInfo> seeds = it->second;
-      it->second.clear();
-      std::vector<SeedInfo> &trueSeeds = seedMap->at(trueState);
-      std::vector<SeedInfo> &falseSeeds = seedMap->at(falseState);
-      for (std::vector<SeedInfo>::iterator siit = seeds.begin(),
-                                           siie = seeds.end();
-           siit != siie; ++siit) {
-        ref<ConstantExpr> res;
-        bool success = solver->getValue(current.constraints.cs(),
-                                        siit->assignment.evaluate(condition),
-                                        res, current.queryMetaData);
-        assert(success && "FIXME: Unhandled solver failure");
-        (void)success;
-        if (res->isTrue()) {
-          trueSeeds.push_back(*siit);
-        } else {
-          falseSeeds.push_back(*siit);
-        }
-      }
-
-      bool swapInfo = false;
-      if (trueSeeds.empty()) {
-        if (&current == trueState)
-          swapInfo = true;
-        seedMap->erase(trueState);
-      }
-      if (falseSeeds.empty()) {
-        if (&current == falseState)
-          swapInfo = true;
-        seedMap->erase(falseState);
-      }
-      if (swapInfo) {
-        std::swap(trueState->coveredNew, falseState->coveredNew);
-        std::swap(trueState->coveredLines, falseState->coveredLines);
-      }
+    bool swapInfo = false;
+    if (swapInfo) {
+      std::swap(trueState->coveredNew, falseState->coveredNew);
+      std::swap(trueState->coveredLines, falseState->coveredLines);
     }
 
     if (pathWriter) {
@@ -1587,6 +1592,11 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
       return StatePair(nullptr, nullptr);
     }
 
+    if (isSeeding) {
+      seedMap->at(trueState) = trueSeeds;
+      seedMap->at(falseState) = falseSeeds;
+    }
+
     return StatePair(trueState, falseState);
   }
 }
@@ -1607,12 +1617,14 @@ void Executor::addConstraint(ExecutionState &state, ref<Expr> condition) {
   }
 
   // Check to see if this constraint violates seeds.
-  std::map<ExecutionState *, std::vector<SeedInfo>>::iterator it =
-      seedMap->find(&state);
-  if (it != seedMap->end()) {
+  if (PatchSeeds && state.isSeeded) {
+    std::map<ExecutionState *, std::vector<ExecutingSeed>>::iterator it =
+        seedMap->find(&state);
+    assert(it != seedMap->end());
+    assert(!it->second.empty());
     bool warn = false;
-    for (std::vector<SeedInfo>::iterator siit = it->second.begin(),
-                                         siie = it->second.end();
+    for (std::vector<ExecutingSeed>::iterator siit = it->second.begin(),
+                                              siie = it->second.end();
          siit != siie; ++siit) {
       bool res;
       solver->setTimeout(coreSolverTimeout);
@@ -1768,10 +1780,7 @@ Executor::toConstantPointer(ExecutionState &state, ref<PointerExpr> e,
 void Executor::executeGetValue(ExecutionState &state, ref<Expr> e,
                                KInstruction *target) {
   e = Simplificator::simplifyExpr(state.constraints.cs(), e).simplified;
-  std::map<ExecutionState *, std::vector<SeedInfo>>::iterator it =
-      seedMap->find(&state);
-  if (it == seedMap->end() || isa<ConstantExpr>(e) ||
-      isa<ConstantPointerExpr>(e)) {
+  if (!state.isSeeded || isa<ConstantExpr>(e) || isa<ConstantPointerExpr>(e)) {
     ref<Expr> value;
     e = optimizer.optimizeExpr(e, true);
     bool success =
@@ -1780,9 +1789,13 @@ void Executor::executeGetValue(ExecutionState &state, ref<Expr> e,
     (void)success;
     bindLocal(target, state, value);
   } else {
+    std::map<ExecutionState *, std::vector<ExecutingSeed>>::iterator it =
+        seedMap->find(&state);
+    assert(it != seedMap->end());
+    assert(!it->second.empty());
     std::set<ref<Expr>> values;
-    for (std::vector<SeedInfo>::iterator siit = it->second.begin(),
-                                         siie = it->second.end();
+    for (std::vector<ExecutingSeed>::iterator siit = it->second.begin(),
+                                              siie = it->second.end();
          siit != siie; ++siit) {
       ref<Expr> cond = siit->assignment.evaluate(e);
       cond = optimizer.optimizeExpr(cond, true);
@@ -4451,51 +4464,65 @@ void Executor::bindModuleConstants(llvm::APFloat::roundingMode rm) {
   }
 }
 
-bool Executor::checkMemoryUsage() {
+size_t Executor::getMemoryUsage() {
+  const auto mallocUsage = util::GetTotalMallocUsage();
+  const auto mmapUsage = memory->getUsedDeterministicSize();
+  return mallocUsage + mmapUsage;
+}
+
+Executor::MemoryUsage Executor::checkMemoryUsage() {
   if (!MaxMemory)
-    return true;
+    return None;
 
-  // We need to avoid calling GetTotalMallocUsage() often because it
-  // is O(elts on freelist). This is really bad since we start
-  // to pummel the freelist once we hit the memory cap.
-  // every 65536 instructions
-  if ((stats::instructions & 0xFFFFU) != 0 &&
-      maxNewWriteableOSSize < OSCopySizeMemoryCheckThreshold &&
+  // // We need to avoid calling GetTotalMallocUsage() often because it
+  // // is O(elts on freelist). This is really bad since we start
+  // // to pummel the freelist once we hit the memory cap.
+  // // every 65536 instructions
+  // if ((stats::instructions & 0xFFFFU) != 0 &&
+  //     maxNewWriteableOSSize < OSCopySizeMemoryCheckThreshold &&
 
-      maxNewStateStackSize < StackCopySizeMemoryCheckThreshold)
-    return true;
+  //     maxNewStateStackSize < StackCopySizeMemoryCheckThreshold)
+  //   return None;
 
-  // check memory limit
-  const auto mallocUsage = util::GetTotalMallocUsage() >> 20U;
-  const auto mmapUsage = memory->getUsedDeterministicSize() >> 20U;
-  const auto totalUsage = mallocUsage + mmapUsage;
+  // // check memory limit
 
-  if (MemoryTriggerCoverOnTheFly && totalUsage > MaxMemory * 0.75) {
-    klee_warning_once(0,
-                      "enabling cover-on-the-fly (close to memory cap: %luMB)",
-                      totalUsage);
-    coverOnTheFly = true;
-  }
+  // const auto totalUsage = getMemoryUsage() >> 20U;
 
-  atMemoryLimit = totalUsage > MaxMemory; // inhibit forking
-  if (!atMemoryLimit)
-    return true;
-
-  // only terminate states when threshold (+100MB) exceeded
-  if (totalUsage <= MaxMemory + 100)
-    return true;
+  // if (MemoryTriggerCoverOnTheFly && totalUsage > MaxMemory * 0.75) {
+  //   klee_warning_once(0,
+  //                     "enabling cover-on-the-fly (close to memory cap: %luMB)",
+  //                     totalUsage);
+  //   coverOnTheFly = CoverOnTheFly;
+  // }
 
   // just guess at how many to kill
   auto states = objectManager->getStates();
   const auto numStates = states.size();
-  auto toKill = std::max(1UL, numStates - numStates * MaxMemory / totalUsage);
-  klee_warning("killing %lu states (over memory cap: %luMB)", toKill,
-               totalUsage);
+
+  // only terminate states when threshold (+1%) exceeded
+  if (numStates < 500) {
+    return Executor::Low;
+  } else if (numStates <= 1000) {
+    return Executor::High;
+  }
 
   // randomly select states for early termination
-  std::vector<ExecutionState *> arr(states.begin(),
-                                    states.end()); // FIXME: expensive
-  for (unsigned i = 0, N = arr.size(); N && i < toKill; ++i, --N) {
+  std::vector<ExecutionState *> arr; // FIXME: expensive
+  for (ExecutionState *state : states) {
+    if (!state->isSeeded) {
+      arr.push_back(state);
+    }
+  }
+  int arrToKill = arr.size() - 750;
+  arrToKill = std::abs(arrToKill);
+  auto toKill = std::min(arrToKill, 0);
+
+  if (toKill != 0) {
+    klee_warning("killing %lu states (over memory cap: %luMB)", toKill,
+                 0);
+  }
+
+  for (unsigned i = 0, N = arr.size(); N > 0 && i < toKill; ++i, --N) {
     unsigned idx = theRNG.getInt32() % N;
     // Make two pulls to try and not hit a state that
     // covered new code.
@@ -4507,7 +4534,7 @@ bool Executor::checkMemoryUsage() {
                         StateTerminationType::OutOfMemory);
   }
 
-  return false;
+  return Executor::Full;
 }
 
 void Executor::decreaseConfidenceFromStoppedStates(
@@ -4565,72 +4592,136 @@ const KFunction *Executor::getKFunction(const llvm::Function *f) const {
   return (kfIt == kmodule->functionMap.end()) ? nullptr : kfIt->second;
 }
 
-void Executor::seed(ExecutionState &initialState) {
-  std::vector<SeedInfo> &v = seedMap->at(&initialState);
-
-  for (std::vector<KTest *>::const_iterator it = usingSeeds->begin(),
-                                            ie = usingSeeds->end();
-       it != ie; ++it)
-    v.push_back(SeedInfo(*it));
-
-  int lastNumSeeds = usingSeeds->size() + 10;
-  time::Point lastTime, startTime = lastTime = time::getWallTime();
-  ExecutionState *lastState = 0;
-  while (!seedMap->empty()) {
-    if (haltExecution) {
-      doDumpStates();
-      return;
-    }
-
-    std::map<ExecutionState *, std::vector<SeedInfo>>::iterator it =
-        seedMap->upper_bound(lastState);
-    if (it == seedMap->end())
-      it = seedMap->begin();
-    lastState = it->first;
-    ExecutionState &state = *lastState;
-    KInstruction *ki = state.pc;
-    objectManager->setCurrentState(&state);
-    stepInstruction(state);
-
-    executeInstruction(state, ki);
-    timers.invoke();
-    if (::dumpStates)
-      dumpStates();
-    if (::dumpPForest)
-      dumpPForest();
-    objectManager->updateSubscribers();
-
-    if ((stats::instructions % 1000) == 0) {
-      int numSeeds = 0, numStates = 0;
-      for (std::map<ExecutionState *, std::vector<SeedInfo>>::iterator
-               it = seedMap->begin(),
-               ie = seedMap->end();
-           it != ie; ++it) {
-        numSeeds += it->second.size();
-        numStates++;
-      }
-      const auto time = time::getWallTime();
-      const time::Span seedTime(SeedTime);
-      if (seedTime && time > startTime + seedTime) {
-        klee_warning("seed time expired, %d seeds remain over %d states",
-                     numSeeds, numStates);
-        break;
-      } else if (numSeeds <= lastNumSeeds - 10 ||
-                 time - lastTime >= time::seconds(10)) {
-        lastTime = time;
-        lastNumSeeds = numSeeds;
-        klee_message("%d seeds remaining over: %d states", numSeeds, numStates);
-      }
-    }
-
-    klee_message("seeding done (%d states remain)",
-                 (int)objectManager->getStates().size());
-
-    if (OnlySeed) {
-      doDumpStates();
-      return;
+void Executor::getKTestFilesInDir(std::string directoryPath,
+                                  std::vector<std::string> &results) {
+  std::error_code ec;
+  llvm::sys::fs::directory_iterator i(directoryPath, ec), e;
+  for (; i != e && !ec; i.increment(ec)) {
+    auto f = i->path();
+    if (f.size() >= 6 && f.substr(f.size() - 6, f.size()) == ".ktest") {
+      results.push_back(f);
     }
   }
+
+  if (ec) {
+    llvm::errs() << "ERROR: unable to read output directory: " << directoryPath
+                 << ": " << ec.message() << "\n";
+    exit(1);
+  }
+}
+
+std::vector<ExecutingSeed> Executor::uploadNewSeeds() {
+  // just guess at how many to kill
+  auto states = objectManager->getStates();
+  const auto numStates = states.size();
+  std::vector<ExecutingSeed> seeds;
+  long diff = 750 - numStates;
+  diff = std::abs(diff);
+  long numStoredSeeds = storedSeeds->size();
+  unsigned toUpload = std::min(numStoredSeeds, diff);
+
+  //FIX: experimental option + storedseedslocally behaviour (yes, no, mixed)
+  // unsigned toUpload = UploadAmount;
+  // if(UploadPercentage){
+  //   toUpload = (storedSeeds->size() * UploadPercentage) / 100;
+  //   if(toUpload == 0) toUpload = 1;
+  // }
+  if (StoreSeedsLocally) {
+    while ((!toUpload || seeds.size() <= toUpload) &&
+           !storedSeeds->empty()) {
+      if (ExploreCompletedSeeds || !storedSeeds->front().isCompleted) {
+        seeds.push_back(storedSeeds->front());
+      }
+      storedSeeds->pop_front();
+    }
+    return seeds;
+  }
+
+  if (toUpload && seeds.size() >= toUpload) {
+    return seeds;
+  }
+
+  for (std::vector<std::string>::iterator it = SeedOutFile.begin(),
+                                          ie = SeedOutFile.end();
+       it != ie && (!toUpload || seeds.size() <= toUpload); ++it) {
+    ExecutingSeed out(it->substr(0, it->size() - 5));
+    if (!out.input) {
+      klee_error("unable to open: %s\n", (*it).c_str());
+    } else if (ExploreCompletedSeeds || !out.isCompleted) {
+      seeds.push_back(out);
+    }
+  }
+
+  for (std::vector<std::string>::iterator it = SeedOutDir.begin(),
+                                          ie = SeedOutDir.end();
+       it != ie; ++it) {
+    std::vector<std::string> kTestFiles;
+    getKTestFilesInDir(*it, kTestFiles);
+    for (std::vector<std::string>::iterator it2 = kTestFiles.begin(),
+                                            ie = kTestFiles.end();
+         it2 != ie && (!toUpload || seeds.size() <= toUpload); ++it2) {
+      ExecutingSeed out(it2->substr(0, it2->size() - 5));
+      if (!out.input) {
+        klee_error("unable to open: %s\n", (*it2).c_str());
+      } else if (ExploreCompletedSeeds || !out.isCompleted) {
+        seeds.push_back(out);
+      }
+    }
+    if (kTestFiles.empty() && !RunForever) {
+      llvm::errs() << "seeds directory is empty: " << (*it).c_str() << "\n";
+    }
+  }
+  // FIX: store all seed information like path and early termination reason in
+  // seedinfo file (preferably make it json)
+  for (auto it : seeds) {
+    if (RunForever && !it.path.empty()) {
+      std::remove((it.path + "seedinfo").c_str());
+      std::remove((it.path + "path").c_str());
+      std::remove((it.path + "early").c_str());
+      std::remove((it.path + "ktest").c_str());
+      std::remove((it.path + "xml").c_str());
+    }
+  }
+  return seeds;
+}
+
+void Executor::initialSeed(ExecutionState &initialState,
+                           std::vector<ExecutingSeed> usingSeeds) {
+  // FIX: better file managment when seeding + flag if all seeds are completed
+
+  if (usingSeeds.empty()) {
+    return;
+  }
+  std::vector<ExecutingSeed> &v = seedMap->at(&initialState);
+  for (std::vector<ExecutingSeed>::const_iterator it = usingSeeds.begin(),
+                                                  ie = usingSeeds.end();
+       it != ie; ++it) {
+    v.push_back(*it);
+  }
+  klee_message("Seeding began using %ld seeds!\n", usingSeeds.size());
+  objectManager->seed(&initialState);
+  objectManager->updateSubscribers();
+}
+
+bool Executor::storeState(const ExecutionState &state, bool isCompleted,
+                          ExecutingSeed &res) {
+  ref<SolverResponse> response;
+  bool success =
+      solver->getResponse(state.constraints.cs(), Expr::createFalse(), response,
+                          state.queryMetaData);
+  if (!success) {
+    klee_warning("unable to get symbolic solution, losing test case");
+    return false;
+  }
+  Assignment assignment;
+  if (!response->tryGetInitialValues(assignment.bindings)) {
+    assert(false && "terminated state must have an assignment");
+    return false;
+  }
+  ExecutingSeed seed(assignment, state.steppedInstructions, isCompleted,
+                     state.coveredNew, state.coveredNewError);
+  res = seed;
+  return true;
 }
 
 void Executor::reportProgressTowardsTargets(std::string prefix,
@@ -4685,10 +4776,6 @@ void Executor::run(ExecutionState *initialState) {
   if (guidanceKind != GuidanceKind::ErrorGuidance)
     timers.reset();
 
-  if (usingSeeds) {
-    seed(*initialState);
-  }
-
   searcher =
       std::make_unique<ForwardOnlySearcher>(constructUserSearcher(*this));
 
@@ -4706,16 +4793,27 @@ void Executor::run(ExecutionState *initialState) {
 
   objectManager->addSubscriber(searcher.get());
 
-  objectManager->initialUpdate();
+  ExecutionState *firstState =
+      objectManager->branchState(initialState, BranchType::InitialBranch);
 
+  objectManager->initialUpdate();
+  initialSeed(*firstState, uploadNewSeeds());
   // main interpreter loop
   while (!haltExecution && !searcher->empty()) {
     auto action = searcher->selectAction();
     executeAction(action);
     objectManager->updateSubscribers();
-
-    if (!checkMemoryUsage()) {
+    MemoryUsage usage = checkMemoryUsage();
+    if (usage == Full) {
       objectManager->updateSubscribers();
+    }
+    if (RunForever && (searcher->empty() || usage == Low)) {
+      std::vector<ExecutingSeed> seeds = uploadNewSeeds();
+      if (!seeds.empty()) {
+        ExecutionState *newSeededState =
+            objectManager->branchState(initialState, BranchType::InitialBranch);
+        initialSeed(*newSeededState, seeds);
+      }
     }
   }
 
@@ -4784,6 +4882,31 @@ void Executor::executeAction(ref<SearcherAction> action) {
   timers.invoke();
 }
 
+bool Executor::reachedMaxSeedInstructions(ExecutionState *state) {
+  assert(state->isSeeded);
+  auto it = seedMap->find(state);
+  assert(it != seedMap->end());
+  if (it->second.size() != 1) {
+    return false;
+  }
+
+  std::vector<ExecutingSeed>::iterator siit = it->second.begin();
+  if (siit->maxInstructions &&
+      siit->maxInstructions >= state->steppedInstructions) {
+    state->coveredNew = siit->coveredNew;
+    if (siit->coveredNewError) {
+      state->coveredNewError = siit->coveredNewError;
+    }
+    seedMap->erase(state);
+    objectManager->unseed(state);
+    if (seedMap->size() == 0) {
+      klee_message("Seeding done!\n");
+    }
+    return true;
+  }
+  return false;
+}
+
 void Executor::goForward(ref<ForwardAction> action) {
   ref<ForwardAction> fa = cast<ForwardAction>(action);
   objectManager->setCurrentState(fa->state);
@@ -4816,7 +4939,7 @@ void Executor::goForward(ref<ForwardAction> action) {
   } else if (state.isSymbolicCycled(MaxSymbolicCycles)) {
     terminateStateEarly(state, "max-sym-cycles exceeded.",
                         StateTerminationType::MaxCycles);
-  } else {
+  } else if (!fa->state->isSeeded || !reachedMaxSeedInstructions(fa->state)) {
     maxNewWriteableOSSize = 0;
     maxNewStateStackSize = 0;
 
@@ -4925,10 +5048,13 @@ HaltExecution::Reason fromStateTerminationType(StateTerminationType t) {
 }
 
 void Executor::terminateState(ExecutionState &state,
-                              StateTerminationType reason) {
-  state.terminationReasonType = fromStateTerminationType(reason);
-  if (reason >= StateTerminationType::MaxDepth &&
-      reason <= StateTerminationType::EARLY) {
+                              StateTerminationType terminationType) {
+  if (seedMap->find(&state) != seedMap->end()) {
+    seedMap->erase(&state);
+  }
+  state.terminationReasonType = fromStateTerminationType(terminationType);
+  if (terminationType >= StateTerminationType::MaxDepth &&
+      terminationType <= StateTerminationType::EARLY) {
     SetOfStates states = {&state};
     decreaseConfidenceFromStoppedStates(states, state.terminationReasonType);
   }
@@ -4963,17 +5089,30 @@ void Executor::terminateStateEarly(ExecutionState &state, const Twine &message,
     assert(reason > StateTerminationType::EXIT);
     ++stats::terminationEarly;
   }
-
-  if (((reason <= StateTerminationType::EARLY ||
+  if (RunForever && reason == StateTerminationType::OutOfMemory) {
+    if (StoreSeedsLocally) {
+      ExecutingSeed seed;
+      bool success = storeState(state, !(reason <= StateTerminationType::EARLY), seed);
+      if (success) {
+        storedSeeds->push_back(seed);
+      }
+    } else {
+      interpreterHandler->processTestCase(
+          state, (message + "\n").str().c_str(),
+          terminationTypeFileExtension(reason).c_str(),
+          reason > StateTerminationType::EARLY &&
+              reason <= StateTerminationType::EXECERR);
+    }
+  } else if (((reason <= StateTerminationType::EARLY ||
         reason == StateTerminationType::MissedAllTargets) &&
        shouldWriteTest(state)) ||
-      (AlwaysOutputSeeds && seedMap->count(&state))) {
+    (AlwaysOutputSeeds && seedMap->count(&state))) {
     state.clearCoveredNew();
     interpreterHandler->processTestCase(
-        state, (message + "\n").str().c_str(),
-        terminationTypeFileExtension(reason).c_str(),
-        reason > StateTerminationType::EARLY &&
-            reason <= StateTerminationType::EXECERR);
+      state, (message + "\n").str().c_str(),
+      terminationTypeFileExtension(reason).c_str(),
+      reason > StateTerminationType::EARLY &&
+          reason <= StateTerminationType::EXECERR);
   }
 
   terminateState(state, reason);
@@ -6789,17 +6928,22 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
 
     state.addSymbolic(mo, array);
 
-    std::map<ExecutionState *, std::vector<SeedInfo>>::iterator it =
-        seedMap->find(&state);
-    if (it != seedMap->end()) { // In seed mode we need to add this as a
-                                // binding.
-      for (std::vector<SeedInfo>::iterator siit = it->second.begin(),
-                                           siie = it->second.end();
+    if (state.isSeeded) { // In seed mode we need to add this as a
+                          // binding.
+      std::map<ExecutionState *, std::vector<ExecutingSeed>>::iterator it =
+          seedMap->find(&state);
+      assert(it != seedMap->end());
+      assert(!it->second.empty());
+      for (std::vector<ExecutingSeed>::iterator siit = it->second.begin(),
+                                                siie = it->second.end();
            siit != siie; ++siit) {
-        SeedInfo &si = *siit;
+        ExecutingSeed &si = *siit;
         KTestObject *obj = si.getNextInput(mo, NamedSeedMatching);
 
         if (!obj) {
+          if (si.assignment.bindings.count(array) != 0) {
+            continue;
+          }
           if (ZeroSeedExtension) {
             si.assignment.bindings.replace(
                 {array, SparseStorageImpl<unsigned char>(0)});
@@ -7042,6 +7186,7 @@ void Executor::runFunctionAsMain(Function *f, int argc, char **argv,
     state->symPathOS = symPathOS;
 
   run(state);
+  objectManager->removeInitialState(state);
 
   if (statsTracker)
     statsTracker->done();
@@ -7378,7 +7523,8 @@ void Executor::setInitializationGraph(
   }
   for (auto i : pointers) {
     ktest.objects[i.first].numPointers = i.second.size();
-    ktest.objects[i.first].pointers = new Pointer[i.second.size()];
+    ktest.objects[i.first].pointers = (Pointer *)calloc(
+        i.second.size(), sizeof(*ktest.objects[i.first].pointers));
     for (size_t j = 0; j < i.second.size(); j++) {
       ktest.objects[i.first].pointers[j] = i.second[j];
     }
@@ -7422,7 +7568,7 @@ bool isMakeSymbolic(const klee::Symbolic &symb) {
   return good;
 }
 
-bool Executor::getSymbolicSolution(const ExecutionState &state, KTest &res) {
+bool Executor::getSymbolicSolution(const ExecutionState &state, KTest *res) {
   solver->setTimeout(coreSolverTimeout);
 
   PathConstraints extendedConstraints(state.constraints);
@@ -7603,9 +7749,18 @@ bool Executor::getSymbolicSolution(const ExecutionState &state, KTest &res) {
     }
   }
 
-  res.numObjects = symbolics.size();
-  res.objects = new KTestObject[res.numObjects];
-  res.uninitCoeff = uninitObjects.size() * UninitMemoryTestMultiplier;
+  res->numArgs = interpreterHandler->argc();
+  res->args = (char **)calloc(res->numArgs, sizeof(*res->args));
+  for (unsigned i = 0; i < res->numArgs; i++) {
+    unsigned argsize = std::strlen(interpreterHandler->argv()[i]);
+    res->args[i] = (char *)calloc(argsize + 1, sizeof(*res->args[i]));
+    std::strcpy(res->args[i], interpreterHandler->argv()[i]);
+  }
+  res->symArgvs = 0;
+  res->symArgvLen = 0;
+  res->numObjects = symbolics.size();
+  res->objects = (KTestObject *)calloc(res->numObjects, sizeof(*res->objects));
+  res->uninitCoeff = uninitObjects.size() * UninitMemoryTestMultiplier;
 
   {
     size_t i = 0;
@@ -7613,13 +7768,14 @@ bool Executor::getSymbolicSolution(const ExecutionState &state, KTest &res) {
     for (auto &symbolic : symbolics) {
       auto mo = symbolic.memoryObject;
       auto &values = model.bindings.at(symbolic.array);
-      KTestObject *o = &res.objects[i];
-      o->name = const_cast<char *>(mo->name.c_str());
+      KTestObject *o = &res->objects[i];
+      o->name = (char *)calloc(mo->name.size() + 1, sizeof(*o->name));
+      std::strcpy(o->name, mo->name.c_str());
       o->address = cast<ConstantExpr>(evaluator.visit(mo->getBaseExpr()))
                        ->getZExtValue();
       o->numBytes = cast<ConstantExpr>(evaluator.visit(mo->getSizeExpr()))
                         ->getZExtValue();
-      o->bytes = new unsigned char[o->numBytes];
+      o->bytes = (unsigned char *)calloc(o->numBytes, sizeof(*o->bytes));
       for (size_t j = 0; j < o->numBytes; j++) {
         o->bytes[j] = values.load(j);
       }
@@ -7629,7 +7785,7 @@ bool Executor::getSymbolicSolution(const ExecutionState &state, KTest &res) {
     }
   }
 
-  setInitializationGraph(state, symbolics, model, res);
+  setInitializationGraph(state, symbolics, model, *res);
 
   return true;
 }
@@ -7642,6 +7798,11 @@ void Executor::getCoveredLines(const ExecutionState &state,
 void Executor::getBlockPath(const ExecutionState &state,
                             std::string &blockPath) {
   blockPath = state.constraints.path().toString();
+}
+
+void Executor::getSteppedInstructions(const ExecutionState &state,
+                                      unsigned &res) {
+  res = state.steppedInstructions;
 }
 
 void Executor::doImpliedValueConcretization(ExecutionState &state, ref<Expr> e,
