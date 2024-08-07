@@ -917,3 +917,87 @@ bool DiscreteTimeFairSearcher::empty() { return functions.empty(); }
 void DiscreteTimeFairSearcher::printName(llvm::raw_ostream &os) {
   os << "DiscreteTimeFairSearcher\n";
 }
+
+//
+
+SeededSearcher::SeededSearcher(Searcher *baseSearcher, Searcher *seededSearcher)
+    : baseSearcher(baseSearcher), seededSearcher(seededSearcher) {}
+
+ExecutionState &SeededSearcher::selectState() {
+  if (!seededSearcher->empty()) {
+    return seededSearcher->selectState();
+  }
+  return baseSearcher->selectState();
+}
+
+void SeededSearcher::update(
+    ExecutionState *current, const std::vector<ExecutionState *> &addedStates,
+    const std::vector<ExecutionState *> &removedStates) {
+  std::vector<ExecutionState *> addedUnseededStates;
+  std::vector<ExecutionState *> addedSeededStates;
+  std::vector<ExecutionState *> removedUnseededStates;
+  std::vector<ExecutionState *> removedSeededStates;
+
+  // process seed/unseed of current
+  if (current) {
+    if (current->isSeeded) {
+      if (baseSearcherStates.count(current) != 0) {
+        baseSearcherStates.erase(current);
+        baseSearcher->update(nullptr, {}, {current});
+      }
+      if (seededSearcherStates.count(current) == 0) {
+        seededSearcherStates.insert(current);
+        seededSearcher->update(nullptr, {current}, {});
+      }
+    } else {
+      if (seededSearcherStates.count(current) != 0) {
+        seededSearcherStates.erase(current);
+        seededSearcher->update(nullptr, {}, {current});
+      }
+      if (baseSearcherStates.count(current) == 0) {
+        baseSearcherStates.insert(current);
+        baseSearcher->update(nullptr, {current}, {});
+      }
+    }
+  }
+
+  for (auto state : addedStates) {
+    if (state->isSeeded && seededSearcherStates.count(state) == 0) {
+      addedSeededStates.push_back(state);
+      seededSearcherStates.insert(state);
+    } else if (!state->isSeeded && baseSearcherStates.count(state) == 0) {
+      addedUnseededStates.push_back(state);
+      baseSearcherStates.insert(state);
+    }
+  }
+  for (auto state : removedStates) {
+    if (state->isSeeded && seededSearcherStates.count(state) != 0) {
+      removedSeededStates.push_back(state);
+      seededSearcherStates.erase(state);
+    } else if (!state->isSeeded && baseSearcherStates.count(state) != 0) {
+      removedUnseededStates.push_back(state);
+      baseSearcherStates.erase(state);
+    }
+  }
+
+  if (current && current->isSeeded) {
+    baseSearcher->update(nullptr, addedUnseededStates, removedUnseededStates);
+    seededSearcher->update(current, addedSeededStates, removedSeededStates);
+  } else if (current && !current->isSeeded) {
+    baseSearcher->update(current, addedUnseededStates, removedUnseededStates);
+    seededSearcher->update(nullptr, addedSeededStates, removedSeededStates);
+  } else {
+    baseSearcher->update(nullptr, addedUnseededStates, removedUnseededStates);
+    seededSearcher->update(nullptr, addedSeededStates, removedSeededStates);
+  }
+}
+
+bool SeededSearcher::empty() {
+  return baseSearcher->empty() && seededSearcher->empty();
+}
+
+void SeededSearcher::printName(llvm::raw_ostream &os) {
+  os << "<SeededSearcher> with base searcher:\n";
+  baseSearcher->printName(os);
+  os << "</SeededSearcher> \n";
+}

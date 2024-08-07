@@ -1,4 +1,4 @@
-//===-- SeedInfo.h ----------------------------------------------*- C++ -*-===//
+//=== --SeedInfo.h ----------------------------------------------*- C++ -*-===//
 //
 //                     The KLEE Symbolic Virtual Machine
 //
@@ -10,8 +10,10 @@
 #ifndef KLEE_SEEDINFO_H
 #define KLEE_SEEDINFO_H
 
+#include "klee/ADT/PersistentSet.h"
 #include "klee/Expr/Assignment.h"
-
+#include "klee/Module/Target.h"
+#include <deque>
 #include <set>
 
 extern "C" {
@@ -24,22 +26,37 @@ class ExecutionState;
 class TimingSolver;
 class MemoryObject;
 
-class SeedInfo {
+class ExecutingSeed {
 public:
   Assignment assignment;
-  KTest *input;
-  unsigned inputPosition;
-  std::set<struct KTestObject *> used;
+  unsigned maxInstructions = 0;
+  mutable std::set<struct KTestObject *> used;
+  mutable std::deque<ref<box<bool>>> coveredNew;
+  mutable ref<box<bool>> coveredNewError = nullptr;
+  unsigned inputPosition = 0;
+  PersistentSet<ref<Target>> targets;
 
 public:
-  explicit SeedInfo(KTest *_input) : input(_input), inputPosition(0) {}
+  ~ExecutingSeed() {}
 
-  KTestObject *getNextInput(const MemoryObject *mo, bool byName);
+  ExecutingSeed() {}
 
-  /// Patch the seed so that condition is satisfied while retaining as
-  /// many of the seed values as possible.
-  void patchSeed(const ExecutionState &state, ref<Expr> condition,
-                 TimingSolver *solver);
+  explicit ExecutingSeed(unsigned maxInstructions,
+                         std::deque<ref<box<bool>>> coveredNew = {},
+                         ref<box<bool>> coveredNewError = 0,
+                         const PersistentSet<ref<Target>> targets = {})
+      : maxInstructions(maxInstructions), coveredNew(coveredNew),
+        coveredNewError(coveredNewError), targets(targets) {}
+
+  explicit ExecutingSeed(Assignment assignment, unsigned maxInstructions,
+                         std::deque<ref<box<bool>>> coveredNew,
+                         ref<box<bool>> coveredNewError,
+                         const PersistentSet<ref<Target>> &targets)
+      : assignment(assignment), maxInstructions(maxInstructions),
+        coveredNew(coveredNew), coveredNewError(coveredNewError),
+        targets(targets) {}
+
+  static void kTestDeleter(KTest *ktest);
 };
 } // namespace klee
 

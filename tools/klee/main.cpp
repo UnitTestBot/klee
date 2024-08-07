@@ -95,6 +95,11 @@ cl::opt<bool> WriteKTests(
     cl::desc("Write .ktest files for each test case (default=true)"),
     cl::cat(TestCaseCat));
 
+cl::opt<bool> WriteSeedInfo(
+    "write-seeds", cl::init(true),
+    cl::desc("Write seedinfo files files for each test case (default=true)"),
+    cl::cat(TestCaseCat));
+
 cl::opt<bool>
     WriteCVCs("write-cvcs",
               cl::desc("Write .cvc files for each test case (default=false)"),
@@ -170,6 +175,12 @@ cl::opt<std::string>
 cl::opt<std::string> OutputDir(
     "output-dir",
     cl::desc("Directory in which to write results (default=klee-out-<N>)"),
+    cl::init(""), cl::cat(StartCat));
+
+cl::opt<std::string> OutputEarlyDir(
+    "output-early-dir",
+    cl::desc(
+        "Directory in which to write early results (default=klee-out-<N>)"),
     cl::init(""), cl::cat(StartCat));
 
 cl::opt<std::string> Environ(
@@ -296,15 +307,6 @@ cl::opt<std::string> ReplayPathFile("replay-path",
                                     cl::value_desc("path file"),
                                     cl::cat(ReplayCat));
 
-cl::list<std::string> SeedOutFile("seed-file",
-                                  cl::desc(".ktest file to be used as seed"),
-                                  cl::cat(SeedingCat));
-
-cl::list<std::string>
-    SeedOutDir("seed-dir",
-               cl::desc("Directory with .ktest files to be used as seeds"),
-               cl::cat(SeedingCat));
-
 cl::opt<unsigned> MakeConcreteSymbolic(
     "make-concrete-symbolic",
     cl::desc("Probabilistic rate at which to make concrete reads symbolic, "
@@ -422,6 +424,9 @@ cl::opt<SAMultiplexKind> MultiplexForStaticAnalysis(
 } // namespace
 
 namespace klee {
+
+extern cl::list<std::string> SeedOutFile;
+extern cl::list<std::string> SeedOutDir;
 extern cl::opt<std::string> MaxTime;
 extern cl::opt<std::string> FunctionCallReproduce;
 extern cl::opt<HaltExecution::Reason> DumpStatesOnHalt;
@@ -460,6 +465,7 @@ public:
   void incPathsExplored(std::uint32_t num = 1) override {
     m_pathsExplored += num;
   }
+  bool seedInfoToFile(unsigned instructions, std::string path);
 
   void setInterpreter(Interpreter *i);
 
@@ -669,6 +675,15 @@ KleeHandler::openTestFile(const std::string &suffix, unsigned id,
   return openOutputFile(getTestFilename(suffix, id, version));
 }
 
+bool KleeHandler::seedInfoToFile(unsigned instructions, std::string path) {
+  std::ofstream out(path + "seedinfo");
+  if (!out.good()) {
+    return false;
+  }
+  out << instructions << "\n";
+  return true;
+}
+
 /* Outputs all files (.ktest, .kquery, .cov etc.) describing a test case */
 void KleeHandler::processTestCase(const ExecutionState &state,
                                   const char *message, const char *suffix,
@@ -716,11 +731,23 @@ void KleeHandler::processTestCase(const ExecutionState &state,
         }
       }
 
-      for (unsigned i = 0; i < ktest.numObjects; i++) {
-        delete[] ktest.objects[i].bytes;
-        delete[] ktest.objects[i].pointers;
+      if (WriteSeedInfo) {
+        for (unsigned i = 0; i < ktest.uninitCoeff + 1; ++i) {
+          unsigned steppedInstructions;
+          m_interpreter->getSteppedInstructions(state, steppedInstructions);
+          if (!seedInfoToFile(steppedInstructions,
+                              getOutputFilename(getTestFilename("", id, i)))) {
+            klee_warning("unable to write seedinfo for test case");
+          }
+        }
       }
-      delete[] ktest.objects;
+
+      for (unsigned i = 0; i < ktest.numObjects; i++) {
+        free(ktest.objects[i].name);
+        free(ktest.objects[i].bytes);
+        free(ktest.objects[i].pointers);
+      }
+      free(ktest.objects);
     }
 
     if (message) {
@@ -1522,102 +1549,56 @@ static int run_klee_on_function(int pArgc, char **pArgv, char **pEnvp,
     handler->getInfoStream().flush();
   }
 
-  if (!ReplayKTestDir.empty() || !ReplayKTestFile.empty()) {
-    assert(SeedOutFile.empty());
-    assert(SeedOutDir.empty());
+  if (RunInDir != "") {
+    int res = chdir(RunInDir.c_str());
+    if (res < 0) {
+      klee_error("Unable to change directory to: %s - %s", RunInDir.c_str(),
+                 sys::StrError(errno).c_str());
+    }
+  }
 
-    std::vector<std::string> kTestFiles = ReplayKTestFile;
-    for (std::vector<std::string>::iterator it = ReplayKTestDir.begin(),
-                                            ie = ReplayKTestDir.end();
-         it != ie; ++it)
-      KleeHandler::getKTestFilesInDir(*it, kTestFiles);
-    std::vector<KTest *> kTests;
-    for (std::vector<std::string>::iterator it = kTestFiles.begin(),
+  std::vector<SeedFromFile> seeds;
+  for (std::vector<std::string>::iterator it = SeedOutFile.begin(),
+                                          ie = SeedOutFile.end();
+       it != ie; ++it) {
+    SeedFromFile out(it->substr(0, it->size() - 5));
+    if (!out.ktest) {
+      klee_error("unable to open: %s\n", (*it).c_str());
+    }
+    seeds.push_back(out);
+  }
+  for (std::vector<std::string>::iterator it = SeedOutDir.begin(),
+                                          ie = SeedOutDir.end();
+       it != ie; ++it) {
+    std::vector<std::string> kTestFiles;
+    KleeHandler::getKTestFilesInDir(*it, kTestFiles);
+    for (std::vector<std::string>::iterator it2 = kTestFiles.begin(),
                                             ie = kTestFiles.end();
-         it != ie; ++it) {
-      KTest *out = kTest_fromFile(it->c_str());
-      if (out) {
-        kTests.push_back(out);
-      } else {
-        klee_warning("unable to open: %s\n", (*it).c_str());
-      }
-    }
-
-    if (RunInDir != "") {
-      int res = chdir(RunInDir.c_str());
-      if (res < 0) {
-        klee_error("Unable to change directory to: %s - %s", RunInDir.c_str(),
-                   sys::StrError(errno).c_str());
-      }
-    }
-
-    unsigned i = 0;
-    for (std::vector<KTest *>::iterator it = kTests.begin(), ie = kTests.end();
-         it != ie; ++it) {
-      KTest *out = *it;
-      interpreter->setReplayKTest(out);
-      llvm::errs() << "KLEE: replaying: " << *it << " (" << kTest_numBytes(out)
-                   << " bytes)"
-                   << " (" << ++i << "/" << kTestFiles.size() << ")\n";
-      // XXX should put envp in .ktest ?
-      interpreter->runFunctionAsMain(mainFn, out->numArgs, out->args, pEnvp);
-      if (interrupted)
-        break;
-    }
-    interpreter->setReplayKTest(0);
-    while (!kTests.empty()) {
-      kTest_free(kTests.back());
-      kTests.pop_back();
-    }
-  } else {
-    std::vector<KTest *> seeds;
-    for (std::vector<std::string>::iterator it = SeedOutFile.begin(),
-                                            ie = SeedOutFile.end();
-         it != ie; ++it) {
-      KTest *out = kTest_fromFile(it->c_str());
-      if (!out) {
-        klee_error("unable to open: %s\n", (*it).c_str());
+         it2 != ie; ++it2) {
+      SeedFromFile out(it2->substr(0, it2->size() - 5));
+      if (!out.ktest) {
+        klee_error("unable to open: %s\n", (*it2).c_str());
       }
       seeds.push_back(out);
     }
-    for (std::vector<std::string>::iterator it = SeedOutDir.begin(),
-                                            ie = SeedOutDir.end();
-         it != ie; ++it) {
-      std::vector<std::string> kTestFiles;
-      KleeHandler::getKTestFilesInDir(*it, kTestFiles);
-      for (std::vector<std::string>::iterator it2 = kTestFiles.begin(),
-                                              ie = kTestFiles.end();
-           it2 != ie; ++it2) {
-        KTest *out = kTest_fromFile(it2->c_str());
-        if (!out) {
-          klee_error("unable to open: %s\n", (*it2).c_str());
-        }
-        seeds.push_back(out);
-      }
-      if (kTestFiles.empty()) {
-        klee_error("seeds directory is empty: %s\n", (*it).c_str());
-      }
-    }
-
-    if (!seeds.empty()) {
-      klee_message("KLEE: using %lu seeds\n", seeds.size());
-      interpreter->useSeeds(&seeds);
-    }
-    if (RunInDir != "") {
-      int res = chdir(RunInDir.c_str());
-      if (res < 0) {
-        klee_error("Unable to change directory to: %s - %s", RunInDir.c_str(),
-                   sys::StrError(errno).c_str());
-      }
-    }
-
-    interpreter->runFunctionAsMain(mainFn, pArgc, pArgv, pEnvp);
-
-    while (!seeds.empty()) {
-      kTest_free(seeds.back());
-      seeds.pop_back();
+    if (kTestFiles.empty()) {
+      klee_error("seeds directory is empty: %s\n", (*it).c_str());
     }
   }
+
+  if (!seeds.empty()) {
+    klee_message("KLEE: using %lu seeds\n", seeds.size());
+    interpreter->useSeeds(seeds);
+  }
+  if (RunInDir != "") {
+    int res = chdir(RunInDir.c_str());
+    if (res < 0) {
+      klee_error("Unable to change directory to: %s - %s", RunInDir.c_str(),
+                 sys::StrError(errno).c_str());
+    }
+  }
+
+  interpreter->runFunctionAsMain(mainFn, pArgc, pArgv, pEnvp);
 
   auto endTime = std::time(nullptr);
   { // output end and elapsed time

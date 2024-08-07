@@ -20,6 +20,7 @@ def klee_options(
     f_err,
     f_cov,
     write_ktests,
+    run_forever
 ):
     if max_time and int(max_time) > 30:
         MAX_SOLVER_TIME = 15
@@ -73,7 +74,11 @@ def klee_options(
         "--use-intermittent-equalities-rewriter",
         "--use-iterative-deepening-search=max-cycles",
     ]
-
+    if run_forever:
+        cmd += [
+            "--run-forever",
+            "--upload-percentage=50",
+        ]
     if is32:
         cmd += [
             "--allocate-determ",
@@ -111,8 +116,8 @@ def klee_options(
     if f_cov:
         cmd += [
             "--optimize=false",
-            "--mem-trigger-cof", # Start on the fly tests generation after approaching memory cup
             "--use-guided-search=coverage",
+            "--mem-trigger-cof=false", # Start on the fly tests generation after approaching memory cup
             "--use-alpha-equivalence=true",
             "--optimize-aggressive=false",
             "--track-coverage=all", # Only branches and only instructions are wrong in real life. E.g., ternary operators are sometimes counted as different branches, while we stick to look at them as a single instruction from a single branch
@@ -198,6 +203,7 @@ class KLEEF(object):
         use_valgrind=False,
         write_ktests=False,
         debug=False,
+        run_forever=False,
     ):
         self.source = Path(source) if source else None
         self.is32 = is32
@@ -214,6 +220,7 @@ class KLEEF(object):
         else:
             self.write_ktests = "false"
         self.debug = debug
+        self.run_forever = run_forever
 
         # This file is inside the bin directory - use the root as base
         self.bin_directory = Path(__file__).parent
@@ -324,6 +331,7 @@ class KLEEF(object):
             self.f_err,
             self.f_cov,
             self.write_ktests,
+            self.run_forever
         )
         if self.isModifyingUlimitPermitted():
             cmd = ["ulimit -s unlimited", "&&"] + cmd
@@ -424,6 +432,7 @@ def run(args):
         use_valgrind=args.valgrind,
         write_ktests=args.write_ktests,
         debug=args.debug,
+        run_forever=args.run_forever,
     )
     wrapper.compile()
     return wrapper.run()
@@ -481,6 +490,13 @@ def main():
     parser.add_argument(
         "--write-ktests", help="Write tests in KTest format", action="store_true"
     )
+    parser.add_argument(
+        "--run-forever",
+        help="Run symbolic execution forever",
+        action="store_true",
+        default=True,
+    )
+
     args = parser.parse_args()
     run(args)
 

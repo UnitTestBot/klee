@@ -89,6 +89,12 @@ cl::opt<bool> UseFairSearch(
 
 } // namespace klee
 
+namespace klee {
+extern cl::opt<bool> RunForever;
+extern cl::list<std::string> SeedOutFile;
+extern cl::list<std::string> SeedOutDir;
+} // namespace klee
+
 void klee::initializeSearchOptions() {
   // default values
   if (CoreSearch.empty()) {
@@ -187,6 +193,13 @@ Searcher *klee::constructBaseSearcher(Executor &executor) {
         new IterativeDeepeningSearcher(searcher, UseIterativeDeepeningSearch);
   }
 
+  if (RunForever || SeedOutFile.begin() != SeedOutFile.end() ||
+      SeedOutDir.begin() != SeedOutDir.end()) {
+    searcher = new SeededSearcher(searcher,
+                                  getNewSearcher(CoreSearch[0], executor.theRNG,
+                                                 *executor.processForest));
+  }
+
   return searcher;
 }
 
@@ -199,7 +212,6 @@ Searcher *klee::constructUserSearcher(Executor &executor) {
   } else {
     searcher = constructBaseSearcher(executor);
   }
-
   llvm::raw_ostream &os = executor.getHandler().getInfoStream();
 
   os << "BEGIN searcher description\n";

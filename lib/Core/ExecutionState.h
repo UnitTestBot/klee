@@ -420,6 +420,8 @@ public:
   // Temp: to know which multiplex path this state has taken
   KFunction *multiplexKF = nullptr;
 
+  bool isSeeded = false;
+
 private:
   PersistentSet<ref<Target>> prevTargets_;
   PersistentSet<ref<Target>> targets_;
@@ -513,6 +515,11 @@ public:
   }
 
   inline void setTargeted(bool targeted) { isTargeted_ = targeted; }
+
+  inline void setTargets(const PersistentSet<ref<Target>> &targets) {
+    targets_ = targets;
+    areTargetsChanged_ = true;
+  }
 
   inline void setTargets(const TargetHashSet &targets) {
     targets_ = PersistentSet<ref<Target>>();
