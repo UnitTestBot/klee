@@ -10,6 +10,7 @@
 #include "ExternalDispatcher.h"
 
 #include "CoreStats.h"
+#include "klee/Config/Version.h"
 #include "klee/Module/KCallable.h"
 #include "klee/Module/KModule.h"
 

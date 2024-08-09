@@ -9,6 +9,7 @@
 
 #include "Passes.h"
 
+#include "klee/Config/Version.h"
 #include "klee/Support/Casting.h"
 #include "klee/Support/ErrorHandling.h"
 #include "klee/Support/OptionCategories.h"
