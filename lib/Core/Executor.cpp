@@ -4861,7 +4861,9 @@ bool Executor::reachedMaxSeedInstructions(ExecutionState *state) {
   if (siit->maxInstructions &&
       siit->maxInstructions >= state->steppedInstructions) {
     state->coveredNew = siit->coveredNew;
-    state->coveredNewError = siit->coveredNewError;
+    if (siit->coveredNewError) {
+      state->coveredNewError = siit->coveredNewError;
+    }
     seedMap->erase(state);
     objectManager->unseed(state);
     if (seedMap->size() == 0) {

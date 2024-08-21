@@ -34,7 +34,7 @@ public:
   std::set<struct KTestObject *> used;
   std::string path = "";
   mutable std::deque<ref<box<bool>>> coveredNew;
-  mutable ref<box<bool>> coveredNewError;
+  mutable ref<box<bool>> coveredNewError = nullptr;
   unsigned inputPosition = 0;
 
 public:
