@@ -35,7 +35,7 @@ ENABLE_WARNINGS_AS_ERRORS=0
 
 ## Solvers Required options
 # SOLVERS=STP
-SOLVERS=BITWUZLA:Z3:STP
+SOLVERS=BITWUZLA
 
 ## Google Test Required options
 GTEST_VERSION=1.11.0

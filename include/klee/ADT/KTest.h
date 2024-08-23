@@ -66,6 +66,7 @@ unsigned kTest_numBytes(KTest *);
 
 void kTest_free(KTest *);
 
+unsigned getKTestMemoryUsage(KTest *ktest);
 #ifdef __cplusplus
 }
 #endif

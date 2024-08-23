@@ -49,7 +49,7 @@ int main() {
   }
 #endif
 
-  // CHECK-WRN: WARNING: killing 1 states (over memory cap
+  // CHECK-WRN: WARNING: killing 1 states (total memory usage
 
   if (malloc_failed)
     printf("MALLOC FAILED\n");

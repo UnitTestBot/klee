@@ -45,7 +45,7 @@ def klee_options(
         "--solver-backend=bitwuzla",
         "--max-solvers-approx-tree-inc=16",
         # Just use half of the memory in case we have to fork
-        f"--max-memory={int(max_memory * 0.9)}",
+        f"--max-memory={int(max_memory * 0.7)}",
         "--libc=klee",
         "--skip-not-lazy-initialized",
         # Output files into specific directory
@@ -307,11 +307,10 @@ class KLEEF(object):
         check_call(cmd)
 
     def instrument(self, cmd: list) -> Path:
-        assert (self.property_file is not None)
+        assert(self.property_file is not None)
 
-        return_value = src_tooling_runner.run(
-            cmd, ["-32" if self.is32 else "-64", f"--goal={self.property_file}", str(self.source)])
-        assert (return_value is not None)
+        return_value = src_tooling_runner.run(cmd, ["-32" if self.is32 else "-64", f"--goal={self.property_file}", str(self.source)], Path.cwd() / (str(self.source.name) + "_" + ("coverage" if self.f_cov else "error")))
+        assert(return_value is not None)
         return return_value
 
     def isModifyingUlimitPermitted(self):

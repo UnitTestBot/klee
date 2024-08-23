@@ -6,8 +6,8 @@
 // RUN: rm -rf %t4.klee-out
 // RUN: %klee --output-dir=%t1.klee-out  %t1.bc
 // RUN: %klee --output-dir=%t2.klee-out --max-instructions=500 %t1.bc
-// RUN: %klee --seed-dir=%t1.klee-out --use-seeded-search --output-dir=%t3.klee-out  %t1.bc
-// RUN: %klee --seed-dir=%t2.klee-out --use-seeded-search --output-dir=%t4.klee-out  %t1.bc
+// RUN: %klee --seed-dir=%t1.klee-out --output-dir=%t3.klee-out  %t1.bc
+// RUN: %klee --seed-dir=%t2.klee-out --output-dir=%t4.klee-out  %t1.bc
 // RUN: %klee-stats --print-columns 'SolverQueries' --table-format=csv %t3.klee-out > %t3.stats
 // RUN: %klee-stats --print-columns 'SolverQueries' --table-format=csv %t4.klee-out > %t4.stats
 // RUN: FileCheck -check-prefix=CHECK-NO-MAX-INSTRUCTIONS -input-file=%t3.stats %s
