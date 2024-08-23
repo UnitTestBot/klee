@@ -1172,7 +1172,7 @@ void Executor::initializeGlobalObjects(ExecutionState &state) {
       if (v.isConstant()) {
         os->setReadOnly(true);
         // initialise constant memory that may be used with external calls
-        state.addressSpace.copyOutConcrete(mo, os, {});
+        state.addressSpace.copyOutConcrete(mo, os);
       }
     }
   }
@@ -5243,13 +5243,26 @@ void Executor::callExternalFunction(ExecutionState &state, KInstruction *target,
           ExternalCallPolicy::All) { // don't bother checking uniqueness
         ref<Expr> arg = *ai;
         if (auto pointer = dyn_cast<PointerExpr>(arg)) {
-          arg = pointer->getValue();
+          ref<ConstantExpr> base = evaluator.visit(pointer->getBase());
+          ref<ConstantExpr> value = evaluator.visit(pointer->getValue());
+          value->toMemory(&args[wordIndex]);
+          ref<ConstantPointerExpr> const_pointer =
+              ConstantPointerExpr::create(base, value);
+          ObjectPair op;
+          if (state.addressSpace.resolveOne(const_pointer, nullptr, op) &&
+              !op.second->readOnly) {
+            auto *os = state.addressSpace.getWriteable(op.first, op.second);
+            os->flushToConcreteStore(model);
+          }
+          addConstraint(state, EqExpr::create(const_pointer->getValue(), arg));
+          wordIndex += (value->getWidth() + 63) / 64;
+        } else {
+          arg = optimizer.optimizeExpr(arg, true);
+          ref<ConstantExpr> ce = evaluator.visit(arg);
+          ce->toMemory(&args[wordIndex]);
+          addConstraint(state, EqExpr::create(ce, arg));
+          wordIndex += (ce->getWidth() + 63) / 64;
         }
-        arg = optimizer.optimizeExpr(arg, true);
-        ref<ConstantExpr> ce = evaluator.visit(arg);
-        ce->toMemory(&args[wordIndex]);
-        addConstraint(state, EqExpr::create(ce, arg));
-        wordIndex += (ce->getWidth() + 63) / 64;
       } else {
         ref<Expr> arg = toUnique(state, *ai);
         if (ConstantExpr *ce = dyn_cast<ConstantExpr>(arg)) {
@@ -5285,7 +5298,7 @@ void Executor::callExternalFunction(ExecutionState &state, KInstruction *target,
   solver->getInitialValues(state.constraints.cs(), arrays, values,
                            state.queryMetaData);
   Assignment assignment(arrays, values);
-  state.addressSpace.copyOutConcretes(assignment);
+  state.addressSpace.copyOutConcretes();
 #ifndef WINDOWS
   // Update external errno state with local state value
   ObjectPair result;
@@ -5359,7 +5372,7 @@ void Executor::callExternalFunction(ExecutionState &state, KInstruction *target,
     return;
   }
 
-  if (!state.addressSpace.copyInConcretes(assignment)) {
+  if (!state.addressSpace.copyInConcretes()) {
     terminateStateOnExecError(state, "external modified read-only object",
                               StateTerminationType::External);
     return;
@@ -5369,7 +5382,7 @@ void Executor::callExternalFunction(ExecutionState &state, KInstruction *target,
   // Update errno memory object with the errno value from the call
   int error = externalDispatcher->getLastErrno();
   state.addressSpace.copyInConcrete(result.first, result.second,
-                                    (uint64_t)&error, assignment);
+                                    (uint64_t)&error);
 #endif
 
   Type *resultType = target->inst()->getType();
