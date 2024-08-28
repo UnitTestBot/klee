@@ -19,6 +19,7 @@
 #include "klee/Expr/Expr.h"
 #include "klee/Expr/SourceBuilder.h"
 
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -213,6 +214,115 @@ public:
   bool equals(const MemoryObject &b) const { return compare(b) == 0; }
 };
 
+class ConcreteStore {
+  const Expr::Width width;
+  const size_t byteWidth = width / 8;
+  using bytes_ty = std::vector<uint8_t>;
+
+private:
+  std::vector<uint8_t> store;
+  std::vector<bool> mask;
+
+  size_t size_;
+  size_t set_;
+
+public:
+  // Mask is unset
+  ConcreteStore(Expr::Width width, size_t size)
+      : width(width), store(size * byteWidth, 0), mask(size, false),
+        size_(size), set_(0) {}
+
+  // Mask is set
+  ConcreteStore(Expr::Width width, size_t size, bytes_ty initialValue)
+      : width(width), store(size * byteWidth, 0), mask(size, true), size_(size),
+        set_(size) {
+    assert(initialValue.size() == byteWidth);
+    for (size_t i = 0; i < size; ++i) {
+      for (size_t j = 0; j < byteWidth; ++j) {
+        store[(i * byteWidth) + j] = initialValue[j];
+      }
+    }
+  }
+
+  bool writeBytes(size_t offset, bytes_ty value) {
+    assert(value.size() == byteWidth);
+    bool changed = false;
+    for (size_t i = 0; i < byteWidth; ++i) {
+      changed = changed || (store[(offset * byteWidth) + i] != value[i]);
+      store[(offset * byteWidth) + i] = value[i];
+    }
+    return changed;
+  }
+
+  bytes_ty readBytes(size_t offset) const {
+    bytes_ty value(byteWidth, 0);
+    for (size_t i = 0; i < byteWidth; ++i) {
+      value[i] = store[(offset * byteWidth) + i];
+    }
+    return value;
+  }
+
+  // bool writeConstantExpr(size_t offset, ref<ConstantExpr> expr) {
+  //   assert(expr->getWidth() == width);
+  //   bytes_ty bytes(byteWidth, 0);
+  //   // Check endianness and stuff
+  //   uint8_t *rawData = (uint8_t *)expr->getAPValue().getRawData();
+  //   for (size_t i = 0; i < byteWidth; ++i) {
+  //     bytes[i] = rawData[i];
+  //   }
+  //   return writeBytes(offset, bytes);
+  // }
+
+  // ref<ConstantExpr> readConstantExpr(size_t offset) {
+  //   auto bytes = readBytes(offset);
+  //   // make it
+  // }
+
+  bool writeValue(size_t offset, uint64_t value) {
+    assert(byteWidth <= 8);
+    bytes_ty bytes(byteWidth, 0);
+    uint8_t *rawData = (uint8_t *)&value;
+    for (size_t i = 0; i < byteWidth; ++i) {
+      bytes[i] = rawData[i];
+    }
+    return writeBytes(offset, bytes);
+  }
+
+  uint64_t readValue(size_t offset) const {
+    assert(byteWidth <= 8);
+    uint64_t value = 0;
+    uint8_t *rawData = (uint8_t *)&value;
+    auto bytes = readBytes(offset);
+    for (size_t i = 0; i < byteWidth; ++i) {
+      rawData[i] = bytes[i];
+    }
+    return value;
+  }
+
+  bool isConcrete(size_t offset) const { return mask[offset]; }
+
+  void setConcrete(size_t offset) {
+    if (!mask[offset]) {
+      mask[offset] = true;
+      set_ += 1;
+    }
+  }
+
+  void unsetConcrete(size_t offset) {
+    if (mask[offset]) {
+      mask[offset] = false;
+      set_ -= 1;
+    }
+  }
+
+  const uint8_t *data() const { return store.data(); }
+  uint8_t *data() { return store.data(); }
+
+  size_t size() const { return size_; }
+
+  size_t set() const { return set_; }
+};
+
 class ObjectStage {
 private:
   using storage_ty = SparseStorage<ref<Expr>, OptionalRefEq<Expr>>;
@@ -221,6 +331,12 @@ private:
   /// if byte is known
   mutable std::unique_ptr<storage_ty> knownSymbolics;
 
+public:
+  // std::vector<uint8_t> concreteStore;
+  // std::vector<bool> concreteMask;
+  std::optional<ConcreteStore> concreteStore;
+
+private:
   /// unflushedMask[byte] is set if byte is unflushed
   /// mutable because may need flushed during read of const
   mutable std::unique_ptr<bool_storage_ty> unflushedMask;
@@ -258,10 +374,10 @@ public:
   }
   void initializeToZero();
 
+  void flushToConcreteStore(Assignment &assignment);
+
 private:
   const UpdateList &getUpdates() const;
-
-  void makeConcrete();
 
   void flushForRead() const;
   void flushForWrite();
@@ -337,6 +453,8 @@ public:
   bool isAccessableFrom(KType *) const;
 
   KType *getDynamicType() const;
+
+  void flushToConcreteStore(Assignment &assignment);
 
 private:
   ref<Expr> read8(ref<Expr> offset) const;

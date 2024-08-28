@@ -13,7 +13,6 @@
 #include "Memory.h"
 
 #include "klee/ADT/ImmutableMap.h"
-#include "klee/Expr/Assignment.h"
 #include "klee/Expr/Expr.h"
 #include "klee/System/Time.h"
 
@@ -143,10 +142,9 @@ public:
   /// actual system memory location they were allocated at.
   /// Returns the (hypothetical) number of pages needed provided each written
   /// object occupies (at least) a single page.
-  void copyOutConcretes(const Assignment &assignment);
+  void copyOutConcretes();
 
-  void copyOutConcrete(const MemoryObject *mo, const ObjectState *os,
-                       const Assignment &assignment) const;
+  void copyOutConcrete(const MemoryObject *mo, const ObjectState *os) const;
 
   /// \brief Obtain an ObjectState suitable for writing.
   ///
@@ -168,7 +166,7 @@ public:
   ///
   /// \retval true The copy succeeded.
   /// \retval false The copy failed because a read-only object was modified.
-  bool copyInConcretes(const Assignment &assignment);
+  bool copyInConcretes();
 
   /// Updates the memory object with the raw memory from the address
   ///
@@ -177,7 +175,7 @@ public:
   /// @param src_address the address to copy from
   /// @return
   bool copyInConcrete(const MemoryObject *mo, const ObjectState *os,
-                      uint64_t src_address, const Assignment &assignment);
+                      uint64_t src_address);
 };
 } // namespace klee
 
