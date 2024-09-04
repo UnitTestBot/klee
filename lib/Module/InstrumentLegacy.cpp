@@ -12,6 +12,7 @@
 #include "klee/Support/CompilerWarning.h"
 #include "klee/Support/ErrorHandling.h"
 #include "klee/Support/ModuleUtil.h"
+#include "klee/System/Time.h"
 
 DISABLE_WARNING_PUSH
 DISABLE_WARNING_DEPRECATED_DECLARATIONS
@@ -97,6 +98,20 @@ void klee::optimiseAndPrepare(bool OptimiseKLEECall, bool Optimize,
                               llvm::Module *module) {
   // Preserve all functions containing klee-related function calls from being
   // optimised around
+
+  auto start = klee::time::getWallTime();
+  std::unordered_set<llvm::Function *> addedWrappers;
+  /* TODO: */ {
+    legacy::PassManager pm;
+    auto dbgIntrinsincWrapperPass = new DbgIntrinsicWrapperPass();
+    pm.add(dbgIntrinsincWrapperPass);
+    pm.run(*module);
+    addedWrappers = std::move(dbgIntrinsincWrapperPass->addedWrappers);
+  }
+
+  auto end = klee::time::getWallTime();
+  klee_message("Instrumentation elapsed:  %lu", (end - start).toMicroseconds());
+
   if (!OptimiseKLEECall) {
     legacy::PassManager pm;
     pm.add(new OptNonePass());
@@ -156,4 +171,10 @@ void klee::optimiseAndPrepare(bool OptimiseKLEECall, bool Optimize,
     pm3.add(new ReturnSplitter());
   }
   pm3.run(*module);
+
+  {
+    llvm::legacy::PassManager pm;
+    pm.add(new DbgIntrinsicUnwrapperPass(std::move(addedWrappers)));
+    pm.run(*module);
+  }
 }
