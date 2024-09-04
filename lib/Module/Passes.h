@@ -13,8 +13,10 @@
 #include "llvm/ADT/Triple.h"
 #include "llvm/CodeGen/IntrinsicLowering.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
+#include <unordered_set>
 
 namespace llvm {
 class Function;
@@ -251,6 +253,40 @@ public:
   static char ID;
   LocalVarDeclarationFinderPass() : llvm::FunctionPass(ID) {}
   bool runOnFunction(llvm::Function &) override;
+};
+
+class DbgIntrinsicWrapperPass : public llvm::ModulePass {
+private:
+  std::string generateNewWrapperName();
+  llvm::Function &wrapInFunction(llvm::DbgInfoIntrinsic &);
+  bool runOnBasicBlock(llvm::BasicBlock &);
+
+public:
+  static char ID;
+  DbgIntrinsicWrapperPass() : llvm::ModulePass(ID) {}
+  bool runOnModule(llvm::Module &) override;
+
+  std::unordered_set<llvm::Function *> addedWrappers;
+
+private:
+  std::size_t wrappedCounter = 0;
+};
+
+class DbgIntrinsicUnwrapperPass : public llvm::ModulePass {
+private:
+  std::optional<std::pair<llvm::Instruction *, llvm::Instruction *>>
+  unwrapCall(llvm::CallInst &);
+  void runOnBasicBlock(llvm::BasicBlock &);
+
+public:
+  static char ID;
+  DbgIntrinsicUnwrapperPass(std::unordered_set<llvm::Function *> &&wrappers)
+      : llvm::ModulePass(ID), wrappers(wrappers) {}
+  bool runOnModule(llvm::Module &) override;
+
+private:
+  std::optional<llvm::DbgLabelInst *> findDbgLabel(llvm::Function &);
+  std::unordered_set<llvm::Function *> wrappers;
 };
 
 } // namespace klee
