@@ -198,6 +198,19 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 include(${CMAKE_SOURCE_DIR}/cmake/compiler_warnings.cmake)
 
 ################################################################################
+# Clang
+################################################################################
+include(${LLVM_DIR}/AddLLVM.cmake)
+include(${LLVM_DIR}/../lib/cmake/clang/AddClang.cmake)
+# include(${LLVM_DIR}/../lib/cmake/clang/ClangConfig.cmake)
+# include(${LLVM_DIR}/../lib/cmake/clang/ClangTargets-release.cmake)
+# include(${LLVM_DIR}/../lib/cmake/clang/ClangTargets.cmake)
+
+message("!!! ${LLVM_DIR}/../lib/cmake/clang/AddClang.cmake")
+# find_package(cmake_clang_tools QUIET)
+# message("!!! FOUND: ${cmake_clang_tools_FOUND}")
+
+################################################################################
 # Solvers
 ################################################################################
 # STP

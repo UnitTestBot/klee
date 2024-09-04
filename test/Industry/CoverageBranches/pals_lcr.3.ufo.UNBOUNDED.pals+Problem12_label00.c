@@ -1,7 +1,7 @@
 // REQUIRES: lt-llvm-15.0
 // RUN: %clang %s -emit-llvm %O0opt -g -c -o %t1.bc
 // RUN: rm -rf %t.klee-out
-// RUN: %klee --output-dir=%t.klee-out --optimize-aggressive=false --track-coverage=branches --delete-dead-loops=false --emit-all-errors --mock-policy=all --use-forked-solver=false --optimize --skip-not-lazy-initialized --output-source=false --output-stats=false --output-istats=false -istats-write-interval=3s --use-sym-size-alloc=true --cex-cache-validity-cores --symbolic-allocation-threshold=8192 --cover-on-the-fly=false --delay-cover-on-the-fly=400000 --only-output-states-covering-new --dump-states-on-halt=all --search=dfs --search=random-state --use-iterative-deepening-search=max-cycles --max-cycles=6 %t1.bc
+// RUN: %klee --output-dir=%t.klee-out --track-coverage=branches --emit-all-errors --mock-policy=all --use-forked-solver=false --optimize --skip-not-lazy-initialized --output-source=false --output-stats=false --output-istats=false -istats-write-interval=3s --use-sym-size-alloc=true --cex-cache-validity-cores --symbolic-allocation-threshold=8192 --cover-on-the-fly=false --delay-cover-on-the-fly=400000 --only-output-states-covering-new --dump-states-on-halt=all --search=dfs --search=random-state --use-iterative-deepening-search=max-cycles --max-cycles=4 %t1.bc
 
 // RUN: rm -f ./%gcov-files-path*.gcda ./%gcov-files-path*.gcno ./%gcov-files-path*.gcov
 // RUN: %cc -DGCOV %s %libkleeruntest -Wl,-rpath %libkleeruntestdir -o %t_runner %gcov-options

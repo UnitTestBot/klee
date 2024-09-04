@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 import argparse
-import os
-import subprocess
-import shutil
-import tempfile
 import hashlib
+import json
+import os
+import shutil
+import subprocess
+import tempfile
 from functools import partial
 from pathlib import Path
+import src_tooling_runner
+
+import src_tooling_runner
 
 
 def klee_options(
@@ -27,10 +31,13 @@ def klee_options(
     else:
         MAX_SOLVER_TIME = 10
     cmd = [
-        "--strip-unwanted-calls",  # removes llvm.dbg.* instructions, exponentially reduces time on some benchmarks
-        "--delete-dead-loops=false",  # without this optimizer removes some code, which decreases coverage
-        "--emit-all-errors",  # without this we generate only one test for assertion failures, which decreases coverage
-        "--mock-policy=all",  # this helps for some linux benchmarks, which have unused extern globals. without this flag we will not even start on them.
+        # removes llvm.dbg.* instructions, exponentially reduces time on some benchmarks
+        "--strip-unwanted-calls",
+        # "--delete-dead-loops=false",  # without this optimizer removes some code, which decreases coverage
+        # without this we generate only one test for assertion failures, which decreases coverage
+        "--emit-all-errors",
+        # this helps for some linux benchmarks, which have unused extern globals. without this flag we will not even start on them.
+        "--mock-policy=all",
         "--external-calls=all",
         "--use-forked-solver=false",
         # "--solver-backend=stp",
@@ -42,15 +49,18 @@ def klee_options(
         f"--max-solver-memory={int(max_memory * 0.7)}",
         "--libc=klee",
         "--skip-not-lazy-initialized",
-        f"--output-dir={test_output_dir}",  # Output files into specific directory
+        # Output files into specific directory
+        f"--output-dir={test_output_dir}",
         "--output-source=false",  # Do not output assembly.ll - it can be too large
         "--output-stats=false",
         "--output-istats=false",
         # "--istats-write-interval=90s", # Istats file can be large as well
         "--write-xml-tests",  # Write tests in XML format
-        f"--write-ktests={write_ktests}", # Write tests in KTest format
-        f"--xml-metadata-programfile={source.name}",  # Provide the name of the original source file
-        f"--xml-metadata-programhash={hexhash}",  # Provide sha256 hash of source file
+        f"--write-ktests={write_ktests}",  # Write tests in KTest format
+        # Provide the name of the original source file
+        f"--xml-metadata-programfile={source.name}",
+        # Provide sha256 hash of source file
+        f"--xml-metadata-programhash={hexhash}",
         # "--use-guided-search=none",
         "--use-sym-size-alloc=true",
         "--cex-cache-validity-cores",
@@ -73,6 +83,7 @@ def klee_options(
         "--max-fixed-size-structures-size=64",
         "--use-intermittent-equalities-rewriter",
         "--use-iterative-deepening-search=max-cycles",
+        "--optimize=true",
     ]
     if run_forever:
         cmd += [
@@ -89,7 +100,6 @@ def klee_options(
 
     if f_err:
         cmd += [
-            "--optimize=true",
             "--use-alpha-equivalence=true",
             "--function-call-reproduce=reach_error",
             # "--max-cycles=0",
@@ -115,12 +125,10 @@ def klee_options(
 
     if f_cov:
         cmd += [
-            "--optimize=false",
             "--use-guided-search=coverage",
             "--mem-trigger-cof=false", # Start on the fly tests generation after approaching memory cup
             "--use-alpha-equivalence=true",
-            "--optimize-aggressive=false",
-            "--track-coverage=all", # Only branches and only instructions are wrong in real life. E.g., ternary operators are sometimes counted as different branches, while we stick to look at them as a single instruction from a single branch
+            "--track-coverage=branches",
             f"--max-solver-time={MAX_SOLVER_TIME}s",
             "--max-cycles-before-stuck=15",
             # "--tc-type=cov",
@@ -204,6 +212,7 @@ class KLEEF(object):
         write_ktests=False,
         debug=False,
         run_forever=False,
+        property_file=None,
     ):
         self.source = Path(source) if source else None
         self.is32 = is32
@@ -215,6 +224,7 @@ class KLEEF(object):
         self.max_time = max_time
         self.use_perf = use_perf
         self.use_valgrind = use_valgrind
+        self.property_file = property_file
         if write_ktests:
             self.write_ktests = "true"
         else:
@@ -264,12 +274,18 @@ class KLEEF(object):
         if self.use_perf:
             compiler_options += ["-gdwarf-4"]
         cmd = compiler_options + [
-            "-Wno-everything",  # do not print any error statements - we are not allowed to change the code
+            # do not print any error statements - we are not allowed to change the code
+            "-Wno-everything",
             "-fno-default-inline",
             "-o",
             self.compiled_file,
             self.source,
         ]
+
+        if self.property_file is not None:
+            self.source = self.instrument(cmd)
+            cmd[len(cmd) - 1] = self.source
+
         check_call(cmd)
 
         # Compile library
@@ -291,6 +307,14 @@ class KLEEF(object):
             self.compiled_file,
         ]
         check_call(cmd)
+
+    def instrument(self, cmd: list) -> Path:
+        assert (self.property_file is not None)
+
+        return_value = src_tooling_runner.run(
+            cmd, ["-32" if self.is32 else "-64", f"--goal={self.property_file}", str(self.source)])
+        assert (return_value is not None)
+        return return_value
 
     def isModifyingUlimitPermitted(self):
         out = subprocess.run(
@@ -416,7 +440,8 @@ def run(args):
         if not opt:
             continue
         for tool in used_by_opt:
-            locateBinaryOrFail(tool, err_mess=f", so cannot run with option --{name}")
+            locateBinaryOrFail(
+                tool, err_mess=f", so cannot run with option --{name}")
 
     if args.perf and args.valgrind:
         print("Cannot use perf and valgrind at the same time")
@@ -433,6 +458,7 @@ def run(args):
         write_ktests=args.write_ktests,
         debug=args.debug,
         run_forever=args.run_forever,
+        property_file=args.property_file,
     )
     wrapper.compile()
     return wrapper.run()
@@ -444,9 +470,12 @@ def main():
     parser.add_argument(
         "source", help="klee-out directory to parse", nargs="?", default=None
     )
-    parser.add_argument("--version", help="print version of klee", action="store_true")
-    parser.add_argument("--32", help="Compile 32bit binaries", action="store_true")
-    parser.add_argument("--64", help="Compile 64bit binaries", action="store_true")
+    parser.add_argument(
+        "--version", help="print version of klee", action="store_true")
+    parser.add_argument(
+        "--32", help="Compile 32bit binaries", action="store_true")
+    parser.add_argument(
+        "--64", help="Compile 64bit binaries", action="store_true")
     parser.add_argument(
         "--error-only", help="Focus on searching errors", action="store_true"
     )
@@ -471,7 +500,8 @@ def main():
     parser.add_argument(
         "--max-memory", help="Maximum memory in byte ", type=int, default=2000
     )
-    parser.add_argument("--max-time", help="Maximum time in s", type=int, default=0)
+    parser.add_argument(
+        "--max-time", help="Maximum time in s", type=int, default=0)
     parser.add_argument(
         "--max-walltime", help="Maximum walltime in s", type=int, default=0
     )

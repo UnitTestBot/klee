@@ -74,15 +74,6 @@ static cl::opt<bool>
 static cl::alias A1("S", cl::desc("Alias for --strip-debug"),
                     cl::aliasopt(StripDebug));
 
-static cl::opt<bool> DeleteDeadLoops("delete-dead-loops",
-                                     cl::desc("Use LoopDeletionPass"),
-                                     cl::init(true), cl::cat(klee::ModuleCat));
-
-static cl::opt<bool>
-    OptimizeAggressive("optimize-aggressive",
-                       cl::desc("Use aggressive optimization passes"),
-                       cl::init(true), cl::cat(klee::ModuleCat));
-
 // A utility function that adds a pass to the pass manager but will also add
 // a verifier pass after if we're supposed to verify.
 static inline void addPass(legacy::PassManager &PM, Pass *P) {
@@ -140,9 +131,8 @@ static void AddStandardCompilePasses(legacy::PassManager &PM) {
 #endif
   // FIXME : Removing instcombine causes nestedloop regression.
   addPass(PM, createInstructionCombiningPass());
-  addPass(PM, createIndVarSimplifyPass()); // Canonicalize indvars
-  if (DeleteDeadLoops)
-    addPass(PM, createLoopDeletionPass());       // Delete dead loops
+  addPass(PM, createIndVarSimplifyPass());       // Canonicalize indvars
+  addPass(PM, createLoopDeletionPass());         // Delete dead loops
   addPass(PM, createLoopUnrollPass());           // Unroll small loops
   addPass(PM, createInstructionCombiningPass()); // Clean up after the unroller
   addPass(PM, createGVNPass());                  // Remove redundancies
@@ -269,9 +259,7 @@ void klee::optimizeModule(llvm::Module *M,
     addPass(Passes, pass);
   }
 
-  if (OptimizeAggressive) {
-    AddNonStandardCompilePasses(Passes);
-  }
+  AddNonStandardCompilePasses(Passes);
 
   // Run our queue of passes all at once now, efficiently.
   Passes.run(*M);
