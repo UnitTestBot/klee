@@ -4679,16 +4679,19 @@ void Executor::initialSeed(ExecutionState &initialState,
 
 bool Executor::storeState(const ExecutionState &state, bool isCompleted,
                           ExecutingSeed &res) {
-  solver->setTimeout(coreSolverTimeout);
-  auto arrays = state.constraints.cs().gatherArrays();
-  std::vector<SparseStorageImpl<unsigned char>> values;
-  bool success = solver->getInitialValues(state.constraints.cs(), arrays,
-                                          values, state.queryMetaData);
+  ref<SolverResponse> response;
+  bool success =
+      solver->getResponse(state.constraints.cs(), Expr::createFalse(), response,
+                          state.queryMetaData);
   if (!success) {
     klee_warning("unable to get symbolic solution, losing test case");
     return false;
   }
-  Assignment assignment(arrays, values);
+  Assignment assignment;
+  if (!response->tryGetInitialValues(assignment.bindings)) {
+    assert(false && "terminated state must have an assignment");
+    return false;
+  }
   ExecutingSeed seed(assignment, state.steppedInstructions, isCompleted,
                      state.coveredNew, state.coveredNewError);
   res = seed;
