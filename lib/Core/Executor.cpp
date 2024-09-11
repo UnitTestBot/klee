@@ -1270,9 +1270,11 @@ void Executor::branch(ExecutionState &state,
     }
   }
 
-  std::map<ExecutionState *, std::vector<ExecutingSeed>>::iterator it =
-      seedMap->find(&state);
-  if (it != seedMap->end()) {
+  if (state.isSeeded) {
+    std::map<ExecutionState *, std::vector<ExecutingSeed>>::iterator it =
+        seedMap->find(&state);
+    assert(it != seedMap->end());
+    assert(!it->second.empty());
     std::vector<ExecutingSeed> seeds = it->second;
     seedMap->erase(it);
     objectManager->unseed(it->first);
@@ -1410,11 +1412,8 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
                                    KBlock *ifTrueBlock, KBlock *ifFalseBlock,
                                    BranchType reason) {
   bool isInternal = ifTrueBlock == ifFalseBlock;
-  std::map<ExecutionState *, std::vector<ExecutingSeed>>::iterator it =
-      seedMap->find(&current);
-  bool isSeeding = it != seedMap->end();
   PartialValidity res = PartialValidity::None;
-
+  bool isSeeding = current.isSeeded;
   std::vector<ExecutingSeed> trueSeeds;
   std::vector<ExecutingSeed> falseSeeds;
   time::Span timeout = coreSolverTimeout;
@@ -1438,7 +1437,11 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
         addConstraint(current, Expr::createIsZero(condition));
       }
     }
-  } else if (!it->second.empty()) {
+  } else {
+    std::map<ExecutionState *, std::vector<ExecutingSeed>>::iterator it =
+        seedMap->find(&current);
+    assert(it != seedMap->end());
+    assert(!it->second.empty());
     timeout *= static_cast<unsigned>(it->second.size());
     for (std::vector<ExecutingSeed>::iterator siit = it->second.begin(),
                                               siie = it->second.end();
@@ -1646,9 +1649,11 @@ void Executor::addConstraint(ExecutionState &state, ref<Expr> condition) {
   }
 
   // Check to see if this constraint violates seeds.
-  std::map<ExecutionState *, std::vector<ExecutingSeed>>::iterator it =
-      seedMap->find(&state);
-  if (PatchSeeds && it != seedMap->end()) {
+  if (PatchSeeds && state.isSeeded) {
+    std::map<ExecutionState *, std::vector<ExecutingSeed>>::iterator it =
+        seedMap->find(&state);
+    assert(it != seedMap->end());
+    assert(!it->second.empty());
     bool warn = false;
     for (std::vector<ExecutingSeed>::iterator siit = it->second.begin(),
                                               siie = it->second.end();
@@ -1796,10 +1801,7 @@ Executor::toConstantPointer(ExecutionState &state, ref<PointerExpr> e,
 void Executor::executeGetValue(ExecutionState &state, ref<Expr> e,
                                KInstruction *target) {
   e = Simplificator::simplifyExpr(state.constraints.cs(), e).simplified;
-  std::map<ExecutionState *, std::vector<ExecutingSeed>>::iterator it =
-      seedMap->find(&state);
-  if (it == seedMap->end() || isa<ConstantExpr>(e) ||
-      isa<ConstantPointerExpr>(e)) {
+  if (!state.isSeeded || isa<ConstantExpr>(e) || isa<ConstantPointerExpr>(e)) {
     ref<Expr> value;
     e = optimizer.optimizeExpr(e, true);
     bool success =
@@ -1808,6 +1810,10 @@ void Executor::executeGetValue(ExecutionState &state, ref<Expr> e,
     (void)success;
     bindLocal(target, state, value);
   } else {
+    std::map<ExecutionState *, std::vector<ExecutingSeed>>::iterator it =
+        seedMap->find(&state);
+    assert(it != seedMap->end());
+    assert(!it->second.empty());
     std::set<ref<Expr>> values;
     for (std::vector<ExecutingSeed>::iterator siit = it->second.begin(),
                                               siie = it->second.end();
@@ -4497,7 +4503,8 @@ Executor::MemoryUsage Executor::checkMemoryUsage() {
       arr.push_back(state);
     }
   }
-  auto toKill = std::min(arr.size(), numStates - numStates * MaxMemory / totalUsage);
+  auto toKill =
+      std::min(arr.size(), numStates - numStates * MaxMemory / totalUsage);
 
   if (toKill != 0) {
     klee_warning("killing %lu states (over memory cap: %luMB)", toKill,
@@ -4670,16 +4677,22 @@ void Executor::initialSeed(ExecutionState &initialState,
   objectManager->updateSubscribers();
 }
 
-ExecutingSeed Executor::storeState(const ExecutionState &state,
-                                   bool isCompleted) {
-  KTest *ktest = 0;
-  ktest = (KTest *)calloc(1, sizeof(*ktest));
-  bool success = getSymbolicSolution(state, ktest);
-  if (!success)
+bool Executor::storeState(const ExecutionState &state, bool isCompleted,
+                          ExecutingSeed &res) {
+  solver->setTimeout(coreSolverTimeout);
+  auto arrays = state.constraints.cs().gatherArrays();
+  std::vector<SparseStorageImpl<unsigned char>> values;
+  bool success = solver->getInitialValues(state.constraints.cs(), arrays,
+                                          values, state.queryMetaData);
+  if (!success) {
     klee_warning("unable to get symbolic solution, losing test case");
-  ExecutingSeed seed(ktest, state.steppedInstructions, isCompleted,
+    return false;
+  }
+  Assignment assignment(arrays, values);
+  ExecutingSeed seed(assignment, state.steppedInstructions, isCompleted,
                      state.coveredNew, state.coveredNewError);
-  return seed;
+  res = seed;
+  return true;
 }
 
 void Executor::reportProgressTowardsTargets(std::string prefix,
@@ -5063,8 +5076,11 @@ void Executor::terminateStateEarly(ExecutionState &state, const Twine &message,
       (AlwaysOutputSeeds && seedMap->count(&state))) {
     state.clearCoveredNew();
     if (StoreSeedsLocally) {
-      storedSeeds->push_back(
-          storeState(state, !(reason <= StateTerminationType::EARLY)));
+      ExecutingSeed seed;
+      bool success = storeState(state, !(reason <= StateTerminationType::EARLY), seed);
+      if (success) {
+        storedSeeds->push_back(seed);
+      }
     } else {
       interpreterHandler->processTestCase(
           state, (message + "\n").str().c_str(),
@@ -6899,10 +6915,12 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
     }
     state.addSymbolic(mo, array, type);
 
-    std::map<ExecutionState *, std::vector<ExecutingSeed>>::iterator it =
-        seedMap->find(&state);
-    if (it != seedMap->end()) { // In seed mode we need to add this as a
-                                // binding.
+    if (state.isSeeded) { // In seed mode we need to add this as a
+                          // binding.
+      std::map<ExecutionState *, std::vector<ExecutingSeed>>::iterator it =
+          seedMap->find(&state);
+      assert(it != seedMap->end());
+      assert(!it->second.empty());
       for (std::vector<ExecutingSeed>::iterator siit = it->second.begin(),
                                                 siie = it->second.end();
            siit != siie; ++siit) {
@@ -6910,6 +6928,9 @@ void Executor::executeMakeSymbolic(ExecutionState &state,
         KTestObject *obj = si.getNextInput(mo, NamedSeedMatching);
 
         if (!obj) {
+          if (si.assignment.bindings.count(array) != 0) {
+            continue;
+          }
           if (ZeroSeedExtension) {
             si.assignment.bindings.replace(
                 {array, SparseStorageImpl<unsigned char>(0)});

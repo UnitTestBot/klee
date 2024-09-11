@@ -37,6 +37,9 @@ ExecutingSeed::ExecutingSeed(std::string _path)
 }
 
 KTestObject *ExecutingSeed::getNextInput(const MemoryObject *mo, bool byName) {
+  if (!input)
+    return nullptr;
+
   if (byName) {
     unsigned i;
 

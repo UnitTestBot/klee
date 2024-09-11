@@ -267,9 +267,11 @@ private:
   void getKTestFilesInDir(std::string directoryPath,
                           std::vector<std::string> &results);
   std::vector<ExecutingSeed> uploadNewSeeds();
-  void initialSeed(ExecutionState &initialState, std::vector<ExecutingSeed> usingSeeds);
+  void initialSeed(ExecutionState &initialState,
+                   std::vector<ExecutingSeed> usingSeeds);
 
-  ExecutingSeed storeState(const ExecutionState &state, bool isCompleted);
+  bool storeState(const ExecutionState &state, bool isCompleted,
+                           ExecutingSeed &res);
 
   void run(ExecutionState *initialState);
 

@@ -40,6 +40,8 @@ public:
 public:
   ~ExecutingSeed() {}
 
+  ExecutingSeed() {}
+
   explicit ExecutingSeed(KTest *input, unsigned maxInstructions,
                          bool isCompleted,
                          std::deque<ref<box<bool>>> coveredNew,
@@ -47,6 +49,15 @@ public:
       : input(input, kTestDeleter), maxInstructions(maxInstructions),
         isCompleted(isCompleted), coveredNew(coveredNew),
         coveredNewError(coveredNewError) {}
+
+  explicit ExecutingSeed(Assignment assignment, unsigned maxInstructions,
+                         bool isCompleted,
+                         std::deque<ref<box<bool>>> coveredNew,
+                         ref<box<bool>> coveredNewError)
+      : assignment(assignment), maxInstructions(maxInstructions),
+        isCompleted(isCompleted), coveredNew(coveredNew),
+        coveredNewError(coveredNewError) {}
+
   ExecutingSeed(std::string _path);
 
   KTestObject *getNextInput(const MemoryObject *mo, bool byName);
