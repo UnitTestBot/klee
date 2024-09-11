@@ -93,7 +93,7 @@ class MemoryObject;
 class ObjectState;
 class PForest;
 class Searcher;
-class SeedInfo;
+class ExecutingSeed;
 class SpecialFunctionHandler;
 struct StackFrame;
 class SymbolicSource;
@@ -166,14 +166,15 @@ private:
   std::unique_ptr<TargetCalculator> targetCalculator;
   std::unique_ptr<TargetManager> targetManager;
 
-  /// When non-empty the Executor is running in "seed" mode. The
-  /// states in this map will be executed in an arbitrary order
-  /// (outside the normal search interface) until they terminate. When
-  /// the states reach a symbolic branch then either direction that
-  /// satisfies one or more seeds will be added to this map. What
-  /// happens with other states (that don't satisfy the seeds) depends
-  /// on as-yet-to-be-determined flags.
+  /// When non-empty the Executor is running in "seed" mode. This map matches
+  /// states with seeds. Seeds contain set of concrete values for symbolic
+  /// variables. When the states reach a symbolic branch then either direction
+  /// that satisfies one or more seeds will be added to this map. What happens
+  /// with other states (that don't satisfy the seeds) depends on
+  /// as-yet-to-be-determined flags.
   std::unique_ptr<SeedMap> seedMap;
+
+  std::unique_ptr<std::deque<ExecutingSeed>> storedSeeds;
 
   /// Map of globals to their representative memory object.
   std::map<const llvm::GlobalValue *, MemoryObject *> globalObjects;
@@ -199,10 +200,6 @@ private:
   /// The index into the current \ref replayKTest or \ref replayPath
   /// object.
   unsigned replayPosition;
-
-  /// When non-null a list of "seed" inputs which will be used to
-  /// drive execution.
-  const std::vector<struct KTest *> *usingSeeds;
 
   /// Disables forking, instead a random path is chosen. Enabled as
   /// needed to control memory usage. \see fork()
@@ -265,7 +262,17 @@ private:
 
   void executeInstruction(ExecutionState &state, KInstruction *ki);
 
-  void seed(ExecutionState &initialState);
+  states_ty &getSeedChanges() { return objectManager->getSeedChanges(); }
+
+  void getKTestFilesInDir(std::string directoryPath,
+                          std::vector<std::string> &results);
+  std::vector<ExecutingSeed> uploadNewSeeds();
+  void initialSeed(ExecutionState &initialState,
+                   std::vector<ExecutingSeed> usingSeeds);
+
+  bool storeState(const ExecutionState &state, bool isCompleted,
+                           ExecutingSeed &res);
+
   void run(ExecutionState *initialState);
 
   void initializeTypeManager();
@@ -712,11 +719,16 @@ private:
   void doImpliedValueConcretization(ExecutionState &state, ref<Expr> e,
                                     ref<ConstantExpr> value);
 
+  size_t getMemoryUsage();
+
   /// check memory usage and terminate states when over threshold of
   /// -max-memory
-  /// + 100MB \return true if below threshold, false otherwise (states were
+  /// + 1% \return true if below threshold, false otherwise (states were
   /// terminated)
-  bool checkMemoryUsage();
+
+  enum MemoryUsage { None, Low, High, Full };
+
+  MemoryUsage checkMemoryUsage();
 
   /// check if branching/forking into N branches is allowed
   bool branchingPermitted(ExecutionState &state, unsigned N);
@@ -729,6 +741,8 @@ private:
   void dumpPForest();
 
   void executeAction(ref<SearcherAction> action);
+
+  bool reachedMaxSeedInstructions(ExecutionState *state);
   void goForward(ref<ForwardAction> action);
 
   const KInstruction *getKInst(const llvm::Instruction *ints) const;
@@ -771,10 +785,6 @@ public:
       std::vector<std::pair<std::string, std::string>> redefinitions) override;
 
   void setFunctionsByModule(FunctionsByModule &&functionsByModule) override;
-
-  void useSeeds(const std::vector<struct KTest *> *seeds) override {
-    usingSeeds = seeds;
-  }
 
   ExecutionState *formState(llvm::Function *f);
   ExecutionState *formState(llvm::Function *f, int argc, char **argv,
@@ -844,13 +854,16 @@ public:
   void logState(const ExecutionState &state, int id,
                 std::unique_ptr<llvm::raw_fd_ostream> &f) override;
 
-  bool getSymbolicSolution(const ExecutionState &state, KTest &res) override;
+  bool getSymbolicSolution(const ExecutionState &state, KTest *res) override;
 
   void getCoveredLines(const ExecutionState &state,
                        std::map<std::string, std::set<unsigned>> &res) override;
 
   void getBlockPath(const ExecutionState &state,
                     std::string &blockPath) override;
+
+  void getSteppedInstructions(const ExecutionState &state,
+                              unsigned &res) override;
 
   Expr::Width getWidthForLLVMType(llvm::Type *type) const;
   size_t getAllocationAlignment(const llvm::Value *allocSite) const;

@@ -20,6 +20,7 @@ def klee_options(
     f_err,
     f_cov,
     write_ktests,
+    run_forever
 ):
     if max_time and int(max_time) > 30:
         MAX_SOLVER_TIME = 15
@@ -65,7 +66,14 @@ def klee_options(
         "--memory-backend=mixed",
         "--max-fixed-size-structures-size=64",
     ]
-
+    if True:
+        cmd += [
+            f"--seed-dir={test_output_dir}",
+            "--use-seeded-search",
+            "--explore-completed-seeds=false",
+            "--store-seeds-locally",
+            "--run-forever"
+        ]
     if is32:
         cmd += [
             "--allocate-determ",
@@ -189,6 +197,7 @@ class KLEEF(object):
         use_perf=False,
         use_valgrind=False,
         write_ktests=False,
+        run_forever=False
     ):
         self.source = Path(source) if source else None
         self.is32 = is32
@@ -204,6 +213,7 @@ class KLEEF(object):
             self.write_ktests = "true"
         else:
             self.write_ktests = "false"
+        self.run_forever = run_forever
 
         # This file is inside the bin directory - use the root as base
         self.bin_directory = Path(__file__).parent
@@ -308,6 +318,7 @@ class KLEEF(object):
             self.f_err,
             self.f_cov,
             self.write_ktests,
+            self.run_forever
         )
         if self.isModifyingUlimitPermitted():
             cmd = ["ulimit -s unlimited", "&&"] + cmd
@@ -407,6 +418,7 @@ def run(args):
         use_perf=args.perf,
         use_valgrind=args.valgrind,
         write_ktests=args.write_ktests,
+        run_forever=args.run_forever
     )
     wrapper.compile()
     return wrapper.run()
@@ -458,6 +470,10 @@ def main():
     parser.add_argument(
         "--write-ktests", help="Write tests in KTest format", action="store_true"
     )
+    parser.add_argument(
+        "--run-forever", help="Run symbolic execution forever", action="store_true"
+    )
+
     args = parser.parse_args()
     run(args)
 

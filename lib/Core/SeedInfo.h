@@ -1,4 +1,4 @@
-//===-- SeedInfo.h ----------------------------------------------*- C++ -*-===//
+//===--SeedInfo.h ----------------------------------------------*- C++ -*-===//
 //
 //                     The KLEE Symbolic Virtual Machine
 //
@@ -12,6 +12,7 @@
 
 #include "klee/Expr/Assignment.h"
 
+#include <deque>
 #include <set>
 
 extern "C" {
@@ -24,17 +25,44 @@ class ExecutionState;
 class TimingSolver;
 class MemoryObject;
 
-class SeedInfo {
+class ExecutingSeed {
 public:
   Assignment assignment;
-  KTest *input;
-  unsigned inputPosition;
+  std::shared_ptr<KTest> input;
+  unsigned maxInstructions = 0;
+  bool isCompleted = 0;
   std::set<struct KTestObject *> used;
+  std::string path = "";
+  mutable std::deque<ref<box<bool>>> coveredNew;
+  mutable ref<box<bool>> coveredNewError = nullptr;
+  unsigned inputPosition = 0;
 
 public:
-  explicit SeedInfo(KTest *_input) : input(_input), inputPosition(0) {}
+  ~ExecutingSeed() {}
+
+  ExecutingSeed() {}
+
+  explicit ExecutingSeed(KTest *input, unsigned maxInstructions,
+                         bool isCompleted,
+                         std::deque<ref<box<bool>>> coveredNew,
+                         ref<box<bool>> coveredNewError)
+      : input(input, kTestDeleter), maxInstructions(maxInstructions),
+        isCompleted(isCompleted), coveredNew(coveredNew),
+        coveredNewError(coveredNewError) {}
+
+  explicit ExecutingSeed(Assignment assignment, unsigned maxInstructions,
+                         bool isCompleted,
+                         std::deque<ref<box<bool>>> coveredNew,
+                         ref<box<bool>> coveredNewError)
+      : assignment(assignment), maxInstructions(maxInstructions),
+        isCompleted(isCompleted), coveredNew(coveredNew),
+        coveredNewError(coveredNewError) {}
+
+  ExecutingSeed(std::string _path);
 
   KTestObject *getNextInput(const MemoryObject *mo, bool byName);
+
+  static void kTestDeleter(KTest *kTest);
 
   /// Patch the seed so that condition is satisfied while retaining as
   /// many of the seed values as possible.
