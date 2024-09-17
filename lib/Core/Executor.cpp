@@ -725,8 +725,7 @@ llvm::Module *Executor::setModule(
   // 4.) Manifest the module
   std::swap(kmodule->mainModuleFunctions, mainModuleFunctions);
   std::swap(kmodule->mainModuleGlobals, mainModuleGlobals);
-  kmodule->manifest(interpreterHandler, interpreterOpts.Guidance,
-                    StatsTracker::useStatistics());
+  kmodule->manifest(interpreterHandler, StatsTracker::useStatistics());
 
   kmodule->origInstructions = origInstructions;
 
@@ -7532,8 +7531,8 @@ void Executor::setInitializationGraph(
   return;
 }
 
-bool isReproducible(const klee::Symbolic &symb) {
-  auto arr = symb.array;
+bool isReproducible(const klee::Array *array) {
+  auto arr = array;
   bool bad = IrreproducibleSource::classof(arr->source.get());
   if (auto liSource = dyn_cast<LazyInitializationSource>(arr->source.get())) {
     std::vector<const Array *> arrays;
@@ -7549,6 +7548,10 @@ bool isReproducible(const klee::Symbolic &symb) {
   return !bad;
 }
 
+bool isIrreproducible(const klee::Array *array) {
+  return !isReproducible(array);
+}
+
 bool isUninitialized(const klee::Array *array) {
   bool bad = isa<UninitializedSource>(array->source);
   if (bad)
@@ -7558,7 +7561,11 @@ bool isUninitialized(const klee::Array *array) {
   return bad;
 }
 
-bool isMakeSymbolic(const klee::Symbolic &symb) {
+bool isReproducibleSymbol(const klee::Symbolic &symb) {
+  return isReproducible(symb.array);
+}
+
+bool isMakeSymbolicSymbol(const klee::Symbolic &symb) {
   auto array = symb.array;
   bool good = isa<MakeSymbolicSource>(array->source);
   if (!good)
@@ -7609,20 +7616,23 @@ bool Executor::getSymbolicSolution(const ExecutionState &state, KTest *res) {
   std::vector<const Array *> uninitObjects;
   std::copy_if(allObjects.begin(), allObjects.end(),
                std::back_inserter(uninitObjects), isUninitialized);
+  std::vector<const Array *> irreproducibleObjects;
+  std::copy_if(allObjects.begin(), allObjects.end(),
+               std::back_inserter(irreproducibleObjects), isIrreproducible);
 
   std::vector<klee::Symbolic> symbolics;
 
   if (OnlyOutputMakeSymbolicArrays) {
     std::copy_if(state.symbolics.begin(), state.symbolics.end(),
-                 std::back_inserter(symbolics), isMakeSymbolic);
+                 std::back_inserter(symbolics), isMakeSymbolicSymbol);
   } else {
     std::copy_if(state.symbolics.begin(), state.symbolics.end(),
-                 std::back_inserter(symbolics), isReproducible);
+                 std::back_inserter(symbolics), isReproducibleSymbol);
   }
 
   // we cannot be sure that an irreproducible state proves the presence of an
   // error
-  if (uninitObjects.size() > 0 || state.symbolics.size() != symbolics.size()) {
+  if (uninitObjects.size() > 0 || irreproducibleObjects.size() > 0) {
     state.error = ReachWithError::None;
   } else if (FunctionCallReproduce != "" &&
              state.error == ReachWithError::Reachable) {
