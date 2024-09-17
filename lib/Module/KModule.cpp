@@ -334,9 +334,7 @@ void KModule::manifest(InterpreterHandler *ih,
       if (isa<InlineAsm>(cs.getCalledOperand())) {
         isInlineAsm = true;
       }
-      if (kcb->calledFunctions.empty() && !isInlineAsm &&
-          (guidance != Interpreter::GuidanceKind::ErrorGuidance ||
-           !inMainModule(*kfp->function()))) {
+      if (kcb->calledFunctions.empty() && !isInlineAsm) {
         kcb->calledFunctions.insert(escapingFunctions.begin(),
                                     escapingFunctions.end());
       }
