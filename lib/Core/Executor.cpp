@@ -681,8 +681,7 @@ llvm::Module *Executor::setModule(
   // 4.) Manifest the module
   std::swap(kmodule->mainModuleFunctions, mainModuleFunctions);
   std::swap(kmodule->mainModuleGlobals, mainModuleGlobals);
-  kmodule->manifest(interpreterHandler, interpreterOpts.Guidance,
-                    StatsTracker::useStatistics());
+  kmodule->manifest(interpreterHandler, StatsTracker::useStatistics());
 
   kmodule->origInstructions = origInstructions;
 
