@@ -265,9 +265,7 @@ buildInstructionToLineMap(const llvm::Module &m,
   return a.getMapping();
 }
 
-void KModule::manifest(InterpreterHandler *ih,
-                       Interpreter::GuidanceKind guidance,
-                       bool forceSourceOutput) {
+void KModule::manifest(InterpreterHandler *ih, bool forceSourceOutput) {
 
   if (OutputModule) {
     std::unique_ptr<llvm::raw_fd_ostream> f(ih->openOutputFile("final.bc"));
