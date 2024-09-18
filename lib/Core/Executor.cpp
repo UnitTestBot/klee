@@ -362,6 +362,13 @@ cl::opt<unsigned>
                           "seeding begins, 0 = upload all (default=0)"),
                  cl::init(0), cl::cat(SeedingCat));
 
+cl::opt<unsigned> UploadPercentage(
+    "upload-percentage",
+    cl::desc(
+        "Percentage of seeds stored in executor, that are uploaded every time"
+        "seeding begins, 0 = disabled (default=100)"),
+    cl::init(100), cl::cat(SeedingCat));
+
 cl::opt<bool> AlwaysOutputSeeds(
     "always-output-seeds", cl::init(true),
     cl::desc(
@@ -1284,10 +1291,6 @@ void Executor::branch(ExecutionState &state,
     for (std::vector<ExecutingSeed>::iterator siit = seeds.begin(),
                                               siie = seeds.end();
          siit != siie; ++siit) {
-      if (siit->maxInstructions &&
-          siit->maxInstructions < state.steppedInstructions) {
-        continue;
-      }
       unsigned i;
       for (i = 0; i < N; ++i) {
         ref<ConstantExpr> res;
@@ -1446,10 +1449,6 @@ Executor::StatePair Executor::fork(ExecutionState &current, ref<Expr> condition,
     for (std::vector<ExecutingSeed>::iterator siit = it->second.begin(),
                                               siie = it->second.end();
          siit != siie; ++siit) {
-      if (siit->maxInstructions &&
-          siit->maxInstructions < current.steppedInstructions) {
-        continue;
-      }
       ref<ConstantExpr> result;
       bool success = solver->getValue(current.constraints.cs(),
                                       siit->assignment.evaluate(condition),
@@ -4601,23 +4600,30 @@ void Executor::getKTestFilesInDir(std::string directoryPath,
 
 std::vector<ExecutingSeed> Executor::uploadNewSeeds() {
   std::vector<ExecutingSeed> seeds;
+  //FIX: experimental option + storedseedslocally behaviour (yes, no, mixed)
+  unsigned toUpload = UploadAmount;
+  if(UploadPercentage){
+    toUpload = (storedSeeds->size() * UploadPercentage) / 100;
+    if(toUpload == 0) toUpload = 1;
+  }
   if (StoreSeedsLocally) {
-    while ((!UploadAmount || seeds.size() <= UploadAmount) &&
+    while ((!toUpload || seeds.size() <= toUpload) &&
            !storedSeeds->empty()) {
       if (ExploreCompletedSeeds || !storedSeeds->front().isCompleted) {
         seeds.push_back(storedSeeds->front());
       }
       storedSeeds->pop_front();
     }
+    return seeds;
   }
 
-  if (UploadAmount && seeds.size() >= UploadAmount) {
+  if (toUpload && seeds.size() >= toUpload) {
     return seeds;
   }
 
   for (std::vector<std::string>::iterator it = SeedOutFile.begin(),
                                           ie = SeedOutFile.end();
-       it != ie && (!UploadAmount || seeds.size() <= UploadAmount); ++it) {
+       it != ie && (!toUpload || seeds.size() <= toUpload); ++it) {
     ExecutingSeed out(it->substr(0, it->size() - 5));
     if (!out.input) {
       klee_error("unable to open: %s\n", (*it).c_str());
@@ -4633,7 +4639,7 @@ std::vector<ExecutingSeed> Executor::uploadNewSeeds() {
     getKTestFilesInDir(*it, kTestFiles);
     for (std::vector<std::string>::iterator it2 = kTestFiles.begin(),
                                             ie = kTestFiles.end();
-         it2 != ie && (!UploadAmount || seeds.size() <= UploadAmount); ++it2) {
+         it2 != ie && (!toUpload || seeds.size() <= toUpload); ++it2) {
       ExecutingSeed out(it2->substr(0, it2->size() - 5));
       if (!out.input) {
         klee_error("unable to open: %s\n", (*it2).c_str());
