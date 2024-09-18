@@ -73,6 +73,7 @@ def klee_options(
             "--explore-completed-seeds=false",
             "--store-seeds-locally",
             "--run-forever"
+            "--upload-percentage=50"
         ]
     if is32:
         cmd += [
