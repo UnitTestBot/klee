@@ -1,4 +1,4 @@
-//===--SeedInfo.h ----------------------------------------------*- C++ -*-===//
+//=== --SeedInfo.h ----------------------------------------------*- C++ -*-===//
 //
 //                     The KLEE Symbolic Virtual Machine
 //
@@ -27,47 +27,31 @@ class MemoryObject;
 
 class ExecutingSeed {
 public:
-  Assignment assignment;
-  std::shared_ptr<KTest> input;
+  mutable Assignment assignment;
   unsigned maxInstructions = 0;
-  bool isCompleted = 0;
-  std::set<struct KTestObject *> used;
-  std::string path = "";
+  mutable std::set<struct KTestObject *> used;
   mutable std::deque<ref<box<bool>>> coveredNew;
   mutable ref<box<bool>> coveredNewError = nullptr;
-  unsigned inputPosition = 0;
+  mutable unsigned inputPosition = 0;
 
 public:
   ~ExecutingSeed() {}
 
   ExecutingSeed() {}
 
-  explicit ExecutingSeed(KTest *input, unsigned maxInstructions,
-                         bool isCompleted,
-                         std::deque<ref<box<bool>>> coveredNew,
-                         ref<box<bool>> coveredNewError)
-      : input(input, kTestDeleter), maxInstructions(maxInstructions),
-        isCompleted(isCompleted), coveredNew(coveredNew),
+  explicit ExecutingSeed(unsigned maxInstructions,
+                         std::deque<ref<box<bool>>> coveredNew = {},
+                         ref<box<bool>> coveredNewError = 0)
+      : maxInstructions(maxInstructions), coveredNew(coveredNew),
         coveredNewError(coveredNewError) {}
 
   explicit ExecutingSeed(Assignment assignment, unsigned maxInstructions,
-                         bool isCompleted,
                          std::deque<ref<box<bool>>> coveredNew,
                          ref<box<bool>> coveredNewError)
       : assignment(assignment), maxInstructions(maxInstructions),
-        isCompleted(isCompleted), coveredNew(coveredNew),
-        coveredNewError(coveredNewError) {}
+        coveredNew(coveredNew), coveredNewError(coveredNewError) {}
 
-  ExecutingSeed(std::string _path);
-
-  KTestObject *getNextInput(const MemoryObject *mo, bool byName);
-
-  static void kTestDeleter(KTest *kTest);
-
-  /// Patch the seed so that condition is satisfied while retaining as
-  /// many of the seed values as possible.
-  void patchSeed(const ExecutionState &state, ref<Expr> condition,
-                 TimingSolver *solver);
+  static void kTestDeleter(KTest *ktest);
 };
 } // namespace klee
 

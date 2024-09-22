@@ -424,6 +424,9 @@ cl::opt<SAMultiplexKind> MultiplexForStaticAnalysis(
 } // namespace
 
 namespace klee {
+
+extern cl::list<std::string> SeedOutFile;
+extern cl::list<std::string> SeedOutDir;
 extern cl::opt<std::string> MaxTime;
 extern cl::opt<std::string> FunctionCallReproduce;
 extern cl::opt<HaltExecution::Reason> DumpStatesOnHalt;
@@ -449,9 +452,6 @@ private:
   int m_argc;
   char **m_argv;
 
-  int argc() override { return m_argc; }
-  char **argv() override { return m_argv; }
-
 public:
   KleeHandler(int argc, char **argv);
   ~KleeHandler();
@@ -465,8 +465,7 @@ public:
   void incPathsExplored(std::uint32_t num = 1) override {
     m_pathsExplored += num;
   }
-  bool seedInfoToFile(unsigned instructions, unsigned isCompleted,
-                      std::string path);
+  bool seedInfoToFile(unsigned instructions, std::string path);
 
   void setInterpreter(Interpreter *i);
 
@@ -486,6 +485,9 @@ public:
 
   // load a .path file
   static void loadPathFile(std::string name, std::vector<bool> &buffer);
+
+  static void getKTestFilesInDir(std::string directoryPath,
+                                 std::vector<std::string> &results);
 
   static std::string getRunTimeLibraryPath(const char *argv0);
 
@@ -673,14 +675,12 @@ KleeHandler::openTestFile(const std::string &suffix, unsigned id,
   return openOutputFile(getTestFilename(suffix, id, version));
 }
 
-bool KleeHandler::seedInfoToFile(unsigned instructions, unsigned isCompleted,
-                                 std::string path) {
+bool KleeHandler::seedInfoToFile(unsigned instructions, std::string path) {
   std::ofstream out(path + "seedinfo");
   if (!out.good()) {
     return false;
   }
   out << instructions << "\n";
-  out << isCompleted;
   return true;
 }
 
@@ -692,9 +692,12 @@ void KleeHandler::processTestCase(const ExecutionState &state,
   if (!WriteNone &&
       (FunctionCallReproduce == "" || strcmp(suffix, "assert.err") == 0 ||
        strcmp(suffix, "reachable.err") == 0)) {
-    KTest *ktest = 0;
-    ktest = (KTest *)calloc(1, sizeof(*ktest));
-    bool isCompleted = strcmp(suffix, "early") != 0;
+    KTest ktest;
+    ktest.numArgs = m_argc;
+    ktest.args = m_argv;
+    ktest.symArgvs = 0;
+    ktest.symArgvLen = 0;
+
     bool success = m_interpreter->getSymbolicSolution(state, ktest);
 
     if (!success)
@@ -705,9 +708,9 @@ void KleeHandler::processTestCase(const ExecutionState &state,
 
     if (success) {
       if (WriteKTests) {
-        for (unsigned i = 0; i < ktest->uninitCoeff + 1; ++i) {
+        for (unsigned i = 0; i < ktest.uninitCoeff + 1; ++i) {
           if (!kTest_toFile(
-                  ktest,
+                  &ktest,
                   getOutputFilename(getTestFilename("ktest", id, i)).c_str())) {
             klee_warning("unable to write output test case, losing it");
           } else {
@@ -722,26 +725,29 @@ void KleeHandler::processTestCase(const ExecutionState &state,
       }
 
       if (WriteXMLTests) {
-        for (unsigned i = 0; i < ktest->uninitCoeff + 1; ++i) {
-          writeTestCaseXML(message != nullptr, *ktest, id, i);
+        for (unsigned i = 0; i < ktest.uninitCoeff + 1; ++i) {
+          writeTestCaseXML(message != nullptr, ktest, id, i);
           atLeastOneGenerated = true;
         }
       }
 
       if (WriteSeedInfo) {
-        for (unsigned i = 0; i < ktest->uninitCoeff + 1; ++i) {
+        for (unsigned i = 0; i < ktest.uninitCoeff + 1; ++i) {
           unsigned steppedInstructions;
           m_interpreter->getSteppedInstructions(state, steppedInstructions);
-          if (!seedInfoToFile(steppedInstructions, isCompleted,
+          if (!seedInfoToFile(steppedInstructions,
                               getOutputFilename(getTestFilename("", id, i)))) {
             klee_warning("unable to write seedinfo for test case");
           }
         }
       }
 
-      kTest_free(ktest);
-    } else {
-      free(ktest);
+      for (unsigned i = 0; i < ktest.numObjects; i++) {
+        free(ktest.objects[i].name);
+        free(ktest.objects[i].bytes);
+        free(ktest.objects[i].pointers);
+      }
+      free(ktest.objects);
     }
 
     if (message) {
@@ -926,6 +932,24 @@ void KleeHandler::loadPathFile(std::string name, std::vector<bool> &buffer) {
     if (f.good())
       buffer.push_back(!!value);
     f.get();
+  }
+}
+
+void KleeHandler::getKTestFilesInDir(std::string directoryPath,
+                                     std::vector<std::string> &results) {
+  std::error_code ec;
+  llvm::sys::fs::directory_iterator i(directoryPath, ec), e;
+  for (; i != e && !ec; i.increment(ec)) {
+    auto f = i->path();
+    if (f.size() >= 6 && f.substr(f.size() - 6, f.size()) == ".ktest") {
+      results.push_back(f);
+    }
+  }
+
+  if (ec) {
+    llvm::errs() << "ERROR: unable to read output directory: " << directoryPath
+                 << ": " << ec.message() << "\n";
+    exit(1);
   }
 }
 
@@ -1525,6 +1549,47 @@ static int run_klee_on_function(int pArgc, char **pArgv, char **pEnvp,
     handler->getInfoStream().flush();
   }
 
+  if (RunInDir != "") {
+    int res = chdir(RunInDir.c_str());
+    if (res < 0) {
+      klee_error("Unable to change directory to: %s - %s", RunInDir.c_str(),
+                 sys::StrError(errno).c_str());
+    }
+  }
+
+  std::vector<SeedFromFile> seeds;
+  for (std::vector<std::string>::iterator it = SeedOutFile.begin(),
+                                          ie = SeedOutFile.end();
+       it != ie; ++it) {
+    SeedFromFile out(it->substr(0, it->size() - 5));
+    if (!out.ktest) {
+      klee_error("unable to open: %s\n", (*it).c_str());
+    }
+    seeds.push_back(out);
+  }
+  for (std::vector<std::string>::iterator it = SeedOutDir.begin(),
+                                          ie = SeedOutDir.end();
+       it != ie; ++it) {
+    std::vector<std::string> kTestFiles;
+    KleeHandler::getKTestFilesInDir(*it, kTestFiles);
+    for (std::vector<std::string>::iterator it2 = kTestFiles.begin(),
+                                            ie = kTestFiles.end();
+         it2 != ie; ++it2) {
+      SeedFromFile out(it2->substr(0, it2->size() - 5));
+      if (!out.ktest) {
+        klee_error("unable to open: %s\n", (*it2).c_str());
+      }
+      seeds.push_back(out);
+    }
+    if (kTestFiles.empty()) {
+      klee_error("seeds directory is empty: %s\n", (*it).c_str());
+    }
+  }
+
+  if (!seeds.empty()) {
+    klee_message("KLEE: using %lu seeds\n", seeds.size());
+    interpreter->useSeeds(seeds);
+  }
   if (RunInDir != "") {
     int res = chdir(RunInDir.c_str());
     if (res < 0) {

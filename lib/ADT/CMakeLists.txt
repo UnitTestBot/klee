@@ -7,6 +7,7 @@
 #
 #===------------------------------------------------------------------------===#
 add_library(kleeADT
+  SeedFromFile.cpp
   SparseStorage.cpp
 )
 

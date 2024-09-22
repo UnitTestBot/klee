@@ -133,8 +133,7 @@ private:
   decltype(__ctype_toupper_loc()) c_type_toupper_addr;
 #endif
 
-  size_t maxNewWriteableOSSize = 0;
-  size_t maxNewStateStackSize = 0;
+  size_t lastTotalMemoryUsage = 0;
 
   size_t multiplexReached = 0;
 
@@ -199,6 +198,10 @@ private:
   /// object.
   unsigned replayPosition;
 
+  /// When non-null a list of "seed" inputs which will be used to
+  /// drive execution.
+  std::vector<ExecutingSeed> usingInitialSeeds;
+
   /// Disables forking, instead a random path is chosen. Enabled as
   /// needed to control memory usage. \see fork()
   bool atMemoryLimit;
@@ -260,16 +263,11 @@ private:
 
   void executeInstruction(ExecutionState &state, KInstruction *ki);
 
-  states_ty &getSeedChanges() { return objectManager->getSeedChanges(); }
-
-  void getKTestFilesInDir(std::string directoryPath,
-                          std::vector<std::string> &results);
   std::vector<ExecutingSeed> uploadNewSeeds();
   void initialSeed(ExecutionState &initialState,
                    std::vector<ExecutingSeed> usingSeeds);
 
-  bool storeState(const ExecutionState &state, bool isCompleted,
-                           ExecutingSeed &res);
+  bool storeState(const ExecutionState &state, ExecutingSeed &res);
 
   void run(ExecutionState *initialState);
 
@@ -584,12 +582,6 @@ private:
   ref<klee::ConstantExpr> toConstant(ExecutionState &state, ref<Expr> e,
                                      const std::string &reason);
 
-  /// Evaluate the given expression under each seed, and return the
-  /// first one that results in a constant, if such a seed exist.  Otherwise,
-  /// return the non-constant evaluation of the expression under one of the
-  /// seeds.
-  ref<klee::ConstantExpr> getValueFromSeeds(ExecutionState &state, ref<Expr> e);
-
   ref<klee::ConstantPointerExpr> toConstantPointer(ExecutionState &state,
                                                    ref<PointerExpr> e,
                                                    const char *purpose);
@@ -738,7 +730,7 @@ private:
 
   void executeAction(ref<SearcherAction> action);
 
-  bool reachedMaxSeedInstructions(ExecutionState *state);
+  void unseedIfReachedMacSeedInstructions(ExecutionState *state);
   void goForward(ref<ForwardAction> action);
 
   const KInstruction *getKInst(const llvm::Instruction *ints) const;
@@ -781,6 +773,12 @@ public:
       std::vector<std::pair<std::string, std::string>> redefinitions) override;
 
   void setFunctionsByModule(FunctionsByModule &&functionsByModule) override;
+
+  void useSeeds(std::vector<SeedFromFile> seeds) override {
+    for (SeedFromFile seed : seeds) {
+      usingInitialSeeds.push_back(ExecutingSeed(seed.maxInstructions));
+    }
+  }
 
   ExecutionState *formState(llvm::Function *f);
   ExecutionState *formState(llvm::Function *f, int argc, char **argv,
@@ -850,7 +848,7 @@ public:
   void logState(const ExecutionState &state, int id,
                 std::unique_ptr<llvm::raw_fd_ostream> &f) override;
 
-  bool getSymbolicSolution(const ExecutionState &state, KTest *res) override;
+  bool getSymbolicSolution(const ExecutionState &state, KTest &res) override;
 
   void getCoveredLines(const ExecutionState &state,
                        std::map<std::string, std::set<unsigned>> &res) override;

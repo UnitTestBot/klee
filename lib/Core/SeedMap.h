@@ -6,30 +6,36 @@
 #include "SeedInfo.h"
 
 #include <map>
-
+#include <set>
 namespace klee {
+
+struct SeedLess {
+  bool operator()(const ExecutingSeed &a, const ExecutingSeed &b) const {
+    return a.maxInstructions <= b.maxInstructions;
+  }
+};
+
+using seeds_ty = std::multiset<ExecutingSeed, SeedLess>;
+
 class SeedMap : public Subscriber {
 private:
-  std::map<ExecutionState *, std::vector<ExecutingSeed>> seedMap;
+  std::map<ExecutionState *, seeds_ty> seedMap;
 
 public:
   SeedMap();
 
   void update(ref<ObjectManager::Event> e) override;
 
-  std::map<ExecutionState *, std::vector<ExecutingSeed>>::iterator
+  std::map<ExecutionState *, seeds_ty>::iterator
   upper_bound(ExecutionState *state);
-  std::map<ExecutionState *, std::vector<ExecutingSeed>>::iterator
-  find(ExecutionState *state);
-  std::map<ExecutionState *, std::vector<ExecutingSeed>>::iterator end();
-  std::map<ExecutionState *, std::vector<ExecutingSeed>>::iterator begin();
-  void
-  erase(std::map<ExecutionState *, std::vector<ExecutingSeed>>::iterator it);
+  std::map<ExecutionState *, seeds_ty>::iterator find(ExecutionState *state);
+  std::map<ExecutionState *, seeds_ty>::iterator end();
+  std::map<ExecutionState *, seeds_ty>::iterator begin();
+  void erase(std::map<ExecutionState *, seeds_ty>::iterator it);
   void erase(ExecutionState *state);
-  void push_back(ExecutionState *state,
-                 std::vector<ExecutingSeed>::iterator siit);
+  void insert(ExecutionState *state, seeds_ty::iterator siit);
   std::size_t count(ExecutionState *state);
-  std::vector<ExecutingSeed> &at(ExecutionState *state);
+  seeds_ty &at(ExecutionState *state);
   unsigned size() { return seedMap.size(); }
   bool empty();
 

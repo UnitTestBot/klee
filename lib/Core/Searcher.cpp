@@ -920,13 +920,10 @@ void DiscreteTimeFairSearcher::printName(llvm::raw_ostream &os) {
 
 //
 
-SeededSearcher::SeededSearcher(Searcher *_searcher, states_ty &_seedChanges)
-    : baseSearcher(_searcher), seedChanges(_seedChanges) {
-  seededSearcher = std::unique_ptr<BFSSearcher>(new BFSSearcher());
-}
+SeededSearcher::SeededSearcher(Searcher *baseSearcher, Searcher *seededSearcher)
+    : baseSearcher(baseSearcher), seededSearcher(seededSearcher) {}
 
 ExecutionState &SeededSearcher::selectState() {
-  update(nullptr, {}, {});
   if (!seededSearcher->empty()) {
     return seededSearcher->selectState();
   }
@@ -936,30 +933,34 @@ ExecutionState &SeededSearcher::selectState() {
 void SeededSearcher::update(
     ExecutionState *current, const std::vector<ExecutionState *> &addedStates,
     const std::vector<ExecutionState *> &removedStates) {
-
-  for (auto state : seedChanges) {
-    if (state->isSeeded && baseSearcherStates.count(state) != 0) {
-      baseSearcher->update(nullptr, {}, {state});
-      baseSearcherStates.erase(state);
-    }
-    if (state->isSeeded && seededSearcherStates.count(state) == 0) {
-      seededSearcher->update(nullptr, {state}, {});
-      seededSearcherStates.insert(state);
-    }
-    if (!state->isSeeded && seededSearcherStates.count(state) != 0) {
-      seededSearcher->update(nullptr, {}, {state});
-      seededSearcherStates.erase(state);
-    }
-    if (!state->isSeeded && baseSearcherStates.count(state) == 0) {
-      baseSearcher->update(nullptr, {state}, {});
-      baseSearcherStates.insert(state);
-    }
-  }
-
   std::vector<ExecutionState *> addedUnseededStates;
   std::vector<ExecutionState *> addedSeededStates;
   std::vector<ExecutionState *> removedUnseededStates;
   std::vector<ExecutionState *> removedSeededStates;
+
+  // process seed/unseed of current
+  if (current) {
+    if (current->isSeeded) {
+      if (baseSearcherStates.count(current) != 0) {
+        baseSearcherStates.erase(current);
+        baseSearcher->update(nullptr, {}, {current});
+      }
+      if (seededSearcherStates.count(current) == 0) {
+        seededSearcherStates.insert(current);
+        seededSearcher->update(nullptr, {current}, {});
+      }
+    } else {
+      if (seededSearcherStates.count(current) != 0) {
+        seededSearcherStates.erase(current);
+        seededSearcher->update(nullptr, {}, {current});
+      }
+      if (baseSearcherStates.count(current) == 0) {
+        baseSearcherStates.insert(current);
+        baseSearcher->update(nullptr, {current}, {});
+      }
+    }
+  }
+
   for (auto state : addedStates) {
     if (state->isSeeded && seededSearcherStates.count(state) == 0) {
       addedSeededStates.push_back(state);

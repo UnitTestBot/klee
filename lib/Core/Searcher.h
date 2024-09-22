@@ -422,13 +422,12 @@ public:
 /// Seeded searcher is used to select seeded states before unseeded
 class SeededSearcher final : public Searcher {
   std::unique_ptr<Searcher> baseSearcher;
-  std::unique_ptr<BFSSearcher> seededSearcher;
-  states_ty &seedChanges;
+  std::unique_ptr<Searcher> seededSearcher;
   states_ty baseSearcherStates;
   states_ty seededSearcherStates;
 
 public:
-  explicit SeededSearcher(Searcher *_searcher, states_ty &_seedChanges);
+  explicit SeededSearcher(Searcher *baseSearcher, Searcher *seededSearcher);
 
   ExecutionState &selectState() override;
 

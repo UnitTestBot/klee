@@ -68,12 +68,6 @@ cl::opt<bool> UseBatchingSearch(
              "(default=false)"),
     cl::init(false), cl::cat(SearchCat));
 
-cl::opt<bool>
-    UseSeededSearch("use-seeded-search",
-                    cl::desc("Use seeded searcher (explores seeded states "
-                             "before unseeded) (default=false)"),
-                    cl::init(false), cl::cat(SearchCat));
-
 cl::opt<unsigned> BatchInstructions(
     "batch-instructions",
     cl::desc("Number of instructions to batch when using "
@@ -93,6 +87,12 @@ cl::opt<bool> UseFairSearch(
         "(default=false)"),
     cl::init(false), cl::cat(SearchCat));
 
+} // namespace klee
+
+namespace klee {
+extern cl::opt<bool> RunForever;
+extern cl::list<std::string> SeedOutFile;
+extern cl::list<std::string> SeedOutDir;
 } // namespace klee
 
 void klee::initializeSearchOptions() {
@@ -193,6 +193,13 @@ Searcher *klee::constructBaseSearcher(Executor &executor) {
         new IterativeDeepeningSearcher(searcher, UseIterativeDeepeningSearch);
   }
 
+  if (RunForever || SeedOutFile.begin() != SeedOutFile.end() ||
+      SeedOutDir.begin() != SeedOutDir.end()) {
+    searcher = new SeededSearcher(searcher,
+                                  getNewSearcher(CoreSearch[0], executor.theRNG,
+                                                 *executor.processForest));
+  }
+
   return searcher;
 }
 
@@ -205,12 +212,6 @@ Searcher *klee::constructUserSearcher(Executor &executor) {
   } else {
     searcher = constructBaseSearcher(executor);
   }
-
-  if (UseSeededSearch) {
-    states_ty &seedChandes = executor.getSeedChanges();
-    searcher = new SeededSearcher(searcher, seedChandes);
-  }
-
   llvm::raw_ostream &os = executor.getHandler().getInfoStream();
 
   os << "BEGIN searcher description\n";

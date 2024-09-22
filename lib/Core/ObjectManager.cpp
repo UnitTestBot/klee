@@ -26,10 +26,6 @@ void ObjectManager::removeInitialState(ExecutionState *state) {
   delete state;
 }
 
-void ObjectManager::addFirstState(ExecutionState *state) {
-  states.insert(state);
-}
-
 void ObjectManager::setCurrentState(ExecutionState *_current) {
   assert(current == nullptr);
   current = _current;
@@ -59,19 +55,15 @@ void ObjectManager::removeState(ExecutionState *state) {
 void ObjectManager::unseed(ExecutionState *state) {
   if (state->isSeeded) {
     state->isSeeded = false;
-    seedChanges.insert(state);
     statesUpdated = true;
   }
 }
 void ObjectManager::seed(ExecutionState *state) {
   if (!state->isSeeded) {
     state->isSeeded = true;
-    seedChanges.insert(state);
     statesUpdated = true;
   }
 }
-
-states_ty &ObjectManager::getSeedChanges() { return seedChanges; }
 
 void ObjectManager::updateSubscribers() {
   if (statesUpdated) {
@@ -93,7 +85,6 @@ void ObjectManager::updateSubscribers() {
     current = nullptr;
     addedStates.clear();
     removedStates.clear();
-    seedChanges.clear();
     statesUpdated = false;
   }
 }
