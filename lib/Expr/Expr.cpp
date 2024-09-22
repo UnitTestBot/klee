@@ -568,7 +568,6 @@ std::string Expr::toString() const {
 /***/
 
 Expr::ExprCacheSet Expr::cachedExpressions;
-Expr::ConstantExprCacheSet Expr::cachedConstantExpressions;
 
 Expr::~Expr() {
   Expr::count--;
@@ -580,23 +579,6 @@ Expr::~Expr() {
 }
 
 ConstantExpr::~ConstantExpr() {
-  if (isCached) {
-    toBeCleared = true;
-    if (mIsFloat) {
-      cachedExpressions.cache.erase(this);
-    } else {
-      cachedConstantExpressions.cache.erase(value);
-    }
-    isCached = false;
-  }
-}
-
-Expr::ConstantExprCacheSet::~ConstantExprCacheSet() {
-  while (cache.size() != 0) {
-    auto tmp = *cache.begin();
-    tmp.second->isCached = false;
-    cache.erase(cache.begin());
-  }
 }
 
 ref<Expr> Expr::createCachedExpr(ref<Expr> e) {
