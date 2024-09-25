@@ -168,13 +168,13 @@ jobs:
       - name: Install newer version of Bash
         run: brew install bash
       - name: Checkout KLEE source code
-        uses: actions/checkout@v3
-        with:
-          submodules: recursive
+        uses: actions/checkout@v4
+      - name: Create virtualenv for Python3 (PEP 668)
+        run:  python3 -m venv .venv
       - name: Build KLEE
-        run: scripts/build/build.sh klee --debug --install-system-deps
+        run:  source .venv/bin/activate && echo "$(which tabulate)" && scripts/build/build.sh klee --debug --install-system-deps
       - name: Run tests
-        run: scripts/build/run-tests.sh /tmp/klee_build* --debug
+        run:  source .venv/bin/activate && scripts/build/run-tests.sh /tmp/klee_build* --debug
 
   Docker:
     runs-on: ubuntu-latest
