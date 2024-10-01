@@ -1044,10 +1044,9 @@ Z3ASTHandle Z3BitvectorBuilder::castToFloat(const Z3ASTHandle &e) {
       assert(Z3_get_bv_sort_size(ctx, ieeeBitPatternSort) == 79);
 #endif
 
-      Z3ASTHandle ieeeBitPatternAsFloat =
-          Z3ASTHandle(Z3_mk_fpa_to_fp_bv(ctx, ieeeBitPattern,
-                                         getFloatSortFromBitWidth(bitWidth)),
-                      ctx);
+      Z3ASTHandle ieeeBitPatternAsFloat = Z3ASTHandle(
+          Z3_mk_fpa_fp(ctx, signBit, exponentBits, significandFractionBits),
+          ctx);
 
       // Generate side constraint on the significand integer bit. It is not
       // used in `ieeeBitPatternAsFloat` so we need to constrain that bit to

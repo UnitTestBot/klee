@@ -39,6 +39,7 @@ env:
   Z3_VERSION: 4.8.15
   SQLITE_VERSION: 3400100
   BITWUZLA_VERSION: 0.7.0
+  SMITHRIL_VERSION: v0.1.0
   JSON_VERSION: v3.11.3
   IMMER_VERSION: v0.8.1
 
@@ -61,6 +62,7 @@ jobs:
           "metaSMT",
           "STP master",
           "Bitwuzla only",
+          "Smithril only",
           "Latest klee-uclibc",
           "Asserts disabled",
           "No TCMalloc, optimised runtime",
@@ -126,6 +128,10 @@ jobs:
           - name: "Bitwuzla only"
             env:
               SOLVERS: BITWUZLA
+          # Test just using Smithril only
+          - name: "Smithril only"
+            env:
+              SOLVERS: SMITHRIL
           # Check we can build latest klee-uclibc branch
           - name: "Latest klee-uclibc"
             env:

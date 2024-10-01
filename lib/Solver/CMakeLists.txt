@@ -25,6 +25,9 @@ add_library(kleaverSolver
   MetaSMTSolver.cpp
   KQueryLoggingSolver.cpp
   QueryLoggingSolver.cpp
+  SmithrilBuilder.cpp
+  SmithrilHashConfig.cpp
+  SmithrilSolver.cpp
   SMTLIBLoggingSolver.cpp
   Solver.cpp
   SolverCmdLine.cpp

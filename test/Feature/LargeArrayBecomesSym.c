@@ -4,7 +4,8 @@
 // RUN: %clang %s -emit-llvm %O0opt -c -o %t1.bc
 // RUN: rm -rf %t.klee-out
 /* The solver timeout is needed as some solvers, such as metaSMT+CVC4, time out here. */
-// RUN: %klee --max-solver-time=2 --output-dir=%t.klee-out %t1.bc 2>&1 | FileCheck %s
+// RUN: %klee --max-solver-time=2 --output-dir=%t.klee-out %t1.bc > %t-output.txt 2>&1
+// RUN: FileCheck -input-file=%t-output.txt %s
 
 #include "klee/klee.h"
 

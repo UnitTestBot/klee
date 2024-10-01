@@ -13,6 +13,10 @@
 #include "BitwuzlaSolver.h"
 #endif
 
+#ifdef ENABLE_SMITHRIL
+#include "SmithrilSolver.h"
+#endif
+
 #ifdef ENABLE_METASMT
 #include "MetaSMTSolver.h"
 #endif
@@ -102,8 +106,20 @@ std::unique_ptr<Solver> createCoreSolver(CoreSolverType cst) {
                    MaxSolversApproxTreeInc.ArgStr.str().c_str());
     }
     return std::make_unique<BitwuzlaSolver>();
+#endif
+  case SMITHRIL_TREE_SOLVER:
+  case SMITHRIL_SOLVER:
+#ifdef ENABLE_SMITHRIL
+    klee_message("Using Smithril solver backend");
+    if (isTreeSolver) {
+      if (MaxSolversApproxTreeInc > 0)
+        return std::make_unique<SmithrilTreeSolver>(MaxSolversApproxTreeInc);
+      klee_warning("--%s is 0, so falling back to non tree-incremental solver",
+                   MaxSolversApproxTreeInc.ArgStr.str().c_str());
+    }
+    return std::make_unique<SmithrilSolver>();
 #else
-    klee_message("Not compiled with Bitwuzla support");
+    klee_message("Not compiled with Smithril support");
     return NULL;
 #endif
   case NO_SOLVER:

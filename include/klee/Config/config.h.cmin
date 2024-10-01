@@ -16,6 +16,9 @@
 /* Using Bitwuzla Solver backend */
 #cmakedefine ENABLE_BITWUZLA @ENABLE_BITWUZLA@
 
+/* Using Bitwuzla Solver backend */
+#cmakedefine ENABLE_SMITHRIL @ENABLE_SMITHRIL@
+
 /* Enable KLEE floating point extension */
 #cmakedefine ENABLE_FP @ENABLE_FP@
 

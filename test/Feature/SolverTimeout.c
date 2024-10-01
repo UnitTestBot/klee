@@ -1,6 +1,7 @@
 // RUN: %clang %s -emit-llvm %O0opt -c -o %t.bc
 // RUN: rm -rf %t.klee-out
-// RUN: %klee --output-dir=%t.klee-out --max-solver-time=1 %t.bc 2>&1 | FileCheck %s
+// RUN: %klee --output-dir=%t.klee-out --max-solver-time=1 %t.bc > %t-output.txt 2>&1
+// RUN: FileCheck -input-file=%t-output.txt %s
 //
 // Note: This test occasionally fails when using Z3 4.4.1
 #include "klee/klee.h"

@@ -1,6 +1,7 @@
 // RUN: %clang %s -emit-llvm -g -c -o %t1.bc
 // RUN: rm -rf %t.klee-out
-// RUN: %klee --output-dir=%t.klee-out --skip-not-symbolic-objects --skip-local=false --use-sym-size-li --min-number-elements-li=1 %t1.bc 2>&1 | FileCheck %s
+// RUN: %klee --output-dir=%t.klee-out --skip-not-symbolic-objects --skip-local=false --use-sym-size-li --min-number-elements-li=1 %t1.bc > %t-output.txt 2>&1
+// RUN: FileCheck -input-file=%t-output.txt %s
 
 #include "klee/klee.h"
 #include <assert.h>
