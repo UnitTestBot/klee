@@ -72,7 +72,6 @@ def klee_options(
         "--only-output-make-symbolic-arrays",
         "--memory-backend=mixed",
         "--max-fixed-size-structures-size=64",
-        "--use-batching-search",
         "--optimize=true",
     ]
     if True:
