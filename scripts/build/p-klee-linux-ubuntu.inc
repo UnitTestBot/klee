@@ -13,6 +13,7 @@ install_build_dependencies_klee() {
     pkg-config
     cmake-data
     coreutils
+    libtinfo-dev
   )
 
   if [[ "${SOLVERS:-}" == "metaSMT" ]]; then
