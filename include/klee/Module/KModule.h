@@ -352,8 +352,7 @@ public:
   /// @param forceSourceOutput true if assembly.ll should be created
   ///
   // FIXME: ihandler should not be here
-  void manifest(InterpreterHandler *ih, Interpreter::GuidanceKind guidance,
-                bool forceSourceOutput);
+  void manifest(InterpreterHandler *ih, bool forceSourceOutput);
 
   /// Link the provided modules together as one KLEE module.
   ///

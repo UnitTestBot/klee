@@ -232,7 +232,7 @@ void MockBuilder::buildExternalGlobalsDefinitions() {
     global->setInitializer(zeroInitializer);
     global->setDSOLocal(true);
     auto *localPointer = builder->CreateAlloca(elementType, nullptr);
-    buildCallKleeMakeSymbolic("klee_make_symbolic", localPointer, elementType,
+    buildCallKleeMakeSymbolic("klee_make_mock", localPointer, elementType,
                               "external_" + extName);
     llvm::Value *localValue = builder->CreateLoad(elementType, localPointer);
     builder->CreateStore(localValue, global);
