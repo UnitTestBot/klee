@@ -138,12 +138,12 @@ Term BitwuzlaBuilder::eqExpr(Term a, Term b) {
   Sort aSort = a.sort();
   Sort bSort = b.sort();
 
-  if (aSort.is_bool() && bSort.is_fp()) {
+  if (aSort.is_bv() && bSort.is_fp()) {
     // Coerce `b` to be a bitvector
     b = castToBitVector(b);
   }
 
-  if (aSort.is_fp() && bSort.is_bool()) {
+  if (aSort.is_fp() && bSort.is_bv()) {
     // Coerce `a` to be a bitvector
     a = castToBitVector(a);
   }
