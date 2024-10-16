@@ -77,6 +77,7 @@ def klee_options(
         "--memory-backend=mixed",
         "--max-fixed-size-structures-size=64",
         "--optimize=true",
+        "--use-batching-search",
     ]
     if True:
         cmd += [
