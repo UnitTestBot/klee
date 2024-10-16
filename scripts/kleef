@@ -34,9 +34,10 @@ def klee_options(
         "--use-forked-solver=false",
         # "--solver-backend=stp",
         # "--solver-backend=z3-tree",
-        "--solver-backend=bitwuzla-tree",
+        "--solver-backend=bitwuzla",
         "--max-solvers-approx-tree-inc=16",
-        f"--max-memory={int(max_memory * 0.9)}",  # Just use half of the memory in case we have to fork
+        # Just use half of the memory in case we have to fork
+        f"--max-memory={int(max_memory * 0.7)}",
         "--libc=klee",
         "--skip-not-lazy-initialized",
         f"--output-dir={test_output_dir}",  # Output files into specific directory
@@ -56,19 +57,20 @@ def klee_options(
         "--fp-runtime",
         # "--max-sym-array-size=4096",
         "--symbolic-allocation-threshold=8192",
-        "--uninit-memory-test-multiplier=10",
+        "--uninit-memory-test-multiplier=0",
         # "--dump-all-states=false",
         #  "--search=nurs:covnew",
         #  "--search=nurs:md2u", "--search=random-path",
         #  "-const-array-opt",
         "--use-batching-search",
-        "--batch-instructions=10000",
         "--use-concretizing-solver=false",
+        "--batch-instructions=10000",
         "--batch-time=0",
         "--only-output-make-symbolic-arrays",
         "--memory-backend=mixed",
         "--max-fixed-size-structures-size=64",
         "--use-intermittent-equalities-rewriter",
+        "--use-iterative-deepening-search=max-cycles",
     ]
 
     if is32:
@@ -90,7 +92,7 @@ def klee_options(
             "--exit-on-error-type=Assert",  # Only generate test cases of type assert
             # "--dump-test-case-type=Assert", # Only dump test cases of type assert
             "--search=dfs",
-            "--search=bfs",
+            "--search=random-state",
             #    "--search=nurs:covnew", "--search=random-path","--search=dfs", "--use-batching-search",
             #    "--search=distance","--search=random-path","--use-batching-search",
             # "--target-assert", # Target
@@ -109,10 +111,10 @@ def klee_options(
         cmd += [
             "--optimize=false",
             "--mem-trigger-cof", # Start on the fly tests generation after approaching memory cup
+            "--use-guided-search=coverage",
             "--use-alpha-equivalence=true",
             "--optimize-aggressive=false",
             "--track-coverage=all", # Only branches and only instructions are wrong in real life. E.g., ternary operators are sometimes counted as different branches, while we stick to look at them as a single instruction from a single branch
-            "--use-iterative-deepening-search=max-cycles",
             f"--max-solver-time={MAX_SOLVER_TIME}s",
             "--max-cycles-before-stuck=15",
             # "--tc-type=cov",
@@ -124,8 +126,8 @@ def klee_options(
         if max_time:
             max_time = float(max_time)
             if max_time and int(max_time) > 30:
-                late_time = int(max_time * 0.9)
-                last_time = int(max_time * 0.97)
+                late_time = int(max_time * 0.7)
+                last_time = int(max_time * 0.9)
             else:
                 late_time = int(max_time * 0.8)
                 last_time = int(max_time * 0.9)
