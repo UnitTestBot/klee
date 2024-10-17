@@ -231,7 +231,9 @@ class KLEEF(object):
         self.linker_path = tryFind(self.bin_directory, "llvm-link")
         self.library_path = self.base_directory / "libraries"
         self.runtime_library_path = self.base_directory / "runtime/lib"
-        self.test_results_path = Path.cwd() / "test-suite"
+        self.test_results_path = Path.cwd() / self.source.name
+        self.test_results_path.mkdir(exist_ok=True)
+        self.test_results_path = self.test_results_path / "test-suite"
         self.test_results_path.mkdir(exist_ok=True)
 
         self.callEnv = os.environ.copy()
@@ -242,7 +244,8 @@ class KLEEF(object):
         self.tempdir = Path(tempfile.mkdtemp())
 
         # Compile file for testing
-        self.compiled_file = self.tempdir / (self.source.name + ".bc")
+        # self.compiled_file = self.tempdir / (self.source.name + ".bc")
+        self.compiled_file = Path.cwd() / (self.source.name + ".bc")
 
         compiler_options = [
             self.compiler_path,
@@ -309,7 +312,7 @@ class KLEEF(object):
         return not out
 
     def run(self):
-        test_output_dir = self.test_results_path / self.source.name
+        # test_output_dir = self.test_results_path / self.source.name
         test_output_dir = self.test_results_path
         # Clean-up from previous runs if needed
         shutil.rmtree(test_output_dir, ignore_errors=True)
