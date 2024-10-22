@@ -6705,7 +6705,7 @@ bool Executor::resolveMemoryObjects(
       } else if (mayLazyInitialize) {
         uint64_t minObjectSize = 0;
         // minObjectSize = MinNumberElementsLazyInit * MinElementSizeLazyInit;
-        minObjectSize = MinNumberElementsLazyInit * size;
+        minObjectSize = state.isolated ? 0 : MinNumberElementsLazyInit * size;
 
         const Array *lazyInstantiationSize = makeArray(
             Expr::createPointer(Context::get().getPointerWidth() / CHAR_BIT),
@@ -6714,7 +6714,7 @@ bool Executor::resolveMemoryObjects(
                                              Context::get().getPointerWidth());
         ref<const MemoryObject> idLazyInitialization = lazyInitializeObject(
             state, basePointer, target, minObjectSize, sizeExpr, false,
-            checkOutOfBounds, UseSymbolicSizeLazyInit);
+            checkOutOfBounds, state.isolated || UseSymbolicSizeLazyInit);
         RefObjectPair op = state.addressSpace.findOrLazyInitializeObject(
             idLazyInitialization.get());
         state.addressSpace.bindObject(op.first, op.second.get());
@@ -7410,9 +7410,9 @@ void Executor::lazyInitializeLocalObject(ExecutionState &state, StackFrame &sf,
   ref<PointerExpr> pointer = PointerExpr::create(address);
   ref<PointerExpr> basePointer =
       PointerExpr::create(pointer->getBase(), pointer->getBase());
-  ref<const MemoryObject> id =
-      lazyInitializeObject(state, pointer, target, elementSize, size, true,
-                           conditionExpr, UseSymbolicSizeLazyInit);
+  ref<const MemoryObject> id = lazyInitializeObject(
+      state, pointer, target, elementSize, size, true, conditionExpr,
+      state.isolated || UseSymbolicSizeLazyInit);
   state.addPointerResolution(pointer, id.get());
   state.addPointerResolution(basePointer, id.get());
   state.addConstraint(EqExpr::create(address, id->getBaseExpr()));
