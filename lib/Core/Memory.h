@@ -21,6 +21,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <klee/Core/Context.h>
 #include <memory>
 #include <optional>
 #include <string>
@@ -183,6 +184,17 @@ public:
     ref<Expr> condition = getBaseCheck(pointer->getBase());
     condition = AndExpr::create(
         condition, getBoundsCheckAddress(pointer->getValue(), bytes));
+
+    if (pointer->bounds && pointer->bounds->size != 0) {
+      auto boundOffset = ConstantExpr::create(pointer->bounds->offset, Context::get().getPointerWidth());
+      auto boundSize = ConstantExpr::create(pointer->bounds->size, Context::get().getPointerWidth());
+      auto innerOffset = SubExpr::create(pointer->getOffset(), boundOffset);
+      condition =
+          AndExpr::create(condition, UleExpr::create(innerOffset, boundSize));
+      auto innerOffsetPlusWidth = AddExpr::create(innerOffset, ConstantExpr::create(bytes, Context::get().getPointerWidth()));
+      condition = AndExpr::create(condition, UleExpr::create(innerOffsetPlusWidth, boundSize));
+    }
+
     return condition;
   }
 
@@ -310,6 +322,8 @@ public:
   void swapObjectHack(MemoryObject *mo) { object = mo; }
 
   ref<Expr> read(ref<Expr> offset, Expr::Width width) const;
+  ref<Expr> read(ref<Expr> offset, Expr::Width width,
+                 PointerExpr::ContainingBounds bounds) const;
   ref<Expr> read(unsigned offset, Expr::Width width) const;
   ref<Expr> read8(unsigned offset) const;
   ref<Expr> readValue(ref<Expr> offset, Expr::Width width) const;
@@ -321,6 +335,8 @@ public:
 
   void write(unsigned offset, ref<Expr> value);
   void write(ref<Expr> offset, ref<Expr> value);
+  void write(ref<Expr> offset, ref<Expr> value,
+             PointerExpr::ContainingBounds bounds);
   void write(ref<const ObjectState> os);
 
   void write8(unsigned offset, uint8_t value);

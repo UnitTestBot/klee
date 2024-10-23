@@ -12,6 +12,7 @@
 
 #include "klee/ADT/Ref.h"
 #include "klee/Expr/SymbolicSource.h"
+#include <optional>
 
 #ifndef NDEBUG
 #include "klee/ADT/Bits.h"
@@ -1678,15 +1679,31 @@ class PointerExpr : public NonConstantExpr {
 public:
   static const Kind kind = Expr::Pointer;
   static const unsigned numKids = 2;
+
+  // If present, the pointer points at
+  // [base_address + offset; base_address + offset + size]
+  struct ContainingBounds {
+    size_t offset;
+    size_t size;
+    bool offset_has_symbolic;
+  };
+
   ref<Expr> base;
   ref<Expr> value;
-  static ref<Expr> alloc(const ref<Expr> &b, const ref<Expr> &v) {
-    ref<Expr> r(new PointerExpr(b, v));
+
+  std::optional<ContainingBounds> bounds;
+
+  static ref<Expr>
+  alloc(const ref<Expr> &b, const ref<Expr> &v,
+        std::optional<ContainingBounds> bounds = std::nullopt) {
+    ref<Expr> r(new PointerExpr(b, v, bounds));
     r->computeHash();
     r->computeHeight();
     return r;
   }
-  static ref<Expr> create(const ref<Expr> &b, const ref<Expr> &o);
+  static ref<Expr>
+  create(const ref<Expr> &b, const ref<Expr> &o,
+         std::optional<ContainingBounds> bounds = std::nullopt);
   static ref<Expr> create(const ref<Expr> &v);
   static ref<Expr> createSymbolic(const ref<Expr> &expr,
                                   const ref<ReadExpr> &pointer,
@@ -1696,6 +1713,9 @@ public:
   Kind getKind() const { return Expr::Pointer; }
   ref<Expr> getBase() const { return base; }
   ref<Expr> getValue() const { return value; }
+  std::optional<ContainingBounds> getContainingBounds() const {
+    return bounds;
+  }
   ref<Expr> getOffset() const {
     assert(value->getWidth() == base->getWidth() &&
            "Invalid getOffset() call!");
@@ -1715,6 +1735,9 @@ public:
   virtual ref<Expr> rebuild(ref<Expr> kids[]) const {
     return create(kids[0], kids[1]);
   }
+
+  // virtual unsigned computeHash();
+
   static bool classof(const Expr *E) {
     return E->getKind() == Expr::Pointer ||
            E->getKind() == Expr::ConstantPointer;
@@ -1751,22 +1774,28 @@ public:
   ref<Expr> Not();
 
 protected:
-  PointerExpr(const ref<Expr> &b, const ref<Expr> &v) : base(b), value(v) {}
+  PointerExpr(const ref<Expr> &b, const ref<Expr> &v,
+              std::optional<ContainingBounds> bounds)
+      : base(b), value(v), bounds(bounds) {}
 };
 
 class ConstantPointerExpr : public PointerExpr {
 public:
   static const Kind kind = Expr::ConstantPointer;
   static const unsigned numKids = 2;
-  static ref<ConstantPointerExpr> alloc(const ref<ConstantExpr> &b,
-                                        const ref<ConstantExpr> &o) {
-    ref<ConstantPointerExpr> r = new ConstantPointerExpr(b, o);
+
+  static ref<ConstantPointerExpr>
+  alloc(const ref<ConstantExpr> &b, const ref<ConstantExpr> &o,
+        std::optional<ContainingBounds> bounds = std::nullopt) {
+    ref<ConstantPointerExpr> r = new ConstantPointerExpr(b, o, bounds);
     r->computeHash();
     r->computeHeight();
     return r;
   }
-  static ref<Expr> create(const ref<ConstantExpr> &b,
-                          const ref<ConstantExpr> &o);
+
+  static ref<Expr>
+  create(const ref<ConstantExpr> &b, const ref<ConstantExpr> &o,
+         std::optional<ContainingBounds> bounds = std::nullopt);
 
   Kind getKind() const { return Expr::ConstantPointer; }
   ref<ConstantExpr> getConstantBase() const { return cast<ConstantExpr>(base); }
@@ -1777,14 +1806,21 @@ public:
     return cast<ConstantExpr>(value);
   }
 
+  std::optional<ContainingBounds> getContainingBounds() const {
+    return bounds;
+  }
+
+  // virtual unsigned computeHash();
+
   static bool classof(const Expr *E) {
     return E->getKind() == Expr::ConstantPointer;
   }
   static bool classof(const ConstantPointerExpr *) { return true; }
 
 private:
-  ConstantPointerExpr(const ref<ConstantExpr> &b, const ref<ConstantExpr> &v)
-      : PointerExpr(b, v) {}
+  ConstantPointerExpr(const ref<ConstantExpr> &b, const ref<ConstantExpr> &v,
+                      std::optional<ContainingBounds> bounds)
+      : PointerExpr(b, v, bounds) {}
 };
 
 // Implementations

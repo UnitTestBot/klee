@@ -2832,14 +2832,16 @@ ref<Expr> IsSubnormalExpr::either(const ref<Expr> &e0, const ref<Expr> &e1) {
 
 /***/
 
-ref<Expr> PointerExpr::create(const ref<Expr> &b, const ref<Expr> &v) {
+ref<Expr> PointerExpr::create(const ref<Expr> &b, const ref<Expr> &v,
+                              std::optional<ContainingBounds> bounds) {
   assert(!isa<PointerExpr>(b));
   assert(!isa<PointerExpr>(v));
   if (isa<ConstantExpr>(b) && isa<ConstantExpr>(v)) {
     return ConstantPointerExpr::create(cast<ConstantExpr>(b),
-                                       cast<ConstantExpr>(v));
+                                       cast<ConstantExpr>(v),
+                                       bounds);
   } else {
-    return PointerExpr::alloc(b, v);
+    return PointerExpr::alloc(b, v, bounds);
   }
 }
 
@@ -2880,12 +2882,33 @@ ref<Expr> PointerExpr::create(const ref<Expr> &expr) {
   return pointer;
 }
 
+// unsigned PointerExpr::computeHash() {
+//   hashValue = (base->hash() * Expr::MAGIC_HASH_CONSTANT + value->hash()) *
+//               Expr::MAGIC_HASH_CONSTANT;
+//   if (bounds) {
+//     hashValue = ((hashValue + bounds->offset) * Expr::MAGIC_HASH_CONSTANT) +
+//                 bounds->size * Expr::MAGIC_HASH_CONSTANT;
+//   }
+//   return hashValue;
+// }
+
 ref<Expr> ConstantPointerExpr::create(const ref<ConstantExpr> &b,
-                                      const ref<ConstantExpr> &v) {
+                                      const ref<ConstantExpr> &v,
+                                      std::optional<ContainingBounds> bounds) {
   assert(!isa<PointerExpr>(b));
   assert(!isa<PointerExpr>(v));
-  return ConstantPointerExpr::alloc(b, v);
+  return ConstantPointerExpr::alloc(b, v, bounds);
 }
+
+// unsigned ConstantPointerExpr::computeHash() {
+//   hashValue = (base->hash() * Expr::MAGIC_HASH_CONSTANT + value->hash()) *
+//               Expr::MAGIC_HASH_CONSTANT;
+//   if (bounds) {
+//     hashValue = ((hashValue + bounds->offset) * Expr::MAGIC_HASH_CONSTANT) +
+//                 bounds->size * Expr::MAGIC_HASH_CONSTANT;
+//   }
+//   return hashValue;
+// }
 
 #define BCREATE_P(_e_op, _op)                                                  \
   ref<Expr> PointerExpr::_op(const ref<PointerExpr> &RHS) {                    \

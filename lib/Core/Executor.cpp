@@ -2524,7 +2524,7 @@ void Executor::executeCall(ExecutionState &state, KInstruction *ki, Function *f,
       uint64_t size = 0; // total size of variadic arguments
       bool requires16ByteAlignment = false;
 
-      uint64_t offsets[callingArgs]; // offsets of variadic arguments
+      std::vector<uint64_t> offsets(callingArgs); // offsets of variadic arguments
       uint64_t argWidth;             // width of current variadic argument
 
       const CallBase &cb = cast<CallBase>(*i);
@@ -3521,35 +3521,106 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
   case Instruction::GetElementPtr: {
     KGEPInstruction *kgepi = static_cast<KGEPInstruction *>(ki);
-    GetElementPtrInst *gepInst =
-        static_cast<GetElementPtrInst *>(kgepi->inst());
+    GetElementPtrInst *gepi =
+      static_cast<GetElementPtrInst *>(kgepi->inst());
 
-    ref<Expr> base = eval(ki, 0, state).value;
-    ref<PointerExpr> pointer = makePointer(base);
-    base = pointer->getBase();
+    ref<PointerExpr> pointer = makePointer(eval(ki, 0, state).value);
+    ref<Expr> base = pointer->getBase();
     ref<Expr> offset = pointer->getOffset();
+    auto start_of_object = (offset == ConstantExpr::create(0, Context::get().getPointerWidth()));
+    auto bounds = pointer->getContainingBounds();
 
-    for (std::vector<std::pair<unsigned, uint64_t>>::iterator
-             it = kgepi->indices.begin(),
-             ie = kgepi->indices.end();
-         it != ie; ++it) {
-      uint64_t elementSize = it->second;
-      ref<Expr> index = eval(ki, it->first, state).value;
-      offset = AddExpr::create(
-          offset, MulExpr::create(Expr::createSExtToPointerWidth(index),
-                                  Expr::createPointer(elementSize)));
+    std::vector<Type *> types;
+    std::vector<ref<Expr>> offsets;
+
+    size_t index = 1;
+    for (auto gep_index = klee::gep_type_begin(gepi);
+         gep_index != klee::gep_type_end(gepi); gep_index++) {
+      if (StructType *st = dyn_cast<StructType>(*gep_index)) {
+        const StructLayout *sl = kmodule->targetData->getStructLayout(st);
+        const ConstantInt *ci = cast<ConstantInt>(gep_index.getOperand());
+        types.push_back(st->getElementType((unsigned)ci->getZExtValue()));
+        offsets.push_back(ConstantExpr::create(
+            sl->getElementOffset((unsigned)ci->getZExtValue()),
+            Context::get().getPointerWidth()));
+
+        // offset = AddExpr::create(
+        //     ConstantExpr::create(addend, Context::get().getPointerWidth()),
+        //     offset);
+        // if (!offset_has_symbolic) {
+        //     containingType = st->getElementType((unsigned)ci->getZExtValue());
+        //     containingOffset = offset;
+        // }
+      } else if (gep_index->isArrayTy() || gep_index->isVectorTy() ||
+                 gep_index->isPointerTy()) {
+        auto type = gep_index->getContainedType(0);
+        uint64_t elementSize = kmodule->targetData->getTypeStoreSize(type);
+        auto index_offset = eval(ki, index, state).value;
+        types.push_back(type);
+        offsets.push_back(MulExpr::create(Expr::createSExtToPointerWidth(index_offset),
+                                          Expr::createPointer(elementSize)));
+        // offset = AddExpr::create(
+        //                          offset, MulExpr::create(Expr::createSExtToPointerWidth(index_offset),
+        //                                                  Expr::createPointer(elementSize)));
+        // if (isa<ConstantExpr>(index_offset)) {
+        //   if (!offset_has_symbolic) {
+        //     containingType = type;
+        //     containingOffset = offset;
+        //   }
+        // } else {
+        //   offset_has_symbolic = true;
+        // }
+      } else {
+        assert("invalid type" && 0);
+      }
+      index++;
     }
-    if (kgepi->offset)
-      offset = AddExpr::create(offset, Expr::createPointer(kgepi->offset));
-    ref<Expr> address;
+
+    bool offset_has_symbolic = false;
+    size_t bound_offset = 0;
+    size_t bound_size = 0;
+    for (size_t i = 0; i < types.size(); ++i) {
+      offset = AddExpr::create(offset, offsets[i]);
+      if (!offset_has_symbolic) {
+        if (auto ce = dyn_cast<ConstantExpr>(offsets[i])) {
+          auto const_offset = ce->getZExtValue();
+          bound_offset += const_offset;
+          bound_size = kmodule->targetData->getTypeStoreSize(types[i]);
+        } else {
+          offset_has_symbolic = true;
+        }
+      }
+    }
+
+    if (bounds && !bounds->offset_has_symbolic) {
+      bound_offset += bounds->offset;
+      bounds = PointerExpr::ContainingBounds{bound_offset, bound_size, offset_has_symbolic};
+    } else if (start_of_object) {
+      bounds = PointerExpr::ContainingBounds{bound_offset, bound_size, offset_has_symbolic};
+    }
+
+    // for (std::vector<std::pair<unsigned, uint64_t>>::iterator
+    //          it = kgepi->indices.begin(),
+    //          ie = kgepi->indices.end();
+    //      it != ie; ++it) {
+    //   uint64_t elementSize = it->second;
+    //   ref<Expr> index = eval(ki, it->first, state).value;
+    //   offset = AddExpr::create(
+    //       offset, MulExpr::create(Expr::createSExtToPointerWidth(index),
+    //                               Expr::createPointer(elementSize)));
+    // }
+    // if (kgepi->offset)
+    //   offset = AddExpr::create(offset, Expr::createPointer(kgepi->offset));
+
+    ref<PointerExpr> address;
     if (ref<PointerExpr> pointerOffset = dyn_cast<PointerExpr>(offset)) {
-      address = cast<PointerExpr>(PointerExpr::create(base, base))
-                    ->Add(pointerOffset);
+      address = cast<PointerExpr>(PointerExpr::create(base, AddExpr::create(base, pointerOffset->getValue())));
+      address = PointerExpr::create(address->getBase(), address->getOffset(), bounds);
     } else {
-      address = PointerExpr::create(base, AddExpr::create(base, offset));
+      address = PointerExpr::create(base, AddExpr::create(base, offset), bounds);
     }
 
-    state.gepExprBases[base] = {gepInst->getSourceElementType()};
+    state.gepExprBases[base] = {gepi->getSourceElementType()};
 
     bindLocal(ki, state, address);
     break;
@@ -3610,6 +3681,10 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     if (X86FPAsX87FP80 && castToType->isFloatingPointTy() &&
         Context::get().getPointerWidth() == 32) {
       result = FPToX87FP80Ext(result);
+    }
+
+    if (auto pointer = dyn_cast<PointerExpr>(result)) {
+      result = PointerExpr::create(pointer->getBase(), pointer->getValue());
     }
 
     bindLocal(ki, state, result);
@@ -6263,6 +6338,8 @@ void Executor::executeMemoryOperation(
                               : getWidthForLLVMType(target->inst()->getType()));
   unsigned bytes = Expr::getMinBytesForWidth(type);
 
+  auto bounds = address->getContainingBounds();
+
   ref<Expr> base = address->getBase();
   ref<PointerExpr> basePointer = PointerExpr::create(base, base);
   ref<Expr> zeroPointer = PointerExpr::create(Expr::createPointer(0));
@@ -6372,10 +6449,18 @@ void Executor::executeMemoryOperation(
                              StateTerminationType::ReadOnly,
                              "memory error: object read only"));
         } else {
-          wos->write(offset, value);
+          if (bounds) {
+            wos->write(offset, value, *bounds);
+          } else {
+            wos->write(offset, value);
+          }
         }
       } else {
-        result = os->read(offset, type);
+        if (bounds) {
+          result = os->read(offset, type, *bounds);
+        } else {
+          result = os->read(offset, type);
+        }
 
         if (X86FPAsX87FP80 && ki->inst()->getType()->isFloatingPointTy() &&
             Context::get().getPointerWidth() == 32) {
@@ -6498,8 +6583,12 @@ void Executor::executeMemoryOperation(
               }
             }
             ref<Expr> result =
-                SelectExpr::create(resolveConditions[i], value, results[i]);
-            wos->write(offset, result);
+              SelectExpr::create(resolveConditions[i], value, results[i]);
+            if (bounds) {
+              wos->write(offset, result, *bounds);
+            } else {
+              wos->write(offset, result);
+            }
           }
         }
       } else {
@@ -6569,10 +6658,19 @@ void Executor::executeMemoryOperation(
                              StateTerminationType::ReadOnly,
                              "memory error: object read only"));
         } else {
-          wos->write(offset, value);
+          if (bounds) {
+            wos->write(offset, value, *bounds);
+          } else {
+            wos->write(offset, value);
+          }
         }
       } else {
-        ref<Expr> result = os->read(offset, type);
+        ref<Expr> result;
+        if (bounds) {
+          result = os->read(offset, type, *bounds);
+        } else {
+          result = os->read(offset, type);
+        }
 
         if (X86FPAsX87FP80 && ki->inst()->getType()->isFloatingPointTy() &&
             Context::get().getPointerWidth() == 32) {

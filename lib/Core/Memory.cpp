@@ -245,7 +245,7 @@ void ObjectState::write8(ref<Expr> offset, ref<Expr> value) {
          "constant offset passed to symbolic write8");
 
   if (ref<ConstantExpr> sizeExpr =
-          dyn_cast<ConstantExpr>(object->getSizeExpr())) {
+          dyn_cast<ConstantExpr>(size)) {
     auto moSize = sizeExpr->getZExtValue();
     if (object && moSize > 4096) {
       std::string allocInfo = object->getAllocInfo();
@@ -290,6 +290,60 @@ ref<Expr> ObjectState::read(ref<Expr> offset, Expr::Width width) const {
   } else {
     return PointerExpr::create(base, val);
   }
+}
+
+ref<Expr> ObjectState::read(ref<Expr> offset, Expr::Width width,
+                            PointerExpr::ContainingBounds bounds) const {
+
+  if (auto constSize = dyn_cast<ConstantExpr>(this->size)) {
+    if (constSize->getZExtValue() == bounds.size) {
+      return read(offset, width);
+    }
+  }
+
+  if (isa<ConstantExpr>(offset)) {
+    return read(offset, width);
+  }
+
+  if (bounds.size == 0) {
+    return read(offset, width);
+  }
+
+  // auto byteWidth = width / 8;
+
+  auto bound_offset =
+      ConstantExpr::create(bounds.offset, Context::get().getPointerWidth());
+  auto new_offset = SubExpr::create(offset, bound_offset);
+
+  SparseStorageImpl<ref<ConstantExpr>> fauxStorage(
+                                                   ConstantExpr::create(0, Expr::Int8));
+
+  auto array = Array::create(
+                             ConstantExpr::create(bounds.size, Context::get().getPointerWidth()),
+                             SourceBuilder::constant(fauxStorage.clone()));
+
+  ObjectState os(nullptr, array);
+
+  for (size_t i = 0; i < bounds.size; ++i) {
+    os.write8(i, this->read8(bound_offset->getZExtValue() + i));
+  }
+
+  return os.read(new_offset, width);
+
+  // // TODO: check bounds
+  // ref<Expr> readExpr = nullptr;
+  // for (size_t i = bounds.offset + bounds.size - byteWidth - 1;
+  //      i >= bounds.offset; --i) {
+  //   if (!readExpr) {
+  //     readExpr = read(i, width);
+  //   } else {
+  //     readExpr = SelectExpr::create(
+  //         EqExpr::create(offset, ConstantExpr::create(
+  //                                    i, Context::get().getPointerWidth())),
+  //         read(i, width), readExpr);
+  //   }
+  // }
+  // return readExpr;
 }
 
 ref<Expr> ObjectState::read(unsigned offset, Expr::Width width) const {
@@ -432,6 +486,53 @@ void ObjectState::write(ref<Expr> offset, ref<Expr> value) {
            ExtractExpr::create(value, 8 * i, Expr::Int8));
   }
   lastUpdate = new UpdateNode(nullptr, offset, value);
+}
+
+void ObjectState::write(ref<Expr> offset, ref<Expr> value,
+                        PointerExpr::ContainingBounds bounds) {
+
+  if (auto constSize = dyn_cast<ConstantExpr>(this->size)) {
+    if (constSize->getZExtValue() == bounds.size) {
+      write(offset, value);
+      return;
+    }
+  }
+
+  if (isa<ConstantExpr>(offset)) {
+    write(offset, value);
+    return;
+  }
+
+  if (bounds.size == 0) {
+    write(offset, value);
+    return;
+  }
+
+  auto bound_offset =
+      ConstantExpr::create(bounds.offset, Context::get().getPointerWidth());
+  auto new_offset = SubExpr::create(
+      offset,
+      bound_offset);
+
+
+  SparseStorageImpl<ref<ConstantExpr>> fauxStorage(
+      ConstantExpr::create(0, Expr::Int8));
+
+  auto array = Array::create(
+      ConstantExpr::create(bounds.size, Context::get().getPointerWidth()),
+                             SourceBuilder::constant(fauxStorage.clone()));
+
+  ObjectState os(nullptr, array);
+
+  for (size_t i = 0; i < bounds.size; ++i) {
+    os.write8(i, this->read8(bound_offset->getZExtValue() + i));
+  }
+
+  os.write(new_offset, value);
+
+  for (size_t i = 0; i < bounds.size; ++i) {
+    this->write8(bound_offset->getZExtValue() + i, os.read8(i));
+  }
 }
 
 void ObjectState::write(unsigned offset, ref<Expr> value) {
