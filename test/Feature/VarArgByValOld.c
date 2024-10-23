@@ -1,3 +1,6 @@
+// Variadic functions are only supported on x86_64
+// REQUIRES: x86_64
+
 // REQUIRES: lt-llvm-15.0
 /* This test checks that KLEE correctly handles variadic arguments with the
    byval attribute */
