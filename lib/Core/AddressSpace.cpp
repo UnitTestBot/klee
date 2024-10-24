@@ -18,6 +18,7 @@
 #include "klee/Statistics/TimerStatIncrementer.h"
 
 #include "CoreStats.h"
+#include <cstring>
 
 namespace klee {
 llvm::cl::OptionCategory
@@ -384,7 +385,7 @@ bool AddressSpace::resolve(ExecutionState &state, TimingSolver *solver,
 // transparently avoid screwing up symbolics (if the byte is symbolic
 // then its concrete cache byte isn't being used) but is just a hack.
 
-void AddressSpace::copyOutConcretes(const Assignment &assignment) {
+void AddressSpace::copyOutConcretes() {
   for (const auto &object : objects) {
     auto &mo = object.first;
     auto &os = object.second;
@@ -392,7 +393,7 @@ void AddressSpace::copyOutConcretes(const Assignment &assignment) {
             dyn_cast<ConstantExpr>(mo->getSizeExpr())) {
       if (!mo->isUserSpecified && !os->readOnly &&
           sizeExpr->getZExtValue() != 0) {
-        copyOutConcrete(mo, os.get(), assignment);
+        copyOutConcrete(mo, os.get());
       }
     }
   }
@@ -407,27 +408,19 @@ ref<ConstantExpr> toConstantExpr(ref<Expr> expr) {
 }
 
 void AddressSpace::copyOutConcrete(const MemoryObject *mo,
-                                   const ObjectState *os,
-                                   const Assignment &assignment) const {
-  if (ref<ConstantExpr> addressExpr =
-          dyn_cast<ConstantExpr>(mo->getBaseExpr())) {
-    auto address =
-        reinterpret_cast<std::uint8_t *>(addressExpr->getZExtValue());
-    AssignmentEvaluator evaluator(assignment, false);
-    if (ref<ConstantExpr> sizeExpr =
-            dyn_cast<ConstantExpr>(mo->getSizeExpr())) {
-      size_t moSize = sizeExpr->getZExtValue();
-      std::vector<uint8_t> concreteStore(moSize);
-      for (size_t i = 0; i < moSize; i++) {
-        auto byte = evaluator.visit(os->readValue8(i));
-        concreteStore[i] = cast<ConstantExpr>(byte)->getZExtValue(Expr::Int8);
-      }
-      std::memcpy(address, concreteStore.data(), moSize);
+                                   const ObjectState *os) const {
+
+  if (auto addressExpr = dyn_cast<ConstantExpr>(mo->getBaseExpr())) {
+    if (auto sizeExpr = dyn_cast<ConstantExpr>(mo->getSizeExpr())) {
+      auto address =
+          reinterpret_cast<std::uint8_t *>(addressExpr->getZExtValue());
+      auto size = sizeExpr->getZExtValue();
+      std::memcpy(address, os->valueOS.concreteStore->data(), size);
     }
   }
 }
 
-bool AddressSpace::copyInConcretes(const Assignment &assignment) {
+bool AddressSpace::copyInConcretes() {
   for (auto &obj : objects) {
     const MemoryObject *mo = obj.first;
 
@@ -436,8 +429,7 @@ bool AddressSpace::copyInConcretes(const Assignment &assignment) {
 
       if (ref<ConstantExpr> arrayConstantAddress =
               dyn_cast<ConstantExpr>(mo->getBaseExpr())) {
-        if (!copyInConcrete(mo, os.get(), arrayConstantAddress->getZExtValue(),
-                            assignment))
+        if (!copyInConcrete(mo, os.get(), arrayConstantAddress->getZExtValue()))
           return false;
       }
     }
@@ -447,24 +439,17 @@ bool AddressSpace::copyInConcretes(const Assignment &assignment) {
 }
 
 bool AddressSpace::copyInConcrete(const MemoryObject *mo, const ObjectState *os,
-                                  uint64_t src_address,
-                                  const Assignment &assignment) {
-  AssignmentEvaluator evaluator(assignment, false);
+                                  uint64_t src_address) {
   auto address = reinterpret_cast<std::uint8_t *>(src_address);
-  size_t moSize =
-      cast<ConstantExpr>(evaluator.visit(mo->getSizeExpr()))->getZExtValue();
-  std::vector<uint8_t> concreteStore(moSize);
-  for (size_t i = 0; i < moSize; i++) {
-    auto byte = evaluator.visit(os->readValue8(i));
-    concreteStore[i] = cast<ConstantExpr>(byte)->getZExtValue(8);
-  }
-  if (memcmp(address, concreteStore.data(), moSize) != 0) {
+  size_t moSize = cast<ConstantExpr>(mo->getSizeExpr())->getZExtValue();
+
+  if (memcmp(address, os->valueOS.concreteStore->data(), moSize) != 0) {
     if (os->readOnly) {
       return false;
     } else {
       ObjectState *wos = getWriteable(mo, os);
       for (size_t i = 0; i < moSize; i++) {
-        wos->write(i, ConstantExpr::create(address[i], Expr::Int8));
+        wos->write8(i, address[i]);
       }
     }
   }
