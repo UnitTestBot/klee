@@ -63,7 +63,6 @@ protected:
 
   // Float casts
   Z3ASTHandle castToFloat(const Z3ASTHandle &e);
-  Z3ASTHandle castToBitVector(const Z3ASTHandle &e);
 
   Z3ASTHandle getRoundingModeSort(llvm::APFloat::roundingMode rm);
   Z3ASTHandle getx87FP80ExplicitSignificandIntegerBit(const Z3ASTHandle &e);

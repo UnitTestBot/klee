@@ -1056,69 +1056,6 @@ Z3ASTHandle Z3BitvectorBuilder::castToFloat(const Z3ASTHandle &e) {
   }
 }
 
-Z3ASTHandle Z3BitvectorBuilder::castToBitVector(const Z3ASTHandle &e) {
-  Z3SortHandle currentSort = Z3SortHandle(Z3_get_sort(ctx, e), ctx);
-  Z3_sort_kind kind = Z3_get_sort_kind(ctx, currentSort);
-  switch (kind) {
-  case Z3_BOOL_SORT:
-    return Z3ASTHandle(Z3_mk_ite(ctx, e, bvOne(1), bvZero(1)), ctx);
-  case Z3_BV_SORT:
-    // Already a bitvector
-    return e;
-  case Z3_FLOATING_POINT_SORT: {
-    // Note this picks a single representation for NaN which means
-    // `castToBitVector(castToFloat(e))` might not equal `e`.
-    unsigned exponentBits = Z3_fpa_get_ebits(ctx, currentSort);
-    unsigned significandBits =
-        Z3_fpa_get_sbits(ctx, currentSort); // Includes implicit bit
-    unsigned floatWidth = exponentBits + significandBits;
-    switch (floatWidth) {
-    case Expr::Int16:
-    case Expr::Int32:
-    case Expr::Int64:
-    case Expr::Int128:
-      return Z3ASTHandle(Z3_mk_fpa_to_ieee_bv(ctx, e), ctx);
-    case 79: {
-      // This is Expr::Fl80 (64 bit exponent, 15 bit significand) but due to
-      // the "implicit" bit actually being implicit in x87 fp80 the sum of
-      // the exponent and significand bitwidth is 79 not 80.
-
-      // Get Z3's IEEE representation
-      Z3ASTHandle ieeeBits = Z3ASTHandle(Z3_mk_fpa_to_ieee_bv(ctx, e), ctx);
-
-      // Construct the x87 fp80 bit representation
-      Z3ASTHandle signBit = Z3ASTHandle(
-          Z3_mk_extract(ctx, /*high=*/78, /*low=*/78, ieeeBits), ctx);
-      Z3ASTHandle exponentBits = Z3ASTHandle(
-          Z3_mk_extract(ctx, /*high=*/77, /*low=*/63, ieeeBits), ctx);
-      Z3ASTHandle significandIntegerBit =
-          getx87FP80ExplicitSignificandIntegerBit(e);
-      Z3ASTHandle significandFractionBits = Z3ASTHandle(
-          Z3_mk_extract(ctx, /*high=*/62, /*low=*/0, ieeeBits), ctx);
-
-      Z3ASTHandle x87FP80Bits =
-          Z3ASTHandle(Z3_mk_concat(ctx, signBit, exponentBits), ctx);
-      x87FP80Bits = Z3ASTHandle(
-          Z3_mk_concat(ctx, x87FP80Bits, significandIntegerBit), ctx);
-      x87FP80Bits = Z3ASTHandle(
-          Z3_mk_concat(ctx, x87FP80Bits, significandFractionBits), ctx);
-#ifndef NDEBUG
-      Z3SortHandle x87FP80BitsSort =
-          Z3SortHandle(Z3_get_sort(ctx, x87FP80Bits), ctx);
-      assert(Z3_get_sort_kind(ctx, x87FP80BitsSort) == Z3_BV_SORT);
-      assert(Z3_get_bv_sort_size(ctx, x87FP80BitsSort) == 80);
-#endif
-      return x87FP80Bits;
-    }
-    default:
-      llvm_unreachable("Unhandled width when casting float to bitvector");
-    }
-  }
-  default:
-    llvm_unreachable("Sort cannot be cast to float");
-  }
-}
-
 Z3ASTHandle
 Z3BitvectorBuilder::getRoundingModeSort(llvm::APFloat::roundingMode rm) {
   switch (rm) {
@@ -1168,5 +1105,6 @@ Z3ASTHandle Z3BitvectorBuilder::getx87FP80ExplicitSignificandIntegerBit(
       Z3_mk_ite(ctx, significandIntegerBitCondition, zeroBvOne, oneBvOne), ctx);
   return significandIntegerBitConstrainedValue;
 }
+
 } // namespace klee
 #endif // ENABLE_Z3

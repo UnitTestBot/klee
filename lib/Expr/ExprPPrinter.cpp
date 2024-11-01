@@ -280,7 +280,7 @@ private:
                  bool printConstWidth = false) {
     bool simple = hasSimpleKids(ep);
 
-    print(ep->getKid(0), PC);
+    print(ep->getKid(0), PC, printConstWidth);
     for (unsigned i = 1; i < ep->getNumKids(); i++) {
       printSeparator(PC, simple, indent);
       print(ep->getKid(i), PC, printConstWidth);

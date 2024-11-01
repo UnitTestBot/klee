@@ -11,7 +11,6 @@
 #ifndef KLEE_Z3_CORE_BUILDER_H
 #define KLEE_Z3_CORE_BUILDER_H
 #include "Z3Builder.h"
-#include "Z3CoreBuilder.h"
 #include "klee/Config/config.h"
 #include "klee/Expr/ArrayExprHash.h"
 #include "klee/Expr/ExprHashMap.h"

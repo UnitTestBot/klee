@@ -128,6 +128,7 @@ public:
   Term getFalse();
   Term buildFreshBoolConst();
   Term getInitialRead(const Array *os, unsigned index);
+  Term coerceToBool(Term expr);
 
   Term construct(ref<Expr> e) {
     Term res = construct(std::move(e), nullptr);

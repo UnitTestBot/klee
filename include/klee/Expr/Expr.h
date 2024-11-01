@@ -12,6 +12,7 @@
 
 #include "klee/ADT/Ref.h"
 #include "klee/Expr/SymbolicSource.h"
+#include <optional>
 
 #ifndef NDEBUG
 #include "klee/ADT/Bits.h"
@@ -1448,6 +1449,59 @@ private:
   FNegExpr(const ref<Expr> &e) : expr(e) {}
 };
 
+struct Segment {
+  enum class Kind {
+    Zero,
+    One,
+  };
+
+  Kind kind;
+  size_t l, r;
+
+  // segment (l, r]
+  Segment(bool kind, size_t l, size_t r)
+      : kind(kind ? Kind::One : Kind::Zero), l(l), r(r) {}
+};
+
+struct Segments {
+  // ordered from 0 to width
+  std::vector<Segment> segments;
+
+  std::optional<std::pair<size_t, size_t>> getOnes() {
+    size_t n_ones = 0;
+    size_t l, r;
+    for (auto seg : segments) {
+      if (seg.kind == Segment::Kind::One) {
+        l = seg.l;
+        r = seg.r;
+        n_ones++;
+      }
+    }
+    if (n_ones == 1) {
+      return {{l, r}};
+    } else {
+      return std::nullopt;
+    }
+  }
+
+  std::optional<std::pair<size_t, size_t>> getZeroes() {
+    size_t n_zeroes = 0;
+    size_t l, r;
+    for (auto seg : segments) {
+      if (seg.kind == Segment::Kind::Zero) {
+        l = seg.l;
+        r = seg.r;
+        n_zeroes++;
+      }
+    }
+    if (n_zeroes == 1) {
+      return {{l, r}};
+    } else {
+      return std::nullopt;
+    }
+  }
+};
+
 // Terminal Exprs
 class ConstantExpr : public Expr {
 public:
@@ -1474,6 +1528,32 @@ public:
 
   unsigned getNumKids() const { return 0; }
   ref<Expr> getKid(unsigned) const { return 0; }
+
+  Segments getSegments() const {
+    if (value.getBitWidth() == 0) {
+      return Segments{};
+    }
+    Segments segments;
+    bool current = value.extractBits(1, 0).isOne();
+    size_t l = 0, r = 0;
+    for (size_t i = 1; i <= value.getBitWidth(); ++i) {
+      if (i == value.getBitWidth()) {
+        l = i;
+        segments.segments.push_back(Segment(current, l, r));
+      } else {
+        auto bit = value.extractBits(1, i).isOne();
+        if (bit == current) {
+          continue;
+        } else {
+          l = i;
+          segments.segments.push_back(Segment(current, l, r));
+          r = i;
+          current = bit;
+        }
+      }
+    }
+    return segments;
+  }
 
   /// getAPValue - Return the arbitrary precision value directly.
   ///

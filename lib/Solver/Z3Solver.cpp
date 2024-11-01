@@ -374,7 +374,9 @@ std::string Z3SolverImpl::getConstraintLog(const Query &query) {
   }
   ConstantArrayFinder constant_arrays_in_query;
   for (auto const &constraint : query.constraints.cs()) {
-    assumptions.push_back(temp_builder->construct(constraint));
+    auto assumption = temp_builder->construct(constraint);
+    assumption = temp_builder->castToBool(assumption);
+    assumptions.push_back(assumption);
     constant_arrays_in_query.visit(constraint);
   }
 
@@ -384,7 +386,8 @@ std::string Z3SolverImpl::getConstraintLog(const Query &query) {
   // the negation of the equivalent i.e.
   // ∃ X Constraints(X) ∧ ¬ query(X)
   Z3ASTHandle formula = Z3ASTHandle(
-      Z3_mk_not(temp_builder->ctx, temp_builder->construct(query.expr)),
+      Z3_mk_not(temp_builder->ctx,
+                temp_builder->castToBool(temp_builder->construct(query.expr))),
       temp_builder->ctx);
   constant_arrays_in_query.visit(query.expr);
 
@@ -525,6 +528,7 @@ bool Z3SolverImpl::internalRunSolver(
          cs_it != cs_ite; cs_it++) {
       const auto &constraint = *cs_it;
       Z3ASTHandle z3Constraint = builder->construct(constraint);
+      z3Constraint = builder->castToBool(z3Constraint);
       if (ProduceUnsatCore && validityCore) {
         Z3ASTHandle p = builder->buildFreshBoolConst();
         env.z3_ast_expr_to_klee_expr.insert({p, constraint});

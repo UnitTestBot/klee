@@ -22,6 +22,7 @@
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/ArrayRef.h"
+#include <klee/Support/Casting.h>
 #if LLVM_VERSION_CODE >= LLVM_VERSION(13, 0)
 #include "llvm/ADT/StringExtras.h"
 #endif
@@ -135,6 +136,18 @@ void Expr::splitAnds(ref<Expr> e, std::vector<ref<Expr>> &exprs) {
 }
 
 int Expr::compare(const Expr &b) const {
+  // static bool in_print = false;
+  // static size_t count = 0;
+  // // static size_t skipped = 0;
+  // if (!in_print) {
+  //   in_print = true;
+  //   llvm::errs() << b.toString() << "\n";
+  //   in_print = false;
+  //   count++;
+  //   if (count == 10000) {
+  //     exit(0);
+  //   }
+  // }
   static ExprEquivSet equivs;
   int r = compare(b, equivs);
   equivs.clear();
@@ -1730,25 +1743,6 @@ ref<Expr> convolution(const ref<Expr> &l, const ref<Expr> &r) {
 }
 
 ref<Expr> ConcatExpr::create(const ref<Expr> &l, const ref<Expr> &r) {
-  Expr::Width w = l->getWidth() + r->getWidth();
-
-  // Fold concatenation of constants.
-  //
-  // FIXME: concat 0 x -> zext x ?
-  if (ConstantExpr *lCE = dyn_cast<ConstantExpr>(l))
-    if (ConstantExpr *rCE = dyn_cast<ConstantExpr>(r))
-      return lCE->Concat(rCE);
-
-  // Merge contiguous Extracts
-  if (ExtractExpr *ee_left = dyn_cast<ExtractExpr>(l)) {
-    if (ExtractExpr *ee_right = dyn_cast<ExtractExpr>(r)) {
-      if (ee_left->expr == ee_right->expr &&
-          ee_right->offset + ee_right->width == ee_left->offset) {
-        return ExtractExpr::create(ee_left->expr, ee_right->offset, w);
-      }
-    }
-  }
-
   if (PointerExpr *ee_left = dyn_cast<PointerExpr>(l)) {
     if (PointerExpr *ee_right = dyn_cast<PointerExpr>(r)) {
       return PointerExpr::create(
@@ -1757,7 +1751,42 @@ ref<Expr> ConcatExpr::create(const ref<Expr> &l, const ref<Expr> &r) {
     }
   }
 
-  return ConcatExpr::alloc(l, r);
+  // Canonicalize concats (right-associative form)
+  if (ConcatExpr *ce = dyn_cast<ConcatExpr>(l)) {
+    auto innerConcat = ConcatExpr::create(ce->right, r);
+    return ConcatExpr::create(ce->left, innerConcat);
+  }
+
+  // l and r->l are always non-concats due to canonicalization
+  auto immediateRight = isa<ConcatExpr>(r) ? cast<ConcatExpr>(r)->left : r;
+  auto toMerge = isa<ConcatExpr>(r) ? cast<ConcatExpr>(r)->right : nullptr;
+  ref<Expr> reducedLeft = nullptr;
+  // And then use it for all the stuff below
+  // Then concat stuff
+
+  // Fold concatenation of constants.
+  if (ConstantExpr *lCE = dyn_cast<ConstantExpr>(l)) {
+    if (ConstantExpr *rCE = dyn_cast<ConstantExpr>(immediateRight)) {
+      reducedLeft = lCE->Concat(rCE);
+    }
+  }
+
+  // Merge contiguous Extracts
+  if (ExtractExpr *ee_left = dyn_cast<ExtractExpr>(l)) {
+    if (ExtractExpr *ee_right = dyn_cast<ExtractExpr>(immediateRight)) {
+      if (ee_left->expr == ee_right->expr &&
+          ee_right->offset + ee_right->width == ee_left->offset) {
+        auto total_width = ee_left->width + ee_right->width;
+        reducedLeft = ExtractExpr::create(ee_left->expr, ee_right->offset, total_width);
+      }
+    }
+  }
+
+  if (reducedLeft) {
+    return toMerge ? ConcatExpr::alloc(reducedLeft, toMerge) : reducedLeft;
+  } else {
+    return ConcatExpr::alloc(l, r);
+  }
 }
 
 /// Shortcut to concat N kids.  The chain returned is unbalanced to the right
@@ -1806,6 +1835,15 @@ ref<Expr> ExtractExpr::create(ref<Expr> expr, unsigned off, Width w) {
   } else if (PointerExpr *pe = dyn_cast<PointerExpr>(expr)) {
     return PointerExpr::create(pe->getBase(),
                                ExtractExpr::create(pe->getValue(), off, w));
+  } else if (ZExtExpr *zextp = dyn_cast<ZExtExpr>(expr)) {
+    if (off + w <= zextp->getKid(0)->getWidth()) {
+      return ExtractExpr::create(zextp->getKid(0), off, w);
+    }
+    if (off  >= zextp->getKid(0)->getWidth()) {
+      return ConstantExpr::create(0, w);
+    }
+  } else if (ExtractExpr *ee = dyn_cast<ExtractExpr>(expr)) {
+    return ExtractExpr::create(ee->expr, off + ee->offset, w);
   } else {
     // Extract(Concat)
     if (ConcatExpr *ce = dyn_cast<ConcatExpr>(expr)) {
@@ -1858,6 +1896,11 @@ ref<Expr> NotExpr::create(const ref<Expr> &e) {
                               NotExpr::create(SE->falseExpr));
   }
 
+  if (ConcatExpr *CE = dyn_cast<ConcatExpr>(e)) {
+    return ConcatExpr::create(NotExpr::create(CE->getLeft()),
+                              NotExpr::create(CE->getRight()));
+  }
+
   return NotExpr::alloc(e);
 }
 
@@ -1881,7 +1924,8 @@ ref<Expr> ZExtExpr::create(const ref<Expr> &e, Width w) {
     }
   }
 
-  return ZExtExpr::alloc(e, w);
+  return ConcatExpr::create(ConstantExpr::create(0, w - e->getWidth()), e);
+  // return ZExtExpr::alloc(e, w);
 }
 
 ref<Expr> SExtExpr::create(const ref<Expr> &e, Width w) {
@@ -1899,6 +1943,11 @@ ref<Expr> SExtExpr::create(const ref<Expr> &e, Width w) {
     if (isa<ConstantExpr>(se->trueExpr)) {
       return SelectExpr::create(se->cond, SExtExpr::create(se->trueExpr, w),
                                 SExtExpr::create(se->falseExpr, w));
+    }
+  } else if (ConcatExpr *concat = dyn_cast<ConcatExpr>(e)) {
+    if (ConstantExpr *lCE = dyn_cast<ConstantExpr>(concat->getLeft())) {
+      auto extended = lCE->SExt(w - concat->getRight()->getWidth());
+      return ConcatExpr::create(extended, concat->getRight());
     }
   }
 
@@ -2150,12 +2199,26 @@ static ref<Expr> MulExpr_create(Expr *l, Expr *r) {
 static ref<Expr> AndExpr_createPartial(Expr *l, const ref<ConstantExpr> &cr) {
   if (cr->isAllOnes()) {
     return l;
-  } else if (cr->isZero()) {
-    return cr;
-  } else {
-    return AndExpr::alloc(l, cr);
   }
+  if (cr->isZero()) {
+    return cr;
+  }
+
+  auto segments = cr->getSegments();
+  std::vector<ref<Expr>> exprs;
+
+  for (auto segment : segments.segments) {
+    if (segment.kind == Segment::Kind::Zero) {
+      exprs.push_back(ConstantExpr::create(0, segment.l - segment.r));
+    } else {
+      exprs.push_back(ExtractExpr::create(l, segment.r, segment.l - segment.r));
+    }
+  }
+  std::reverse(exprs.begin(), exprs.end());
+
+  return ConcatExpr::createN(exprs.size(), exprs.data());
 }
+
 static ref<Expr> AndExpr_createPartialR(const ref<ConstantExpr> &cl, Expr *r) {
   return AndExpr_createPartial(r, cl);
 }
@@ -2172,18 +2235,39 @@ static ref<Expr> AndExpr_create(Expr *l, Expr *r) {
   if (*l == *r) {
     return l;
   }
+  if (auto concat = dyn_cast<ConcatExpr>(l)) {
+    auto right = AndExpr::create(concat->getRight(), ExtractExpr::create(r, 0, concat->getRight()->getWidth()));
+    auto left = AndExpr::create(concat->getLeft(), ExtractExpr::create(r, concat->getRight()->getWidth(), concat->getLeft()->getWidth()));
+    return ConcatExpr::create(left, right);
+  }
   return AndExpr::alloc(l, r);
 }
 
 static ref<Expr> OrExpr_createPartial(Expr *l, const ref<ConstantExpr> &cr) {
   if (cr->isAllOnes()) {
     return cr;
-  } else if (cr->isZero()) {
-    return l;
-  } else {
-    return OrExpr::alloc(l, cr);
   }
+  if (cr->isZero()) {
+    return l;
+  }
+
+  auto segments = cr->getSegments();
+  std::vector<ref<Expr>> exprs;
+
+  for (auto segment : segments.segments) {
+    if (segment.kind == Segment::Kind::Zero) {
+      exprs.push_back(ExtractExpr::create(l, segment.r, segment.l - segment.r));
+    } else {
+      exprs.push_back(
+          ConstantExpr::alloc(APInt::getAllOnes(segment.l - segment.r)));
+    }
+  }
+
+  std::reverse(exprs.begin(), exprs.end());
+
+  return ConcatExpr::createN(exprs.size(), exprs.data());
 }
+
 static ref<Expr> OrExpr_createPartialR(const ref<ConstantExpr> &cl, Expr *r) {
   return OrExpr_createPartial(r, cl);
 }
@@ -2200,16 +2284,38 @@ static ref<Expr> OrExpr_create(Expr *l, Expr *r) {
   if (*l == *r) {
     return l;
   }
+  if (auto concat = dyn_cast<ConcatExpr>(l)) {
+    auto right = OrExpr::create(concat->getRight(), ExtractExpr::create(r, 0, concat->getRight()->getWidth()));
+    auto left = OrExpr::create(concat->getLeft(), ExtractExpr::create(r, concat->getRight()->getWidth(), concat->getLeft()->getWidth()));
+    return ConcatExpr::create(left, right);
+  }
   return OrExpr::alloc(l, r);
 }
 
 static ref<Expr> XorExpr_createPartialR(const ref<ConstantExpr> &cl, Expr *r) {
   if (cl->isZero()) {
     return r;
+  } else if (cl->isAllOnes()) {
+    return NotExpr::create(r);
   } else if (cl->getWidth() == Expr::Bool) {
     return EqExpr_createPartial(r, ConstantExpr::create(0, Expr::Bool));
   } else {
-    return XorExpr::alloc(cl, r);
+    auto segments = cl->getSegments();
+    std::vector<ref<Expr>> exprs;
+
+    for (auto segment : segments.segments) {
+      if (segment.kind == Segment::Kind::Zero) {
+        exprs.push_back(
+            ExtractExpr::create(r, segment.r, segment.l - segment.r));
+      } else {
+        exprs.push_back(NotExpr::create(
+            ExtractExpr::create(r, segment.r, segment.l - segment.r)));
+      }
+    }
+
+    std::reverse(exprs.begin(), exprs.end());
+
+    return ConcatExpr::createN(exprs.size(), exprs.data());
   }
 }
 
@@ -2226,15 +2332,29 @@ static ref<Expr> XorExpr_createPointer(Expr *l, const ref<PointerExpr> &pr) {
 }
 
 static ref<Expr> XorExpr_create(Expr *l, Expr *r) {
+  if (auto concat = dyn_cast<ConcatExpr>(l)) {
+    auto right = XorExpr::create(
+        concat->getRight(),
+        ExtractExpr::create(r, 0, concat->getRight()->getWidth()));
+    auto left =
+        XorExpr::create(concat->getLeft(),
+                        ExtractExpr::create(r, concat->getRight()->getWidth(),
+                                            concat->getLeft()->getWidth()));
+    return ConcatExpr::create(left, right);
+  }
   return XorExpr::alloc(l, r);
 }
 
 static ref<Expr> UDivExpr_create(const ref<Expr> &l, const ref<Expr> &r) {
   if (l->getWidth() == Expr::Bool) { // r must be 1
     return l;
-  } else {
-    return UDivExpr::alloc(l, r);
+  } else if (auto ce = dyn_cast<ConstantExpr>(r)) {
+    if (ce->getAPValue().isPowerOf2()) {
+      auto log = ce->getAPValue().ceilLogBase2();
+      return LShrExpr::create(l, ConstantExpr::create(log, l->getWidth()));
+    }
   }
+  return UDivExpr::alloc(l, r);
 }
 
 static ref<Expr> SDivExpr_create(const ref<Expr> &l, const ref<Expr> &r) {
@@ -2248,9 +2368,13 @@ static ref<Expr> SDivExpr_create(const ref<Expr> &l, const ref<Expr> &r) {
 static ref<Expr> URemExpr_create(const ref<Expr> &l, const ref<Expr> &r) {
   if (l->getWidth() == Expr::Bool) { // r must be 1
     return ConstantExpr::create(0, Expr::Bool);
-  } else {
-    return URemExpr::alloc(l, r);
+  } else if (auto ce = dyn_cast<ConstantExpr>(r)) {
+    if (ce->getAPValue().isPowerOf2()) {
+      auto log = ce->getAPValue().ceilLogBase2();
+      return ZExtExpr::create(ExtractExpr::create(l, 0, log), l->getWidth());
+    }
   }
+  return URemExpr::alloc(l, r);
 }
 
 static ref<Expr> SRemExpr_create(const ref<Expr> &l, const ref<Expr> &r) {
@@ -2264,25 +2388,74 @@ static ref<Expr> SRemExpr_create(const ref<Expr> &l, const ref<Expr> &r) {
 static ref<Expr> ShlExpr_create(const ref<Expr> &l, const ref<Expr> &r) {
   if (l->getWidth() == Expr::Bool) { // l & !r
     return AndExpr::create(l, Expr::createIsZero(r));
-  } else {
-    return ShlExpr::alloc(l, r);
   }
+
+  if (auto ce = dyn_cast<ConstantExpr>(r)) {
+    if (ce->isZero()) {
+      return l;
+    }
+    if (ce->getZExtValue() >= l->getWidth()) {
+      return ConstantExpr::create(0, l->getWidth());
+    }
+    auto extract = ExtractExpr::create(l, 0, l->getWidth() - ce->getZExtValue());
+    return ConcatExpr::create(extract,
+                              ConstantExpr::create(0, ce->getZExtValue()));
+  }
+  return ShlExpr::alloc(l, r);
 }
 
 static ref<Expr> LShrExpr_create(const ref<Expr> &l, const ref<Expr> &r) {
   if (l->getWidth() == Expr::Bool) { // l & !r
     return AndExpr::create(l, Expr::createIsZero(r));
+  } else if (*l == *r) {
+    return ConstantExpr::create(0, l->getWidth());
   } else {
-    return LShrExpr::alloc(l, r);
+    if (auto ce = dyn_cast<ConstantExpr>(r)) {
+      if (ce->isZero()) {
+        return l;
+      }
+      if (ce->getZExtValue() >= l->getWidth()) {
+        return ConstantExpr::create(0, l->getWidth());
+      }
+      if (auto zext = dyn_cast<ZExtExpr>(l)) {
+        if (ce->getZExtValue() >= zext->getValue()->getWidth()) {
+          return ConstantExpr::create(0, l->getWidth());
+        }
+      }
+      auto extract = ExtractExpr::create(l, ce->getZExtValue(),
+                                         l->getWidth() - ce->getZExtValue());
+
+      // Will decay to Concat
+      return ZExtExpr::create(extract, l->getWidth());
+    }
   }
+  return LShrExpr::alloc(l, r);
 }
 
 static ref<Expr> AShrExpr_create(const ref<Expr> &l, const ref<Expr> &r) {
   if (l->getWidth() == Expr::Bool) { // l
     return l;
-  } else {
-    return AShrExpr::alloc(l, r);
   }
+  if (auto shift = dyn_cast<ConstantExpr>(r)) {
+    auto shift_value = shift->getZExtValue();
+    if (shift_value == 0) {
+      return l;
+    }
+    if (auto ce = dyn_cast<ConstantExpr>(l)) {
+      return ce->AShr(shift);
+    }
+    if (auto concat = dyn_cast<ConcatExpr>(l)) {
+      if (auto ce = dyn_cast<ConstantExpr>(concat->getLeft())) {
+        auto extract = ExtractExpr::create(concat, shift_value, concat->getWidth() - shift_value);
+        if (ce->getAPValue().isNegative()) {
+          return ConcatExpr::create(ConstantExpr::alloc(APInt::getAllOnes(shift_value)), extract);
+        } else {
+          return ConcatExpr::create(ConstantExpr::create(0, shift_value), extract);
+        }
+      }
+    }
+  }
+  return AShrExpr::alloc(l, r);
 }
 
 template <typename T> static bool isDiv() {
@@ -2405,8 +2578,59 @@ BCREATE_R(SubExpr, Sub, SubExpr_createPartial, SubExpr_createPartialR,
           SubExpr_createPointer, SubExpr_createPointerR)
 BCREATE_R_C(MulExpr, Mul, MulExpr_createPartial, MulExpr_createPartialR,
             MulExpr_createPointer, MulExpr_createPointerR)
-BCREATE_R_C(AndExpr, And, AndExpr_createPartial, AndExpr_createPartialR,
-            AndExpr_createPointer, AndExpr_createPointerR)
+// BCREATE_R_C(AndExpr, And, AndExpr_createPartial, AndExpr_createPartialR,
+//             AndExpr_createPointer, AndExpr_createPointerR)
+
+ref<Expr> AndExpr ::create(const ref<Expr> &l, const ref<Expr> &r) {
+  (static_cast<bool>(l->getWidth() == r->getWidth() && "type mismatch")
+       ? void(0)
+       : __assert_fail("l->getWidth() == r->getWidth() && \"type mismatch\"",
+                       __builtin_FILE(), __builtin_LINE(),
+                       __extension__ __PRETTY_FUNCTION__));
+  if (auto withSiftUpSelectExpr =
+          tryCreateWithSiftUpSelectExpr<AndExpr>(l, r)) {
+    return withSiftUpSelectExpr;
+  }
+  if (ZExtExpr *zextp = dyn_cast<ZExtExpr>(l)) {
+    auto extractExpr = ExtractExpr::create(r, 0, zextp->getKid(0)->getWidth());
+    auto andExpr = AndExpr::create(zextp->getKid(0), extractExpr);
+    return ZExtExpr::create(andExpr, zextp->width);
+  }
+  if (ZExtExpr *zextp = dyn_cast<ZExtExpr>(r)) {
+    auto extractExpr = ExtractExpr::create(l, 0, zextp->getKid(0)->getWidth());
+    auto andExpr = AndExpr::create(zextp->getKid(0), extractExpr);
+    return ZExtExpr::create(andExpr, zextp->width);
+  }
+  if (PointerExpr *pl = dyn_cast<PointerExpr>(l)) {
+    if (PointerExpr *pr = dyn_cast<PointerExpr>(r))
+      return pl->And(pr);
+    return AndExpr_createPointerR(pl, r.get());
+  } else if (PointerExpr *pr = dyn_cast<PointerExpr>(r)) {
+    return AndExpr_createPointer(l.get(), pr);
+  }
+  if (ConstantExpr *cl = dyn_cast<ConstantExpr>(l)) {
+    if (ConstantExpr *cr = dyn_cast<ConstantExpr>(r))
+      return cl->And(cr);
+    return AndExpr_createPartialR(cl, r.get());
+  } else if (ConstantExpr *cr = dyn_cast<ConstantExpr>(r)) {
+    return AndExpr_createPartial(l.get(), cr);
+  }
+  if (isa<AndExpr>(l) && l->height() > r->height() + 1) {
+    if (l->getKid(0)->height() > l->getKid(1)->height()) {
+      return AndExpr ::create(l->getKid(0), AndExpr ::create(r, l->getKid(1)));
+    } else {
+      return AndExpr ::create(l->getKid(1), AndExpr ::create(r, l->getKid(0)));
+    }
+  } else if (isa<AndExpr>(r) && r->height() > l->height() + 1) {
+    if (r->getKid(0)->height() > r->getKid(1)->height()) {
+      return AndExpr ::create(r->getKid(0), AndExpr ::create(l, r->getKid(1)));
+    } else {
+      return AndExpr ::create(r->getKid(1), AndExpr ::create(l, r->getKid(0)));
+    }
+  }
+  return AndExpr_create(l.get(), r.get());
+}
+
 BCREATE_R_C(OrExpr, Or, OrExpr_createPartial, OrExpr_createPartialR,
             OrExpr_createPointer, OrExpr_createPointerR)
 BCREATE_R_C(XorExpr, Xor, XorExpr_createPartial, XorExpr_createPartialR,
