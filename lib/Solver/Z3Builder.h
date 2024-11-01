@@ -219,6 +219,13 @@ public:
   Z3ASTHandle buildFreshBoolConst();
   Z3ASTHandle getInitialRead(const Array *os, unsigned index);
 
+  Z3_sort_kind getSortKind(const Z3ASTHandle &e);
+
+  Z3ASTHandle castToBitVector(const Z3ASTHandle &e);
+  Z3ASTHandle castToBool(const Z3ASTHandle &e);
+
+  Z3ASTHandle getx87FP80ExplicitSignificandIntegerBit(const Z3ASTHandle &e);
+
   Z3ASTHandle construct(ref<Expr> e) {
     Z3ASTHandle res = construct(std::move(e), nullptr);
     if (autoClearConstructCache)

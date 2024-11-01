@@ -348,6 +348,7 @@ std::string BitwuzlaSolverImpl::getConstraintLog(const Query &query) {
 
   for (auto const &constraint : query.constraints.cs()) {
     Term constraintTerm = tempBuilder->construct(constraint);
+    constraintTerm = tempBuilder->coerceToBool(constraintTerm);
     assertions.push_back(std::move(constraintTerm));
     constant_arrays_in_query.visit(constraint);
   }
@@ -358,7 +359,8 @@ std::string BitwuzlaSolverImpl::getConstraintLog(const Query &query) {
   // the negation of the equivalent i.e.
   // ∃ X Constraints(X) ∧ ¬ query(X)
   assertions.push_back(
-      mk_term(Kind::NOT, {tempBuilder->construct(query.expr)}));
+      mk_term(Kind::NOT,
+              {tempBuilder->coerceToBool(tempBuilder->construct(query.expr))}));
   constant_arrays_in_query.visit(query.expr);
 
   for (auto const &constant_array : constant_arrays_in_query.results) {
@@ -482,6 +484,7 @@ bool BitwuzlaSolverImpl::internalRunSolver(
          cs_it != cs_ite; cs_it++) {
       const auto &constraint = *cs_it;
       Term bitwuzlaConstraint = builder->construct(constraint);
+      bitwuzlaConstraint = builder->coerceToBool(bitwuzlaConstraint);
       if (ProduceUnsatCore && validityCore) {
         env.bitwuzla_ast_expr_to_klee_expr.insert(
             {bitwuzlaConstraint, constraint});

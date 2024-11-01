@@ -213,9 +213,10 @@ Z3ASTHandle Z3CoreBuilder::constructActual(ref<Expr> e, int *width_out) {
     ConstantExpr *CE = cast<ConstantExpr>(e);
     *width_out = CE->getWidth();
 
+    // TODO: remove?
     // Coerce to bool if necessary.
-    if (*width_out == 1)
-      return CE->isTrue() ? getTrue() : getFalse();
+    // if (*width_out == 1)
+    //   return CE->isTrue() ? getTrue() : getFalse();
 
     // Fast path.
     if (*width_out <= 32)
@@ -253,7 +254,12 @@ Z3ASTHandle Z3CoreBuilder::constructActual(ref<Expr> e, int *width_out) {
 
   case Expr::Select: {
     SelectExpr *se = cast<SelectExpr>(e);
-    Z3ASTHandle cond = construct(se->cond, 0);
+    int cond_width;
+    Z3ASTHandle cond = construct(se->cond, &cond_width);
+    if (getSortKind(cond) != Z3_sort_kind::Z3_BOOL_SORT) {
+      assert(cond_width == 1);
+      cond = castToBool(cond);
+    }
     Z3ASTHandle tExpr = construct(se->trueExpr, width_out);
     Z3ASTHandle fExpr = construct(se->falseExpr, width_out);
     return iteExpr(cond, tExpr, fExpr);
@@ -262,10 +268,10 @@ Z3ASTHandle Z3CoreBuilder::constructActual(ref<Expr> e, int *width_out) {
   case Expr::Concat: {
     ConcatExpr *ce = cast<ConcatExpr>(e);
     unsigned numKids = ce->getNumKids();
-    Z3ASTHandle res = construct(ce->getKid(numKids - 1), 0);
+    Z3ASTHandle res = castToBitVector(construct(ce->getKid(numKids - 1), 0));
     for (int i = numKids - 2; i >= 0; i--) {
       res =
-          Z3ASTHandle(Z3_mk_concat(ctx, construct(ce->getKid(i), 0), res), ctx);
+        Z3ASTHandle(Z3_mk_concat(ctx, castToBitVector(construct(ce->getKid(i), 0)), res), ctx);
     }
     *width_out = ce->getWidth();
     return res;
@@ -275,11 +281,11 @@ Z3ASTHandle Z3CoreBuilder::constructActual(ref<Expr> e, int *width_out) {
     ExtractExpr *ee = cast<ExtractExpr>(e);
     Z3ASTHandle src = construct(ee->expr, width_out);
     *width_out = ee->getWidth();
-    if (*width_out == 1) {
-      return bvBoolExtract(src, ee->offset);
-    } else {
+    // if (*width_out == 1) {
+    //   return bvBoolExtract(src, ee->offset);
+    // } else {
       return bvExtract(src, ee->offset + *width_out - 1, ee->offset);
-    }
+    // }
   }
 
     // Casting
@@ -290,6 +296,9 @@ Z3ASTHandle Z3CoreBuilder::constructActual(ref<Expr> e, int *width_out) {
     Z3ASTHandle src = construct(ce->src, &srcWidth);
     *width_out = ce->getWidth();
     if (srcWidth == 1) {
+      if (getSortKind(src) != Z3_sort_kind::Z3_BOOL_SORT) {
+        src = castToBool(src);
+      }
       return iteExpr(src, bvOne(*width_out), bvZero(*width_out));
     } else {
       assert(*width_out > srcWidth && "Invalid width_out");
@@ -304,6 +313,9 @@ Z3ASTHandle Z3CoreBuilder::constructActual(ref<Expr> e, int *width_out) {
     Z3ASTHandle src = construct(ce->src, &srcWidth);
     *width_out = ce->getWidth();
     if (srcWidth == 1) {
+      if (getSortKind(src) != Z3_sort_kind::Z3_BOOL_SORT) {
+        src = castToBool(src);
+      }
       return iteExpr(src, bvMinusOne(*width_out), bvZero(*width_out));
     } else {
       return bvSignExtend(src, *width_out);
@@ -427,7 +439,7 @@ Z3ASTHandle Z3CoreBuilder::constructActual(ref<Expr> e, int *width_out) {
   case Expr::Not: {
     NotExpr *ne = cast<NotExpr>(e);
     Z3ASTHandle expr = construct(ne->expr, width_out);
-    if (*width_out == 1) {
+    if (getSortKind(expr) == Z3_sort_kind::Z3_BOOL_SORT) {
       return notExpr(expr);
     } else {
       return bvNotExpr(expr);
@@ -438,7 +450,11 @@ Z3ASTHandle Z3CoreBuilder::constructActual(ref<Expr> e, int *width_out) {
     AndExpr *ae = cast<AndExpr>(e);
     Z3ASTHandle left = construct(ae->left, width_out);
     Z3ASTHandle right = construct(ae->right, width_out);
-    if (*width_out == 1) {
+    if (getSortKind(left) == Z3_sort_kind::Z3_BOOL_SORT) {
+      right = castToBool(right);
+      return andExpr(left, right);
+    } else if (getSortKind(right) == Z3_sort_kind::Z3_BOOL_SORT) {
+      left = castToBool(left);
       return andExpr(left, right);
     } else {
       return bvAndExpr(left, right);
@@ -449,7 +465,11 @@ Z3ASTHandle Z3CoreBuilder::constructActual(ref<Expr> e, int *width_out) {
     OrExpr *oe = cast<OrExpr>(e);
     Z3ASTHandle left = construct(oe->left, width_out);
     Z3ASTHandle right = construct(oe->right, width_out);
-    if (*width_out == 1) {
+    if (getSortKind(left) == Z3_sort_kind::Z3_BOOL_SORT) {
+      right = castToBool(right);
+      return orExpr(left, right);
+    } else if (getSortKind(right) == Z3_sort_kind::Z3_BOOL_SORT) {
+      left = castToBool(left);
       return orExpr(left, right);
     } else {
       return bvOrExpr(left, right);
@@ -461,8 +481,12 @@ Z3ASTHandle Z3CoreBuilder::constructActual(ref<Expr> e, int *width_out) {
     Z3ASTHandle left = construct(xe->left, width_out);
     Z3ASTHandle right = construct(xe->right, width_out);
 
-    if (*width_out == 1) {
+    if (getSortKind(left) == Z3_sort_kind::Z3_BOOL_SORT) {
+      right = castToBool(right);
       // XXX check for most efficient?
+      return iteExpr(left, Z3ASTHandle(notExpr(right)), right);
+    } else if (getSortKind(right) == Z3_sort_kind::Z3_BOOL_SORT) {
+      left = castToBool(left);
       return iteExpr(left, Z3ASTHandle(notExpr(right)), right);
     } else {
       return bvXorExpr(left, right);
@@ -520,6 +544,8 @@ Z3ASTHandle Z3CoreBuilder::constructActual(ref<Expr> e, int *width_out) {
     Z3ASTHandle left = construct(ee->left, width_out);
     Z3ASTHandle right = construct(ee->right, width_out);
     if (*width_out == 1) {
+      left = castToBool(left);
+      right = castToBool(right);
       if (ConstantExpr *CE = dyn_cast<ConstantExpr>(ee->left)) {
         if (CE->isTrue())
           return right;
@@ -581,5 +607,38 @@ Z3ASTHandle Z3CoreBuilder::constructActual(ref<Expr> e, int *width_out) {
     return getTrue();
   }
 }
+
+Z3ASTHandle
+Z3Builder::getx87FP80ExplicitSignificandIntegerBit(const Z3ASTHandle &e) {
+#ifndef NDEBUG
+  // Check the passed in expression is the right type.
+  Z3SortHandle currentSort = Z3SortHandle(Z3_get_sort(ctx, e), ctx);
+  assert(Z3_get_sort_kind(ctx, currentSort) == Z3_FLOATING_POINT_SORT);
+  unsigned exponentBits = Z3_fpa_get_ebits(ctx, currentSort);
+  unsigned significandBits = Z3_fpa_get_sbits(ctx, currentSort);
+  assert(exponentBits == 15);
+  assert(significandBits == 64);
+#endif
+  // If the number is a denormal or zero then the implicit integer bit is zero
+  // otherwise it is one.  Z3ASTHandle isDenormal =
+  Z3ASTHandle isDenormal = Z3ASTHandle(Z3_mk_fpa_is_subnormal(ctx, e), ctx);
+  Z3ASTHandle isZero = Z3ASTHandle(Z3_mk_fpa_is_zero(ctx, e), ctx);
+
+  // FIXME: Cache these constants somewhere
+  Z3SortHandle oneBitBvSort = getBvSort(/*width=*/1);
+#ifndef NDEBUG
+  assert(Z3_get_sort_kind(ctx, oneBitBvSort) == Z3_BV_SORT);
+  assert(Z3_get_bv_sort_size(ctx, oneBitBvSort) == 1);
+#endif
+  Z3ASTHandle oneBvOne =
+      Z3ASTHandle(Z3_mk_unsigned_int64(ctx, 1, oneBitBvSort), ctx);
+  Z3ASTHandle zeroBvOne =
+      Z3ASTHandle(Z3_mk_unsigned_int64(ctx, 0, oneBitBvSort), ctx);
+  Z3ASTHandle significandIntegerBitCondition = orExpr(isDenormal, isZero);
+  Z3ASTHandle significandIntegerBitConstrainedValue = Z3ASTHandle(
+      Z3_mk_ite(ctx, significandIntegerBitCondition, zeroBvOne, oneBvOne), ctx);
+  return significandIntegerBitConstrainedValue;
+}
+
 } // namespace klee
 #endif // ENABLE_Z3

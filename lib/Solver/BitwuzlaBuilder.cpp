@@ -150,6 +150,10 @@ Term BitwuzlaBuilder::eqExpr(Term a, Term b) {
   return mk_term(Kind::EQUAL, {a, b});
 }
 
+Term BitwuzlaBuilder::coerceToBool(Term expr) {
+  return expr.sort().is_bool() ? expr : mk_term(Kind::EQUAL, {expr, bvOne(1)});
+}
+
 // logical right shift
 Term BitwuzlaBuilder::bvRightShift(Term expr, unsigned shift) {
   Term exprAsBv = castToBitVector(expr);
@@ -469,9 +473,10 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
     ConstantExpr *CE = cast<ConstantExpr>(e);
     *width_out = CE->getWidth();
 
+    // TODO: remove?
     // Coerce to bool if necessary.
-    if (*width_out == 1)
-      return CE->isTrue() ? getTrue() : getFalse();
+    // if (*width_out == 1)
+    //   return CE->isTrue() ? getTrue() : getFalse();
 
     Term Res;
     if (*width_out <= 32) {
@@ -508,7 +513,12 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
 
   case Expr::Select: {
     SelectExpr *se = cast<SelectExpr>(e);
-    Term cond = construct(se->cond, 0);
+    int cond_width;
+    Term cond = construct(se->cond, &cond_width);
+    if (!cond.sort().is_bool()) {
+      assert(cond_width == 1);
+      cond = coerceToBool(cond);
+    }
     Term tExpr = construct(se->trueExpr, width_out);
     Term fExpr = construct(se->falseExpr, width_out);
     return iteExpr(cond, tExpr, fExpr);
@@ -521,7 +531,7 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
     term_args.reserve(numKids);
 
     for (unsigned i = 0; i < numKids; ++i) {
-      term_args.push_back(construct(ce->getKid(i), 0));
+      term_args.push_back(castToBitVector(construct(ce->getKid(i), 0)));
     }
 
     *width_out = ce->getWidth();
@@ -532,11 +542,11 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
     ExtractExpr *ee = cast<ExtractExpr>(e);
     Term src = construct(ee->expr, width_out);
     *width_out = ee->getWidth();
-    if (*width_out == 1) {
-      return bvBoolExtract(src, ee->offset);
-    } else {
-      return bvExtract(src, ee->offset + *width_out - 1, ee->offset);
-    }
+    // if (*width_out == 1) {
+    //   return bvBoolExtract(src, ee->offset);
+    // } else {
+    return bvExtract(src, ee->offset + *width_out - 1, ee->offset);
+    // }
   }
 
     // Casting
@@ -547,6 +557,9 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
     Term src = construct(ce->src, &srcWidth);
     *width_out = ce->getWidth();
     if (srcWidth == 1) {
+      if (!src.sort().is_bool()) {
+        src = coerceToBool(src);
+      }
       return iteExpr(src, bvOne(*width_out), bvZero(*width_out));
     } else {
       assert(*width_out > srcWidth && "Invalid width_out");
@@ -561,6 +574,9 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
     Term src = construct(ce->src, &srcWidth);
     *width_out = ce->getWidth();
     if (srcWidth == 1) {
+      if (!src.sort().is_bool()) {
+        src = coerceToBool(src);
+      }
       return iteExpr(src, bvMinusOne(*width_out), bvZero(*width_out));
     } else {
       return bvSignExtend(src, *width_out);
@@ -758,7 +774,7 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
   case Expr::Not: {
     NotExpr *ne = cast<NotExpr>(e);
     Term expr = construct(ne->expr, width_out);
-    if (*width_out == 1) {
+    if (expr.sort().is_bool()) {
       return notExpr(expr);
     } else {
       return bvNotExpr(expr);
@@ -769,7 +785,11 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
     AndExpr *ae = cast<AndExpr>(e);
     Term left = construct(ae->left, width_out);
     Term right = construct(ae->right, width_out);
-    if (*width_out == 1) {
+    if (left.sort().is_bool()) {
+      right = coerceToBool(right);
+      return andExpr(left, right);
+    } else if (right.sort().is_bool()) {
+      left = coerceToBool(left);
       return andExpr(left, right);
     } else {
       return bvAndExpr(left, right);
@@ -780,7 +800,11 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
     OrExpr *oe = cast<OrExpr>(e);
     Term left = construct(oe->left, width_out);
     Term right = construct(oe->right, width_out);
-    if (*width_out == 1) {
+    if (left.sort().is_bool()) {
+      right = coerceToBool(right);
+      return orExpr(left, right);
+    } else if (right.sort().is_bool()) {
+      left = coerceToBool(left);
       return orExpr(left, right);
     } else {
       return bvOrExpr(left, right);
@@ -792,8 +816,12 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
     Term left = construct(xe->left, width_out);
     Term right = construct(xe->right, width_out);
 
-    if (*width_out == 1) {
+    if (left.sort().is_bool()) {
+      right = coerceToBool(right);
       // XXX check for most efficient?
+      return iteExpr(left, Term(notExpr(right)), right);
+    } else if (right.sort().is_bool()) {
+      left = coerceToBool(left);
       return iteExpr(left, Term(notExpr(right)), right);
     } else {
       return bvXorExpr(left, right);
@@ -851,6 +879,15 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
     Term left = construct(ee->left, width_out);
     Term right = construct(ee->right, width_out);
     if (*width_out == 1) {
+      if (!left.sort().is_bool()) {
+        assert(!left.sort().is_bool());
+        left = coerceToBool(left);
+        right = coerceToBool(right);
+      }
+    }
+    if (left.sort().is_bool() || right.sort().is_bool()) {
+      left = coerceToBool(left);
+      right = coerceToBool(right);
       if (ConstantExpr *CE = dyn_cast<ConstantExpr>(ee->left)) {
         if (CE->isTrue())
           return right;
