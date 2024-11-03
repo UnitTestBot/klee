@@ -75,6 +75,7 @@ def klee_options(
         #  "--search=nurs:md2u", "--search=random-path",
         #  "-const-array-opt",
         "--use-batching-search",
+        "--use-concretizing-solver=false",
         "--batch-instructions=10000",
         "--batch-time=0",
         "--only-output-make-symbolic-arrays",
