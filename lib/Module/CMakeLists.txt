@@ -18,6 +18,7 @@ set(KLEE_MODULE_COMPONENT_SRCS
   LocationInfo.cpp
   InstructionOperandTypeCheckPass.cpp
   IntrinsicCleaner.cpp
+  FreezeLower.cpp
   KInstruction.cpp
   KModule.cpp
   KValue.cpp

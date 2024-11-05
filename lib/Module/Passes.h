@@ -288,6 +288,13 @@ private:
   std::optional<llvm::DbgLabelInst *> findDbgLabel(llvm::Function &);
   std::unordered_set<llvm::Function *> wrappers;
 };
+/// Remove unwanted calls
+class FreezeLower : public llvm::FunctionPass {
+public:
+  static char ID;
+  FreezeLower() : llvm::FunctionPass(ID) {}
+  bool runOnFunction(llvm::Function &) override;
+};
 
 } // namespace klee
 
