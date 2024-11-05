@@ -419,8 +419,10 @@ ExprHashSet PathConstraints::addConstraint(ref<Expr> e,
       constraints.addConstraint(expr);
     }
   }
+  addingCounter += 1;
 
-  if (RewriteEqualities != RewriteEqualitiesPolicy::None) {
+  if (RewriteEqualities != RewriteEqualitiesPolicy::None &&
+      (addingCounter & 0x3FFU) == 0) {
     auto simplified =
         Simplificator::simplify(constraints.cs(), RewriteEqualities);
     if (simplified.wasSimplified) {

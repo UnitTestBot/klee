@@ -81,7 +81,6 @@ def klee_options(
         "--memory-backend=mixed",
         "--max-fixed-size-structures-size=64",
         "--optimize=true",
-        "--rewrite-equalities=none",
         "--use-iterative-deepening-search=max-cycles",
     ]
     if run_forever:
