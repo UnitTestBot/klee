@@ -37,10 +37,16 @@ llvm::cl::opt<RewriteEqualitiesPolicy> RewriteEqualities(
     llvm::cl::values(clEnumValN(RewriteEqualitiesPolicy::None, "none",
                                 "Don't rewrite"),
                      clEnumValN(RewriteEqualitiesPolicy::Simple, "simple",
-                                "lightweight visitor"),
+                                "Use lightweight visitor"),
                      clEnumValN(RewriteEqualitiesPolicy::Full, "full",
-                                "more powerful visitor")),
+                                "Use more powerful visitor")),
     llvm::cl::init(RewriteEqualitiesPolicy::Simple), llvm::cl::cat(SolvingCat));
+
+llvm::cl::opt<bool> UseIntermittentRewriter(
+    "use-intermittent-equalities-rewriter",
+    llvm::cl::desc(
+        "Rewrite existing constraints every few additions (default=false)"),
+    llvm::cl::init(false), llvm::cl::cat(SolvingCat));
 } // namespace
 
 class ExprReplaceVisitor : public ExprVisitor {
@@ -419,8 +425,10 @@ ExprHashSet PathConstraints::addConstraint(ref<Expr> e,
       constraints.addConstraint(expr);
     }
   }
+  addingCounter += 1;
 
-  if (RewriteEqualities != RewriteEqualitiesPolicy::None) {
+  if (RewriteEqualities != RewriteEqualitiesPolicy::None &&
+      (!UseIntermittentRewriter || (addingCounter & 0x3FFU) == 0)) {
     auto simplified =
         Simplificator::simplify(constraints.cs(), RewriteEqualities);
     if (simplified.wasSimplified) {

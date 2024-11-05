@@ -143,6 +143,7 @@ private:
   ExprHashMap<Path::PathIndex> pathIndexes;
   ordered_constraints_ty orderedConstraints;
   ExprHashMap<ExprHashSet> _simplificationMap;
+  unsigned long addingCounter = 0UL;
 };
 
 struct Conflict {
