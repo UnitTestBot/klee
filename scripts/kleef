@@ -69,7 +69,7 @@ def klee_options(
         "--fp-runtime",
         # "--max-sym-array-size=4096",
         "--symbolic-allocation-threshold=8192",
-        "--uninit-memory-test-multiplier=10",
+        "--uninit-memory-test-multiplier=0",
         # "--dump-all-states=false",
         #  "--search=nurs:covnew",
         #  "--search=nurs:md2u", "--search=random-path",
