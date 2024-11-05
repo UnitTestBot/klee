@@ -59,8 +59,21 @@ std::unique_ptr<Solver> constructSolverChain(
   if (UseBranchCache)
     solver = createCachingSolver(std::move(solver));
 
-  if (UseAlphaEquivalence)
+  if (UseAlphaEquivalence) {
+    if (UseCexCache)
+      solver = createCexCachingSolver(std::move(solver));
+
+    if (UseBranchCache)
+      solver = createCachingSolver(std::move(solver));
+
     solver = createAlphaEquivalenceSolver(std::move(solver));
+  }
+
+  if (UseCexCache)
+    solver = createCexCachingSolver(std::move(solver));
+
+  if (UseBranchCache)
+    solver = createCachingSolver(std::move(solver));
 
   if (UseIndependentSolver)
     solver = createIndependentSolver(std::move(solver));
