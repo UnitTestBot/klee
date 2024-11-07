@@ -2388,6 +2388,9 @@ static ref<Expr> URemExpr_create(const ref<Expr> &l, const ref<Expr> &r) {
   if (l->getWidth() == Expr::Bool) { // r must be 1
     return ConstantExpr::create(0, Expr::Bool);
   } else if (auto ce = dyn_cast<ConstantExpr>(r)) {
+    if (ce->isOne()) {
+      return ConstantExpr::create(0, l->getWidth());
+    }
     if (ce->getAPValue().isPowerOf2()) {
       auto log = ce->getAPValue().ceilLogBase2();
       return ZExtExpr::create(ExtractExpr::create(l, 0, log), l->getWidth());
@@ -2846,6 +2849,22 @@ static ref<Expr> EqExpr_createPartialR(const ref<ConstantExpr> &cl, Expr *r) {
       return EqExpr::create(zee->src, trunc);
     } else {
       return ConstantExpr::create(0, Expr::Bool);
+    }
+  } else if (rk == Expr::Concat) {
+    const ConcatExpr *concatExpr = cast<ConcatExpr>(r);
+    if (auto constE = dyn_cast<ConstantExpr>(concatExpr->getLeft())) {
+      if (constE->getAPValue().isZero()) {
+        Expr::Width fromBits = concatExpr->getRight()->getWidth();
+        ref<ConstantExpr> trunc = cl->ZExt(fromBits);
+
+        // pathological check, make sure it is possible to
+        // zext to this value *from any value*
+        if (cl == trunc->ZExt(width)) {
+          return EqExpr::create(concatExpr->getRight(), trunc);
+        } else {
+          return ConstantExpr::create(0, Expr::Bool);
+        }
+      }
     }
   } else if (rk == Expr::Add) {
     const AddExpr *ae = cast<AddExpr>(r);
