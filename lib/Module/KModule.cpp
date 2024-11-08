@@ -265,9 +265,7 @@ buildInstructionToLineMap(const llvm::Module &m,
   return a.getMapping();
 }
 
-void KModule::manifest(InterpreterHandler *ih,
-                       Interpreter::GuidanceKind guidance,
-                       bool forceSourceOutput) {
+void KModule::manifest(InterpreterHandler *ih, bool forceSourceOutput) {
 
   if (OutputModule) {
     std::unique_ptr<llvm::raw_fd_ostream> f(ih->openOutputFile("final.bc"));
@@ -334,9 +332,7 @@ void KModule::manifest(InterpreterHandler *ih,
       if (isa<InlineAsm>(cs.getCalledOperand())) {
         isInlineAsm = true;
       }
-      if (kcb->calledFunctions.empty() && !isInlineAsm &&
-          (guidance != Interpreter::GuidanceKind::ErrorGuidance ||
-           !inMainModule(*kfp->function()))) {
+      if (kcb->calledFunctions.empty() && !isInlineAsm) {
         kcb->calledFunctions.insert(escapingFunctions.begin(),
                                     escapingFunctions.end());
       }

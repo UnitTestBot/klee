@@ -61,6 +61,9 @@ def klee_options(
         #  "--search=nurs:covnew",
         #  "--search=nurs:md2u", "--search=random-path",
         #  "-const-array-opt",
+        "--use-batching-search",
+        "--batch-instructions=10000",
+        "--batch-time=0",
         "--only-output-make-symbolic-arrays",
         "--memory-backend=mixed",
         "--max-fixed-size-structures-size=64",
@@ -189,6 +192,7 @@ class KLEEF(object):
         use_perf=False,
         use_valgrind=False,
         write_ktests=False,
+        debug=False,
     ):
         self.source = Path(source) if source else None
         self.is32 = is32
@@ -204,6 +208,7 @@ class KLEEF(object):
             self.write_ktests = "true"
         else:
             self.write_ktests = "false"
+        self.debug = debug
 
         # This file is inside the bin directory - use the root as base
         self.bin_directory = Path(__file__).parent
@@ -213,7 +218,10 @@ class KLEEF(object):
         self.linker_path = tryFind(self.bin_directory, "llvm-link")
         self.library_path = self.base_directory / "libraries"
         self.runtime_library_path = self.base_directory / "runtime/lib"
-        self.test_results_path = Path.cwd() / "test-suite"
+        if self.debug:
+            self.test_results_path = Path.cwd() / self.source.name
+        else:
+            self.test_results_path = Path.cwd() / "test-suite"
         self.test_results_path.mkdir(exist_ok=True)
 
         self.callEnv = os.environ.copy()
@@ -221,7 +229,10 @@ class KLEEF(object):
         self.callEnv["KLEE_RUNTIME_LIBRARY_PATH"] = self.runtime_library_path
 
     def compile(self):
-        self.tempdir = Path(tempfile.mkdtemp())
+        if self.debug:
+            self.tempdir = Path.cwd()
+        else:
+            self.tempdir = Path(tempfile.mkdtemp())
 
         # Compile file for testing
         self.compiled_file = self.tempdir / (self.source.name + ".bc")
@@ -407,6 +418,7 @@ def run(args):
         use_perf=args.perf,
         use_valgrind=args.valgrind,
         write_ktests=args.write_ktests,
+        debug=args.debug,
     )
     wrapper.compile()
     return wrapper.run()
@@ -430,6 +442,12 @@ def main():
     parser.add_argument(
         "--valgrind",
         help="Measure memory with valgrind",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
+        "--debug",
+        help="to use for testing",
         action="store_true",
         default=False,
     )
