@@ -5,7 +5,7 @@
 
 # Base folder where dependencies and KLEE itself are installed
 BASE=$HOME/klee_build
-BUILD_SUFFIX="Release"
+# BUILD_SUFFIX="Release"
 
 ## KLEE Required options
 # Build type for KLEE. The options are:
@@ -26,7 +26,7 @@ USE_LIBCXX=1
 SQLITE_VERSION="3400100"
 
 ## LLVM Required options
-LLVM_VERSION=16
+LLVM_VERSION=14
 ENABLE_OPTIMIZED=1
 ENABLE_DEBUG=0
 DISABLE_ASSERTIONS=1
