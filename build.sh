@@ -5,7 +5,7 @@
 
 # Base folder where dependencies and KLEE itself are installed
 BASE=$HOME/klee_build
-BUILD_SUFFIX="Release"
+# BUILD_SUFFIX="Release"
 
 ## KLEE Required options
 # Build type for KLEE. The options are:
@@ -19,14 +19,14 @@ KLEE_RUNTIME_BUILD="Release"
 
 COVERAGE=0
 ENABLE_DOXYGEN=0
-USE_TCMALLOC=0
-TCMALLOC_VERSION=2.9.1
+USE_TCMALLOC=1
+TCMALLOC_VERSION=2.16
 USE_LIBCXX=1
 # Also required despite not being mentioned in the guide
 SQLITE_VERSION="3400100"
 
 ## LLVM Required options
-LLVM_VERSION=16
+LLVM_VERSION=14
 ENABLE_OPTIMIZED=1
 ENABLE_DEBUG=0
 DISABLE_ASSERTIONS=1
@@ -35,7 +35,7 @@ ENABLE_WARNINGS_AS_ERRORS=0
 
 ## Solvers Required options
 # SOLVERS=STP
-SOLVERS=BITWUZLA:Z3:STP
+SOLVERS=BITWUZLA
 
 ## Google Test Required options
 GTEST_VERSION=1.11.0
