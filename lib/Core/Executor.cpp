@@ -7269,7 +7269,8 @@ void Executor::setInitializationGraph(
   }
   for (auto i : pointers) {
     ktest.objects[i.first].numPointers = i.second.size();
-    ktest.objects[i.first].pointers = new Pointer[i.second.size()];
+    ktest.objects[i.first].pointers = (Pointer *)calloc(
+        i.second.size(), sizeof(*ktest.objects[i.first].pointers));
     for (size_t j = 0; j < i.second.size(); j++) {
       ktest.objects[i.first].pointers[j] = i.second[j];
     }
@@ -7505,8 +7506,10 @@ bool Executor::getSymbolicSolution(const ExecutionState &state, KTest &res) {
     }
   }
 
+  res.symArgvs = 0;
+  res.symArgvLen = 0;
   res.numObjects = symbolics.size();
-  res.objects = new KTestObject[res.numObjects];
+  res.objects = (KTestObject *)calloc(res.numObjects, sizeof(*res.objects));
   res.uninitCoeff = uninitObjects.size() * UninitMemoryTestMultiplier;
 
   {
@@ -7516,12 +7519,13 @@ bool Executor::getSymbolicSolution(const ExecutionState &state, KTest &res) {
       auto mo = symbolic.memoryObject;
       auto &values = model.bindings.at(symbolic.array);
       KTestObject *o = &res.objects[i];
-      o->name = const_cast<char *>(mo->name.c_str());
+      o->name = (char *)calloc(mo->name.size() + 1, sizeof(*o->name));
+      std::strcpy(o->name, mo->name.c_str());
       o->address = cast<ConstantExpr>(evaluator.visit(mo->getBaseExpr()))
                        ->getZExtValue();
       o->numBytes = cast<ConstantExpr>(evaluator.visit(mo->getSizeExpr()))
                         ->getZExtValue();
-      o->bytes = new unsigned char[o->numBytes];
+      o->bytes = (unsigned char *)calloc(o->numBytes, sizeof(*o->bytes));
       for (size_t j = 0; j < o->numBytes; j++) {
         o->bytes[j] = values.load(j);
       }
