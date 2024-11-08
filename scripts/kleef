@@ -84,12 +84,8 @@ def klee_options(
         "--use-batching-search",
         "--rewrite-equalities=none",
     ]
-    if True:
+    if run_forever:
         cmd += [
-            f"--seed-dir={test_output_dir}",
-            "--use-seeded-search",
-            "--explore-completed-seeds=false",
-            "--store-seeds-locally",
             "--run-forever",
             "--upload-percentage=50",
         ]
