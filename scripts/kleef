@@ -210,7 +210,8 @@ class KLEEF(object):
         use_valgrind=False,
         write_ktests=False,
         property_file=None,
-        run_forever=False,
+        run_forever=True,
+        debug=False,
     ):
         self.source = Path(source) if source else None
         self.is32 = is32
@@ -228,6 +229,7 @@ class KLEEF(object):
         else:
             self.write_ktests = "false"
         self.run_forever = run_forever
+        self.debug = debug
 
         # This file is inside the bin directory - use the root as base
         self.bin_directory = Path(__file__).parent
@@ -237,7 +239,10 @@ class KLEEF(object):
         self.linker_path = tryFind(self.bin_directory, "llvm-link")
         self.library_path = self.base_directory / "libraries"
         self.runtime_library_path = self.base_directory / "runtime/lib"
-        self.test_results_path = Path.cwd() / "test-suite"
+        if self.debug:
+            self.test_results_path = Path.cwd() / self.source.name
+        else:
+            self.test_results_path = Path.cwd() / "test-suite"
         self.test_results_path.mkdir(exist_ok=True)
 
         self.callEnv = os.environ.copy()
@@ -245,7 +250,10 @@ class KLEEF(object):
         self.callEnv["KLEE_RUNTIME_LIBRARY_PATH"] = self.runtime_library_path
 
     def compile(self):
-        self.tempdir = Path(tempfile.mkdtemp())
+        if self.debug:
+            self.tempdir = Path.cwd()
+        else:
+            self.tempdir = Path(tempfile.mkdtemp())
 
         # Compile file for testing
         self.compiled_file = self.tempdir / (self.source.name + ".bc")
@@ -449,6 +457,7 @@ def run(args):
         write_ktests=args.write_ktests,
         property_file=args.property_file,
         run_forever=args.run_forever,
+        debug=args.debug,
     )
     wrapper.compile()
     return wrapper.run()
@@ -479,6 +488,12 @@ def main():
         default=False,
     )
     parser.add_argument(
+        "--debug",
+        help="to use for testing",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
         "--coverage-only", help="Focus on coverage", action="store_true"
     )
     parser.add_argument(
@@ -505,7 +520,10 @@ def main():
         "--write-ktests", help="Write tests in KTest format", action="store_true"
     )
     parser.add_argument(
-        "--run-forever", help="Run symbolic execution forever", action="store_true"
+        "--run-forever",
+        help="to use for testing",
+        action="store_true",
+        default=True,
     )
 
     args = parser.parse_args()
