@@ -122,7 +122,7 @@ def parse_coverage_goal_file(goal_file: str) -> str:
     return eu.COVERAGE_GOALS[goal]
 
 
-def run(cmd: list, argv=None) -> Path:
+def run(cmd: list, argv=None, output_dir=None) -> Path:
     args = parse(argv)
 
     try:
@@ -130,6 +130,7 @@ def run(cmd: list, argv=None) -> Path:
             executor = execution.InstrumentationRunner(
                 machine_model=args.machine_model,
                 goal=args.goal,
+                output_dir=(output_dir if output_dir is not None else Path(os.getcwd()))
             )
             return executor._prepare_program(cmd, args.file)
         except FileNotFoundError as e:

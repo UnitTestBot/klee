@@ -107,12 +107,9 @@ def instrument_program(
 
 def _call_label_adder(cmd, parameters: Sequence[str], input_content: str):
     with tempfile.NamedTemporaryFile(mode="w", encoding="UTF-8", suffix=".c") as tmp:
-        print(tmp.name)
-
         compiliation_commands_path: Path | None = None
         if cmd is not None:
             compiliation_commands_path: Path = eu.form_compiliation_commands(cmd, Path(tmp.name))
-            print(f"Compile_commands lie in: {compiliation_commands_path}")
     
         tmp.write(input_content)
         tmp.flush()
