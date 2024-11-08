@@ -418,6 +418,7 @@ def run(args):
         use_perf=args.perf,
         use_valgrind=args.valgrind,
         write_ktests=args.write_ktests,
+        debug=args.debug,
     )
     wrapper.compile()
     return wrapper.run()
