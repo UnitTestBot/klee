@@ -160,6 +160,7 @@ enum class ObjectAssignment {
 
 struct BitwuzlaSolverEnv {
   using arr_vec = std::vector<const Array *>;
+  std::unique_ptr<BitwuzlaBuilder> builder;
   inc_vector<const Array *> objects;
   arr_vec objectsForGetModel;
   ExprIncMap bitwuzla_ast_expr_to_klee_expr;
@@ -167,7 +168,7 @@ struct BitwuzlaSolverEnv {
   inc_umap<const Array *, ExprHashSet> usedArrayBytes;
   ExprIncSet symbolicObjects;
 
-  explicit BitwuzlaSolverEnv() = default;
+  explicit BitwuzlaSolverEnv();
   explicit BitwuzlaSolverEnv(const arr_vec &objects);
 
   void pop(size_t popSize);
@@ -178,7 +179,14 @@ struct BitwuzlaSolverEnv {
 };
 
 BitwuzlaSolverEnv::BitwuzlaSolverEnv(const arr_vec &objects)
-    : objectsForGetModel(objects) {}
+    : objectsForGetModel(objects) {
+
+  builder = std::unique_ptr<BitwuzlaBuilder>(new BitwuzlaBuilder(
+      /*autoClearConstructCache=*/false));
+  assert(builder && "unable to create BitwuzlaBuilder");
+}
+
+BitwuzlaSolverEnv::BitwuzlaSolverEnv() : BitwuzlaSolverEnv(arr_vec()) {}
 
 void BitwuzlaSolverEnv::pop(size_t popSize) {
   if (popSize == 0)
@@ -206,6 +214,7 @@ void BitwuzlaSolverEnv::clear() {
   expr_to_track.clear();
   usedArrayBytes.clear();
   symbolicObjects.clear();
+  builder.reset(new BitwuzlaBuilder(false));
 }
 
 const BitwuzlaSolverEnv::arr_vec *
@@ -224,7 +233,6 @@ BitwuzlaSolverEnv::getObjectsForGetModel(ObjectAssignment oa) const {
 
 class BitwuzlaSolverImpl : public SolverImpl {
 protected:
-  std::unique_ptr<BitwuzlaBuilder> builder;
   Options solverParameters;
 
 private:
@@ -244,8 +252,7 @@ private:
 protected:
   BitwuzlaSolverImpl();
 
-  virtual Bitwuzla &initNativeBitwuzla(const ConstraintQuery &query,
-                                       BitwuzlaASTIncSet &assertions) = 0;
+  virtual Bitwuzla &initNativeBitwuzla(BitwuzlaSolverEnv &env) = 0;
   virtual void deinitNativeBitwuzla(Bitwuzla &theSolver) = 0;
   virtual void push(Bitwuzla &s) = 0;
 
@@ -287,10 +294,6 @@ void deleteNativeBitwuzla(std::optional<Bitwuzla> &theSolver) {
 
 BitwuzlaSolverImpl::BitwuzlaSolverImpl()
     : runStatusCode(SolverImpl::SOLVER_RUN_STATUS_FAILURE) {
-  builder = std::unique_ptr<BitwuzlaBuilder>(new BitwuzlaBuilder(
-      /*autoClearConstructCache=*/false));
-  assert(builder && "unable to create BitwuzlaBuilder");
-
   solverParameters.set(Option::PRODUCE_MODELS, true);
 
   setCoreSolverTimeout(timeout);
@@ -357,8 +360,8 @@ std::string BitwuzlaSolverImpl::getConstraintLog(const Query &query) {
   // but Bitwuzla works in terms of satisfiability so instead we ask the
   // the negation of the equivalent i.e.
   // ∃ X Constraints(X) ∧ ¬ query(X)
-  assertions.push_back(
-      mk_term(Kind::NOT, {tempBuilder->construct(query.expr)}));
+  assertions.push_back(tempBuilder->ctx->mk_term(
+      Kind::NOT, {tempBuilder->construct(query.expr)}));
   constant_arrays_in_query.visit(query.expr);
 
   for (auto const &constant_array : constant_arrays_in_query.results) {
@@ -481,7 +484,7 @@ bool BitwuzlaSolverImpl::internalRunSolver(
               cs_ite = query.constraints.end(i);
          cs_it != cs_ite; cs_it++) {
       const auto &constraint = *cs_it;
-      Term bitwuzlaConstraint = builder->construct(constraint);
+      Term bitwuzlaConstraint = env.builder->construct(constraint);
       if (ProduceUnsatCore && validityCore) {
         env.bitwuzla_ast_expr_to_klee_expr.insert(
             {bitwuzlaConstraint, constraint});
@@ -505,15 +508,15 @@ bool BitwuzlaSolverImpl::internalRunSolver(
       if (all_constant_arrays_in_query.count(constant_array))
         continue;
       all_constant_arrays_in_query.insert(constant_array);
-      const auto &cas = builder->constant_array_assertions[constant_array];
+      const auto &cas = env.builder->constant_array_assertions[constant_array];
       exprs.insert(cas.begin(), cas.end());
     }
 
     // Assert an generated side constraints we have to this last so that all
     // other constraints have been traversed so we have all the side constraints
     // needed.
-    exprs.insert(builder->sideConstraints.begin(),
-                 builder->sideConstraints.end());
+    exprs.insert(env.builder->sideConstraints.begin(),
+                 env.builder->sideConstraints.end());
   }
   exprs.pop(1); // drop last empty frame
 
@@ -533,7 +536,7 @@ bool BitwuzlaSolverImpl::internalRunSolver(
   action.sa_flags = 0;
   sigaction(SIGINT, &action, &old_action);
 
-  Bitwuzla &theSolver = initNativeBitwuzla(query, exprs);
+  Bitwuzla &theSolver = initNativeBitwuzla(env);
   theSolver.configure_terminator(&terminator);
 
   for (size_t i = 0; i < exprs.framesSize(); i++) {
@@ -588,8 +591,8 @@ bool BitwuzlaSolverImpl::internalRunSolver(
   // we allow Term expressions to be shared from an entire
   // ``Query`` rather than only sharing within a single call to
   // ``builder->construct()``.
-  builder->clearConstructCache();
-  builder->clearSideConstraints();
+  env.builder->clearConstructCache();
+  env.builder->clearSideConstraints();
   if (runStatusCode == SolverImpl::SOLVER_RUN_STATUS_SUCCESS_SOLVABLE ||
       runStatusCode == SolverImpl::SOLVER_RUN_STATUS_SUCCESS_UNSOLVABLE) {
     if (hasSolution) {
@@ -628,7 +631,7 @@ SolverImpl::SolverRunStatus BitwuzlaSolverImpl::handleSolverResponse(
         std::unordered_set<uint64_t> offsetValues;
         for (const ref<Expr> &offsetExpr : env.usedArrayBytes.at(array)) {
           Term arrayElementOffsetExpr =
-              theSolver.get_value(builder->construct(offsetExpr));
+              theSolver.get_value(env.builder->construct(offsetExpr));
 
           uint64_t concretizedOffsetValue =
               std::stoull(arrayElementOffsetExpr.value<std::string>(10));
@@ -637,7 +640,7 @@ SolverImpl::SolverRunStatus BitwuzlaSolverImpl::handleSolverResponse(
 
         for (unsigned offset : offsetValues) {
           // We can't use Term here so have to do ref counting manually
-          Term initial_read = builder->getInitialRead(array, offset);
+          Term initial_read = env.builder->getInitialRead(array, offset);
           Term initial_read_expr = theSolver.get_value(initial_read);
 
           uint64_t arrayElementValue =
@@ -676,9 +679,8 @@ public:
   BitwuzlaNonIncSolverImpl() = default;
 
   /// implementation of BitwuzlaSolverImpl interface
-  Bitwuzla &initNativeBitwuzla(const ConstraintQuery &,
-                               BitwuzlaASTIncSet &) override {
-    theSolver.emplace(solverParameters);
+  Bitwuzla &initNativeBitwuzla(BitwuzlaSolverEnv &env) override {
+    theSolver.emplace(*env.builder->ctx, solverParameters);
     return theSolver.value();
   }
 
@@ -793,7 +795,7 @@ void BitwuzlaIncNativeSolver::popPush(ConstraintDistance &delta) {
 
 Bitwuzla &BitwuzlaIncNativeSolver::getOrInit() {
   if (!nativeSolver.has_value()) {
-    nativeSolver.emplace(solverParameters);
+    nativeSolver.emplace(*env.builder->ctx, solverParameters);
   }
   return nativeSolver.value();
 }
@@ -807,9 +809,10 @@ BitwuzlaIncNativeSolver::~BitwuzlaIncNativeSolver() {
 void BitwuzlaIncNativeSolver::clear() {
   if (!nativeSolver.has_value())
     return;
+  nativeSolver.reset();
   env.clear();
   frames.clear();
-  nativeSolver.emplace(solverParameters);
+  nativeSolver.emplace(*env.builder->ctx, solverParameters);
   isRecycled = false;
 }
 
@@ -863,8 +866,7 @@ public:
   BitwuzlaTreeSolverImpl(size_t maxSolvers) : maxSolvers(maxSolvers){};
 
   /// implementation of BitwuzlaSolverImpl interface
-  Bitwuzla &initNativeBitwuzla(const ConstraintQuery &,
-                               BitwuzlaASTIncSet &) override {
+  Bitwuzla &initNativeBitwuzla(BitwuzlaSolverEnv &) override {
     return currentSolver->getOrInit();
   }
   void deinitNativeBitwuzla(Bitwuzla &) override {

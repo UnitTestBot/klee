@@ -35,55 +35,60 @@ void BitwuzlaArrayExprHash::clear() {
 void BitwuzlaArrayExprHash::clearUpdates() { _update_node_hash.clear(); }
 
 BitwuzlaBuilder::BitwuzlaBuilder(bool autoClearConstructCache)
-    : autoClearConstructCache(autoClearConstructCache) {}
+    : autoClearConstructCache(autoClearConstructCache), ctx(new TermManager()) {
+}
 
 BitwuzlaBuilder::~BitwuzlaBuilder() {
-  _arr_hash.clearUpdates();
+  clearConstructCache();
+  _arr_hash.clear();
+  constant_array_assertions.clear();
   clearSideConstraints();
 }
 
 Sort BitwuzlaBuilder::getBoolSort() {
   // FIXME: cache these
-  return mk_bool_sort();
+  return ctx->mk_bool_sort();
 }
 
 Sort BitwuzlaBuilder::getBvSort(unsigned width) {
   // FIXME: cache these
-  return mk_bv_sort(width);
+  return ctx->mk_bv_sort(width);
 }
 
 Sort BitwuzlaBuilder::getArraySort(Sort domainSort, Sort rangeSort) {
   // FIXME: cache these
-  return mk_array_sort(domainSort, rangeSort);
+  return ctx->mk_array_sort(domainSort, rangeSort);
 }
 
-Term BitwuzlaBuilder::buildFreshBoolConst() { return mk_const(getBoolSort()); }
+Term BitwuzlaBuilder::buildFreshBoolConst() {
+  return ctx->mk_const(getBoolSort());
+}
 
 Term BitwuzlaBuilder::buildArray(const char *name, unsigned indexWidth,
                                  unsigned valueWidth) {
   Sort domainSort = getBvSort(indexWidth);
   Sort rangeSort = getBvSort(valueWidth);
   Sort t = getArraySort(domainSort, rangeSort);
-  return mk_const(t, std::string(name));
+  return ctx->mk_const(t, std::string(name));
 }
 
 Term BitwuzlaBuilder::buildConstantArray(const char *, unsigned indexWidth,
                                          unsigned valueWidth, unsigned value) {
   Sort domainSort = getBvSort(indexWidth);
   Sort rangeSort = getBvSort(valueWidth);
-  return mk_const_array(getArraySort(domainSort, rangeSort),
-                        bvConst32(valueWidth, value));
+  return ctx->mk_const_array(getArraySort(domainSort, rangeSort),
+                             bvConst32(valueWidth, value));
 }
 
-Term BitwuzlaBuilder::getTrue() { return mk_true(); }
+Term BitwuzlaBuilder::getTrue() { return ctx->mk_true(); }
 
-Term BitwuzlaBuilder::getFalse() { return mk_false(); }
+Term BitwuzlaBuilder::getFalse() { return ctx->mk_false(); }
 
 Term BitwuzlaBuilder::bvOne(unsigned width) {
-  return mk_bv_one(getBvSort(width));
+  return ctx->mk_bv_one(getBvSort(width));
 }
 Term BitwuzlaBuilder::bvZero(unsigned width) {
-  return mk_bv_zero(getBvSort(width));
+  return ctx->mk_bv_zero(getBvSort(width));
 }
 Term BitwuzlaBuilder::bvMinusOne(unsigned width) {
   return bvZExtConst(width, (uint64_t)-1);
@@ -92,13 +97,13 @@ Term BitwuzlaBuilder::bvConst32(unsigned width, uint32_t value) {
   if (width < 32) {
     value &= ((1 << width) - 1);
   }
-  return mk_bv_value_uint64(getBvSort(width), value);
+  return ctx->mk_bv_value_uint64(getBvSort(width), value);
 }
 Term BitwuzlaBuilder::bvConst64(unsigned width, uint64_t value) {
   if (width < 64) {
     value &= ((uint64_t(1) << width) - 1);
   }
-  return mk_bv_value_uint64(getBvSort(width), value);
+  return ctx->mk_bv_value_uint64(getBvSort(width), value);
 }
 Term BitwuzlaBuilder::bvZExtConst(unsigned width, uint64_t value) {
   if (width <= 64) {
@@ -109,7 +114,7 @@ Term BitwuzlaBuilder::bvZExtConst(unsigned width, uint64_t value) {
     terms.push_back(bvConst64(64, 0));
   }
   terms.push_back(bvConst64(width, 0));
-  return mk_term(Kind::BV_CONCAT, terms);
+  return ctx->mk_term(Kind::BV_CONCAT, terms);
 }
 
 Term BitwuzlaBuilder::bvSExtConst(unsigned width, uint64_t value) {
@@ -119,18 +124,19 @@ Term BitwuzlaBuilder::bvSExtConst(unsigned width, uint64_t value) {
 
   Sort t = getBvSort(width - 64);
   if (value >> 63) {
-    return mk_term(Kind::BV_CONCAT,
-                   {bvMinusOne(width - 64), bvConst64(64, value)});
+    return ctx->mk_term(Kind::BV_CONCAT,
+                        {bvMinusOne(width - 64), bvConst64(64, value)});
   }
-  return mk_term(Kind::BV_CONCAT, {bvZero(width - 64), bvConst64(64, value)});
+  return ctx->mk_term(Kind::BV_CONCAT,
+                      {bvZero(width - 64), bvConst64(64, value)});
 }
 
 Term BitwuzlaBuilder::bvBoolExtract(Term expr, int bit) {
-  return mk_term(Kind::EQUAL, {bvExtract(expr, bit, bit), bvOne(1)});
+  return ctx->mk_term(Kind::EQUAL, {bvExtract(expr, bit, bit), bvOne(1)});
 }
 
 Term BitwuzlaBuilder::bvExtract(Term expr, unsigned top, unsigned bottom) {
-  return mk_term(Kind::BV_EXTRACT, {castToBitVector(expr)}, {top, bottom});
+  return ctx->mk_term(Kind::BV_EXTRACT, {castToBitVector(expr)}, {top, bottom});
 }
 
 Term BitwuzlaBuilder::eqExpr(Term a, Term b) {
@@ -147,7 +153,7 @@ Term BitwuzlaBuilder::eqExpr(Term a, Term b) {
     // Coerce `a` to be a bitvector
     a = castToBitVector(a);
   }
-  return mk_term(Kind::EQUAL, {a, b});
+  return ctx->mk_term(Kind::EQUAL, {a, b});
 }
 
 // logical right shift
@@ -160,7 +166,7 @@ Term BitwuzlaBuilder::bvRightShift(Term expr, unsigned shift) {
   } else if (shift >= width) {
     return bvZero(width); // Overshift to zero
   } else {
-    return mk_term(Kind::BV_SHR, {exprAsBv, bvConst32(width, shift)});
+    return ctx->mk_term(Kind::BV_SHR, {exprAsBv, bvConst32(width, shift)});
   }
 }
 
@@ -174,7 +180,7 @@ Term BitwuzlaBuilder::bvLeftShift(Term expr, unsigned shift) {
   } else if (shift >= width) {
     return bvZero(width); // Overshift to zero
   } else {
-    return mk_term(Kind::BV_SHL, {exprAsBv, bvConst32(width, shift)});
+    return ctx->mk_term(Kind::BV_SHL, {exprAsBv, bvConst32(width, shift)});
   }
 }
 
@@ -184,7 +190,7 @@ Term BitwuzlaBuilder::bvVarLeftShift(Term expr, Term shift) {
   Term shiftAsBv = castToBitVector(shift);
 
   unsigned width = getBVLength(exprAsBv);
-  Term res = mk_term(Kind::BV_SHL, {exprAsBv, shiftAsBv});
+  Term res = ctx->mk_term(Kind::BV_SHL, {exprAsBv, shiftAsBv});
 
   // If overshifting, shift to zero
   Term ex = bvLtExpr(shiftAsBv, bvConst32(getBVLength(shiftAsBv), width));
@@ -199,7 +205,7 @@ Term BitwuzlaBuilder::bvVarRightShift(Term expr, Term shift) {
   Term shiftAsBv = castToBitVector(shift);
 
   unsigned width = getBVLength(exprAsBv);
-  Term res = mk_term(Kind::BV_SHR, {exprAsBv, shiftAsBv});
+  Term res = ctx->mk_term(Kind::BV_SHR, {exprAsBv, shiftAsBv});
 
   // If overshifting, shift to zero
   Term ex = bvLtExpr(shiftAsBv, bvConst32(getBVLength(shiftAsBv), width));
@@ -215,7 +221,7 @@ Term BitwuzlaBuilder::bvVarArithRightShift(Term expr, Term shift) {
 
   unsigned width = getBVLength(exprAsBv);
 
-  Term res = mk_term(Kind::BV_ASHR, {exprAsBv, shiftAsBv});
+  Term res = ctx->mk_term(Kind::BV_ASHR, {exprAsBv, shiftAsBv});
 
   // If overshifting, shift to zero
   Term ex = bvLtExpr(shiftAsBv, bvConst32(getBVLength(shiftAsBv), width));
@@ -223,31 +229,36 @@ Term BitwuzlaBuilder::bvVarArithRightShift(Term expr, Term shift) {
   return res;
 }
 
-Term BitwuzlaBuilder::notExpr(Term expr) { return mk_term(Kind::NOT, {expr}); }
+Term BitwuzlaBuilder::notExpr(Term expr) {
+  return ctx->mk_term(Kind::NOT, {expr});
+}
 Term BitwuzlaBuilder::andExpr(Term lhs, Term rhs) {
-  return mk_term(Kind::AND, {lhs, rhs});
+  return ctx->mk_term(Kind::AND, {lhs, rhs});
 }
 Term BitwuzlaBuilder::orExpr(Term lhs, Term rhs) {
-  return mk_term(Kind::OR, {lhs, rhs});
+  return ctx->mk_term(Kind::OR, {lhs, rhs});
 }
 Term BitwuzlaBuilder::iffExpr(Term lhs, Term rhs) {
-  return mk_term(Kind::IFF, {lhs, rhs});
+  return ctx->mk_term(Kind::IFF, {lhs, rhs});
 }
 
 Term BitwuzlaBuilder::bvNotExpr(Term expr) {
-  return mk_term(Kind::BV_NOT, {castToBitVector(expr)});
+  return ctx->mk_term(Kind::BV_NOT, {castToBitVector(expr)});
 }
 
 Term BitwuzlaBuilder::bvAndExpr(Term lhs, Term rhs) {
-  return mk_term(Kind::BV_AND, {castToBitVector(lhs), castToBitVector(rhs)});
+  return ctx->mk_term(Kind::BV_AND,
+                      {castToBitVector(lhs), castToBitVector(rhs)});
 }
 
 Term BitwuzlaBuilder::bvOrExpr(Term lhs, Term rhs) {
-  return mk_term(Kind::BV_OR, {castToBitVector(lhs), castToBitVector(rhs)});
+  return ctx->mk_term(Kind::BV_OR,
+                      {castToBitVector(lhs), castToBitVector(rhs)});
 }
 
 Term BitwuzlaBuilder::bvXorExpr(Term lhs, Term rhs) {
-  return mk_term(Kind::BV_XOR, {castToBitVector(lhs), castToBitVector(rhs)});
+  return ctx->mk_term(Kind::BV_XOR,
+                      {castToBitVector(lhs), castToBitVector(rhs)});
 }
 
 Term BitwuzlaBuilder::bvSignExtend(Term src, unsigned width) {
@@ -256,24 +267,24 @@ Term BitwuzlaBuilder::bvSignExtend(Term src, unsigned width) {
   assert(src_width <= width && "attempted to extend longer data");
 
   if (width <= 64) {
-    return mk_term(Kind::BV_SIGN_EXTEND, {srcAsBv}, {width - src_width});
+    return ctx->mk_term(Kind::BV_SIGN_EXTEND, {srcAsBv}, {width - src_width});
   }
 
   Term signBit = bvBoolExtract(srcAsBv, src_width - 1);
   Term zeroExtended =
-      mk_term(Kind::BV_CONCAT, {bvZero(width - src_width), src});
+      ctx->mk_term(Kind::BV_CONCAT, {bvZero(width - src_width), src});
   Term oneExtended =
-      mk_term(Kind::BV_CONCAT, {bvMinusOne(width - src_width), src});
+      ctx->mk_term(Kind::BV_CONCAT, {bvMinusOne(width - src_width), src});
 
-  return mk_term(Kind::ITE, {signBit, oneExtended, zeroExtended});
+  return ctx->mk_term(Kind::ITE, {signBit, oneExtended, zeroExtended});
 }
 
 Term BitwuzlaBuilder::writeExpr(Term array, Term index, Term value) {
-  return mk_term(Kind::ARRAY_STORE, {array, index, value});
+  return ctx->mk_term(Kind::ARRAY_STORE, {array, index, value});
 }
 
 Term BitwuzlaBuilder::readExpr(Term array, Term index) {
-  return mk_term(Kind::ARRAY_SELECT, {array, index});
+  return ctx->mk_term(Kind::ARRAY_SELECT, {array, index});
 }
 
 unsigned BitwuzlaBuilder::getBVLength(Term expr) {
@@ -298,23 +309,27 @@ Term BitwuzlaBuilder::iteExpr(Term condition, Term whenTrue, Term whenFalse) {
     // Coerce `whenTrue` to be a bitvector
     whenTrue = castToBitVector(whenTrue);
   }
-  return mk_term(Kind::ITE, {condition, whenTrue, whenFalse});
+  return ctx->mk_term(Kind::ITE, {condition, whenTrue, whenFalse});
 }
 
 Term BitwuzlaBuilder::bvLtExpr(Term lhs, Term rhs) {
-  return mk_term(Kind::BV_ULT, {castToBitVector(lhs), castToBitVector(rhs)});
+  return ctx->mk_term(Kind::BV_ULT,
+                      {castToBitVector(lhs), castToBitVector(rhs)});
 }
 
 Term BitwuzlaBuilder::bvLeExpr(Term lhs, Term rhs) {
-  return mk_term(Kind::BV_ULE, {castToBitVector(lhs), castToBitVector(rhs)});
+  return ctx->mk_term(Kind::BV_ULE,
+                      {castToBitVector(lhs), castToBitVector(rhs)});
 }
 
 Term BitwuzlaBuilder::sbvLtExpr(Term lhs, Term rhs) {
-  return mk_term(Kind::BV_SLT, {castToBitVector(lhs), castToBitVector(rhs)});
+  return ctx->mk_term(Kind::BV_SLT,
+                      {castToBitVector(lhs), castToBitVector(rhs)});
 }
 
 Term BitwuzlaBuilder::sbvLeExpr(Term lhs, Term rhs) {
-  return mk_term(Kind::BV_SLE, {castToBitVector(lhs), castToBitVector(rhs)});
+  return ctx->mk_term(Kind::BV_SLE,
+                      {castToBitVector(lhs), castToBitVector(rhs)});
 }
 
 Term BitwuzlaBuilder::constructAShrByConstant(Term expr, unsigned shift,
@@ -329,11 +344,11 @@ Term BitwuzlaBuilder::constructAShrByConstant(Term expr, unsigned shift,
   } else {
     // FIXME: Is this really the best way to interact with Bitwuzla?
     Term signed_term =
-        mk_term(Kind::BV_CONCAT,
-                {bvMinusOne(shift), bvExtract(exprAsBv, width - 1, shift)});
+        ctx->mk_term(Kind::BV_CONCAT, {bvMinusOne(shift),
+                                       bvExtract(exprAsBv, width - 1, shift)});
     Term unsigned_term = bvRightShift(exprAsBv, shift);
 
-    return mk_term(Kind::ITE, {isSigned, signed_term, unsigned_term});
+    return ctx->mk_term(Kind::ITE, {isSigned, signed_term, unsigned_term});
   }
 }
 
@@ -483,7 +498,8 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
     } else {
       llvm::SmallString<129> CEUValue;
       CE->getAPValue().toStringUnsigned(CEUValue);
-      Res = mk_bv_value(mk_bv_sort(CE->getWidth()), CEUValue.str().str(), 10);
+      Res = ctx->mk_bv_value(ctx->mk_bv_sort(CE->getWidth()),
+                             CEUValue.str().str(), 10);
     }
     // Coerce to float if necesary
     if (CE->isFloat()) {
@@ -525,7 +541,7 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
     }
 
     *width_out = ce->getWidth();
-    return mk_term(Kind::BV_CONCAT, term_args);
+    return ctx->mk_term(Kind::BV_CONCAT, term_args);
   }
 
   case Expr::Extract: {
@@ -550,8 +566,8 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
       return iteExpr(src, bvOne(*width_out), bvZero(*width_out));
     } else {
       assert(*width_out > srcWidth && "Invalid width_out");
-      return mk_term(Kind::BV_CONCAT,
-                     {bvZero(*width_out - srcWidth), castToBitVector(src)});
+      return ctx->mk_term(Kind::BV_CONCAT, {bvZero(*width_out - srcWidth),
+                                            castToBitVector(src)});
     }
   }
 
@@ -576,7 +592,7 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
     assert(*width_out >= srcWidth && "Invalid FPExt");
     // Just use any arounding mode here as we are extending
     auto out_widths = getFloatSortFromBitWidth(*width_out);
-    return mk_term(
+    return ctx->mk_term(
         Kind::FP_TO_FP_FROM_FP,
         {getRoundingModeSort(llvm::APFloat::rmNearestTiesToEven), src},
         {out_widths.first, out_widths.second});
@@ -591,7 +607,7 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
     assert(*width_out <= srcWidth && "Invalid FPTrunc");
 
     auto out_widths = getFloatSortFromBitWidth(*width_out);
-    return mk_term(
+    return ctx->mk_term(
         Kind::FP_TO_FP_FROM_FP,
         {getRoundingModeSort(llvm::APFloat::rmNearestTiesToEven), src},
         {out_widths.first, out_widths.second});
@@ -603,9 +619,9 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
     Term src = castToFloat(construct(ce->src, &srcWidth));
     *width_out = ce->getWidth();
     FPCastWidthAssert(width_out, "Invalid FPToUI width");
-    return mk_term(Kind::FP_TO_UBV,
-                   {getRoundingModeSort(ce->roundingMode), src},
-                   {ce->getWidth()});
+    return ctx->mk_term(Kind::FP_TO_UBV,
+                        {getRoundingModeSort(ce->roundingMode), src},
+                        {ce->getWidth()});
   }
 
   case Expr::FPToSI: {
@@ -614,9 +630,9 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
     Term src = castToFloat(construct(ce->src, &srcWidth));
     *width_out = ce->getWidth();
     FPCastWidthAssert(width_out, "Invalid FPToSI width");
-    return mk_term(Kind::FP_TO_SBV,
-                   {getRoundingModeSort(ce->roundingMode), src},
-                   {ce->getWidth()});
+    return ctx->mk_term(Kind::FP_TO_SBV,
+                        {getRoundingModeSort(ce->roundingMode), src},
+                        {ce->getWidth()});
   }
 
   case Expr::UIToFP: {
@@ -627,9 +643,9 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
     FPCastWidthAssert(width_out, "Invalid UIToFP width");
 
     auto out_widths = getFloatSortFromBitWidth(*width_out);
-    return mk_term(Kind::FP_TO_FP_FROM_UBV,
-                   {getRoundingModeSort(ce->roundingMode), src},
-                   {out_widths.first, out_widths.second});
+    return ctx->mk_term(Kind::FP_TO_FP_FROM_UBV,
+                        {getRoundingModeSort(ce->roundingMode), src},
+                        {out_widths.first, out_widths.second});
   }
 
   case Expr::SIToFP: {
@@ -640,9 +656,9 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
     FPCastWidthAssert(width_out, "Invalid SIToFP width");
 
     auto out_widths = getFloatSortFromBitWidth(*width_out);
-    return mk_term(Kind::FP_TO_FP_FROM_SBV,
-                   {getRoundingModeSort(ce->roundingMode), src},
-                   {out_widths.first, out_widths.second});
+    return ctx->mk_term(Kind::FP_TO_FP_FROM_SBV,
+                        {getRoundingModeSort(ce->roundingMode), src},
+                        {out_widths.first, out_widths.second});
   }
 
     // Arithmetic
@@ -651,7 +667,7 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
     Term left = castToBitVector(construct(ae->left, width_out));
     Term right = castToBitVector(construct(ae->right, width_out));
     assert(*width_out != 1 && "uncanonicalized add");
-    Term result = mk_term(Kind::BV_ADD, {left, right});
+    Term result = ctx->mk_term(Kind::BV_ADD, {left, right});
     assert(getBVLength(result) == static_cast<unsigned>(*width_out) &&
            "width mismatch");
     return result;
@@ -662,7 +678,7 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
     Term left = castToBitVector(construct(se->left, width_out));
     Term right = castToBitVector(construct(se->right, width_out));
     assert(*width_out != 1 && "uncanonicalized sub");
-    Term result = mk_term(Kind::BV_SUB, {left, right});
+    Term result = ctx->mk_term(Kind::BV_SUB, {left, right});
     assert(getBVLength(result) == static_cast<unsigned>(*width_out) &&
            "width mismatch");
     return result;
@@ -673,7 +689,7 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
     Term right = castToBitVector(construct(me->right, width_out));
     assert(*width_out != 1 && "uncanonicalized mul");
     Term left = castToBitVector(construct(me->left, width_out));
-    Term result = mk_term(Kind::BV_MUL, {left, right});
+    Term result = ctx->mk_term(Kind::BV_MUL, {left, right});
     assert(getBVLength(result) == static_cast<unsigned>(*width_out) &&
            "width mismatch");
     return result;
@@ -693,7 +709,7 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
     }
 
     Term right = castToBitVector(construct(de->right, width_out));
-    Term result = mk_term(Kind::BV_UDIV, {left, right});
+    Term result = ctx->mk_term(Kind::BV_UDIV, {left, right});
     assert(getBVLength(result) == static_cast<unsigned>(*width_out) &&
            "width mismatch");
     return result;
@@ -704,7 +720,7 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
     Term left = castToBitVector(construct(de->left, width_out));
     assert(*width_out != 1 && "uncanonicalized sdiv");
     Term right = castToBitVector(construct(de->right, width_out));
-    Term result = mk_term(Kind::BV_SDIV, {left, right});
+    Term result = ctx->mk_term(Kind::BV_SDIV, {left, right});
     assert(getBVLength(result) == static_cast<unsigned>(*width_out) &&
            "width mismatch");
     return result;
@@ -729,15 +745,16 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
             return bvZero(*width_out);
           } else {
             assert(*width_out > bits && "invalid width_out");
-            return mk_term(Kind::BV_CONCAT, {bvZero(*width_out - bits),
-                                             bvExtract(left, bits - 1, 0)});
+            return ctx->mk_term(
+                Kind::BV_CONCAT,
+                {bvZero(*width_out - bits), bvExtract(left, bits - 1, 0)});
           }
         }
       }
     }
 
     Term right = castToBitVector(construct(de->right, width_out));
-    Term result = mk_term(Kind::BV_UREM, {left, right});
+    Term result = ctx->mk_term(Kind::BV_UREM, {left, right});
     assert(getBVLength(result) == static_cast<unsigned>(*width_out) &&
            "width mismatch");
     return result;
@@ -748,7 +765,7 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
     Term left = castToBitVector(construct(de->left, width_out));
     Term right = castToBitVector(construct(de->right, width_out));
     assert(*width_out != 1 && "uncanonicalized srem");
-    Term result = mk_term(Kind::BV_SREM, {left, right});
+    Term result = ctx->mk_term(Kind::BV_SREM, {left, right});
     assert(getBVLength(result) == static_cast<unsigned>(*width_out) &&
            "width mismatch");
     return result;
@@ -905,7 +922,7 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
     Term left = castToFloat(construct(fcmp->left, width_out));
     Term right = castToFloat(construct(fcmp->right, width_out));
     *width_out = 1;
-    return mk_term(Kind::FP_EQUAL, {left, right});
+    return ctx->mk_term(Kind::FP_EQUAL, {left, right});
   }
 
   case Expr::FOLt: {
@@ -913,7 +930,7 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
     Term left = castToFloat(construct(fcmp->left, width_out));
     Term right = castToFloat(construct(fcmp->right, width_out));
     *width_out = 1;
-    return mk_term(Kind::FP_LT, {left, right});
+    return ctx->mk_term(Kind::FP_LT, {left, right});
   }
 
   case Expr::FOLe: {
@@ -921,7 +938,7 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
     Term left = castToFloat(construct(fcmp->left, width_out));
     Term right = castToFloat(construct(fcmp->right, width_out));
     *width_out = 1;
-    return mk_term(Kind::FP_LEQ, {left, right});
+    return ctx->mk_term(Kind::FP_LEQ, {left, right});
   }
 
   case Expr::FOGt: {
@@ -929,7 +946,7 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
     Term left = castToFloat(construct(fcmp->left, width_out));
     Term right = castToFloat(construct(fcmp->right, width_out));
     *width_out = 1;
-    return mk_term(Kind::FP_GT, {left, right});
+    return ctx->mk_term(Kind::FP_GT, {left, right});
   }
 
   case Expr::FOGe: {
@@ -937,35 +954,35 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
     Term left = castToFloat(construct(fcmp->left, width_out));
     Term right = castToFloat(construct(fcmp->right, width_out));
     *width_out = 1;
-    return mk_term(Kind::FP_GEQ, {left, right});
+    return ctx->mk_term(Kind::FP_GEQ, {left, right});
   }
 
   case Expr::IsNaN: {
     IsNaNExpr *ine = cast<IsNaNExpr>(e);
     Term arg = castToFloat(construct(ine->expr, width_out));
     *width_out = 1;
-    return mk_term(Kind::FP_IS_NAN, {arg});
+    return ctx->mk_term(Kind::FP_IS_NAN, {arg});
   }
 
   case Expr::IsInfinite: {
     IsInfiniteExpr *iie = cast<IsInfiniteExpr>(e);
     Term arg = castToFloat(construct(iie->expr, width_out));
     *width_out = 1;
-    return mk_term(Kind::FP_IS_INF, {arg});
+    return ctx->mk_term(Kind::FP_IS_INF, {arg});
   }
 
   case Expr::IsNormal: {
     IsNormalExpr *ine = cast<IsNormalExpr>(e);
     Term arg = castToFloat(construct(ine->expr, width_out));
     *width_out = 1;
-    return mk_term(Kind::FP_IS_NORMAL, {arg});
+    return ctx->mk_term(Kind::FP_IS_NORMAL, {arg});
   }
 
   case Expr::IsSubnormal: {
     IsSubnormalExpr *ise = cast<IsSubnormalExpr>(e);
     Term arg = castToFloat(construct(ise->expr, width_out));
     *width_out = 1;
-    return mk_term(Kind::FP_IS_SUBNORMAL, {arg});
+    return ctx->mk_term(Kind::FP_IS_SUBNORMAL, {arg});
   }
 
   case Expr::FAdd: {
@@ -973,8 +990,8 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
     Term left = castToFloat(construct(fadd->left, width_out));
     Term right = castToFloat(construct(fadd->right, width_out));
     assert(*width_out != 1 && "uncanonicalized FAdd");
-    return mk_term(Kind::FP_ADD,
-                   {getRoundingModeSort(fadd->roundingMode), left, right});
+    return ctx->mk_term(Kind::FP_ADD,
+                        {getRoundingModeSort(fadd->roundingMode), left, right});
   }
 
   case Expr::FSub: {
@@ -982,8 +999,8 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
     Term left = castToFloat(construct(fsub->left, width_out));
     Term right = castToFloat(construct(fsub->right, width_out));
     assert(*width_out != 1 && "uncanonicalized FSub");
-    return mk_term(Kind::FP_SUB,
-                   {getRoundingModeSort(fsub->roundingMode), left, right});
+    return ctx->mk_term(Kind::FP_SUB,
+                        {getRoundingModeSort(fsub->roundingMode), left, right});
   }
 
   case Expr::FMul: {
@@ -991,8 +1008,8 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
     Term left = castToFloat(construct(fmul->left, width_out));
     Term right = castToFloat(construct(fmul->right, width_out));
     assert(*width_out != 1 && "uncanonicalized FMul");
-    return mk_term(Kind::FP_MUL,
-                   {getRoundingModeSort(fmul->roundingMode), left, right});
+    return ctx->mk_term(Kind::FP_MUL,
+                        {getRoundingModeSort(fmul->roundingMode), left, right});
   }
 
   case Expr::FDiv: {
@@ -1000,15 +1017,15 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
     Term left = castToFloat(construct(fdiv->left, width_out));
     Term right = castToFloat(construct(fdiv->right, width_out));
     assert(*width_out != 1 && "uncanonicalized FDiv");
-    return mk_term(Kind::FP_DIV,
-                   {getRoundingModeSort(fdiv->roundingMode), left, right});
+    return ctx->mk_term(Kind::FP_DIV,
+                        {getRoundingModeSort(fdiv->roundingMode), left, right});
   }
   case Expr::FRem: {
     FRemExpr *frem = cast<FRemExpr>(e);
     Term left = castToFloat(construct(frem->left, width_out));
     Term right = castToFloat(construct(frem->right, width_out));
     assert(*width_out != 1 && "uncanonicalized FRem");
-    return mk_term(Kind::FP_REM, {left, right});
+    return ctx->mk_term(Kind::FP_REM, {left, right});
   }
 
   case Expr::FMax: {
@@ -1016,7 +1033,7 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
     Term left = castToFloat(construct(fmax->left, width_out));
     Term right = castToFloat(construct(fmax->right, width_out));
     assert(*width_out != 1 && "uncanonicalized FMax");
-    return mk_term(Kind::FP_MAX, {left, right});
+    return ctx->mk_term(Kind::FP_MAX, {left, right});
   }
 
   case Expr::FMin: {
@@ -1024,36 +1041,36 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
     Term left = castToFloat(construct(fmin->left, width_out));
     Term right = castToFloat(construct(fmin->right, width_out));
     assert(*width_out != 1 && "uncanonicalized FMin");
-    return mk_term(Kind::FP_MIN, {left, right});
+    return ctx->mk_term(Kind::FP_MIN, {left, right});
   }
 
   case Expr::FSqrt: {
     FSqrtExpr *fsqrt = cast<FSqrtExpr>(e);
     Term arg = castToFloat(construct(fsqrt->expr, width_out));
     assert(*width_out != 1 && "uncanonicalized FSqrt");
-    return mk_term(Kind::FP_SQRT,
-                   {getRoundingModeSort(fsqrt->roundingMode), arg});
+    return ctx->mk_term(Kind::FP_SQRT,
+                        {getRoundingModeSort(fsqrt->roundingMode), arg});
   }
   case Expr::FRint: {
     FRintExpr *frint = cast<FRintExpr>(e);
     Term arg = castToFloat(construct(frint->expr, width_out));
     assert(*width_out != 1 && "uncanonicalized FSqrt");
-    return mk_term(Kind::FP_RTI,
-                   {getRoundingModeSort(frint->roundingMode), arg});
+    return ctx->mk_term(Kind::FP_RTI,
+                        {getRoundingModeSort(frint->roundingMode), arg});
   }
 
   case Expr::FAbs: {
     FAbsExpr *fabsExpr = cast<FAbsExpr>(e);
     Term arg = castToFloat(construct(fabsExpr->expr, width_out));
     assert(*width_out != 1 && "uncanonicalized FAbs");
-    return mk_term(Kind::FP_ABS, {arg});
+    return ctx->mk_term(Kind::FP_ABS, {arg});
   }
 
   case Expr::FNeg: {
     FNegExpr *fnegExpr = cast<FNegExpr>(e);
     Term arg = castToFloat(construct(fnegExpr->expr, width_out));
     assert(*width_out != 1 && "uncanonicalized FNeg");
-    return mk_term(Kind::FP_NEG, {arg});
+    return ctx->mk_term(Kind::FP_NEG, {arg});
   }
 
 // unused due to canonicalization
@@ -1076,15 +1093,16 @@ Term BitwuzlaBuilder::fpToIEEEBV(const Term &fp) {
     klee_error("BitwuzlaBuilder::fpToIEEEBV accepts only floats");
   }
 
-  Term signBit = mk_const(getBvSort(1));
-  Term exponentBits = mk_const(getBvSort(fp.sort().fp_exp_size()));
-  Term significandBits = mk_const(getBvSort(fp.sort().fp_sig_size() - 1));
+  Term signBit = ctx->mk_const(getBvSort(1));
+  Term exponentBits = ctx->mk_const(getBvSort(fp.sort().fp_exp_size()));
+  Term significandBits = ctx->mk_const(getBvSort(fp.sort().fp_sig_size() - 1));
 
   Term floatTerm =
-      mk_term(Kind::FP_FP, {signBit, exponentBits, significandBits});
-  sideConstraints.push_back(mk_term(Kind::EQUAL, {fp, floatTerm}));
+      ctx->mk_term(Kind::FP_FP, {signBit, exponentBits, significandBits});
+  sideConstraints.push_back(ctx->mk_term(Kind::EQUAL, {fp, floatTerm}));
 
-  return mk_term(Kind::BV_CONCAT, {signBit, exponentBits, significandBits});
+  return ctx->mk_term(Kind::BV_CONCAT,
+                      {signBit, exponentBits, significandBits});
 }
 
 std::pair<unsigned, unsigned>
@@ -1135,8 +1153,8 @@ Term BitwuzlaBuilder::castToFloat(const Term &e) {
     case Expr::Int64:
     case Expr::Int128: {
       auto out_width = getFloatSortFromBitWidth(bitWidth);
-      return mk_term(Kind::FP_TO_FP_FROM_BV, {e},
-                     {out_width.first, out_width.second});
+      return ctx->mk_term(Kind::FP_TO_FP_FROM_BV, {e},
+                          {out_width.first, out_width.second});
     }
     case Expr::Fl80: {
       // The bit pattern used by x87 fp80 and what we use in Bitwuzla are
@@ -1180,12 +1198,14 @@ Term BitwuzlaBuilder::castToFloat(const Term &e) {
       // Note we try very hard here to avoid calling into our functions
       // here that do implicit casting so we can never recursively call
       // into this function.
-      Term signBit = mk_term(Kind::BV_EXTRACT, {e}, {79, 79});
-      Term exponentBits = mk_term(Kind::BV_EXTRACT, {e}, {78, 64});
-      Term significandIntegerBit = mk_term(Kind::BV_EXTRACT, {e}, {63, 63});
-      Term significandFractionBits = mk_term(Kind::BV_EXTRACT, {e}, {62, 0});
+      Term signBit = ctx->mk_term(Kind::BV_EXTRACT, {e}, {79, 79});
+      Term exponentBits = ctx->mk_term(Kind::BV_EXTRACT, {e}, {78, 64});
+      Term significandIntegerBit =
+          ctx->mk_term(Kind::BV_EXTRACT, {e}, {63, 63});
+      Term significandFractionBits =
+          ctx->mk_term(Kind::BV_EXTRACT, {e}, {62, 0});
 
-      Term ieeeBitPatternAsFloat = mk_term(
+      Term ieeeBitPatternAsFloat = ctx->mk_term(
           Kind::FP_FP, {signBit, exponentBits, significandFractionBits});
 
       // Generate side constraint on the significand integer bit. It is not
@@ -1198,8 +1218,8 @@ Term BitwuzlaBuilder::castToFloat(const Term &e) {
       Term significandIntegerBitConstrainedValue =
           getx87FP80ExplicitSignificandIntegerBit(ieeeBitPatternAsFloat);
       Term significandIntegerBitConstraint =
-          mk_term(Kind::EQUAL, {significandIntegerBit,
-                                significandIntegerBitConstrainedValue});
+          ctx->mk_term(Kind::EQUAL, {significandIntegerBit,
+                                     significandIntegerBitConstrainedValue});
 
       sideConstraints.push_back(significandIntegerBitConstraint);
       return ieeeBitPatternAsFloat;
@@ -1215,7 +1235,7 @@ Term BitwuzlaBuilder::castToFloat(const Term &e) {
 Term BitwuzlaBuilder::castToBitVector(const Term &e) {
   Sort currentSort = e.sort();
   if (currentSort.is_bool()) {
-    return mk_term(Kind::ITE, {e, bvOne(1), bvZero(1)});
+    return ctx->mk_term(Kind::ITE, {e, bvOne(1), bvZero(1)});
   } else if (currentSort.is_bv()) {
     // Already a bitvector
     return e;
@@ -1242,14 +1262,14 @@ Term BitwuzlaBuilder::castToBitVector(const Term &e) {
       Term ieeeBits = fpToIEEEBV(e);
 
       // Construct the x87 fp80 bit representation
-      Term signBit = mk_term(Kind::BV_EXTRACT, {ieeeBits}, {78, 78});
-      Term exponentBits = mk_term(Kind::BV_EXTRACT, {ieeeBits}, {77, 63});
+      Term signBit = ctx->mk_term(Kind::BV_EXTRACT, {ieeeBits}, {78, 78});
+      Term exponentBits = ctx->mk_term(Kind::BV_EXTRACT, {ieeeBits}, {77, 63});
       Term significandIntegerBit = getx87FP80ExplicitSignificandIntegerBit(e);
       Term significandFractionBits =
-          mk_term(Kind::BV_EXTRACT, {ieeeBits}, {62, 0});
-      Term x87FP80Bits = mk_term(Kind::BV_CONCAT,
-                                 {signBit, exponentBits, significandIntegerBit,
-                                  significandFractionBits});
+          ctx->mk_term(Kind::BV_EXTRACT, {ieeeBits}, {62, 0});
+      Term x87FP80Bits = ctx->mk_term(
+          Kind::BV_CONCAT, {signBit, exponentBits, significandIntegerBit,
+                            significandFractionBits});
       return x87FP80Bits;
     }
     default:
@@ -1263,15 +1283,15 @@ Term BitwuzlaBuilder::castToBitVector(const Term &e) {
 Term BitwuzlaBuilder::getRoundingModeSort(llvm::APFloat::roundingMode rm) {
   switch (rm) {
   case llvm::APFloat::rmNearestTiesToEven:
-    return mk_rm_value(RoundingMode::RNE);
+    return ctx->mk_rm_value(RoundingMode::RNE);
   case llvm::APFloat::rmTowardPositive:
-    return mk_rm_value(RoundingMode::RTP);
+    return ctx->mk_rm_value(RoundingMode::RTP);
   case llvm::APFloat::rmTowardNegative:
-    return mk_rm_value(RoundingMode::RTN);
+    return ctx->mk_rm_value(RoundingMode::RTN);
   case llvm::APFloat::rmTowardZero:
-    return mk_rm_value(RoundingMode::RTZ);
+    return ctx->mk_rm_value(RoundingMode::RTZ);
   case llvm::APFloat::rmNearestTiesToAway:
-    return mk_rm_value(RoundingMode::RNA);
+    return ctx->mk_rm_value(RoundingMode::RNA);
   default:
     llvm_unreachable("Unhandled rounding mode");
   }
@@ -1290,19 +1310,19 @@ Term BitwuzlaBuilder::getx87FP80ExplicitSignificandIntegerBit(const Term &e) {
 #endif
   // If the number is a denormal or zero then the implicit integer bit is zero
   // otherwise it is one.  Term isDenormal =
-  Term isDenormal = mk_term(Kind::FP_IS_SUBNORMAL, {e});
-  Term isZero = mk_term(Kind::FP_IS_ZERO, {e});
+  Term isDenormal = ctx->mk_term(Kind::FP_IS_SUBNORMAL, {e});
+  Term isZero = ctx->mk_term(Kind::FP_IS_ZERO, {e});
 
   // FIXME: Cache these constants somewhere
   Sort oneBitBvSort = getBvSort(/*width=*/1);
 
-  Term oneBvOne = mk_bv_value_uint64(oneBitBvSort, 1);
-  Term zeroBvOne = mk_bv_value_uint64(oneBitBvSort, 0);
+  Term oneBvOne = ctx->mk_bv_value_uint64(oneBitBvSort, 1);
+  Term zeroBvOne = ctx->mk_bv_value_uint64(oneBitBvSort, 0);
 
   Term significandIntegerBitCondition = orExpr(isDenormal, isZero);
 
-  Term significandIntegerBitConstrainedValue =
-      mk_term(Kind::ITE, {significandIntegerBitCondition, zeroBvOne, oneBvOne});
+  Term significandIntegerBitConstrainedValue = ctx->mk_term(
+      Kind::ITE, {significandIntegerBitCondition, zeroBvOne, oneBvOne});
 
   return significandIntegerBitConstrainedValue;
 }
