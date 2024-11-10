@@ -358,8 +358,8 @@ std::string BitwuzlaSolverImpl::getConstraintLog(const Query &query) {
   // but Bitwuzla works in terms of satisfiability so instead we ask the
   // the negation of the equivalent i.e.
   // ∃ X Constraints(X) ∧ ¬ query(X)
-  assertions.push_back(
-      mk_term(Kind::NOT, {tempBuilder->construct(query.expr)}));
+  assertions.push_back(tempBuilder->ctx->mk_term(
+      Kind::NOT, {tempBuilder->construct(query.expr)}));
   constant_arrays_in_query.visit(query.expr);
 
   for (auto const &constant_array : constant_arrays_in_query.results) {
@@ -679,7 +679,7 @@ public:
   /// implementation of BitwuzlaSolverImpl interface
   Bitwuzla &initNativeBitwuzla(const ConstraintQuery &,
                                BitwuzlaASTIncSet &) override {
-    theSolver.emplace(solverParameters);
+    theSolver.emplace(*builder->ctx, solverParameters);
     return theSolver.value();
   }
 
@@ -748,6 +748,7 @@ struct ConstraintDistance {
 class BitwuzlaIncNativeSolver {
 private:
   std::optional<Bitwuzla> nativeSolver;
+  std::shared_ptr<TermManager> ctx;
   Options solverParameters;
   /// underlying solver frames
   /// saved only for calculating distances from next queries
@@ -760,8 +761,9 @@ public:
   std::uint32_t stateID = 0;
   bool isRecycled = false;
 
-  BitwuzlaIncNativeSolver(Options solverParameters)
-      : solverParameters(solverParameters) {}
+  BitwuzlaIncNativeSolver(std::shared_ptr<TermManager> ctx,
+                          Options solverParameters)
+      : ctx(ctx), solverParameters(solverParameters) {}
   ~BitwuzlaIncNativeSolver();
 
   void clear();
@@ -794,7 +796,7 @@ void BitwuzlaIncNativeSolver::popPush(ConstraintDistance &delta) {
 
 Bitwuzla &BitwuzlaIncNativeSolver::getOrInit() {
   if (!nativeSolver.has_value()) {
-    nativeSolver.emplace(solverParameters);
+    nativeSolver.emplace(*ctx, solverParameters);
   }
   return nativeSolver.value();
 }
@@ -810,7 +812,7 @@ void BitwuzlaIncNativeSolver::clear() {
     return;
   env.clear();
   frames.clear();
-  nativeSolver.emplace(solverParameters);
+  nativeSolver.emplace(*ctx, solverParameters);
   isRecycled = false;
 }
 
@@ -924,8 +926,8 @@ void BitwuzlaTreeSolverImpl::findSuitableSolver(const ConstraintQuery &query,
     if (delta.getDistance() < min_distance) {
       // it is cheaper to create new solver
       if (free_it == solvers.end())
-        currentSolver =
-            std::make_unique<BitwuzlaIncNativeSolver>(solverParameters);
+        currentSolver = std::make_unique<BitwuzlaIncNativeSolver>(
+            builder->ctx, solverParameters);
       else
         setSolver(free_it, /*recycle=*/true);
       return;
