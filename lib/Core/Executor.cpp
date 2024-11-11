@@ -4348,8 +4348,6 @@ Executor::MemoryUsage Executor::checkMemoryUsage() {
   if (numStates < 100) {
     return None;
   }
-  const auto lastWeightOfState =
-      std::max(0.001, (double)lastTotalMemoryUsage) / numStates;
   const auto lastMaxNumStates =
       std::max(1UL, (unsigned long)(MaxMemory / lastWeightOfState));
 
@@ -4364,8 +4362,8 @@ Executor::MemoryUsage Executor::checkMemoryUsage() {
   // check memory limit
 
   const auto totalUsage = getMemoryUsage() >> 20U;
-  lastTotalMemoryUsage = totalUsage;
   const auto weightOfState = std::max(0.001, (double)totalUsage / numStates);
+  lastWeightOfState = weightOfState;
   const auto maxNumStates =
       std::max(1UL, (unsigned long)(MaxMemory / weightOfState));
 
@@ -4478,9 +4476,8 @@ std::vector<ExecutingSeed> Executor::uploadNewSeeds() {
   // just guess at how many to kill
   auto &states = objectManager->getStates();
   const auto numStates = std::max(1UL, states.size());
-  const auto weightOfState = std::max(1UL, lastTotalMemoryUsage / numStates);
   const auto maxNumStates =
-      std::max(1UL, (unsigned long)(MaxMemory / weightOfState));
+      std::max(1UL, (unsigned long)(MaxMemory / lastWeightOfState));
   std::vector<ExecutingSeed> seeds;
   unsigned long numStoredSeeds = storedSeeds->size();
   unsigned long toUpload =

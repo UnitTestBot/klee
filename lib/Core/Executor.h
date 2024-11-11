@@ -133,7 +133,7 @@ private:
   decltype(__ctype_toupper_loc()) c_type_toupper_addr;
 #endif
 
-  size_t lastTotalMemoryUsage = 0;
+  double lastWeightOfState = 0;
 
   size_t multiplexReached = 0;
 
