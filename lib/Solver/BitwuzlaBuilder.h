@@ -16,6 +16,7 @@
 #include "llvm/ADT/APFloat.h"
 
 #include <bitwuzla/cpp/bitwuzla.h>
+#include <memory>
 #include <unordered_map>
 
 using namespace bitwuzla;
@@ -112,7 +113,7 @@ protected:
   bool autoClearConstructCache;
 
 public:
-  std::shared_ptr<TermManager> ctx;
+  std::unique_ptr<TermManager> ctx;
   std::unordered_map<const Array *, std::vector<Term>>
       constant_array_assertions;
   // These are additional constraints that are generated during the
