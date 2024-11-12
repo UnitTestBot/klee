@@ -464,11 +464,11 @@ KGlobalVariable::KGlobalVariable(llvm::GlobalVariable *global, unsigned id)
     : KValue(global, KValue::Kind::GLOBAL_VARIABLE), id(id) {}
 
 std::string KGlobalVariable::getSourceFilepath() const {
-  return getLocationInfo(globalVariable()).file;
+  return getLocationInfo(globalVariable())->file;
 }
 // Line number where the global variable is defined
 size_t KGlobalVariable::getLine() const {
-  return getLocationInfo(globalVariable()).line;
+  return getLocationInfo(globalVariable())->line;
 }
 
 bool KGlobalVariable::operator<(const KValue &rhs) const {
@@ -534,12 +534,12 @@ KFunction::KFunction(llvm::Function *_function, KModule *_km,
 
 size_t KFunction::getLine() const {
   auto locationInfo = getLocationInfo(function());
-  return locationInfo.line;
+  return locationInfo->line;
 }
 
 std::string KFunction::getSourceFilepath() const {
   auto locationInfo = getLocationInfo(function());
-  return locationInfo.file;
+  return locationInfo->file;
 }
 
 KFunction::~KFunction() {

@@ -105,6 +105,7 @@
 #include <cassert>
 #include <cerrno>
 #include <cinttypes>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <cxxabi.h>
@@ -4345,9 +4346,6 @@ Executor::MemoryUsage Executor::checkMemoryUsage() {
 
   const auto &states = objectManager->getStates();
   const auto numStates = states.size();
-  if (numStates < 100) {
-    return None;
-  }
   const auto lastMaxNumStates =
       std::max(1UL, (unsigned long)(MaxMemory / lastWeightOfState));
 
@@ -4373,7 +4371,6 @@ Executor::MemoryUsage Executor::checkMemoryUsage() {
                       totalUsage);
     coverOnTheFly = CoverOnTheFly;
   }
-
   // just guess at how many to kill
   // only terminate states when threshold (+1%) exceeded
   if (totalUsage < MaxMemory * 0.6 && numStates < maxNumStates * 0.4) {
@@ -4381,6 +4378,11 @@ Executor::MemoryUsage Executor::checkMemoryUsage() {
   } else if (totalUsage <= MaxMemory * 1.01 &&
              numStates <= maxNumStates * 0.7) {
     return Executor::High;
+  }
+
+  if (totalUsage > MaxMemory * 1.01 && numStates <= 2) {
+    haltExecution = HaltExecution::MaxMemory;
+    return Executor::None;
   }
 
   // randomly select states for early termination

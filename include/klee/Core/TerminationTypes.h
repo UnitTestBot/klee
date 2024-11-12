@@ -101,6 +101,7 @@ enum Reason {
   ErrorOnWhichShouldExit,
   Interrupt,
   MaxDepth,
+  MaxMemory,
   MaxStackFrames,
   MaxSolverTime,
   Unspecified

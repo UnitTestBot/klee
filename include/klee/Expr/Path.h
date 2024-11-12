@@ -26,6 +26,7 @@ public:
     bool operator==(const PathIndex &rhs) const {
       return block == rhs.block && instruction == rhs.instruction;
     }
+    PathIndex() = default;
   };
 
   struct PathIndexCompare {
@@ -75,5 +76,16 @@ private:
 };
 
 }; // namespace klee
+
+template <> struct std::hash<klee::Path::PathIndex> {
+  std::size_t operator()(const klee::Path::PathIndex &s) const noexcept {
+    std::size_t r = 0;
+    std::size_t h1 = std::hash<unsigned long>{}(s.block);
+    std::size_t h2 = std::hash<unsigned long>{}(s.instruction);
+    r ^= h1 + 0x9e3779b9 + (r << 6) + (r >> 2);
+    r ^= h2 + 0x9e3779b9 + (r << 6) + (r >> 2);
+    return r;
+  }
+};
 
 #endif
