@@ -120,29 +120,20 @@ public:
   void advancePath(KInstruction *ki);
   void advancePath(const Path &path);
 
-  ExprHashSet addConstraint(ref<Expr> e, Path::PathIndex currIndex);
   ExprHashSet addConstraint(ref<Expr> e);
   bool isSymcretized(ref<Expr> expr) const;
   void addSymcrete(ref<Symcrete> s);
   void rewriteConcretization(const Assignment &a);
 
-  const constraints_ty &original() const;
-  const ExprHashMap<ExprHashSet> &simplificationMap() const;
   const ConstraintSet &cs() const;
   const Path &path() const;
-  const ExprHashMap<Path::PathIndex> &indexes() const;
-  const ordered_constraints_ty &orderedCS() const;
 
   static PathConstraints concat(const PathConstraints &l,
                                 const PathConstraints &r);
 
 private:
   Path _path;
-  constraints_ty _original;
   ConstraintSet constraints;
-  ExprHashMap<Path::PathIndex> pathIndexes;
-  ordered_constraints_ty orderedConstraints;
-  ExprHashMap<ExprHashSet> _simplificationMap;
   unsigned long addingCounter = 0UL;
 };
 
