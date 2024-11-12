@@ -372,31 +372,15 @@ ConstraintSet::independentElements() const {
 
 const Path &PathConstraints::path() const { return _path; }
 
-const ExprHashMap<Path::PathIndex> &PathConstraints::indexes() const {
-  return pathIndexes;
-}
-
 const Assignment &ConstraintSet::concretization() const {
   return *_concretization;
 }
 
-const constraints_ty &PathConstraints::original() const { return _original; }
-
-const ExprHashMap<ExprHashSet> &PathConstraints::simplificationMap() const {
-  return _simplificationMap;
-}
-
 const ConstraintSet &PathConstraints::cs() const { return constraints; }
-
-const PathConstraints::ordered_constraints_ty &
-PathConstraints::orderedCS() const {
-  return orderedConstraints;
-}
 
 void PathConstraints::advancePath(KInstruction *ki) { _path.advance(ki); }
 
-ExprHashSet PathConstraints::addConstraint(ref<Expr> e,
-                                           Path::PathIndex currIndex) {
+ExprHashSet PathConstraints::addConstraint(ref<Expr> e) {
   auto expr = Simplificator::simplifyExpr(constraints, e);
   if (auto ce [[maybe_unused]] = dyn_cast<ConstantExpr>(expr.simplified)) {
     assert(ce->isTrue() && "Attempt to add invalid constraint");
@@ -409,13 +393,7 @@ ExprHashSet PathConstraints::addConstraint(ref<Expr> e,
     if (auto ce [[maybe_unused]] = dyn_cast<ConstantExpr>(expr)) {
       assert(ce->isTrue() && "Expression simplified to false");
     } else {
-      _original.insert(expr);
       added.insert(expr);
-      pathIndexes.insert({expr, currIndex});
-      _simplificationMap[expr].insert(expr);
-      auto indexConstraints = orderedConstraints[currIndex].second;
-      indexConstraints.insert(expr);
-      orderedConstraints.replace({currIndex, indexConstraints});
       constraints.addConstraint(expr);
     }
   }
@@ -427,17 +405,10 @@ ExprHashSet PathConstraints::addConstraint(ref<Expr> e,
         Simplificator::simplify(constraints.cs(), RewriteEqualities);
     if (simplified.wasSimplified) {
       constraints.changeCS(simplified.simplified);
-
-      _simplificationMap = Simplificator::composeExprDependencies(
-          _simplificationMap, simplified.dependency);
     }
   }
 
   return added;
-}
-
-ExprHashSet PathConstraints::addConstraint(ref<Expr> e) {
-  return addConstraint(e, _path.getCurrentIndex());
 }
 
 bool PathConstraints::isSymcretized(ref<Expr> expr) const {
