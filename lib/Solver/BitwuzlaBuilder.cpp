@@ -157,7 +157,8 @@ Term BitwuzlaBuilder::eqExpr(Term a, Term b) {
 }
 
 Term BitwuzlaBuilder::coerceToBool(Term expr) {
-  return expr.sort().is_bool() ? expr : mk_term(Kind::EQUAL, {expr, bvOne(1)});
+  return expr.sort().is_bool() ? expr
+                               : ctx->mk_term(Kind::EQUAL, {expr, bvOne(1)});
 }
 
 // logical right shift
