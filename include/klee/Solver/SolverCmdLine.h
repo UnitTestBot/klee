@@ -41,6 +41,8 @@ extern llvm::cl::opt<bool> LogTimedOutQueries;
 
 extern llvm::cl::opt<std::string> MaxCoreSolverTime;
 
+extern llvm::cl::opt<unsigned> MaxCoreSolverMemory;
+
 extern llvm::cl::opt<bool> UseForkedCoreSolver;
 
 extern llvm::cl::opt<bool> CoreSolverOptimizeDivides;

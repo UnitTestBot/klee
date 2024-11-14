@@ -224,6 +224,10 @@ private:
   /// (e.g. for a single STP query)
   time::Span coreSolverTimeout;
 
+  /// The soft maximum memory to allow for a core SMT-sovler to use.
+  /// (e.g. for a single STP query)
+  unsigned coreSolverMemoryLimit;
+
   /// Maximum time to allow for a single instruction.
   time::Span maxInstructionTime;
 

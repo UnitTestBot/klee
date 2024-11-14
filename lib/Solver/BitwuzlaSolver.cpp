@@ -237,6 +237,7 @@ protected:
 
 private:
   time::Span timeout;
+  unsigned memoryLimit;
   SolverImpl::SolverRunStatus runStatusCode;
 
   bool internalRunSolver(const ConstraintQuery &query, BitwuzlaSolverEnv &env,
@@ -272,7 +273,13 @@ protected:
 public:
   std::string getConstraintLog(const Query &) final;
   SolverImpl::SolverRunStatus getOperationStatusCode() final;
-  void setCoreSolverTimeout(time::Span _timeout) final { timeout = _timeout; }
+  void setCoreSolverLimits(time::Span _timeout, unsigned _memoryLimit) final {
+    timeout = _timeout;
+    memoryLimit = _memoryLimit;
+    if (memoryLimit) {
+      solverParameters.set(Option::MEMORY_LIMIT, memoryLimit);
+    }
+  }
   void enableUnsatCore() {
     solverParameters.set(Option::PRODUCE_UNSAT_CORES, true);
   }
@@ -294,9 +301,10 @@ void deleteNativeBitwuzla(std::optional<Bitwuzla> &theSolver) {
 
 BitwuzlaSolverImpl::BitwuzlaSolverImpl()
     : runStatusCode(SolverImpl::SOLVER_RUN_STATUS_FAILURE) {
-  solverParameters.set(Option::PRODUCE_MODELS, true);
+  timeout = time::Span();
+  memoryLimit = 0;
 
-  setCoreSolverTimeout(timeout);
+  solverParameters.set(Option::PRODUCE_MODELS, true);
 
   if (ProduceUnsatCore) {
     enableUnsatCore();

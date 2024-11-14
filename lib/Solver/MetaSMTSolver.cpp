@@ -92,7 +92,10 @@ public:
                     bool optimizeDivides);
 
   std::string getConstraintLog(const Query &) final;
-  void setCoreSolverTimeout(time::Span timeout) { _timeout = timeout; }
+  void setCoreSolverLimits(time::Span timeout,
+                           [[maybe_unused]] unsigned memoryLimit) {
+    _timeout = timeout;
+  }
   void notifyStateTermination(std::uint32_t) {}
 
   bool computeTruth(const Query &, bool &isValid);
@@ -438,8 +441,9 @@ std::string MetaSMTSolver<SolverContext>::getConstraintLog(const Query &query) {
 }
 
 template <typename SolverContext>
-void MetaSMTSolver<SolverContext>::setCoreSolverTimeout(time::Span timeout) {
-  impl->setCoreSolverTimeout(timeout);
+void MetaSMTSolver<SolverContext>::setCoreSolverLimits(time::Span timeout,
+                                                       unsigned memoryLimit) {
+  impl->setCoreSolverLimits(timeout, memoryLimit);
 }
 
 std::unique_ptr<Solver> createMetaSMTSolver() {

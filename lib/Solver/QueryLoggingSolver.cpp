@@ -316,8 +316,9 @@ std::string QueryLoggingSolver::getConstraintLog(const Query &query) {
   return solver->impl->getConstraintLog(query);
 }
 
-void QueryLoggingSolver::setCoreSolverTimeout(time::Span timeout) {
-  solver->impl->setCoreSolverTimeout(timeout);
+void QueryLoggingSolver::setCoreSolverLimits(time::Span timeout,
+                                             unsigned memoryLimit) {
+  solver->impl->setCoreSolverLimits(timeout, memoryLimit);
 }
 
 void QueryLoggingSolver::notifyStateTermination(std::uint32_t id) {

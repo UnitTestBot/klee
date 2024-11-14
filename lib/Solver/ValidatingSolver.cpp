@@ -42,7 +42,7 @@ public:
                            bool &isValid);
   SolverRunStatus getOperationStatusCode();
   std::string getConstraintLog(const Query &) final;
-  void setCoreSolverTimeout(time::Span timeout);
+  void setCoreSolverLimits(time::Span timeout, unsigned memoryLimit);
   void notifyStateTermination(std::uint32_t id);
 };
 
@@ -223,8 +223,9 @@ std::string ValidatingSolver::getConstraintLog(const Query &query) {
   return solver->impl->getConstraintLog(query);
 }
 
-void ValidatingSolver::setCoreSolverTimeout(time::Span timeout) {
-  solver->impl->setCoreSolverTimeout(timeout);
+void ValidatingSolver::setCoreSolverLimits(time::Span timeout,
+                                           unsigned memoryLimit) {
+  solver->impl->setCoreSolverLimits(timeout, memoryLimit);
 }
 
 void ValidatingSolver::notifyStateTermination(std::uint32_t id) {

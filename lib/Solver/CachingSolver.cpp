@@ -87,7 +87,7 @@ public:
                            bool &isValid);
   SolverRunStatus getOperationStatusCode();
   std::string getConstraintLog(const Query &) final;
-  void setCoreSolverTimeout(time::Span timeout);
+  void setCoreSolverLimits(time::Span timeout, unsigned memoryLimit);
   void notifyStateTermination(std::uint32_t id);
 };
 
@@ -297,8 +297,9 @@ std::string CachingSolver::getConstraintLog(const Query &query) {
   return solver->impl->getConstraintLog(query);
 }
 
-void CachingSolver::setCoreSolverTimeout(time::Span timeout) {
-  solver->impl->setCoreSolverTimeout(timeout);
+void CachingSolver::setCoreSolverLimits(time::Span timeout,
+                                        unsigned memoryLimit) {
+  solver->impl->setCoreSolverLimits(timeout, memoryLimit);
 }
 
 void CachingSolver::notifyStateTermination(std::uint32_t id) {

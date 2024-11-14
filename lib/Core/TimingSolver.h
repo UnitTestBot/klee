@@ -44,7 +44,9 @@ public:
       : solver(std::move(solver)), optimizer(optimizer),
         simplifyExprs(_simplifyExprs) {}
 
-  void setTimeout(time::Span t) { solver->setCoreSolverTimeout(t); }
+  void setLimits(time::Span t, unsigned m) {
+    solver->setCoreSolverLimits(t, m);
+  }
 
   std::string getConstraintLog(const Query &query) {
     return solver->getConstraintLog(query);

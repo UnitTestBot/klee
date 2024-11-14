@@ -38,8 +38,8 @@ std::string Solver::getConstraintLog(const Query &query) {
   return impl->getConstraintLog(query);
 }
 
-void Solver::setCoreSolverTimeout(time::Span timeout) {
-  impl->setCoreSolverTimeout(timeout);
+void Solver::setCoreSolverLimits(time::Span timeout, unsigned memoryLimit) {
+  impl->setCoreSolverLimits(timeout, memoryLimit);
 }
 
 bool Solver::evaluate(const Query &query, PartialValidity &result) {

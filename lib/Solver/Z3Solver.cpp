@@ -216,10 +216,12 @@ protected:
 private:
   Z3BuilderType builderType;
   time::Span timeout;
+  unsigned memoryLimit;
   SolverImpl::SolverRunStatus runStatusCode;
   std::unique_ptr<llvm::raw_fd_ostream> dumpedQueriesFile;
   // Parameter symbols
   ::Z3_symbol timeoutParamStrSymbol;
+  ::Z3_symbol maxMemoryParamStrSymbol;
   ::Z3_symbol unsatCoreParamStrSymbol;
 
   bool internalRunSolver(const ConstraintQuery &query, Z3SolverEnv &env,
@@ -259,8 +261,9 @@ protected:
 public:
   std::string getConstraintLog(const Query &) final;
   SolverImpl::SolverRunStatus getOperationStatusCode() final;
-  void setCoreSolverTimeout(time::Span _timeout) final {
+  void setCoreSolverLimits(time::Span _timeout, unsigned _memoryLimit) final {
     timeout = _timeout;
+    memoryLimit = _memoryLimit;
 
     auto timeoutInMilliSeconds =
         static_cast<unsigned>((timeout.toMicroseconds() / 1000));
@@ -268,6 +271,10 @@ public:
       timeoutInMilliSeconds = UINT_MAX;
     Z3_params_set_uint(builder->ctx, solverParameters, timeoutParamStrSymbol,
                        timeoutInMilliSeconds);
+    if (memoryLimit) {
+      Z3_params_set_uint(builder->ctx, solverParameters,
+                         maxMemoryParamStrSymbol, memoryLimit);
+    }
   }
   void enableUnsatCore() {
     Z3_params_set_bool(builder->ctx, solverParameters, unsatCoreParamStrSymbol,
@@ -311,8 +318,11 @@ Z3SolverImpl::Z3SolverImpl(Z3BuilderType type)
   assert(builder && "unable to create Z3Builder");
   solverParameters = Z3_mk_params(builder->ctx);
   Z3_params_inc_ref(builder->ctx, solverParameters);
+  timeout = time::Span();
+  memoryLimit = 0;
   timeoutParamStrSymbol = Z3_mk_string_symbol(builder->ctx, "timeout");
-  setCoreSolverTimeout(timeout);
+  maxMemoryParamStrSymbol = Z3_mk_string_symbol(builder->ctx, "max_memory");
+  setCoreSolverLimits(timeout, memoryLimit);
   unsatCoreParamStrSymbol = Z3_mk_string_symbol(builder->ctx, "unsat_core");
 
   // HACK: This changes Z3's handling of the `to_ieee_bv` function so that

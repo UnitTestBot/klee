@@ -41,7 +41,7 @@ public:
                            bool &isValid);
   SolverRunStatus getOperationStatusCode();
   std::string getConstraintLog(const Query &);
-  void setCoreSolverTimeout(time::Span timeout);
+  void setCoreSolverLimits(time::Span timeout, unsigned memoryLimit);
   void notifyStateTermination(std::uint32_t id);
   ValidityCore changeVersion(const ValidityCore &validityCore,
                              AlphaBuilder &builder);
@@ -213,8 +213,9 @@ std::string AlphaEquivalenceSolver::getConstraintLog(const Query &query) {
   return solver->impl->getConstraintLog(query);
 }
 
-void AlphaEquivalenceSolver::setCoreSolverTimeout(time::Span timeout) {
-  solver->impl->setCoreSolverTimeout(timeout);
+void AlphaEquivalenceSolver::setCoreSolverLimits(time::Span timeout,
+                                                 unsigned memoryLimit) {
+  solver->impl->setCoreSolverLimits(timeout, memoryLimit);
 }
 
 void AlphaEquivalenceSolver::notifyStateTermination(std::uint32_t id) {

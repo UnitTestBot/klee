@@ -38,6 +38,7 @@ def klee_options(
         "--max-solvers-approx-tree-inc=16",
         # Just use half of the memory in case we have to fork
         f"--max-memory={int(max_memory * 0.7)}",
+        f"--max-solver-memory={int(max_memory * 0.7)}",
         "--libc=klee",
         "--skip-not-lazy-initialized",
         f"--output-dir={test_output_dir}",  # Output files into specific directory

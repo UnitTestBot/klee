@@ -198,8 +198,9 @@ static bool EvaluateInputAST(const char *Filename, const llvm::MemoryBuffer *MB,
 
   if (CoreSolverToUse != DUMMY_SOLVER) {
     const time::Span maxCoreSolverTime(MaxCoreSolverTime);
-    if (maxCoreSolverTime) {
-      coreSolver->setCoreSolverTimeout(maxCoreSolverTime);
+    const unsigned maxCoreSolverMemory(MaxCoreSolverMemory);
+    if (maxCoreSolverTime || maxCoreSolverMemory) {
+      coreSolver->setCoreSolverLimits(maxCoreSolverTime, maxCoreSolverMemory);
     }
   }
 

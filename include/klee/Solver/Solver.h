@@ -191,7 +191,7 @@ public:
   getRange(const Query &, time::Span timeout = time::Span());
 
   virtual std::string getConstraintLog(const Query &query);
-  virtual void setCoreSolverTimeout(time::Span timeout);
+  virtual void setCoreSolverLimits(time::Span timeout, unsigned memoryLimit);
 
   /// @brief Notify the solver that the state with specified id has been
   /// terminated
