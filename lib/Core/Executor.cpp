@@ -4806,7 +4806,7 @@ void Executor::goForward(ref<ForwardAction> action) {
     terminateStateEarly(state, "Multiplex function has been covered.",
                         StateTerminationType::CoveredEntryPoint);
   } else if (targetManager && targetManager->isTargeted(state) &&
-             state.targets().empty()) {
+             state.targets().empty() && !state.isCoveredNew()) {
     terminateStateEarlyAlgorithm(state, "State missed all it's targets.",
                                  StateTerminationType::MissedAllTargets);
   } else if (state.isCycled(MaxCycles)) {
