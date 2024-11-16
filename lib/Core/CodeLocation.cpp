@@ -24,8 +24,8 @@ CodeLocation::CodeLocation(const Path::PathIndex &pathIndex,
                            uint64_t sourceCodeLine,
                            std::optional<uint64_t> sourceCodeColumn)
     : pathIndex(pathIndex), source(source),
-      location(LocationInfo{sourceFilename, sourceCodeLine, sourceCodeColumn}) {
-}
+      location(LocationInfo::create(sourceFilename, sourceCodeLine,
+                                    sourceCodeColumn)) {}
 
 ref<CodeLocation>
 CodeLocation::create(const Path::PathIndex &pathIndex, const KValue *source,
@@ -44,7 +44,7 @@ CodeLocation::create(const KValue *source, const std::string &sourceFilename,
 }
 
 PhysicalLocationJson CodeLocation::serialize() const {
-  return location.serialize();
+  return location->serialize();
 }
 
 bool CodeLocation::equals(const CodeLocation &b) const {

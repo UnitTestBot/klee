@@ -357,19 +357,19 @@ bool Location::isInside(const llvm::Function *f,
   auto firstLoc = getLocationInfo(first);
   auto lastLoc = getLocationInfo(last);
   if (!startColumn.has_value()) {
-    if (firstLoc.line > endLine) {
+    if (firstLoc->line > endLine) {
       return false;
     }
-    return startLine <= lastLoc.line;
+    return startLine <= lastLoc->line;
   }
   for (const auto &block : *f) {
     for (const auto &inst : block) {
       auto locInfo = getLocationInfo(&inst);
-      if (!isa<DbgInfoIntrinsic>(&inst) && locInfo.line <= endLine &&
-          locInfo.line >= startLine && locInfo.column <= *endColumn &&
-          locInfo.column >= *startColumn &&
-          origInsts.at(locInfo.line)
-                  .at(locInfo.column.value_or(0))
+      if (!isa<DbgInfoIntrinsic>(&inst) && locInfo->line <= endLine &&
+          locInfo->line >= startLine && locInfo->column <= *endColumn &&
+          locInfo->column >= *startColumn &&
+          origInsts.at(locInfo->line)
+                  .at(locInfo->column.value_or(0))
                   .count(inst.getOpcode()) != 0) {
         return true;
       }

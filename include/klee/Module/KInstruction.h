@@ -73,7 +73,7 @@ struct KInstruction : public KValue {
   /// register indices.
   int *operands;
   KBlock *parent;
-  mutable std::optional<LocationInfo> locationInfo;
+  mutable std::optional<ref<LocationInfo>> locationInfo;
 
 private:
   // Instruction index in the basic block

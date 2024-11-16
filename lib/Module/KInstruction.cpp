@@ -73,21 +73,21 @@ size_t KInstruction::getLine() const {
   if (!this->locationInfo.has_value()) {
     this->locationInfo.emplace(getLocationInfo(inst()));
   }
-  return this->locationInfo.value().line;
+  return this->locationInfo.value()->line;
 }
 
 size_t KInstruction::getColumn() const {
   if (!this->locationInfo.has_value()) {
     this->locationInfo.emplace(getLocationInfo(inst()));
   }
-  return this->locationInfo.value().column.value_or(0);
+  return this->locationInfo.value()->column.value_or(0);
 }
 
 std::string KInstruction::getSourceFilepath() const {
   if (!this->locationInfo.has_value()) {
     this->locationInfo.emplace(getLocationInfo(inst()));
   }
-  return this->locationInfo.value().file;
+  return this->locationInfo.value()->file;
 }
 
 std::string KInstruction::getSourceLocationString() const {

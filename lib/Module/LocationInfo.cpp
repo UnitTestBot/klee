@@ -44,18 +44,34 @@ PhysicalLocationJson LocationInfo::serialize() const {
 
 ////////////////////////////////////////////////////////////////
 
-LocationInfo getLocationInfo(const llvm::Function *func) {
+LocationInfo::LocationInfoCacheSet LocationInfo::cachedLocationInfo;
+
+ref<LocationInfo>
+LocationInfo::createCachedLocationInfo(ref<LocationInfo> locationInfo) {
+  std::pair<CacheType::const_iterator, bool> success =
+      cachedLocationInfo.cache.insert(locationInfo.get());
+
+  if (success.second) {
+    // Cache miss
+    locationInfo->isCached = true;
+    return locationInfo;
+  }
+  // Cache hit
+  return (ref<LocationInfo>)*(success.first);
+}
+
+ref<LocationInfo> getLocationInfo(const llvm::Function *func) {
   const auto dsub = func->getSubprogram();
 
   if (dsub != nullptr) {
     auto path = dsub->getFilename();
-    return {path.str(), dsub->getLine(), {}};
+    return LocationInfo::create(path.str(), dsub->getLine(), {});
   }
 
-  return {"", 0, {}};
+  return LocationInfo::create("", 0, {});
 }
 
-LocationInfo getLocationInfo(const llvm::Instruction *inst) {
+ref<LocationInfo> getLocationInfo(const llvm::Instruction *inst) {
   // Retrieve debug information associated with instruction
   const auto &dl = inst->getDebugLoc();
 
@@ -74,13 +90,13 @@ LocationInfo getLocationInfo(const llvm::Instruction *inst) {
         column = LexicalBlock->getColumn();
       }
     }
-    return {full_path.str(), line, {column}};
+    return LocationInfo::create(full_path.str(), line, {column});
   }
 
   return getLocationInfo(inst->getParent()->getParent());
 }
 
-LocationInfo getLocationInfo(const llvm::GlobalVariable *globalVar) {
+ref<LocationInfo> getLocationInfo(const llvm::GlobalVariable *globalVar) {
   // Retrieve debug information associated with global variable.
   // LLVM does not expose API for getting single DINode with location
   // information.
@@ -91,20 +107,19 @@ LocationInfo getLocationInfo(const llvm::GlobalVariable *globalVar) {
     // Return location from any debug info for global variable.
     if (const llvm::DIGlobalVariable *debugInfoGlobalVar =
             debugInfoEntry->getVariable()) {
-      return {debugInfoGlobalVar->getFilename().str(),
-              debugInfoGlobalVar->getLine(),
-              {}};
+      return LocationInfo::create(debugInfoGlobalVar->getFilename().str(),
+                                  debugInfoGlobalVar->getLine(), {});
     }
   }
 
   // For `extern` variables return `external` file.
   if (globalVar->hasExternalLinkage()) {
-    return {"external", 0, {}};
+    return LocationInfo::create("external", 0, {});
   }
 
   // Fallback to empty location if there is no appropriate debug
   // info.
-  return {"", 0, {}};
+  return LocationInfo::create("", 0, {});
 }
 
 } // namespace klee
