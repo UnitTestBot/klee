@@ -253,6 +253,14 @@ public:
   bool runOnFunction(llvm::Function &) override;
 };
 
+/// Lower `freeze` instructions
+class FreezeLower : public llvm::FunctionPass {
+public:
+  static char ID;
+  FreezeLower() : llvm::FunctionPass(ID) {}
+  bool runOnFunction(llvm::Function &) override;
+};
+
 } // namespace klee
 
 #endif /* KLEE_PASSES_H */
