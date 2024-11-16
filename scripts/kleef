@@ -63,6 +63,7 @@ def klee_options(
         #  "-const-array-opt",
         "--use-batching-search",
         "--batch-instructions=10000",
+        "--use-concretizing-solver=false",
         "--batch-time=0",
         "--only-output-make-symbolic-arrays",
         "--memory-backend=mixed",
