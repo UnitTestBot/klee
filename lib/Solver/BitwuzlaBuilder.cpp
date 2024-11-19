@@ -619,6 +619,21 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
     Term src = castToFloat(construct(ce->src, &srcWidth));
     *width_out = ce->getWidth();
     FPCastWidthAssert(width_out, "Invalid FPToUI width");
+    auto fp_widths = getFloatSortFromBitWidth(srcWidth);
+    Term maxBound = ctx->mk_term(
+        Kind::FP_LEQ,
+        {src, ctx->mk_term(Kind::FP_TO_FP_FROM_UBV,
+                           {getRoundingModeSort(ce->roundingMode),
+                            ctx->mk_bv_ones(ctx->mk_bv_sort(*width_out))},
+                           {fp_widths.first, fp_widths.second})});
+    sideConstraints.push_back(maxBound);
+    Term minBound = ctx->mk_term(
+        Kind::FP_GEQ,
+        {src, ctx->mk_term(Kind::FP_TO_FP_FROM_UBV,
+                           {getRoundingModeSort(ce->roundingMode),
+                            ctx->mk_bv_zero(ctx->mk_bv_sort(*width_out))},
+                           {fp_widths.first, fp_widths.second})});
+    sideConstraints.push_back(minBound);
     return ctx->mk_term(Kind::FP_TO_UBV,
                         {getRoundingModeSort(ce->roundingMode), src},
                         {ce->getWidth()});
@@ -630,6 +645,21 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
     Term src = castToFloat(construct(ce->src, &srcWidth));
     *width_out = ce->getWidth();
     FPCastWidthAssert(width_out, "Invalid FPToSI width");
+    auto fp_widths = getFloatSortFromBitWidth(srcWidth);
+    Term maxBound = ctx->mk_term(
+        Kind::FP_LEQ,
+        {src, ctx->mk_term(Kind::FP_TO_FP_FROM_SBV,
+                           {getRoundingModeSort(ce->roundingMode),
+                            ctx->mk_bv_max_signed(ctx->mk_bv_sort(*width_out))},
+                           {fp_widths.first, fp_widths.second})});
+    sideConstraints.push_back(maxBound);
+    Term minBound = ctx->mk_term(
+        Kind::FP_GEQ,
+        {src, ctx->mk_term(Kind::FP_TO_FP_FROM_SBV,
+                           {getRoundingModeSort(ce->roundingMode),
+                            ctx->mk_bv_min_signed(ctx->mk_bv_sort(*width_out))},
+                           {fp_widths.first, fp_widths.second})});
+    sideConstraints.push_back(minBound);
     return ctx->mk_term(Kind::FP_TO_SBV,
                         {getRoundingModeSort(ce->roundingMode), src},
                         {ce->getWidth()});
