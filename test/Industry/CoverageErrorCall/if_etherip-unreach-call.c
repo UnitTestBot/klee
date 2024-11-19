@@ -1,6 +1,8 @@
 // It requires bitwuzla because the script currently runs with bitwuzla solver backend
 // REQUIRES: bitwuzla
-// REQUIRES: target-x86_64
+// REQUIRES: not-asan
+// REQUIRES: not-msan
+// REQUIRES: not-darwin
 // RUN: %kleef --property-file=%S/coverage-error-call.prp --max-memory=7000000000 --max-cputime-soft=30 --64 --debug %s 2>&1 | FileCheck %s
 // CHECK: KLEE: WARNING: 100.00% Reachable Reachable
 
