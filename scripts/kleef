@@ -10,8 +10,6 @@ from functools import partial
 from pathlib import Path
 import src_tooling_runner
 
-import src_tooling_runner
-
 
 def klee_options(
     max_memory,
