@@ -58,7 +58,9 @@ cl::opt<HaltExecution::Reason> UseIterativeDeepeningSearch(
                clEnumValN(HaltExecution::Reason::MaxTime, "max-time",
                           "metric is maximum time"),
                clEnumValN(HaltExecution::Reason::MaxCycles, "max-cycles",
-                          "metric is maximum cycles")),
+                          "metric is maximum cycles"),
+               clEnumValN(HaltExecution::Reason::MaxSymCycles, "max-sym-cycles",
+                          "metric is maximum symbolic cycles")),
     cl::init(HaltExecution::Reason::Unspecified), cl::cat(SearchCat));
 
 cl::opt<bool> UseBatchingSearch(

@@ -80,7 +80,7 @@ def klee_options(
         "--memory-backend=mixed",
         "--max-fixed-size-structures-size=64",
         "--use-intermittent-equalities-rewriter",
-        "--use-iterative-deepening-search=max-cycles",
+        "--use-iterative-deepening-search=max-sym-cycles",
         "--optimize=true",
     ]
     if run_forever:

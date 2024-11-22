@@ -669,6 +669,26 @@ public:
   }
 };
 
+class MaxSymCyclesMetric final : public IterativeDeepeningSearcher::Metric {
+public:
+  using ty = unsigned long long;
+
+private:
+  ty maxCycles;
+
+public:
+  explicit MaxSymCyclesMetric(ty maxCycles) : maxCycles(maxCycles){};
+  explicit MaxSymCyclesMetric() : MaxSymCyclesMetric(1ULL){};
+
+  bool exceeds(const ExecutionState &state) const final {
+    return state.isSymbolicCycled(maxCycles);
+  }
+  void increaseLimit() final {
+    maxCycles *= 4ULL;
+    klee_message("increased max-sym-cycles to %llu", maxCycles);
+  }
+};
+
 IterativeDeepeningSearcher::IterativeDeepeningSearcher(Searcher *baseSearcher,
                                                        HaltExecution::Reason m)
     : baseSearcher{baseSearcher} {
@@ -678,6 +698,9 @@ IterativeDeepeningSearcher::IterativeDeepeningSearcher(Searcher *baseSearcher,
     return;
   case HaltExecution::Reason::MaxCycles:
     metric = std::make_unique<MaxCyclesMetric>();
+    return;
+  case HaltExecution::Reason::MaxSymCycles:
+    metric = std::make_unique<MaxSymCyclesMetric>();
     return;
   default:
     klee_error("Illegal metric for iterative deepening searcher: %d", m);
