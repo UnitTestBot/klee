@@ -169,7 +169,7 @@ void TargetManager::updateReached(ExecutionState &state) {
 }
 
 void TargetManager::updateTargets(ExecutionState &state) {
-  if (!state.isSeeded) {
+  if (state.isSeeded) {
     return;
   }
   if (guidance == Interpreter::GuidanceKind::CoverageGuidance) {
