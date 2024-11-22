@@ -639,14 +639,15 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
                         {ce->getWidth()});
   }
 
-
-  //   https://smt-lib.org/theories-FloatingPoint.shtml
-  //
-  //   All fp.to_* functions are unspecified for NaN and infinity input values.
-  //   In addition, fp.to_ubv and fp.to_sbv are unspecified for finite number inputs
-  //   that are out of range (which includes all negative numbers for fp.to_ubv).
-  //
-  //   This workaround restricts fp.to_ubv and fp.to_sbv arguments to be in range.
+    //   https://smt-lib.org/theories-FloatingPoint.shtml
+    //
+    //   All fp.to_* functions are unspecified for NaN and infinity input
+    //   values. In addition, fp.to_ubv and fp.to_sbv are unspecified for finite
+    //   number inputs that are out of range (which includes all negative
+    //   numbers for fp.to_ubv).
+    //
+    //   This workaround restricts fp.to_ubv and fp.to_sbv arguments to be in
+    //   range.
 
   case Expr::FPToSI: {
     int srcWidth;
