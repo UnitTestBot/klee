@@ -80,7 +80,6 @@ def klee_options(
         "--memory-backend=mixed",
         "--max-fixed-size-structures-size=64",
         "--use-intermittent-equalities-rewriter",
-        "--use-iterative-deepening-search=max-sym-cycles",
         "--optimize=true",
     ]
     if run_forever:
@@ -110,6 +109,7 @@ def klee_options(
             #    "--search=nurs:covnew", "--search=random-path","--search=dfs", "--use-batching-search",
             #    "--search=distance","--search=random-path","--use-batching-search",
             # "--target-assert", # Target
+            "--use-iterative-deepening-search=max-sym-cycles",
         ]
         if max_time:
             max_time = float(max_time)
@@ -134,6 +134,7 @@ def klee_options(
             "--dump-states-on-halt=all",  # Check in case we missed some oncovered instructions
             "--search=dfs",
             "--search=random-state",
+            "--use-iterative-deepening-search=max-cycles",
         ]
         if max_time:
             max_time = float(max_time)
