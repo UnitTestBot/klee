@@ -734,7 +734,7 @@ private:
 
   void executeAction(ref<SearcherAction> action);
 
-  void unseedIfReachedMacSeedInstructions(ExecutionState *state);
+  void unseedIfReachedMaxSeedInstructions(ExecutionState *state);
   void goForward(ref<ForwardAction> action);
 
   const KInstruction *getKInst(const llvm::Instruction *ints) const;

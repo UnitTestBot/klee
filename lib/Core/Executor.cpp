@@ -4349,15 +4349,14 @@ Executor::MemoryUsage Executor::checkMemoryUsage() {
 
   const auto &states = objectManager->getStates();
   const auto numStates = states.size();
-  const auto lastMaxNumStates =
-      std::max(1UL, (unsigned long)(MaxMemory / lastWeightOfState));
+  const auto lastTotalUsage = (unsigned long)(lastWeightOfState * numStates);
 
   // We need to avoid calling GetTotalMallocUsage() often because it
   // is O(elts on freelist). This is really bad since we start
   // to pummel the freelist once we hit the memory cap.
   // every 65536 instructions
   if ((stats::instructions & 0xFFFFU) != 0 &&
-      numStates < lastMaxNumStates * 0.4)
+      lastTotalUsage <= MaxMemory * 1.01)
     return None;
 
   // check memory limit
@@ -4365,8 +4364,6 @@ Executor::MemoryUsage Executor::checkMemoryUsage() {
   const auto totalUsage = getMemoryUsage() >> 20U;
   const auto weightOfState = std::max(0.001, (double)totalUsage / numStates);
   lastWeightOfState = weightOfState;
-  const auto maxNumStates =
-      std::max(1UL, (unsigned long)(MaxMemory / weightOfState));
 
   if (MemoryTriggerCoverOnTheFly && totalUsage > MaxMemory * 0.75) {
     klee_warning_once(0,
@@ -4376,10 +4373,9 @@ Executor::MemoryUsage Executor::checkMemoryUsage() {
   }
   // just guess at how many to kill
   // only terminate states when threshold (+1%) exceeded
-  if (totalUsage < MaxMemory * 0.6 && numStates < maxNumStates * 0.4) {
+  if (totalUsage < MaxMemory * 0.6) {
     return Executor::Low;
-  } else if (totalUsage <= MaxMemory * 1.01 &&
-             numStates <= maxNumStates * 0.7) {
+  } else if (totalUsage <= MaxMemory * 1.01) {
     return Executor::High;
   }
 
@@ -4388,13 +4384,13 @@ Executor::MemoryUsage Executor::checkMemoryUsage() {
     return Executor::None;
   }
 
-  auto toKill =
-      std::min(numStates - 1, numStates - (unsigned long)(maxNumStates * 0.4));
+  auto toKill = std::max(1UL, numStates - numStates * MaxMemory / totalUsage);
 
   if (toKill != 0) {
     klee_warning("killing %lu states (total memory usage: %luMB)", toKill,
                  totalUsage);
   }
+
   unsigned long killed = 0;
   for (states_ty::iterator it = states.begin(), ie = states.end();
        it != ie && killed < toKill; ++it) {
@@ -4415,9 +4411,6 @@ Executor::MemoryUsage Executor::checkMemoryUsage() {
                           StateTerminationType::OutOfMemory);
       killed++;
     }
-  }
-  if (toKill != 0) {
-    klee_warning("stop killing");
   }
 
   return Executor::Full;
@@ -4479,20 +4472,22 @@ const KFunction *Executor::getKFunction(const llvm::Function *f) const {
 }
 
 std::vector<ExecutingSeed> Executor::uploadNewSeeds() {
-  // just guess at how many to kill
   auto &states = objectManager->getStates();
-  const auto numStates = std::max(1UL, states.size());
-  const auto maxNumStates =
-      std::max(1UL, (unsigned long)(MaxMemory / lastWeightOfState));
-  std::vector<ExecutingSeed> seeds;
-  unsigned long numStoredSeeds = storedSeeds->size();
-  unsigned long toUpload =
-      numStates < maxNumStates * 0.4 ? maxNumStates * 0.4 - numStates : 0;
-  toUpload = std::min(toUpload, numStoredSeeds);
+  const auto numStates = states.size();
+  const auto lastTotalUsage = (unsigned long)(lastWeightOfState * numStates);
 
-  while ((!toUpload || seeds.size() <= toUpload) && !storedSeeds->empty()) {
-    seeds.push_back(storedSeeds->front());
-    storedSeeds->pop_front();
+  std::vector<ExecutingSeed> seeds;
+  if (lastTotalUsage < MaxMemory * 0.6) {
+    unsigned long numStoredSeeds = storedSeeds->size();
+    auto toUpload =
+        std::max(numStoredSeeds,
+                 numStoredSeeds - numStoredSeeds * lastTotalUsage / MaxMemory);
+    toUpload = std::min(toUpload, numStoredSeeds);
+
+    while ((!toUpload || seeds.size() <= toUpload) && !storedSeeds->empty()) {
+      seeds.push_back(storedSeeds->front());
+      storedSeeds->pop_front();
+    }
   }
   return seeds;
 }
@@ -4693,7 +4688,7 @@ void Executor::executeAction(ref<SearcherAction> action) {
   timers.invoke();
 }
 
-void Executor::unseedIfReachedMacSeedInstructions(ExecutionState *state) {
+void Executor::unseedIfReachedMaxSeedInstructions(ExecutionState *state) {
   assert(state->isSeeded);
   auto it = seedMap->find(state);
   assert(it != seedMap->end());
@@ -4749,7 +4744,7 @@ void Executor::goForward(ref<ForwardAction> action) {
     targetManager->pullGlobal(state);
   }
   if (state.isSeeded) {
-    unseedIfReachedMacSeedInstructions(&state);
+    unseedIfReachedMaxSeedInstructions(&state);
   }
   if (targetCalculator && TrackCoverage != TrackCoverageBy::None &&
       state.multiplexKF && functionsByModule.modules.size() > 1 &&
@@ -4919,6 +4914,13 @@ void Executor::terminateStateEarly(ExecutionState &state, const Twine &message,
     bool success = storeState(state, seed);
     if (success) {
       storedSeeds->push_back(seed);
+    }
+    if (shouldWriteTest(state)) {
+      interpreterHandler->processTestCase(
+          state, (message + "\n").str().c_str(),
+          terminationTypeFileExtension(reason).c_str(),
+          reason > StateTerminationType::EARLY &&
+              reason <= StateTerminationType::EXECERR);
     }
   } else if (((reason <= StateTerminationType::EARLY ||
                reason == StateTerminationType::MissedAllTargets) &&
