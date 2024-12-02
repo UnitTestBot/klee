@@ -4384,7 +4384,8 @@ Executor::MemoryUsage Executor::checkMemoryUsage() {
     return Executor::None;
   }
 
-  auto toKill = std::max(1UL, numStates - numStates * MaxMemory / totalUsage);
+  auto toKill =
+      std::max(1UL, numStates - numStates * MaxMemory / (2 * totalUsage));
 
   if (toKill != 0) {
     klee_warning("killing %lu states (total memory usage: %luMB)", toKill,
