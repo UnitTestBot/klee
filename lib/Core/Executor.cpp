@@ -4355,8 +4355,7 @@ Executor::MemoryUsage Executor::checkMemoryUsage() {
   // is O(elts on freelist). This is really bad since we start
   // to pummel the freelist once we hit the memory cap.
   // every 65536 instructions
-  if ((stats::instructions & 0xFFFFU) != 0 &&
-      lastTotalUsage <= MaxMemory * 1.01)
+  if ((stats::instructions & 0xFFFFU) != 0 && lastTotalUsage <= MaxMemory * 0.9)
     return None;
 
   // check memory limit
@@ -4372,14 +4371,14 @@ Executor::MemoryUsage Executor::checkMemoryUsage() {
     coverOnTheFly = CoverOnTheFly;
   }
   // just guess at how many to kill
-  // only terminate states when threshold (+1%) exceeded
+  // only terminate states when threshold (-10%) exceeded
   if (totalUsage < MaxMemory * 0.6) {
     return Executor::Low;
-  } else if (totalUsage <= MaxMemory * 1.01) {
+  } else if (totalUsage <= MaxMemory * 0.9) {
     return Executor::High;
   }
 
-  if (totalUsage > MaxMemory * 1.01 && numStates <= 2) {
+  if (totalUsage > MaxMemory * 0.9 && numStates <= 2) {
     haltExecution = HaltExecution::MaxMemory;
     return Executor::None;
   }
@@ -4917,6 +4916,7 @@ void Executor::terminateStateEarly(ExecutionState &state, const Twine &message,
       storedSeeds->push_back(seed);
     }
     if (shouldWriteTest(state)) {
+      state.clearCoveredNew();
       interpreterHandler->processTestCase(
           state, (message + "\n").str().c_str(),
           terminationTypeFileExtension(reason).c_str(),
