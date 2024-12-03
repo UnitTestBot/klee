@@ -581,7 +581,6 @@ public:
   bool isCoveredNewError() const { return coveredNewError->value; }
   void coverNew() const {
     coveredNew.push_back(new box<bool>(true));
-    coveredNewError->value = false;
     coveredNewError = new box<bool>(true);
   }
   void updateCoveredNew() const {
