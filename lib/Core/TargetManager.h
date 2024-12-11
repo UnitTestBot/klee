@@ -51,6 +51,12 @@ private:
   TargetHashSet removedTargets;
   TargetHashSet addedTargets;
 
+  void setTargets(ExecutionState &state,
+                  const PersistentSet<ref<Target>> &targets) {
+    state.setTargets(targets);
+    changedStates.insert(&state);
+  }
+
   void setTargets(ExecutionState &state, const TargetHashSet &targets) {
     state.setTargets(targets);
     changedStates.insert(&state);
@@ -144,6 +150,13 @@ public:
   void collectFiltered(const StatesSet &filter,
                        TargetHistoryTargetPairToStatesMap &added,
                        TargetHistoryTargetPairToStatesMap &removed);
+
+  void makeTargeted(ExecutionState &state,
+                    const PersistentSet<ref<Target>> &targets) {
+    assert(!isTargeted(state));
+    state.setTargeted(true);
+    setTargets(state, targets);
+  }
 };
 
 } // namespace klee

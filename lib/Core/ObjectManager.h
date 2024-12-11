@@ -53,11 +53,15 @@ public:
   void addProcessForest(PForest *);
 
   void addInitialState(ExecutionState *state);
+  void removeInitialState(ExecutionState *state);
 
   void setCurrentState(ExecutionState *_current);
 
   ExecutionState *branchState(ExecutionState *state, BranchType reason);
   void removeState(ExecutionState *state);
+
+  void unseed(ExecutionState *state);
+  void seed(ExecutionState *state);
 
   const states_ty &getStates();
 

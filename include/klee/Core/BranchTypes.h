@@ -25,7 +25,8 @@
   BTYPE(Realloc, 8U)                                                           \
   BTYPE(Free, 9U)                                                              \
   BTYPE(GetVal, 10U)                                                           \
-  BMARK(END, 10U)
+  BTYPE(InitialBranch, 11U)                                                    \
+  BMARK(END, 11U)
 /// \endcond
 
 /** @enum BranchType

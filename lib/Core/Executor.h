@@ -93,7 +93,7 @@ class MemoryObject;
 class ObjectState;
 class PForest;
 class Searcher;
-class SeedInfo;
+class ExecutingSeed;
 class SpecialFunctionHandler;
 struct StackFrame;
 class SymbolicSource;
@@ -133,8 +133,7 @@ private:
   decltype(__ctype_toupper_loc()) c_type_toupper_addr;
 #endif
 
-  size_t maxNewWriteableOSSize = 0;
-  size_t maxNewStateStackSize = 0;
+  double lastWeightOfState = 0.001;
 
   size_t multiplexReached = 0;
 
@@ -164,14 +163,15 @@ private:
   std::unique_ptr<TargetCalculator> targetCalculator;
   std::unique_ptr<TargetManager> targetManager;
 
-  /// When non-empty the Executor is running in "seed" mode. The
-  /// states in this map will be executed in an arbitrary order
-  /// (outside the normal search interface) until they terminate. When
-  /// the states reach a symbolic branch then either direction that
-  /// satisfies one or more seeds will be added to this map. What
-  /// happens with other states (that don't satisfy the seeds) depends
-  /// on as-yet-to-be-determined flags.
+  /// When non-empty the Executor is running in "seed" mode. This map matches
+  /// states with seeds. Seeds contain set of concrete values for symbolic
+  /// variables. When the states reach a symbolic branch then either direction
+  /// that satisfies one or more seeds will be added to this map. What happens
+  /// with other states (that don't satisfy the seeds) depends on
+  /// as-yet-to-be-determined flags.
   std::unique_ptr<SeedMap> seedMap;
+
+  std::unique_ptr<std::deque<ExecutingSeed>> storedSeeds;
 
   /// Map of globals to their representative memory object.
   std::map<const llvm::GlobalValue *, MemoryObject *> globalObjects;
@@ -187,20 +187,9 @@ private:
   /// Manager for everything related to targeted execution mode
   std::unique_ptr<TargetedExecutionManager> targetedExecutionManager;
 
-  /// When non-null the bindings that will be used for calls to
-  /// klee_make_symbolic in order replay.
-  const struct KTest *replayKTest;
-
-  /// When non-null a list of branch decisions to be used for replay.
-  const std::vector<bool> *replayPath;
-
-  /// The index into the current \ref replayKTest or \ref replayPath
-  /// object.
-  unsigned replayPosition;
-
   /// When non-null a list of "seed" inputs which will be used to
   /// drive execution.
-  const std::vector<struct KTest *> *usingSeeds;
+  std::vector<ExecutingSeed> usingInitialSeeds;
 
   /// Disables forking, instead a random path is chosen. Enabled as
   /// needed to control memory usage. \see fork()
@@ -263,7 +252,12 @@ private:
 
   void executeInstruction(ExecutionState &state, KInstruction *ki);
 
-  void seed(ExecutionState &initialState);
+  std::vector<ExecutingSeed> uploadNewSeeds();
+  void initialSeed(ExecutionState &initialState,
+                   std::vector<ExecutingSeed> usingSeeds);
+
+  void storeState(const ExecutionState &state, ExecutingSeed &res);
+
   void run(ExecutionState *initialState);
 
   // Given a concrete object in our [klee's] address space, add it to
@@ -577,12 +571,6 @@ private:
   ref<klee::ConstantExpr> toConstant(ExecutionState &state, ref<Expr> e,
                                      const std::string &reason);
 
-  /// Evaluate the given expression under each seed, and return the
-  /// first one that results in a constant, if such a seed exist.  Otherwise,
-  /// return the non-constant evaluation of the expression under one of the
-  /// seeds.
-  ref<klee::ConstantExpr> getValueFromSeeds(ExecutionState &state, ref<Expr> e);
-
   ref<klee::ConstantPointerExpr> toConstantPointer(ExecutionState &state,
                                                    ref<PointerExpr> e,
                                                    const char *purpose);
@@ -708,11 +696,16 @@ private:
   void doImpliedValueConcretization(ExecutionState &state, ref<Expr> e,
                                     ref<ConstantExpr> value);
 
+  size_t getMemoryUsage();
+
   /// check memory usage and terminate states when over threshold of
   /// -max-memory
-  /// + 100MB \return true if below threshold, false otherwise (states were
+  /// + 1% \return true if below threshold, false otherwise (states were
   /// terminated)
-  bool checkMemoryUsage();
+
+  enum MemoryUsage { None, Low, High, Full };
+
+  MemoryUsage checkMemoryUsage();
 
   /// check if branching/forking into N branches is allowed
   bool branchingPermitted(ExecutionState &state, unsigned N);
@@ -725,6 +718,8 @@ private:
   void dumpPForest();
 
   void executeAction(ref<SearcherAction> action);
+
+  void unseedIfReachedMaxSeedInstructions(ExecutionState *state);
   void goForward(ref<ForwardAction> action);
 
   const KInstruction *getKInst(const llvm::Instruction *ints) const;
@@ -746,18 +741,6 @@ public:
     symPathWriter = tsw;
   }
 
-  void setReplayKTest(const struct KTest *out) override {
-    assert(!replayPath && "cannot replay both buffer and path");
-    replayKTest = out;
-    replayPosition = 0;
-  }
-
-  void setReplayPath(const std::vector<bool> *path) override {
-    assert(!replayKTest && "cannot replay both buffer and path");
-    replayPath = path;
-    replayPosition = 0;
-  }
-
   llvm::Module *setModule(
       std::vector<std::unique_ptr<llvm::Module>> &userModules,
       std::vector<std::unique_ptr<llvm::Module>> &libsModules,
@@ -768,8 +751,11 @@ public:
 
   void setFunctionsByModule(FunctionsByModule &&functionsByModule) override;
 
-  void useSeeds(const std::vector<struct KTest *> *seeds) override {
-    usingSeeds = seeds;
+  void useSeeds(std::vector<SeedFromFile> seeds) override {
+    for (SeedFromFile seed : seeds) {
+      usingInitialSeeds.push_back(
+          ExecutingSeed(seed.ktest, seed.maxInstructions));
+    }
   }
 
   ExecutionState *formState(llvm::Function *f);
@@ -847,6 +833,9 @@ public:
 
   void getBlockPath(const ExecutionState &state,
                     std::string &blockPath) override;
+
+  void getSteppedInstructions(const ExecutionState &state,
+                              unsigned &res) override;
 
   Expr::Width getWidthForLLVMType(llvm::Type *type) const;
   size_t getAllocationAlignment(const llvm::Value *allocSite) const;

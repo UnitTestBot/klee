@@ -10,6 +10,7 @@
 #define KLEE_INTERPRETER_H
 
 #include "TerminationTypes.h"
+#include "klee/ADT/SeedFromFile.h"
 #include "klee/Module/Annotation.h"
 
 #include "klee/Module/SarifReport.h"
@@ -200,18 +201,9 @@ public:
   // to record the symbolic path (as a stream of '0' and '1' bytes).
   virtual void setSymbolicPathWriter(TreeStreamWriter *tsw) = 0;
 
-  // supply a test case to replay from. this can be used to drive the
-  // interpretation down a user specified path. use null to reset.
-  virtual void setReplayKTest(const struct KTest *out) = 0;
-
-  // supply a list of branch decisions specifying which direction to
-  // take on forks. this can be used to drive the interpretation down
-  // a user specified path. use null to reset.
-  virtual void setReplayPath(const std::vector<bool> *path) = 0;
-
   // supply a set of symbolic bindings that will be used as "seeds"
   // for the search. use null to reset.
-  virtual void useSeeds(const std::vector<struct KTest *> *seeds) = 0;
+  virtual void useSeeds(std::vector<SeedFromFile> seeds) = 0;
 
   virtual void runFunctionAsMain(llvm::Function *f, int argc, char **argv,
                                  char **envp) = 0;
@@ -236,6 +228,9 @@ public:
 
   virtual void getConstraintLog(const ExecutionState &state, std::string &res,
                                 LogType logFormat = STP) = 0;
+
+  virtual void getSteppedInstructions(const ExecutionState &state,
+                                      unsigned &res) = 0;
 
   virtual bool getSymbolicSolution(const ExecutionState &state, KTest &res) = 0;
 

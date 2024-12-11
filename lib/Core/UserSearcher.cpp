@@ -87,6 +87,11 @@ cl::opt<bool> UseFairSearch(
         "(default=false)"),
     cl::init(false), cl::cat(SearchCat));
 
+cl::opt<bool>
+    UseSeededSearch("use-seeded-search",
+                    cl::desc("Use seeded searcher (explores seeded states "
+                             "before unseeded) (default=false)"),
+                    cl::init(false), cl::cat(SearchCat));
 } // namespace klee
 
 void klee::initializeSearchOptions() {
@@ -187,6 +192,12 @@ Searcher *klee::constructBaseSearcher(Executor &executor) {
         new IterativeDeepeningSearcher(searcher, UseIterativeDeepeningSearch);
   }
 
+  if (UseSeededSearch) {
+    searcher = new SeededSearcher(searcher,
+                                  getNewSearcher(CoreSearch[0], executor.theRNG,
+                                                 *executor.processForest));
+  }
+
   return searcher;
 }
 
@@ -199,7 +210,6 @@ Searcher *klee::constructUserSearcher(Executor &executor) {
   } else {
     searcher = constructBaseSearcher(executor);
   }
-
   llvm::raw_ostream &os = executor.getHandler().getInfoStream();
 
   os << "BEGIN searcher description\n";
