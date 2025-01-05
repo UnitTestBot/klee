@@ -3,7 +3,7 @@
 // REQUIRES: not-asan
 // REQUIRES: not-msan
 // REQUIRES: not-darwin
-// RUN: %kleef --property-file=%S/coverage-error-call.prp --max-memory=7000000000 --max-cputime-soft=180 --64 --debug %s 2>&1 | FileCheck %s
+// RUN: %kleef --property-file=%S/coverage-error-call.prp --max-memory=7000000000 --max-cputime-soft=180 --64 --debug %s 2>&1 | FileCheck %s --dump-input-filter=all
 // CHECK: KLEE: WARNING: 100.00% Reachable Reachable
 
 extern long __VERIFIER_nondet_long(void);
