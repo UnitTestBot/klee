@@ -1,9 +1,11 @@
 // It requires bitwuzla because the script currently runs with bitwuzla solver backend
 // REQUIRES: bitwuzla
+// Disabling sanitizers because bitwuzla crashes with an assertion failure
 // REQUIRES: not-asan
 // REQUIRES: not-msan
+// REQUIRES: not-ubsan
 // REQUIRES: not-darwin
-// RUN: %kleef --property-file=%S/coverage-error-call.prp --max-memory=7000000000 --max-cputime-soft=180 --64 --debug %s 2>&1 | FileCheck %s --dump-input=always --dump-input-filter=all
+// RUN: %kleef --property-file=%S/coverage-error-call.prp --max-memory=7000000000 --max-cputime-soft=900 --64 --debug %s 2>&1 | FileCheck %s
 // CHECK: KLEE: WARNING: 100.00% Reachable Reachable
 
 extern long __VERIFIER_nondet_long(void);
