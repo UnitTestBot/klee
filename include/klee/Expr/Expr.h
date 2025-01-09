@@ -150,13 +150,7 @@ protected:
     }
   };
 
-  struct ConstantExprCacheSet {
-    std::unordered_map<llvm::APInt, ConstantExpr *, APIntHash, APIntEq> cache;
-    ~ConstantExprCacheSet();
-  };
-
   static ExprCacheSet cachedExpressions;
-  static ConstantExprCacheSet cachedConstantExpressions;
   static ref<Expr> createCachedExpr(ref<Expr> e);
   bool isCached = false;
   bool toBeCleared = false;
@@ -1538,24 +1532,17 @@ public:
   void toMemory(void *address);
 
   static ref<ConstantExpr> alloc(const llvm::APInt &v) {
-    auto success = cachedConstantExpressions.cache.find(v);
-    if (success == cachedConstantExpressions.cache.end()) {
-      // Cache miss
-      ref<ConstantExpr> r = new ConstantExpr(v);
-      r->computeHash();
-      r->computeHeight();
-      r->isCached = true;
-      cachedConstantExpressions.cache[v] = r.get();
-      return r;
-    }
-    return success->second;
+    ref<ConstantExpr> r = new ConstantExpr(v);
+    r->computeHash();
+    r->computeHeight();
+    return r;
   }
 
   static ref<ConstantExpr> alloc(const llvm::APFloat &f) {
     ref<ConstantExpr> r(new ConstantExpr(f.bitcastToAPInt(), true));
     r->computeHash();
     r->computeHeight();
-    return createCachedExpr(r);
+    return r;
   }
 
   static ref<ConstantExpr> alloc(uint64_t v, Width w) {

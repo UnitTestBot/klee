@@ -34,9 +34,11 @@ def klee_options(
         "--use-forked-solver=false",
         # "--solver-backend=stp",
         # "--solver-backend=z3-tree",
-        "--solver-backend=bitwuzla-tree",
+        "--solver-backend=bitwuzla",
         "--max-solvers-approx-tree-inc=16",
-        f"--max-memory={int(max_memory * 0.9)}",  # Just use half of the memory in case we have to fork
+        # Just use half of the memory in case we have to fork
+        f"--max-memory={int(max_memory * 0.7)}",
+        f"--max-solver-memory={int(max_memory * 0.7)}",
         "--libc=klee",
         "--skip-not-lazy-initialized",
         f"--output-dir={test_output_dir}",  # Output files into specific directory
@@ -56,14 +58,20 @@ def klee_options(
         "--fp-runtime",
         # "--max-sym-array-size=4096",
         "--symbolic-allocation-threshold=8192",
-        "--uninit-memory-test-multiplier=10",
+        "--uninit-memory-test-multiplier=0",
         # "--dump-all-states=false",
         #  "--search=nurs:covnew",
         #  "--search=nurs:md2u", "--search=random-path",
         #  "-const-array-opt",
+        "--use-batching-search",
+        "--use-concretizing-solver=false",
+        "--batch-instructions=10000",
+        "--batch-time=0",
         "--only-output-make-symbolic-arrays",
         "--memory-backend=mixed",
         "--max-fixed-size-structures-size=64",
+        "--use-intermittent-equalities-rewriter",
+        "--use-iterative-deepening-search=max-cycles",
     ]
 
     if is32:
@@ -85,7 +93,7 @@ def klee_options(
             "--exit-on-error-type=Assert",  # Only generate test cases of type assert
             # "--dump-test-case-type=Assert", # Only dump test cases of type assert
             "--search=dfs",
-            "--search=bfs",
+            "--search=random-state",
             #    "--search=nurs:covnew", "--search=random-path","--search=dfs", "--use-batching-search",
             #    "--search=distance","--search=random-path","--use-batching-search",
             # "--target-assert", # Target
@@ -104,10 +112,10 @@ def klee_options(
         cmd += [
             "--optimize=false",
             "--mem-trigger-cof", # Start on the fly tests generation after approaching memory cup
+            "--use-guided-search=coverage",
             "--use-alpha-equivalence=true",
             "--optimize-aggressive=false",
             "--track-coverage=all", # Only branches and only instructions are wrong in real life. E.g., ternary operators are sometimes counted as different branches, while we stick to look at them as a single instruction from a single branch
-            "--use-iterative-deepening-search=max-cycles",
             f"--max-solver-time={MAX_SOLVER_TIME}s",
             "--max-cycles-before-stuck=15",
             # "--tc-type=cov",
@@ -119,8 +127,8 @@ def klee_options(
         if max_time:
             max_time = float(max_time)
             if max_time and int(max_time) > 30:
-                late_time = int(max_time * 0.9)
-                last_time = int(max_time * 0.97)
+                late_time = int(max_time * 0.7)
+                last_time = int(max_time * 0.9)
             else:
                 late_time = int(max_time * 0.8)
                 last_time = int(max_time * 0.9)
@@ -189,6 +197,7 @@ class KLEEF(object):
         use_perf=False,
         use_valgrind=False,
         write_ktests=False,
+        debug=False,
     ):
         self.source = Path(source) if source else None
         self.is32 = is32
@@ -204,6 +213,7 @@ class KLEEF(object):
             self.write_ktests = "true"
         else:
             self.write_ktests = "false"
+        self.debug = debug
 
         # This file is inside the bin directory - use the root as base
         self.bin_directory = Path(__file__).parent
@@ -213,7 +223,10 @@ class KLEEF(object):
         self.linker_path = tryFind(self.bin_directory, "llvm-link")
         self.library_path = self.base_directory / "libraries"
         self.runtime_library_path = self.base_directory / "runtime/lib"
-        self.test_results_path = Path.cwd() / "test-suite"
+        if self.debug:
+            self.test_results_path = Path.cwd() / self.source.name
+        else:
+            self.test_results_path = Path.cwd() / "test-suite"
         self.test_results_path.mkdir(exist_ok=True)
 
         self.callEnv = os.environ.copy()
@@ -221,7 +234,10 @@ class KLEEF(object):
         self.callEnv["KLEE_RUNTIME_LIBRARY_PATH"] = self.runtime_library_path
 
     def compile(self):
-        self.tempdir = Path(tempfile.mkdtemp())
+        if self.debug:
+            self.tempdir = Path.cwd()
+        else:
+            self.tempdir = Path(tempfile.mkdtemp())
 
         # Compile file for testing
         self.compiled_file = self.tempdir / (self.source.name + ".bc")
@@ -407,6 +423,7 @@ def run(args):
         use_perf=args.perf,
         use_valgrind=args.valgrind,
         write_ktests=args.write_ktests,
+        debug=args.debug,
     )
     wrapper.compile()
     return wrapper.run()
@@ -430,6 +447,12 @@ def main():
     parser.add_argument(
         "--valgrind",
         help="Measure memory with valgrind",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
+        "--debug",
+        help="to use for testing",
         action="store_true",
         default=False,
     )

@@ -419,6 +419,21 @@ Z3ASTHandle Z3BitvectorBuilder::constructActual(ref<Expr> e, int *width_out) {
     Z3ASTHandle src = castToFloat(construct(ce->src, &srcWidth));
     *width_out = ce->getWidth();
     FPCastWidthAssert(width_out, "Invalid FPToUI width");
+    auto fp_width = getFloatSortFromBitWidth(srcWidth);
+    Z3ASTHandle maxBound = Z3ASTHandle(
+        Z3_mk_fpa_leq(
+            ctx, src,
+            Z3_mk_fpa_to_fp_unsigned(ctx, getRoundingModeSort(ce->roundingMode),
+                                     bvMinusOne(*width_out), fp_width)),
+        ctx);
+    sideConstraints.push_back(maxBound);
+    Z3ASTHandle minBound = Z3ASTHandle(
+        Z3_mk_fpa_geq(
+            ctx, src,
+            Z3_mk_fpa_to_fp_unsigned(ctx, getRoundingModeSort(ce->roundingMode),
+                                     bvZero(*width_out), fp_width)),
+        ctx);
+    sideConstraints.push_back(minBound);
     return Z3ASTHandle(Z3_mk_fpa_to_ubv(ctx,
                                         getRoundingModeSort(ce->roundingMode),
                                         src, *width_out),
@@ -431,6 +446,23 @@ Z3ASTHandle Z3BitvectorBuilder::constructActual(ref<Expr> e, int *width_out) {
     Z3ASTHandle src = castToFloat(construct(ce->src, &srcWidth));
     *width_out = ce->getWidth();
     FPCastWidthAssert(width_out, "Invalid FPToSI width");
+    auto fp_width = getFloatSortFromBitWidth(srcWidth);
+    Z3ASTHandle smax = Z3ASTHandle(
+        Z3_mk_concat(ctx, bvZero(1), bvMinusOne(*width_out - 1)), ctx);
+    Z3ASTHandle fpsmax = Z3ASTHandle(
+        Z3_mk_fpa_to_fp_signed(ctx, getRoundingModeSort(ce->roundingMode), smax,
+                               fp_width),
+        ctx);
+    Z3ASTHandle maxBound = Z3ASTHandle(Z3_mk_fpa_leq(ctx, src, fpsmax), ctx);
+    sideConstraints.push_back(maxBound);
+    Z3ASTHandle smin =
+        Z3ASTHandle(Z3_mk_concat(ctx, bvOne(1), bvZero(*width_out - 1)), ctx);
+    Z3ASTHandle fpsmin = Z3ASTHandle(
+        Z3_mk_fpa_to_fp_signed(ctx, getRoundingModeSort(ce->roundingMode), smin,
+                               fp_width),
+        ctx);
+    Z3ASTHandle minBound = Z3ASTHandle(Z3_mk_fpa_geq(ctx, src, fpsmin), ctx);
+    sideConstraints.push_back(maxBound);
     return Z3ASTHandle(Z3_mk_fpa_to_sbv(ctx,
                                         getRoundingModeSort(ce->roundingMode),
                                         src, *width_out),

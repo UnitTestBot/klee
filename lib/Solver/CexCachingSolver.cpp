@@ -102,7 +102,7 @@ public:
                            bool &isValid);
   SolverRunStatus getOperationStatusCode();
   std::string getConstraintLog(const Query &query) final;
-  void setCoreSolverTimeout(time::Span timeout);
+  void setCoreSolverLimits(time::Span timeout, unsigned memoryLimit);
   void notifyStateTermination(std::uint32_t id);
 };
 
@@ -429,8 +429,9 @@ std::string CexCachingSolver::getConstraintLog(const Query &query) {
   return solver->impl->getConstraintLog(query);
 }
 
-void CexCachingSolver::setCoreSolverTimeout(time::Span timeout) {
-  solver->impl->setCoreSolverTimeout(timeout);
+void CexCachingSolver::setCoreSolverLimits(time::Span timeout,
+                                           unsigned memoryLimit) {
+  solver->impl->setCoreSolverLimits(timeout, memoryLimit);
 }
 
 void CexCachingSolver::notifyStateTermination(std::uint32_t id) {

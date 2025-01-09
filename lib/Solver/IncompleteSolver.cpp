@@ -149,8 +149,9 @@ std::string StagedSolverImpl::getConstraintLog(const Query &query) {
   return secondary->impl->getConstraintLog(query);
 }
 
-void StagedSolverImpl::setCoreSolverTimeout(time::Span timeout) {
-  secondary->impl->setCoreSolverTimeout(timeout);
+void StagedSolverImpl::setCoreSolverLimits(time::Span timeout,
+                                           unsigned memoryLimit) {
+  secondary->impl->setCoreSolverLimits(timeout, memoryLimit);
 }
 
 void StagedSolverImpl::notifyStateTermination(std::uint32_t id) {

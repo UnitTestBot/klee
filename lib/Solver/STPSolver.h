@@ -29,10 +29,10 @@ public:
   /// format.
   std::string getConstraintLog(const Query &) final;
 
-  /// setCoreSolverTimeout - Set constraint solver timeout delay to the given
+  /// setCoreSolverLimits - Set constraint solver timeout delay to the given
   /// value; 0
   /// is off.
-  virtual void setCoreSolverTimeout(time::Span timeout);
+  virtual void setCoreSolverLimits(time::Span timeout, unsigned memoryLimit);
 };
 } // namespace klee
 

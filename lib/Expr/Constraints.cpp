@@ -37,10 +37,16 @@ llvm::cl::opt<RewriteEqualitiesPolicy> RewriteEqualities(
     llvm::cl::values(clEnumValN(RewriteEqualitiesPolicy::None, "none",
                                 "Don't rewrite"),
                      clEnumValN(RewriteEqualitiesPolicy::Simple, "simple",
-                                "lightweight visitor"),
+                                "Use lightweight visitor"),
                      clEnumValN(RewriteEqualitiesPolicy::Full, "full",
-                                "more powerful visitor")),
+                                "Use more powerful visitor")),
     llvm::cl::init(RewriteEqualitiesPolicy::Simple), llvm::cl::cat(SolvingCat));
+
+llvm::cl::opt<bool> UseIntermittentRewriter(
+    "use-intermittent-equalities-rewriter",
+    llvm::cl::desc(
+        "Rewrite existing constraints every few additions (default=false)"),
+    llvm::cl::init(false), llvm::cl::cat(SolvingCat));
 } // namespace
 
 class ExprReplaceVisitor : public ExprVisitor {
@@ -372,31 +378,15 @@ ConstraintSet::independentElements() const {
 
 const Path &PathConstraints::path() const { return _path; }
 
-const ExprHashMap<Path::PathIndex> &PathConstraints::indexes() const {
-  return pathIndexes;
-}
-
 const Assignment &ConstraintSet::concretization() const {
   return *_concretization;
 }
 
-const constraints_ty &PathConstraints::original() const { return _original; }
-
-const ExprHashMap<ExprHashSet> &PathConstraints::simplificationMap() const {
-  return _simplificationMap;
-}
-
 const ConstraintSet &PathConstraints::cs() const { return constraints; }
-
-const PathConstraints::ordered_constraints_ty &
-PathConstraints::orderedCS() const {
-  return orderedConstraints;
-}
 
 void PathConstraints::advancePath(KInstruction *ki) { _path.advance(ki); }
 
-ExprHashSet PathConstraints::addConstraint(ref<Expr> e,
-                                           Path::PathIndex currIndex) {
+ExprHashSet PathConstraints::addConstraint(ref<Expr> e) {
   auto expr = Simplificator::simplifyExpr(constraints, e);
   if (auto ce [[maybe_unused]] = dyn_cast<ConstantExpr>(expr.simplified)) {
     assert(ce->isTrue() && "Attempt to add invalid constraint");
@@ -409,33 +399,22 @@ ExprHashSet PathConstraints::addConstraint(ref<Expr> e,
     if (auto ce [[maybe_unused]] = dyn_cast<ConstantExpr>(expr)) {
       assert(ce->isTrue() && "Expression simplified to false");
     } else {
-      _original.insert(expr);
       added.insert(expr);
-      pathIndexes.insert({expr, currIndex});
-      _simplificationMap[expr].insert(expr);
-      auto indexConstraints = orderedConstraints[currIndex].second;
-      indexConstraints.insert(expr);
-      orderedConstraints.replace({currIndex, indexConstraints});
       constraints.addConstraint(expr);
     }
   }
+  addingCounter += 1;
 
-  if (RewriteEqualities != RewriteEqualitiesPolicy::None) {
+  if (RewriteEqualities != RewriteEqualitiesPolicy::None &&
+      (!UseIntermittentRewriter || (addingCounter & 0x3FFU) == 0)) {
     auto simplified =
         Simplificator::simplify(constraints.cs(), RewriteEqualities);
     if (simplified.wasSimplified) {
       constraints.changeCS(simplified.simplified);
-
-      _simplificationMap = Simplificator::composeExprDependencies(
-          _simplificationMap, simplified.dependency);
     }
   }
 
   return added;
-}
-
-ExprHashSet PathConstraints::addConstraint(ref<Expr> e) {
-  return addConstraint(e, _path.getCurrentIndex());
 }
 
 bool PathConstraints::isSymcretized(ref<Expr> expr) const {

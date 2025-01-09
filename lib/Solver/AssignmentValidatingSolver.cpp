@@ -44,7 +44,7 @@ public:
                      std::vector<SparseStorageImpl<unsigned char>> &values);
   SolverRunStatus getOperationStatusCode();
   std::string getConstraintLog(const Query &) final;
-  void setCoreSolverTimeout(time::Span timeout);
+  void setCoreSolverLimits(time::Span timeout, unsigned memoryLimit);
   void notifyStateTermination(std::uint32_t id);
 };
 
@@ -187,8 +187,9 @@ std::string AssignmentValidatingSolver::getConstraintLog(const Query &query) {
   return solver->impl->getConstraintLog(query);
 }
 
-void AssignmentValidatingSolver::setCoreSolverTimeout(time::Span timeout) {
-  return solver->impl->setCoreSolverTimeout(timeout);
+void AssignmentValidatingSolver::setCoreSolverLimits(time::Span timeout,
+                                                     unsigned memoryLimit) {
+  return solver->impl->setCoreSolverLimits(timeout, memoryLimit);
 }
 
 void AssignmentValidatingSolver::notifyStateTermination(std::uint32_t id) {

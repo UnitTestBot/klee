@@ -568,7 +568,6 @@ std::string Expr::toString() const {
 /***/
 
 Expr::ExprCacheSet Expr::cachedExpressions;
-Expr::ConstantExprCacheSet Expr::cachedConstantExpressions;
 
 Expr::~Expr() {
   Expr::count--;
@@ -579,25 +578,7 @@ Expr::~Expr() {
   }
 }
 
-ConstantExpr::~ConstantExpr() {
-  if (isCached) {
-    toBeCleared = true;
-    if (mIsFloat) {
-      cachedExpressions.cache.erase(this);
-    } else {
-      cachedConstantExpressions.cache.erase(value);
-    }
-    isCached = false;
-  }
-}
-
-Expr::ConstantExprCacheSet::~ConstantExprCacheSet() {
-  while (cache.size() != 0) {
-    auto tmp = *cache.begin();
-    tmp.second->isCached = false;
-    cache.erase(cache.begin());
-  }
-}
+ConstantExpr::~ConstantExpr() {}
 
 ref<Expr> Expr::createCachedExpr(ref<Expr> e) {
   std::pair<CacheType::const_iterator, bool> success;
@@ -2115,10 +2096,10 @@ static ref<Expr> SubExpr_create(Expr *l, Expr *r) {
       return SubExpr::create(AddExpr::create(l, r->getKid(1)), r->getKid(0));
     } else if (rk == Expr::Add &&
                *r->getKid(0) == *l) { // a - (a+b) = -b, a - (b+a) = -b
-      return NotExpr::create(r->getKid(1));
+      return SubExpr::create(ConstantExpr::create(0, type), r->getKid(1));
     } else if (rk == Expr::Add &&
                *r->getKid(1) == *l) { // a - (a+b) = -b, a - (b+a) = -b
-      return NotExpr::create(r->getKid(0));
+      return SubExpr::create(ConstantExpr::create(0, type), r->getKid(0));
     } else if (lk == Expr::Add &&
                (*l->getKid(0) == *r)) { // (a + b) - a = b, (b + a) - a = b
       return l->getKid(1);

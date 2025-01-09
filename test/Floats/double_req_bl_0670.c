@@ -1,6 +1,6 @@
 // It requires bitwuzla because the script currently runs with bitwuzla solver backend
 // REQUIRES: bitwuzla
-// RUN: %kleef --property-file=%S/coverage-error-call.prp --max-memory=7000000000 --max-cputime-soft=30 --32 %s
+// RUN: %kleef --property-file=%S/coverage-error-call.prp --max-memory=7000000000 --max-cputime-soft=30 --32 --debug %s
 
 extern void abort(void);
 extern void __assert_fail(const char *, const char *, unsigned int, const char *) __attribute__((__nothrow__, __leaf__)) __attribute__((__noreturn__));

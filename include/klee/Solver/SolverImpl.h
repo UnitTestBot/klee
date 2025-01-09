@@ -120,7 +120,7 @@ public:
     return {};
   }
 
-  virtual void setCoreSolverTimeout(time::Span) {}
+  virtual void setCoreSolverLimits(time::Span, unsigned) {}
 
   virtual void notifyStateTermination(std::uint32_t id) = 0;
 };

@@ -265,9 +265,7 @@ buildInstructionToLineMap(const llvm::Module &m,
   return a.getMapping();
 }
 
-void KModule::manifest(InterpreterHandler *ih,
-                       Interpreter::GuidanceKind guidance,
-                       bool forceSourceOutput) {
+void KModule::manifest(InterpreterHandler *ih, bool forceSourceOutput) {
 
   if (OutputModule) {
     std::unique_ptr<llvm::raw_fd_ostream> f(ih->openOutputFile("final.bc"));
@@ -334,9 +332,7 @@ void KModule::manifest(InterpreterHandler *ih,
       if (isa<InlineAsm>(cs.getCalledOperand())) {
         isInlineAsm = true;
       }
-      if (kcb->calledFunctions.empty() && !isInlineAsm &&
-          (guidance != Interpreter::GuidanceKind::ErrorGuidance ||
-           !inMainModule(*kfp->function()))) {
+      if (kcb->calledFunctions.empty() && !isInlineAsm) {
         kcb->calledFunctions.insert(escapingFunctions.begin(),
                                     escapingFunctions.end());
       }
@@ -465,11 +461,11 @@ KGlobalVariable::KGlobalVariable(llvm::GlobalVariable *global, unsigned id)
     : KValue(global, KValue::Kind::GLOBAL_VARIABLE), id(id) {}
 
 std::string KGlobalVariable::getSourceFilepath() const {
-  return getLocationInfo(globalVariable()).file;
+  return getLocationInfo(globalVariable())->file;
 }
 // Line number where the global variable is defined
 size_t KGlobalVariable::getLine() const {
-  return getLocationInfo(globalVariable()).line;
+  return getLocationInfo(globalVariable())->line;
 }
 
 bool KGlobalVariable::operator<(const KValue &rhs) const {
@@ -535,12 +531,12 @@ KFunction::KFunction(llvm::Function *_function, KModule *_km,
 
 size_t KFunction::getLine() const {
   auto locationInfo = getLocationInfo(function());
-  return locationInfo.line;
+  return locationInfo->line;
 }
 
 std::string KFunction::getSourceFilepath() const {
   auto locationInfo = getLocationInfo(function());
-  return locationInfo.file;
+  return locationInfo->file;
 }
 
 KFunction::~KFunction() {

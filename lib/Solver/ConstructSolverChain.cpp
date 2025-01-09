@@ -23,6 +23,14 @@
 
 namespace klee {
 
+void constructCachingSolver(std::unique_ptr<Solver> &solver) {
+  if (UseCexCache)
+    solver = createCexCachingSolver(std::move(solver));
+
+  if (UseBranchCache)
+    solver = createCachingSolver(std::move(solver));
+}
+
 std::unique_ptr<Solver> constructSolverChain(
     std::unique_ptr<Solver> coreSolver, std::string querySMT2LogPath,
     std::string baseSolverQuerySMT2LogPath, std::string queryKQueryLogPath,
@@ -53,29 +61,25 @@ std::unique_ptr<Solver> constructSolverChain(
   if (UseFastCexSolver)
     solver = createFastCexSolver(std::move(solver));
 
-  if (UseCexCache)
-    solver = createCexCachingSolver(std::move(solver));
+  constructCachingSolver(solver);
 
-  if (UseBranchCache)
-    solver = createCachingSolver(std::move(solver));
-
-  if (UseAlphaEquivalence)
+  if (UseAlphaEquivalence) {
     solver = createAlphaEquivalenceSolver(std::move(solver));
+
+    constructCachingSolver(solver);
+  }
 
   if (UseIndependentSolver)
     solver = createIndependentSolver(std::move(solver));
 
-  if (UseConcretizingSolver)
+  if (UseConcretizingSolver) {
     solver = createConcretizingSolver(std::move(solver));
 
-  if (UseCexCache && UseConcretizingSolver)
-    solver = createCexCachingSolver(std::move(solver));
+    constructCachingSolver(solver);
 
-  if (UseBranchCache && UseConcretizingSolver)
-    solver = createCachingSolver(std::move(solver));
-
-  if (UseIndependentSolver && UseConcretizingSolver)
-    solver = createIndependentSolver(std::move(solver));
+    if (UseIndependentSolver)
+      solver = createIndependentSolver(std::move(solver));
+  }
 
   if (DebugValidateSolver)
     solver = createValidatingSolver(std::move(solver), rawCoreSolver, false);
@@ -93,6 +97,7 @@ std::unique_ptr<Solver> constructSolverChain(
     klee_message("Logging all queries in .smt2 format to %s\n",
                  querySMT2LogPath.c_str());
   }
+
   if (DebugCrossCheckCoreSolverWith != NO_SOLVER) {
     std::unique_ptr<Solver> oracleSolver =
         createCoreSolver(DebugCrossCheckCoreSolverWith);

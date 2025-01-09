@@ -91,6 +91,11 @@ cl::opt<std::string> MaxCoreSolverTime(
         "Enables --use-forked-solver"),
     cl::cat(SolvingCat));
 
+cl::opt<unsigned> MaxCoreSolverMemory(
+    "max-solver-memory",
+    cl::desc("Set soft memory limit for core SMT solver (default=0 (off))"),
+    cl::init(0), cl::cat(SolvingCat));
+
 cl::opt<bool> UseForkedCoreSolver(
     "use-forked-solver",
     cl::desc("Run the core SMT solver in a forked process (default=true)"),

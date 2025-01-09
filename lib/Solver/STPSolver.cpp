@@ -99,7 +99,8 @@ public:
   ~STPSolverImpl() override;
 
   std::string getConstraintLog(const Query &) final;
-  void setCoreSolverTimeout(time::Span timeout) override {
+  void setCoreSolverLimits(time::Span timeout,
+                           [[maybe_unused]] unsigned memoryLimit) override {
     this->timeout = timeout;
   }
   void notifyStateTermination(std::uint32_t) override {}
@@ -483,8 +484,8 @@ std::string STPSolver::getConstraintLog(const Query &query) {
   return impl->getConstraintLog(query);
 }
 
-void STPSolver::setCoreSolverTimeout(time::Span timeout) {
-  impl->setCoreSolverTimeout(timeout);
+void STPSolver::setCoreSolverLimits(time::Span timeout, unsigned memoryLimit) {
+  impl->setCoreSolverLimits(timeout, memoryLimit);
 }
 
 } // namespace klee

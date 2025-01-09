@@ -1,3 +1,7 @@
+// Disabling sanitizers because bitwuzla crashes with an assertion failure
+// REQUIRES: not-asan
+// REQUIRES: not-msan
+// REQUIRES: not-ubsan
 // RUN: %clang %s -emit-llvm -O0 -g -c -o %t1.bc
 // RUN: rm -rf %t.klee-out
 // RUN: %klee --libc=klee --fp-runtime --output-dir=%t.klee-out --exit-on-error %t1.bc > %t-output.txt 2>&1

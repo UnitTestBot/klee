@@ -57,7 +57,7 @@ public:
       std::vector<SparseStorageImpl<unsigned char>> &values, bool &hasSolution);
   SolverRunStatus getOperationStatusCode();
   std::string getConstraintLog(const Query &);
-  void setCoreSolverTimeout(time::Span timeout);
+  void setCoreSolverLimits(time::Span timeout, unsigned memoryLimit);
   void notifyStateTermination(std::uint32_t id);
 
 private:
@@ -575,8 +575,9 @@ SolverImpl::SolverRunStatus ConcretizingSolver::getOperationStatusCode() {
   return solver->impl->getOperationStatusCode();
 }
 
-void ConcretizingSolver::setCoreSolverTimeout(time::Span timeout) {
-  solver->setCoreSolverTimeout(timeout);
+void ConcretizingSolver::setCoreSolverLimits(time::Span timeout,
+                                             unsigned memoryLimit) {
+  solver->setCoreSolverLimits(timeout, memoryLimit);
 }
 
 void ConcretizingSolver::notifyStateTermination(std::uint32_t id) {

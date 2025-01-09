@@ -75,7 +75,7 @@ public:
                            bool &isValid);
   SolverRunStatus getOperationStatusCode();
   std::string getConstraintLog(const Query &) final;
-  void setCoreSolverTimeout(time::Span timeout);
+  void setCoreSolverLimits(time::Span timeout, unsigned memoryLimit);
   void notifyStateTermination(std::uint32_t id);
 };
 

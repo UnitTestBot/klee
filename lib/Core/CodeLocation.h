@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <unordered_set>
 
 namespace klee {
 
@@ -35,7 +36,7 @@ struct CodeLocation {
   const KValue *source;
 
   /// @brief Location in source code.
-  const LocationInfo location;
+  const ref<LocationInfo> location;
 
 private:
   CodeLocation(const Path::PathIndex &pathIndex, const KValue *source,

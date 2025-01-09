@@ -23,7 +23,7 @@ public:
   virtual ~MetaSMTSolver();
 
   std::string getConstraintLog(const Query &) final;
-  virtual void setCoreSolverTimeout(time::Span timeout);
+  virtual void setCoreSolverLimits(time::Span timeout, unsigned memoryLimit);
 };
 
 /// createMetaSMTSolver - Create a solver using the metaSMT backend set by
