@@ -20,7 +20,8 @@ build_smithril() {
 
   (
     rustup default nightly
-    cargo cinstall --destdir="/" --prefix="${SMITHRIL_INSTALL_PATH}"
+    cargo cinstall --destdir="/" --prefix="${SMITHRIL_INSTALL_PATH}" --features ipc-runner
+    cargo install --path "smithril-runner" --root "${SMITHRIL_INSTALL_PATH}"
   )
   popd
   cd "${SMITHRIL_INSTALL_PATH}" || return 1
