@@ -143,7 +143,7 @@ std::unique_ptr<llvm::Module> MockBuilder::build() {
     loadFileAsOneModule(extFile, ctx, loadedUserModules, errorMsg);
     std::swap(loadedUserModules.front(), mockModule);
 
-    auto mainFn = mockModule->getFunction(opts.MainCurrentName);
+    auto mainFn = mockModule->getFunction(opts.EntryPoint);
     mainFn->setName(opts.MainCurrentName);
   }
 
