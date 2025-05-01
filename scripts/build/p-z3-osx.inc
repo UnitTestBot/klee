@@ -10,5 +10,5 @@ download_z3() {
 install_build_dependencies_z3() {
   # Install essential dependency
   # Ignore if already installed
-  brew install wget || /usr/bin/true
+  brew install wget || exit
 }
