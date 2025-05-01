@@ -1,19 +1,25 @@
-FROM ghcr.io/klee/llvm:130_O_D_A_ubuntu_jammy-20230126 as llvm_base
-FROM ghcr.io/klee/gtest:1.11.0_ubuntu_jammy-20230126 as gtest_base
-FROM ghcr.io/klee/uclibc:klee_uclibc_v1.3_130_ubuntu_jammy-20230126 as uclibc_base
-FROM ghcr.io/klee/tcmalloc:2.9.1_ubuntu_jammy-20230126 as tcmalloc_base
-FROM ghcr.io/klee/stp:2.3.3_ubuntu_jammy-20230126 as stp_base
-FROM ghcr.io/klee/z3:4.8.15_ubuntu_jammy-20230126 as z3_base
-FROM ghcr.io/klee/libcxx:130_ubuntu_jammy-20230126 as libcxx_base
-FROM ghcr.io/klee/sqlite:3400100_ubuntu_jammy-20230126 as sqlite3_base
+FROM ghcr.io/unittestbot/klee/llvm:140_O_D_A_ubuntu_jammy-20230126 as llvm_base
+FROM ghcr.io/unittestbot/klee/gtest:1.11.0_ubuntu_jammy-20230126 as gtest_base
+FROM ghcr.io/unittestbot/klee/uclibc:klee_uclibc_v1.4_140_ubuntu_jammy-20230126 as uclibc_base
+FROM ghcr.io/unittestbot/klee/tcmalloc:2.9.1_ubuntu_jammy-20230126 as tcmalloc_base
+FROM ghcr.io/unittestbot/klee/stp:2.3.3_ubuntu_jammy-20230126 as stp_base
+FROM ghcr.io/unittestbot/klee/z3:4.8.15_ubuntu_jammy-20230126 as z3_base
+FROM ghcr.io/unittestbot/klee/bitwuzla:0.3.1_ubuntu_jammy-20230126 as bitwuzla_base
+FROM ghcr.io/unittestbot/klee/libcxx:140_ubuntu_jammy-20230126 as libcxx_base
+FROM ghcr.io/unittestbot/klee/sqlite:3400100_ubuntu_jammy-20230126 as sqlite3_base
+FROM ghcr.io/unittestbot/klee/immer:v0.8.1_ubuntu_jammy-20230126 as immer_base
+FROM ghcr.io/unittestbot/klee/json:v3.11.3_ubuntu_jammy-20230126 as json_base
 FROM llvm_base as intermediate
 COPY --from=gtest_base /tmp /tmp/
 COPY --from=uclibc_base /tmp /tmp/
 COPY --from=tcmalloc_base /tmp /tmp/
 COPY --from=stp_base /tmp /tmp/
 COPY --from=z3_base /tmp /tmp/
+COPY --from=binwuzla_base /tmp /tmp/
 COPY --from=libcxx_base /tmp /tmp/
 COPY --from=sqlite3_base /tmp /tmp/
+COPY --from=immer_base /tmp /tmp/
+COPY --from=json_base /tmp /tmp/
 ENV COVERAGE=0
 ENV USE_TCMALLOC=1
 ENV BASE=/tmp
@@ -25,9 +31,9 @@ ENV ENABLE_DEBUG=1
 ENV DISABLE_ASSERTIONS=0
 ENV ENABLE_WARNINGS_AS_ERRORS=1
 ENV REQUIRES_RTTI=0
-ENV SOLVERS=STP:Z3
+ENV SOLVERS=BITWUZLA:Z3:STP
 ENV GTEST_VERSION=1.11.0
-ENV UCLIBC_VERSION=klee_uclibc_v1.3
+ENV UCLIBC_VERSION=klee_uclibc_v1.4
 ENV TCMALLOC_VERSION=2.9.1
 ENV SANITIZER_BUILD=
 ENV STP_VERSION=2.3.3
@@ -37,8 +43,9 @@ ENV USE_LIBCXX=1
 ENV KLEE_RUNTIME_BUILD="Debug+Asserts"
 ENV SQLITE_VERSION=3400100
 ENV JSON_VERSION=v3.11.3
+ENV BITWUZLA_VERSION=0.7.0
 ENV IMMER_VERSION=v0.8.1
-LABEL maintainer="KLEE Developers"
+LABEL maintainer="KLEEF Developers"
 
 # TODO remove adding sudo package
 # Create ``klee`` user for container with password ``klee``.
@@ -60,7 +67,7 @@ RUN /tmp/klee_src/scripts/build/build.sh --debug --install-system-deps klee && p
     sudo rm -rf /var/lib/apt/lists/*
 
 
-ENV PATH="$PATH:/tmp/llvm-130-install_O_D_A/bin:/home/klee/klee_build/bin:/home/klee/.local/bin"
+ENV PATH="$PATH:/tmp/llvm-140-install_O_D_A/bin:/home/klee/klee_build/bin:/home/klee/.local/bin"
 ENV BASE=/tmp
 # Add path to local LLVM installation - let system install precede local install
 RUN /bin/bash -c 'echo "export \"PATH=$PATH:$(cd ${BASE}/llvm-*-install*/bin/ && pwd)\" >> /home/klee/.bashrc"'
