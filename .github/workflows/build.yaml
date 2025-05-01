@@ -161,6 +161,7 @@ jobs:
       LLVM_VERSION: 14
       BASE: /tmp
       SOLVERS: Z3
+      Z3_VERSION: 4.14.1
       UCLIBC_VERSION: 0
       USE_TCMALLOC: 0
       USE_LIBCXX: 0
