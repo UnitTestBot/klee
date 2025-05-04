@@ -24,6 +24,7 @@ env:
   ENABLE_OPTIMIZED: 1
   ENABLE_DEBUG: 1
   ENABLE_WARNINGS_AS_ERRORS: ${{ github.event_name == 'workflow_dispatch' && inputs.warnings_as_errors || 1}}
+  ENABLE_FP_RUNTIME: 1
   GTEST_VERSION: 1.16.0
   KLEE_RUNTIME_BUILD: "Debug+Asserts"
   LLVM_VERSION: 11
@@ -162,6 +163,7 @@ jobs:
       BASE: /tmp
       SOLVERS: Z3
       Z3_VERSION: 4.14.1
+      ENABLE_FP_RUNTIME: 0
       UCLIBC_VERSION: 0
       USE_TCMALLOC: 0
       USE_LIBCXX: 0

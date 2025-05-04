@@ -94,8 +94,8 @@ fi
       )
       CMAKE_PREFIX_PATH+=("${Z3_INSTALL_PATH}")
       KLEE_FLOATING_POINT=(
-        "-DENABLE_FLOATING_POINT=TRUE"
-        "-DENABLE_FP_RUNTIME=TRUE"
+        "-DENABLE_FLOATING_POINT=${ENABLE_FP_RUNTIME}"
+        "-DENABLE_FP_RUNTIME=${ENABLE_FP_RUNTIME}""
       )
       ;;
     metasmt)
@@ -115,8 +115,8 @@ fi
       )
       CMAKE_PREFIX_PATH+=("${BITWUZLA_INSTALL_PATH}")
       KLEE_FLOATING_POINT=(
-        "-DENABLE_FLOATING_POINT=TRUE"
-        "-DENABLE_FP_RUNTIME=TRUE"
+        "-DENABLE_FLOATING_POINT=${ENABLE_FP_RUNTIME}""
+        "-DENABLE_FP_RUNTIME=${ENABLE_FP_RUNTIME}""
       )
       echo "bitwuzla"
       ;;

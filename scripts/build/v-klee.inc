@@ -7,6 +7,7 @@ required_variables_klee=(
   "USE_LIBCXX"
   "ENABLE_DOXYGEN"
   "ENABLE_WARNINGS_AS_ERRORS"
+  "ENABLE_FP_RUNTIME"
 )
 
 required_variables_check_klee() {
@@ -15,6 +16,7 @@ required_variables_check_klee() {
   check_bool "USE_LIBCXX"
   check_bool "ENABLE_DOXYGEN"
   check_bool "ENABLE_WARNINGS_AS_ERRORS"
+  check_bool "ENABLE_FP_RUNTIME"
 }
 
 # On which artifacts does KLEE depend on
