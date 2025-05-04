@@ -91,10 +91,8 @@ fi
       echo "Z3"
       KLEE_Z3_CONFIGURE_OPTION=(
         "-DENABLE_SOLVER_Z3=TRUE"
-        "-DZ3_INCLUDE_DIRS=${Z3_INSTALL_PATH}/include"
-        "-DZ3_LIBRARIES=${Z3_INSTALL_PATH}/lib"
-        // TODO: Set the right path to the libraries for macOS
       )
+      CMAKE_PREFIX_PATH+=("${Z3_INSTALL_PATH}")
       KLEE_FLOATING_POINT=(
         "-DENABLE_FLOATING_POINT=TRUE"
         "-DENABLE_FP_RUNTIME=TRUE"
@@ -115,7 +113,6 @@ fi
       KLEE_BITWUZLA_CONFIGURE_OPTION=(
         "-DENABLE_SOLVER_BITWUZLA=TRUE"
       )
-      
       CMAKE_PREFIX_PATH+=("${BITWUZLA_INSTALL_PATH}")
       KLEE_FLOATING_POINT=(
         "-DENABLE_FLOATING_POINT=TRUE"
