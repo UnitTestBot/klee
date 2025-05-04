@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2034
+
 install_binary_artifact_z3() {
   brew install z3
 }
