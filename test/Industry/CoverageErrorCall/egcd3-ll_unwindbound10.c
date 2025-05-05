@@ -78,6 +78,7 @@ int main() {
 // REQUIRES: bitwuzla
 // REQUIRES: not-asan
 // REQUIRES: not-msan
+// REQUIRES: not-ubsan
 // REQUIRES: not-darwin
 // RUN: %kleef --property-file=%S/coverage-error-call.prp --max-memory=7000000000 --max-cputime-soft=60 --32 --debug --write-ktests %s 2>&1 | FileCheck %s
 // CHECK: KLEE: WARNING: 100.00% Reachable Reachable
