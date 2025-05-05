@@ -24,7 +24,8 @@ env:
   ENABLE_OPTIMIZED: 1
   ENABLE_DEBUG: 1
   ENABLE_WARNINGS_AS_ERRORS: ${{ github.event_name == 'workflow_dispatch' && inputs.warnings_as_errors || 1}}
-  GTEST_VERSION: 1.11.0
+  ENABLE_FP_RUNTIME: 1
+  GTEST_VERSION: 1.16.0
   KLEE_RUNTIME_BUILD: "Debug+Asserts"
   LLVM_VERSION: 11
   MINISAT_VERSION: "master"
@@ -43,7 +44,7 @@ env:
 
 jobs:
   Linux:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         name: [
@@ -160,7 +161,9 @@ jobs:
     env:
       LLVM_VERSION: 14
       BASE: /tmp
-      SOLVERS: STP
+      SOLVERS: Z3
+      Z3_VERSION: 4.14.1
+      ENABLE_FP_RUNTIME: 0
       UCLIBC_VERSION: 0
       USE_TCMALLOC: 0
       USE_LIBCXX: 0

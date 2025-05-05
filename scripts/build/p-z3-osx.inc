@@ -1,13 +1,14 @@
-install_binary_artifact_z3 () {
-  set +e
-  brew install python@2
-  if [[ "X$?" != "X0" ]]; then
-     brew link --overwrite python@2
-  fi
-  set -e
+#!/usr/bin/env bash
+# shellcheck disable=SC2034
+
+install_binary_artifact_z3() {
   brew install z3
 }
 
-is_installed_z3() {
-    [[ -f "/usr/local/opt/z3/bin/z3" ]]
+setup_artifact_variables_z3() {
+  Z3_INSTALL_PATH="$(brew --cellar z3)/${Z3_VERSION}"
+}
+
+install_build_dependencies_z3() {
+  return 0
 }
