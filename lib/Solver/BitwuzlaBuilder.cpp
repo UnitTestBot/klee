@@ -1113,6 +1113,11 @@ Term BitwuzlaBuilder::constructActual(ref<Expr> e, int *width_out) {
     assert(*width_out != 1 && "uncanonicalized FNeg");
     return ctx->mk_term(Kind::FP_NEG, {arg});
   }
+  case Expr::Pointer:
+  case Expr::ConstantPointer: {
+    PointerExpr *pointerExpr = cast<PointerExpr>(e);
+    return constructActual(pointerExpr->getValue(), width_out);
+  };
 
 // unused due to canonicalization
 #if 0
@@ -1124,7 +1129,7 @@ case Expr::Sge:
 #endif
 
   default:
-    assert(0 && "unhandled Expr type");
+    klee_error("unhandled Expr type");
     return getTrue();
   }
 }

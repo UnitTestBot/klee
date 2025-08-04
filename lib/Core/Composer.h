@@ -200,6 +200,9 @@ private:
   ExprVisitor::Action visitRead(const ReadExpr &) override;
   ExprVisitor::Action visitConcat(const ConcatExpr &concat) override;
   ExprVisitor::Action visitSelect(const SelectExpr &) override;
+  ExprVisitor::Action visitPointer(const PointerExpr &) override;
+
+  ref<Expr> processPointer(ref<Expr> base, ref<Expr> value);
   ref<Expr> processRead(const Array *root, const UpdateList &updates,
                         ref<Expr> index, Expr::Width width);
   ref<Expr> processSelect(ref<Expr> cond, ref<Expr> trueExpr,

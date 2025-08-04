@@ -116,7 +116,7 @@ private:
   std::vector<Subscriber *> subscribers;
   PForest *processForest;
 
-  InitializerPredicate *predicate;
+  std::unique_ptr<InitializerPredicate> predicate;
 
 public:
   ExecutionState *emptyState;
@@ -164,7 +164,7 @@ public:
   }
 
   void setPredicate(InitializerPredicate *predicate_) {
-    predicate = predicate_;
+    predicate = std::unique_ptr<InitializerPredicate>(predicate_);
   }
 };
 

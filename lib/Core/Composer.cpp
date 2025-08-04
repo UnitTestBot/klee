@@ -221,6 +221,17 @@ ExprVisitor::Action ComposeVisitor::visitSelect(const SelectExpr &select) {
       processSelect(select.cond, select.trueExpr, select.falseExpr));
 }
 
+ExprVisitor::Action
+ComposeVisitor::visitPointer(const PointerExpr &pointerExpr) {
+  return Action::changeTo(processPointer(pointerExpr.base, pointerExpr.value));
+}
+
+ref<Expr> ComposeVisitor::processPointer(ref<Expr> base, ref<Expr> value) {
+  auto trueBase = visit(base)->getValue();
+  auto trueValue = visit(value)->getValue();
+  return PointerExpr::create(trueBase, trueValue);
+}
+
 ref<ObjectState> ComposeVisitor::shareUpdates(ref<ObjectState> os,
                                               const UpdateList &updates) {
   ref<ObjectState> copy(new ObjectState(*os.get()));

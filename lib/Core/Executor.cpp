@@ -5391,6 +5391,7 @@ void Executor::run(ExecutionState *initialState,
   } else if (ExecutionMode == ExecutionKind::Bidirectional) {
     InitializerPredicate *predicate = new TraceVerifyPredicate(
         data.specialPoints, *codeGraphInfo.get(), InitializeInJoinBlocks);
+    // object manager assumes ownership over predicate
     objectManager->setPredicate(predicate);
     auto initializer = createIsolatedStatesInitializer(predicate, data);
     isolatedStatesInitializer = initializer.get();
@@ -7380,8 +7381,10 @@ void Executor::lazyInitializeLocalObject(ExecutionState &state, StackFrame &sf,
   ref<const MemoryObject> id = lazyInitializeObject(
       state, pointer, target, elementSize, size, true, conditionExpr,
       state.isolated || UseSymbolicSizeLazyInit);
-  state.addPointerResolution(pointer, id.get());
-  state.addPointerResolution(basePointer, id.get());
+  if (!state.isolated) {
+    state.addPointerResolution(pointer, id.get());
+    state.addPointerResolution(basePointer, id.get());
+  }
   state.addConstraint(EqExpr::create(address, id->getBaseExpr()));
   state.addConstraint(
       Expr::createIsZero(EqExpr::create(address, Expr::createPointer(0))));
@@ -7390,6 +7393,14 @@ void Executor::lazyInitializeLocalObject(ExecutionState &state, StackFrame &sf,
   }
   RefObjectPair op = state.addressSpace.findOrLazyInitializeObject(id.get());
   state.addressSpace.bindObject(op.first, op.second.get());
+  if (state.localObjects.count(id) == 0) {
+    for (auto localObject : state.localObjects) {
+      auto localObjectAddress = localObject->getBaseExpr();
+      state.constraints.addConstraint(Expr::createIsZero(
+          EqExpr::create(id->getBaseExpr(), localObjectAddress)));
+    }
+    state.localObjects.insert(id);
+  }
 }
 
 void Executor::lazyInitializeLocalObject(ExecutionState &state,

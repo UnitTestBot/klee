@@ -273,7 +273,8 @@ Z3ASTHandle Z3BitvectorBuilder::constructActual(ref<Expr> e, int *width_out) {
   switch (e->getKind()) {
   case Expr::Pointer:
   case Expr::ConstantPointer: {
-    assert(0 && "unreachable");
+    auto ptrExpr = cast<PointerExpr>(e);
+    return constructActual(ptrExpr->getValue(), width_out);
   }
 
   case Expr::Constant: {

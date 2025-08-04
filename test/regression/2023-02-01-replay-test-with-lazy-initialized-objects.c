@@ -1,4 +1,4 @@
-// REQUIRES: not-darwin
+// REQUIRES: not-darwin, posix
 // RUN: %clang %s -emit-llvm %O0opt -c -o %t.bc
 // RUN: rm -rf %t.klee-out
 // RUN: %klee --output-dir=%t.klee-out --libc=klee --posix-runtime --skip-not-lazy-initialized --min-number-elements-li=4 %t.bc > %t.log

@@ -658,7 +658,7 @@ MetaSMTBuilder<SolverContext>::constructActual(ref<Expr> e, int *width_out) {
   switch (e->getKind()) {
   case Expr::Pointer:
   case Expr::ConstantPointer: {
-    assert(0 && "unreachable");
+    return constructActual(e->getValue(), width_out);
   }
 
   case Expr::Constant: {
