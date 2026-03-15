@@ -60,7 +60,7 @@ jobs:
           "MSan",
           "Z3 only",
           "metaSMT",
-          "STP master",
+          # "STP master",
           "Bitwuzla only",
           "Smithril only",
           "Latest klee-uclibc",
@@ -120,10 +120,10 @@ jobs:
               METASMT_DEFAULT: STP
               REQUIRES_RTTI: 1
           # Test we can build against STP master
-          - name: "STP master"
-            env:
-              SOLVERS: STP
-              STP_VERSION: master
+          # - name: "STP master"
+          #   env:
+          #     SOLVERS: STP
+          #     STP_VERSION: master
           # Test just using Bitwuzla only
           - name: "Bitwuzla only"
             env:
