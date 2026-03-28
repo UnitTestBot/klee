@@ -1,4 +1,4 @@
-install_build_dependencies_bitwuzla() {
+install_build_dependencies_smithril() {
   dependencies=(
     ninja
     python3

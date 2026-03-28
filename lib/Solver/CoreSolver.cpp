@@ -41,7 +41,8 @@
 namespace klee {
 
 std::unique_ptr<Solver> createCoreSolver(CoreSolverType cst) {
-  bool isTreeSolver = (cst == Z3_TREE_SOLVER || cst == BITWUZLA_TREE_SOLVER);
+  bool isTreeSolver = (cst == Z3_TREE_SOLVER || cst == BITWUZLA_TREE_SOLVER ||
+                       cst == SMITHRIL_TREE_SOLVER);
   if (!isTreeSolver && MaxSolversApproxTreeInc > 0)
     klee_warning("--%s option is ignored because --%s is not z3-tree",
                  MaxSolversApproxTreeInc.ArgStr.str().c_str(),
@@ -106,6 +107,9 @@ std::unique_ptr<Solver> createCoreSolver(CoreSolverType cst) {
                    MaxSolversApproxTreeInc.ArgStr.str().c_str());
     }
     return std::make_unique<BitwuzlaSolver>();
+#else
+    klee_message("Not compiled with Bitwuzla support");
+    return NULL;
 #endif
   case SMITHRIL_TREE_SOLVER:
   case SMITHRIL_SOLVER:
