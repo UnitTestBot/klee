@@ -230,8 +230,9 @@ protected:
 public:
   std::string getConstraintLog(const Query &) final;
   SolverImpl::SolverRunStatus getOperationStatusCode() final;
-  void setCoreSolverTimeout(time::Span _timeout) final {
+  void setCoreSolverLimits(time::Span _timeout, unsigned _memoryLimit) final {
     timeout = _timeout;
+    // FIXME: Smithril does not currently support memory limits
     auto timeoutInSeconds = static_cast<unsigned>((timeout.toSeconds()));
     if (timeoutInSeconds) {
       std::string timeoutInSecondsString =
@@ -266,7 +267,7 @@ SmithrilSolverImpl::SmithrilSolverImpl()
   assert(builder && "unable to create SmithrilBuilder");
   solverParameters = smithril::smithril_new_options();
 
-  setCoreSolverTimeout(timeout);
+  setCoreSolverLimits(timeout, 0);
 
   if (ProduceUnsatCore) {
     enableUnsatCore();
@@ -770,7 +771,7 @@ private:
   ConstraintQuery prepare(const Query &q);
 
 public:
-  SmithrilTreeSolverImpl(size_t maxSolvers) : maxSolvers(maxSolvers){};
+  SmithrilTreeSolverImpl(size_t maxSolvers) : maxSolvers(maxSolvers) {};
 
   /// implementation of SmithrilSolverImpl interface
   smithril::SmithrilSolver initNativeSmithril(const ConstraintQuery &,
