@@ -1,6 +1,3 @@
-// freebsd on cirrus ci has problems with gcov, so disabling
-// REQUIRES: not-freebsd
-
 // RUN: %clang -Wno-everything %s -emit-llvm %O0opt -g -c -o %t1.bc
 // RUN: rm -rf %t.klee-out
 // RUN: %klee --output-dir=%t.klee-out --optimize-aggressive --track-coverage=branches --optimize=true --emit-all-errors --only-output-states-covering-new=true --dump-states-on-halt=all --search=dfs %t1.bc

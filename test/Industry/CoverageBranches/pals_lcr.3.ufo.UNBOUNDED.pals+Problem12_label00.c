@@ -1,6 +1,3 @@
-// freebsd on cirrus ci has problems with gcov, so disabling
-// REQUIRES: not-freebsd
-
 // REQUIRES: lt-llvm-15.0
 // RUN: %clang %s -emit-llvm %O0opt -g -c -o %t1.bc
 // RUN: rm -rf %t.klee-out

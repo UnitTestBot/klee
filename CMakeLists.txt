@@ -208,15 +208,18 @@ include(${CMAKE_SOURCE_DIR}/cmake/find_z3.cmake)
 include(${CMAKE_SOURCE_DIR}/cmake/find_metasmt.cmake)
 # bitwuzla
 include(${CMAKE_SOURCE_DIR}/cmake/find_bitwuzla.cmake)
+# smithril
+include(${CMAKE_SOURCE_DIR}/cmake/find_smithril.cmake)
 
 
-if ((NOT ${ENABLE_Z3}) AND (NOT ${ENABLE_STP}) AND (NOT ${ENABLE_METASMT}) AND (NOT ${ENABLE_BITWUZLA}))
+if ((NOT ${ENABLE_Z3}) AND (NOT ${ENABLE_STP}) AND (NOT ${ENABLE_METASMT}) AND (NOT ${ENABLE_BITWUZLA}) AND (NOT ${ENABLE_SMITHRIL}))
   message(FATAL_ERROR "No solver was specified. At least one solver is required."
     "You should enable a solver by passing one of more the following options"
     " to cmake:\n"
     "\"-DENABLE_SOLVER_STP=ON\"\n"
     "\"-DENABLE_SOLVER_Z3=ON\"\n"
     "\"-DENABLE_SOLVER_BITWUZLA=ON\"\n"
+    "\"-DENABLE_SOLVER_SMITHRIL=ON\"\n"
     "\"-DENABLE_SOLVER_METASMT=ON\"
     ")
 endif()
@@ -490,8 +493,8 @@ endif()
 ################################################################################
 option(ENABLE_FLOATING_POINT "Enable KLEE's floating point extension" OFF)
 if (ENABLE_FLOATING_POINT)
-  if ((NOT ${ENABLE_Z3}) AND (NOT ${ENABLE_BITWUZLA}))
-    message (FATAL_ERROR "Floating point extension is availible only when using Z3 backend."
+  if ((NOT ${ENABLE_Z3}) AND (NOT ${ENABLE_BITWUZLA}) AND (NOT ${ENABLE_SMITHRIL}))
+    message (FATAL_ERROR "Floating point extension is availible only when using Z3, Bitwuzla or Smithril backend."
             "You should enable either Z3 or Bitwuzla by passing the following options to cmake, respectively:\n"
             "\"-DENABLE_SOLVER_Z3=ON\" or \"-DENABLE_SOLVER_BITWUZLA=ON\"\n")
   else()

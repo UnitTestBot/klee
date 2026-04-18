@@ -34,7 +34,8 @@ def klee_options(
         "--use-forked-solver=false",
         # "--solver-backend=stp",
         # "--solver-backend=z3-tree",
-        "--solver-backend=bitwuzla",
+        # "--solver-backend=bitwuzla-tree",
+        # "--solver-backend=smithril-tree",
         "--max-solvers-approx-tree-inc=16",
         # Just use half of the memory in case we have to fork
         f"--max-memory={int(max_memory * 0.7)}",

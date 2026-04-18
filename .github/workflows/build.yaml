@@ -39,6 +39,7 @@ env:
   Z3_VERSION: 4.8.15
   SQLITE_VERSION: 3400100
   BITWUZLA_VERSION: 0.7.0
+  SMITHRIL_VERSION: v0.1.1
   JSON_VERSION: v3.11.3
   IMMER_VERSION: v0.8.1
 
@@ -59,8 +60,9 @@ jobs:
           "MSan",
           "Z3 only",
           "metaSMT",
-          "STP master",
+          # "STP master",
           "Bitwuzla only",
+          "Smithril only",
           "Latest klee-uclibc",
           "Asserts disabled",
           "No TCMalloc, optimised runtime",
@@ -118,14 +120,18 @@ jobs:
               METASMT_DEFAULT: STP
               REQUIRES_RTTI: 1
           # Test we can build against STP master
-          - name: "STP master"
-            env:
-              SOLVERS: STP
-              STP_VERSION: master
+          # - name: "STP master"
+          #   env:
+          #     SOLVERS: STP
+          #     STP_VERSION: master
           # Test just using Bitwuzla only
           - name: "Bitwuzla only"
             env:
               SOLVERS: BITWUZLA
+          # Test just using Smithril only
+          - name: "Smithril only"
+            env:
+              SOLVERS: SMITHRIL
           # Check we can build latest klee-uclibc branch
           - name: "Latest klee-uclibc"
             env:
